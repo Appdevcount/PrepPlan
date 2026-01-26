@@ -1,0 +1,108 @@
+Prepare like everyday giving a new application architecture implementation strategy to the SA,PS, sitting along with EA for evaluation 
+2 azure 104 exam dumps
+3 c# EF & Linq & Dapper
+2 dotnetapi
+4 reactjs  CC and Qs 
+4 LS implementaion in CC ask copilot,DP ,DDD-Clean Arch & Microservice architecture
+4 angular  as reactjs cc UI app & interview perspective qs
+0.5 sql +5 probs
+5 Codility dsa -Requires continuity
+3 book exam 
+2 az204 solutions
+3 Prepare Resume and Apply for interviews
+1 kafka
+1 story of IO278Consumer,CCVApi,CC did the solutioning and designed application archtecture ,Evaluated the solution design with EA and documented the ADR.  RequestRouting and UCX - event sourcing as Developer. utilized Azure services in the solutioning 
+4 System Design and Azure
+1 PR Automation as tech lead and prompt files ,developed on complex features, mentoring, parallel coordination, reporting , Solution designing
+1 SLM for RAG
+1 Evicore repositories
+7 azure az305
+3 azure az305 exam
+3 Solution Architecture tradeoff analysis and thoughts
+
+54 - HIGHLY KNOWN EFFORT DAYS
+
+Fasttrack with SA for interview first
+=================
+Prepare like everyday giving a new application architecture implementation strategy to the SA,PS, sitting along with EA for evaluation 
+2 azure 104 exam dumps
+2 c# EF & Linq & Dapper
+1 dotnetapi
+3 reactjs  CC and Qs 
+2 LS implementaion in CC ask copilot,DP ,DDD-Clean Arch & Microservice architecture
+4 angular  as reactjs cc UI app & interview perspective qs
+0.5 sql +5 probs
+---- 14
+5 Codility dsa -Requires continuity
+0 book exam 
+1 az204 solutions
+1 Prepare Resume and Apply for interviews
+0.5 kafka
+0.5 story of IO278Consumer,CCVApi,CC did the solutioning and designed application archtecture ,Evaluated the solution design with EA and documented the ADR.  RequestRouting and UCX - event sourcing as Developer. utilized Azure services in the solutioning 
+3 System Design and Azure
+0.5 PR Automation as tech lead and prompt files ,developed on complex features, mentoring, parallel coordination, Client level intiatives like TLG,reporting & metrics, Solution designing,SmartCode Audit,SmartScrum Audit,Smart Architecture Audit,Internal Quality Audit,Internal and External Interview
+0 SLM for RAG
+1 Evicore repositories
+0 azure az305
+0 azure az305 exam
+0 Solution Architecture tradeoff analysis and thoughts
+
+27 - HIGHLY KNOWN EFFORT DAYS
+
+
+
+Fasttrack with SA for Quick interview first
+=================
+Prepare like everyday giving a new application architecture implementation strategy to the SA,PS, sitting along with EA for evaluation 
+2 azure 104 exam dumps
+2 c# EF & Linq & Dapper
+1 dotnetapi
+3 reactjs  CC and Qs 
+1 LS implementaion in CC ask copilot,DP ,DDD-Clean Arch & Microservice architecture
+3 angular  as reactjs cc UI app & interview perspective qs
+0.5 sql +5 probs
+---- 12
+1 Codility dsa -Requires continuity
+0 book exam 
+1 az204 solutions
+1 Prepare Resume and Apply for interviews
+0.5 kafka
+0.5 story of IO278Consumer,CCVApi,CC did the solutioning and designed application archtecture ,Evaluated the solution design with EA and documented the ADR.  RequestRouting and UCX - event sourcing as Developer. utilized Azure services in the solutioning 
+1 System Design and Azure
+0.5 PR Automation as tech lead and prompt files ,developed on complex features, mentoring, parallel coordination, Client level intiatives like TLG,reporting & metrics, Solution designing,SmartCode Audit,SmartScrum Audit,Smart Architecture Audit,Internal Quality Audit,Internal and External Interview
+0 SLM for RAG
+1 Evicore repositories
+0 azure az305
+0 azure az305 exam
+0 Solution Architecture tradeoff analysis and thoughts
+
+19 - HIGHLY KNOWN EFFORT DAYS
+
+
+
+GetReady with SA for Quick interview first
+=================
+Prepare like everyday giving a new application architecture implementation strategy to the SA,PS, sitting along with EA for evaluation 
+0 azure 104 exam dumps
+1 c# EF & Linq & Dapper
+1 dotnetapi
+2 reactjs  CC and Qs 
+1 LS implementaion in CC ask copilot,DP ,DDD-Clean Arch & Microservice architecture
+2 angular  as reactjs cc UI app & interview perspective qs
+0.5 sql +5 probs
+---- 7.5
+0 Codility dsa -Requires continuity
+0 book exam 
+0 az204 solutions
+0.5 Prepare Resume and Apply for interviews
+0.5 kafka
+0.5 story of IO278Consumer,CCVApi,CC did the solutioning and designed application archtecture ,Evaluated the solution design with EA and documented the ADR.  RequestRouting and UCX - event sourcing as Developer. utilized Azure services in the solutioning 
+1 System Design and Azure
+0.5 PR Automation as tech lead and prompt files ,developed on complex features, mentoring, parallel coordination, Client level intiatives like TLG,reporting & metrics, Solution designing,SmartCode Audit,SmartScrum Audit,Smart Architecture Audit,Internal Quality Audit,Internal and External Interview
+0 SLM for RAG
+0.5 Evicore repositories
+0 azure az305
+0 azure az305 exam
+0 Solution Architecture tradeoff analysis and thoughts
+
+11- HIGHLY KNOWN EFFORT DAYS

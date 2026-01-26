@@ -1,0 +1,224 @@
+Day 2 — Advanced C# & .NET Internals (DEEP)
+Topics
+async/await internals
+State machine – conceptual
+Task vs Thread vs ValueTask
+CPU-bound vs IO-bound
+ThreadPool starvation
+Sync-over-async deadlocks
+Garbage Collection:
+Generations
+LOH
+Allocation pressure
+Other key topics:
+Struct vs class trade-offs
+DI lifetimes & captive dependencies
+Exception handling strategy
+Performance profiling mindset
+Deliverables
+✔ 25+ advanced C# Q&A
+✔ 2 real performance/failure stories
+📌 Be ready to answer: "How do you design a scalable .NET API?"
+
+Day 3 — ASP.NET Core & API Architecture (DEEP)
+Topics
+Clean Architecture layers & flow
+Kestrel → Middleware → Filters → Controllers
+Middleware vs Filters (order & use cases)
+Model binding & validation
+Global error handling
+API versioning strategies
+Idempotent APIs
+Background services
+Graceful shutdown
+Logging & correlation IDs
+Health checks
+Deliverables
+✔ End-to-end request flow explanation
+✔ Clear "where logic belongs / does not belong"
+
+Day 4–5 — [Core Foundation Topics]
+
+Day 6 — Testing & Quality Engineering (Often Missed, Very Strong)
+Topics
+Unit vs Integration vs E2E
+Test pyramid
+Mocking vs faking
+Testing async code
+Contract testing
+Coverage vs confidence
+What NOT to test
+Deliverables
+✔ Clear testing strategy explanation
+
+🔵 PHASE 2 — SYSTEM DESIGN & DISTRIBUTED SYSTEMS
+Day 7 — System Design Fundamentals (DEEP)
+Topics
+Monolith vs Microservices
+Stateless services
+Sync vs Async communication
+Caching strategies
+Cache invalidation
+Retry & circuit breaker
+Rate limiting
+Idempotency
+CAP theorem (practical)
+Read/write separation
+Back-pressure handling
+Deliverables
+✔ 1 complete system design walkthrough
+
+Day 8 — Distributed Systems & Messaging (DEEP)
+Topics
+Event-driven architecture
+Message ordering
+Duplicate handling
+Exactly-once myth
+Poison messages
+Saga pattern
+Orchestration vs choreography
+Compensating transactions
+Eventual consistency
+Deliverables
+✔ Event-driven system explained with failures
+
+Day 9 — Design Patterns & DDD (PRACTICAL)
+Topics
+SOLID (real examples)
+Factory, Strategy, Decorator
+Repository & Unit of Work (when NOT to use)
+Anemic vs rich domain model
+Aggregates & invariants
+Domain events
+Application vs domain services
+Anti-patterns & over-engineering
+Deliverables
+✔ Pattern misuse story (very impressive in interviews)
+
+Day 10 — Azure Core Services (Decision-Based, DEEP)
+Topics
+Service selection:
+App Service vs Container Apps vs AKS
+Azure SQL vs Cosmos DB
+Service Bus vs Event Grid vs Event Hub
+Platform features:
+API Management (policies)
+Azure AD vs Azure AD B2C
+Managed Identity
+Key Vault
+Networking basics:
+VNet
+Private endpoints
+Cold starts
+Throttling limits
+Deliverables
+✔ Azure reference architecture with trade-offs
+
+Day 11 — Cloud Scale, Reliability & Cost (VERY DEEP)
+Topics
+Horizontal vs vertical scaling
+Failure domains
+Blast radius containment
+High availability
+Disaster recovery (RTO/RPO)
+Geo-replication
+Autoscaling rules
+Chaos engineering mindset
+Cost optimization strategies
+Reserved vs PAYG
+Cost monitoring & alerts
+Deliverables
+✔ Scaling + cost optimization case study
+📌 Prepare: One Azure reference architecture explanation
+
+Day 12 — Security Architecture (DEEP)
+Topics
+Authentication vs Authorization
+OAuth flows & grant types
+JWT lifecycle & revocation
+OWASP Top 10
+Secure headers
+Rate limiting abuse scenarios
+Defense in depth
+Secrets management
+Secure CI/CD pipelines
+Zero trust basics
+Deliverables
+✔ Security checklist
+✔ Threat modeling explanation
+
+Day 13 — DevOps, CI/CD & Release Strategy
+Topics
+CI/CD pipeline stages
+Quality gates
+Code coverage strategy
+Blue-green vs Canary
+Feature toggles
+Rollback vs roll-forward
+Infra as Code mindset
+Environment promotion
+Deliverables
+✔ End-to-end release pipeline explanation
+
+Day 14 — Full System + Azure Whiteboard Drill (HARD DAY)
+Tasks
+60-minute design:
+Requirements
+Architecture
+Security
+Scale
+Cost
+Failure handling
+Deliverables
+✔ Architect-level confidence
+
+🔵 PHASE 3 — LEADERSHIP, CODING & DOMAIN
+Day 15 — Behavioral & Leadership (VERY DEEP)
+Topics
+Production outages
+Conflict resolution
+Saying "No" to stakeholders
+Mentoring juniors
+Handling under-performance
+Balancing tech debt vs delivery
+Ownership examples
+
+Day 16 — Senior-Level Coding (Non-DSA)
+Topics
+Clean code
+Refactoring legacy code
+SOLID application
+Exception-safe code
+Performance-aware coding
+Testable design
+
+Day 17 — Domain-Specific System Design
+Topics
+Healthcare / FinTech / E-commerce flows
+Compliance awareness
+Data privacy & regulations
+
+🔵 PHASE 4 — MOCKS & POLISH
+Day 18 — Mock Technical Interviews
+Day 19 — Mock System Design + Azure
+Day 20 — Mock Behavioral + HR + Negotiation
+Day 21 — Light Review & Confidence Reset
+
+🔵 PHASE 5 — OPTIONAL EXTRA EDGE (DAY 22–25)
+Day 22 — Architecture Decision Records (ADR)
+Recording decisions
+Explaining rejected options
+
+Day 23 — Production Failures & Postmortems
+RCA
+Prevention strategies
+
+Day 24 — Company-Specific Deep Prep
+Product vs service mindset
+Tech stack alignment
+
+Day 25 — Final Mock + Confidence Boost
+Focus on:
+Stories
+Calm explanations
+Clear thinking
