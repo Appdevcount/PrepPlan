@@ -1,0 +1,204 @@
+
+CREATE FILE Named - Reactjs Course.md
+Create a tutorial on below topics which should be detailed explanation with code snippet in md file wih all easy to understand explanation
+All timestamps below :
+1:36 = What is react js?
+2:18 = What are the major features of react?
+4:29 = What is virtual DOM and how it works?
+6:00 = What are the components in react?
+-> 6:54 = Explain Class components with example.
+-> 8:15 = Explain Functional components with example.
+9:58 = What is JSX?
+12:04 = How to export and import components?
+13:20 = How to use nested components?
+15:02 = What is state in react?
+-> 17:20 = Example
+19:33 = How to update state in react?
+22:26 = What is setState callback?
+23:56 = Why you should not update state directly, explain with example?
+25:10 = What are props in react?
+27:05 = What is difference between state and props?
+28:48 = What is lifting state up in react?
+32:02 = What is children prop in react?
+33:26 = What is defaultProps in react?
+34:58 = What are fragments in react and its advantages?
+36:07 = How to use styling in react js?
+40:30 = How can you conditionally render components in react?
+42:29 = How to render list of data in react?
+44:08 = What is key prop?
+45:24 = Why indexes for keys are not recommended?
+48:00 = How to handle buttons in react? 
+49:25 = How to handle inputs in react?
+51:36 = Explain lifecycle methods in react.
+54:13 = What are the popular hooks in react and explain it's usage?
+56:22 = What is useState and how to manage state using it?
+58:52 = What is useEffect hook and how to manage side effects?
+1:00:41 = How to implement data fetching in reactjs?
+-> 1:02:44 = How to manage loading state?
+1:04:04 = What is prop drilling and how to avoid it? (OR) What is Context API and why we need Context API?
+1:06:22 = What is the Context API in react and why is it used?
+1:08:45 = How do you consume context using the useContext hook?
+1:10:10 = How can you update context values?
+1:11:54 = How do you use multiple Contexts in a single component?
+1:13:14 = What are the advantages of using the Context API over prop drilling?
+1:14:39 = What is the useReducer hook, and when should you use it?
+'useReducer' is basically an alternative of 'useState'. 'useState' basically used for state management.
+'dispatch' will dispatch a method. It has 'type' property.
+1:18:32 = Can you use useReducer with complex state objects?
+1:19:35 = How do you pass additional arguments to the reducer function?
+// Intermediate level of interviews
+1:21:07 = How do you handle side effects with useReducer?
+1:22:55 = What is useRef hook?
+1:25:07 = How can useRef be used to store mutable values?
+1:26:07 = What is forwardRef and when would you use it?
+1:28:24 = How to manage forms in react?
+1:31:27 = What are Custom Hooks and Why do we need them?
+1:33:37 = Implement useFetch custom hook/ Custom hook example?
+// Intermediate level of interviews
+1:35:41 = Implement useWindowResize custom hook
+1:37:33 = What is React Router DOM and why is it used?
+1:38:32 = How do you create a basic route in React Router DOM?
+1:39:35 = How to implement basic routing using react router dom?
+1:41:59 = How to create a link to another route using React Router DOM?
+1:43:09 = How do you use URL parameters / Dynamic routing in React Router DOM?
+1:45:27 = How can you perform a redirect in React Router DOM?
+1:46:31 = What is a Routes component in React Router DOM?
+1:47:29 = How do you handle nested routes in React Router DOM?
+1:49:40 = How can you handle 404 errors(not found) in React Router DOM?
+1:50:35 = How do you programmatically navigate using React Router DOM?
+1:52:09 = Explain useCallback hook with example
+1:54:21 = Explain useMemo hook with example
+1:56:52 = Explain React.memo with example
+1:58:15 = Explain the reconciliation process in React and how it works.
+1:59:33 = What are Pure components?
+2:00:40 = Explain higher order component with example.
+2:02:11 = What is redux, explain core principles.
+2:03:24 = What are actions in Redux, explain with example?
+2:04:34 = Explain reducers in Redux with an example.
+2:05:25 = What is the role of the Redux store?
+2:06:42 = How do you connect React components to Redux store using connect?
+2:08:30 = How do you use the useSelector and useDispatch hooks in a function React component?
+2:10:09 = What is Redux Toolkit?
+2:10:41 = How to configure store in redux toolkit?
+2:12:00 = Explain createSlice in Redux Toolkit with an example.
+2:13:37 = What are controlled components in React?
+2:14:31 = What are uncontrolled components in React?
+2:15:28 = How do you optimize performance in React applications?
+2:16:22 = What is code splitting in React?
+2:17:50 = What are render props in React? Give an example
+2:18:39 = What are portals in React?
+2:20:05 = How do you implement lazy loading in React?
+2:20:45 = How do you define props for a functional component in TypeScript?
+2:21:41 = How do you use the useState hook with TypeScript?
+2:22:18 = How do you type event handlers in React with TypeScript?
+2:23:19 = How do you handle optional props in React components with TypeScript?
+2:24:02 = How do you use the useReducer hook with TypeScript?
+2:25:10 = How do you type the context API in React with TypeScript?
+2:26:06 = How do you write a simple test in Jest
+2:27:44 = How do you render a component for testing using React Testing Library
+2:28:27 = How can you find elements in the DOM using React Testing Library?
+2:29:51 = How do you simulate user events in React Testing Library?
+2:31:05 = How can you test component props with React Testing Library?
+// Hands-on Questions
+2:31:53 = Create a Controlled Input Component
+2:32:42 = Implement toggle Visibility of a Component
+2:33:20 = Fetch Data from an API and Display it, along with loading state.
+2:33:52 = Create a Reusable Button Component with Props
+2:35:05 = Build a Component that Uses an Effect to Perform Cleanup
+2:35:48 = Implement a Context with a Reducer for Global State Management
+2:36:11 = Build a Component with Conditional Rendering Based on Props
+2:37:17 = Implement a simple form component
+Appendix - Document upload and listing component
+
+
+
+CREATE FILE Named - Angular Course.md
+Create a tutorial on below topics which should be detailed explanation with code snippet in md file wih all easy to understand explanation
+Introduction
+⌨ (0:00:00) Introduction to Angular
+⌨ (0:09:56) Introduction to Typescript
+⌨ (0:28:57) SPA and Local Setup
+Typescript
+⌨ (0:42:09) Typescript Data Types and Functions
+⌨ (1:25:56) Classes and Interface
+⌨ (2:11:10) Typescript decorators and tsconfig file
+Angular Installation and Basics
+⌨ (2:20:24) Angular Installation and Binding Syntax
+⌨ (3:25:04) Built-in Directives
+⌨ (4:07:36) Built-in Pipes
+⌨ (4:30:10) Adding Bootstrap CSS to App
+Lifecycle Hook and Component Communication
+⌨ (4:44:53) ngOnInt and Component Communication using Input and Output
+⌨ (5:09:32) Change Detection and ngOnChanges
+⌨ (5:36:51) ngDoCheck
+⌨ (5:42:01) ViewChild, ViewChildren and AfterViewInit
+⌨ (6:22:41) Content Projection, AfterContentInit and OnDestroy
+Dependency Injection
+⌨ (6:44:55) Introduction
+⌨ (7:09:34) Resolution Modifiers
+⌨ (7:24:06) Value Providers
+HttpClient and RxJs
+⌨ (7:41:04) Setting Up HttpClientModule
+⌨ (7:44:07) HttpService , RxJs observables and http get
+⌨ (8:01:28) RxJs Observable and Observer
+⌨ (8:11:59) Http Put and Delete
+⌨ (8:27:10) Http Request
+⌨ (8:40:55) ShareReplay RxJs Operators
+⌨ (8:47:17) Async Pipe
+⌨ (8:57:15) catchError operator
+⌨ (9:05:29) map operator
+⌨ (9:09:06) Http Interceptor
+⌨ (9:29:11) APP_INITIALIZER
+Routing Basics
+⌨ (9:35:06) Angular Router and default Route
+⌨ (9:51:01) Adding Angular material and navigation
+⌨ (10:00:35) Wild card, dynamic route and ActivatedRoute service
+⌨ (10:23:19) ParamMap and Activate Route Service
+Template Driven Forms
+⌨ (10:25:45) Introduction
+⌨ (10:50:20) Validation
+⌨ (11:09:26) Pristine, Dirty State and Reset Form
+⌨ (11:19:08) Custom Directives and Custom Validation
+Advanced Routing
+⌨ (11:49:33) Navigation using Router Service
+⌨ (11:52:34) Feature and Routing Module
+⌨ (12:10:57) Nested and Child Route
+⌨ (12:19:41) Lazy Loading
+⌨ (12:35:49) Configure Lazy Loading using CLI
+⌨ (12:42:46) Using ProvidedIn Any
+⌨ (12:59:15) Router Events
+⌨ (13:06:00) Listening to Router Events
+Route Guards
+⌨ (13:08:49) CanActivate
+⌨ (13:21:24) CanActivateChild
+⌨ (13:26:53) CanLoad
+Reactive Forms
+⌨ (13:30:44) Introduction
+⌨ (13:41:33) Using Material Controls
+⌨ (13:59:54) Nested Form Controls
+⌨ (14:17:38) Dynamic Forms
+⌨ (14:45:09) Built-in Validators
+⌨ (14:51:50) Reset Form
+⌨ (14:55:15) Control Level Validation
+⌨ (15:05:22) SetValue and PatchValue
+⌨ (15:09:23) ValueChanges and UpdateOn
+⌨ (15:17:40) map operator with Form
+⌨ (15:29:55) Custom Validator
+CanDeactivate Guard
+⌨ (15:57:10) CanDeactivate Guard and Form
+Custom Pipe
+⌨ (16:15:04) Custom Pipe
+Resolve Guard
+⌨ (16:25:39) Resolve Guard
+Global Error Handling
+⌨ (16:45:46) Error Handling
+Testing Basics
+⌨ (16:50:08) Introduction
+⌨ (16:56:59) First test
+⌨ (17:01:43) Testing Component and Service
+Deployment and CI/CD
+⌨ (17:15:44) Using Netlify for Deployment
+⌨ (17:28:06) GitHub Actions to Automate Tasks
+
+Appendix - Document upload and listing component
+
