@@ -47,6 +47,7 @@ Use case: Create a new Patient if not already existing.
 
 Entity
 
+```csharp
 public class Patient
 {
     public Guid Id { get; private set; }
@@ -60,17 +61,21 @@ public class Patient
         HealthId = healthId;
     }
 }
+```
 
 Repository Interface
 
+```csharp
 public interface IPatientRepository
 {
     Task<Patient?> GetByHealthIdAsync(string healthId);
     Task AddAsync(Patient patient);
 }
+```
 
 Domain Service
 
+```csharp
 public class PatientDomainService
 {
     private readonly IPatientRepository _patientRepository;
@@ -86,7 +91,7 @@ public class PatientDomainService
         return patient != null;
     }
 }
-
+```
 
 ---
 
@@ -96,14 +101,17 @@ This is where the use case is implemented. It calls domain service and repositor
 
 Command / DTO
 
+```csharp
 public class CreatePatientCommand
 {
     public string Name { get; set; }
     public string HealthId { get; set; }
 }
+```
 
 Application Service / Handler
 
+```csharp
 public class CreatePatientHandler
 {
     private readonly PatientDomainService _patientDomainService;
@@ -134,7 +142,7 @@ public class CreatePatientHandler
         return patient.Id;
     }
 }
-
+```
 
 ---
 
@@ -144,6 +152,7 @@ Implements the repository.
 
 Repository Implementation (EF Core Example)
 
+```csharp
 public class PatientRepository : IPatientRepository
 {
     private readonly ApplicationDbContext _dbContext;
@@ -165,7 +174,7 @@ public class PatientRepository : IPatientRepository
         await _dbContext.SaveChangesAsync();
     }
 }
-
+```
 
 ---
 
@@ -240,14 +249,14 @@ Accepts request DTO.
 
 Calls Application Layer use case.
 
-
+```csharp
 [HttpPost]
 public async Task<IActionResult> CreatePatient([FromBody] CreatePatientDto dto)
 {
     var id = await _createPatientHandler.Handle(dto);
     return Ok(new { PatientId = id });
 }
-
+```
 
 ---
 
@@ -259,7 +268,7 @@ Calls Domain Services / Repository.
 
 Converts Domain Entity → Response DTO before returning to Controller.
 
-
+```csharp
 public class CreatePatientHandler
 {
     private readonly IPatientRepository _patientRepository;
@@ -279,7 +288,7 @@ public class CreatePatientHandler
         return patient.Id;
     }
 }
-
+```
 
 ---
 
@@ -287,7 +296,7 @@ public class CreatePatientHandler
 
 Pure business model, no DTO knowledge.
 
-
+```csharp
 public class Patient
 {
     public Guid Id { get; private set; }
@@ -301,7 +310,7 @@ public class Patient
         HealthId = healthId;
     }
 }
-
+```
 
 ---
 
@@ -313,7 +322,7 @@ Maps DB Models ↔ Domain Models (sometimes via EF Core configuration).
 
 Never returns DTOs.
 
-
+```csharp
 public class PatientRepository : IPatientRepository
 {
     private readonly ApplicationDbContext _dbContext;
@@ -336,7 +345,7 @@ public class PatientRepository : IPatientRepository
         await _dbContext.SaveChangesAsync();
     }
 }
-
+```
 
 ---
 
@@ -423,6 +432,7 @@ The Application Layer can directly call the repository to persist or retrieve en
 
 Example:
 
+```csharp
 public class GetPatientHandler
 {
     private readonly IPatientRepository _patientRepository;
@@ -438,6 +448,7 @@ public class GetPatientHandler
         return patient == null ? null : new PatientDto { Id = patient.Id, Name = patient.Name };
     }
 }
+```
 
 Here, no domain service is required because it's a simple fetch.
 
@@ -457,6 +468,7 @@ In such cases, the Application Layer calls the Domain Service, and the Domain Se
 
 Example:
 
+```csharp
 public class PatientDomainService
 {
     private readonly IPatientRepository _patientRepository;
@@ -472,9 +484,11 @@ public class PatientDomainService
         return patient != null;
     }
 }
+```
 
 Application Layer:
 
+```csharp
 public class CreatePatientHandler
 {
     private readonly PatientDomainService _patientDomainService;
@@ -497,6 +511,7 @@ public class CreatePatientHandler
         return patient.Id;
     }
 }
+```
 
 Here, we use a Domain Service because business rules (uniqueness check, validations) go beyond raw CRUD.
 
@@ -552,6 +567,7 @@ So your domain model should absolutely have a unique Id (usually Guid or long).
 
 Example:
 
+```csharp
 public class Patient
 {
     public Guid Id { get; private set; }
@@ -565,6 +581,7 @@ public class Patient
         HealthId = healthId;
     }
 }
+```
 
 💡 Even if DB uses an auto-increment surrogate key, the domain entity should still expose an identity (Id).
 
@@ -581,7 +598,7 @@ Domain entities carry audit info since it’s required for most use cases (like 
 
 You can use a Base Entity with audit fields.
 
-
+```csharp
 public abstract class BaseEntity
 {
     public Guid Id { get; protected set; }
@@ -590,9 +607,11 @@ public abstract class BaseEntity
     public string? CreatedBy { get; protected set; }
     public string? ModifiedBy { get; protected set; }
 }
+```
 
 Domain Entity Example:
 
+```csharp
 public class Patient : BaseEntity
 {
     public string Name { get; private set; }
@@ -614,6 +633,7 @@ public class Patient : BaseEntity
         DateModified = DateTime.UtcNow;
     }
 }
+```
 
 ✔ Advantage: Business logic can use audit data directly.
 ❌ Disadvantage: Domain Model is “polluted” with persistence concerns.
@@ -632,6 +652,7 @@ Application/Repository layers handle audit stamping automatically.
 
 Domain Entity (pure):
 
+```csharp
 public class Patient
 {
     public Guid Id { get; private set; }
@@ -645,9 +666,11 @@ public class Patient
         HealthId = healthId;
     }
 }
+```
 
 EF Core Interceptor Example:
 
+```csharp
 public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
 {
     foreach (var entry in ChangeTracker.Entries<BaseEntity>())
@@ -665,6 +688,7 @@ public override Task<int> SaveChangesAsync(CancellationToken cancellationToken =
     }
     return base.SaveChangesAsync(cancellationToken);
 }
+```
 
 ✔ Advantage: Domain Model stays clean.
 ❌ Disadvantage: Audit info isn’t naturally available in business rules, so you may need to “inject” it back into DTOs for queries.
@@ -735,6 +759,7 @@ You can use interfaces + dependency injection to provide configuration indirectl
 
 Domain Layer:
 
+```csharp
 public interface IDomainSettings
 {
     int MaxPatientsPerDoctor { get; }
@@ -752,19 +777,24 @@ public class Doctor
         _patients.Add(patient);
     }
 }
+```
 
 Application Layer (inject config and pass down):
 
+```csharp
 public class DomainSettings : IDomainSettings
 {
     public int MaxPatientsPerDoctor { get; set; }
 }
+```
 
 Startup / Composition Root:
 
+```csharp
 builder.Services.Configure<DomainSettings>(builder.Configuration.GetSection("DomainSettings"));
 builder.Services.AddScoped<IDomainSettings>(sp => 
     sp.GetRequiredService<IOptions<DomainSettings>>().Value);
+```
 
 ✅ Now your Domain Layer is decoupled from appsettings.json and still gets the config.
 
@@ -789,13 +819,16 @@ The Infrastructure layer (EF Core) can use this service to stamp audit fields.
 
 Application Layer:
 
+```csharp
 public interface ICurrentUserService
 {
     string? UserId { get; }
 }
+```
 
 Infrastructure Layer (Web Implementation):
 
+```csharp
 public class CurrentUserService : ICurrentUserService
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
@@ -808,9 +841,11 @@ public class CurrentUserService : ICurrentUserService
     public string? UserId => 
         _httpContextAccessor.HttpContext?.User?.FindFirst("sub")?.Value;
 }
+```
 
 EF Core SaveChanges Interceptor:
 
+```csharp
 public class ApplicationDbContext : DbContext
 {
     private readonly ICurrentUserService _currentUser;
@@ -840,6 +875,7 @@ public class ApplicationDbContext : DbContext
         return await base.SaveChangesAsync(cancellationToken);
     }
 }
+```
 
 ✅ This way:
 
@@ -904,6 +940,7 @@ Infrastructure should not know about web, HTTP, or JWTs.
 
 The Application Layer defines what the Infrastructure needs (user info), but not how to get it.
 
+```csharp
 // Application Layer
 public interface ICurrentUserService
 {
@@ -911,7 +948,7 @@ public interface ICurrentUserService
     string? UserName { get; }
     string? Email { get; }
 }
-
+```
 
 ---
 
@@ -919,6 +956,7 @@ public interface ICurrentUserService
 
 Here you can safely use HttpContextAccessor and read JWT/ID Token claims.
 
+```csharp
 // Infrastructure.Web Layer
 public class CurrentUserService : ICurrentUserService
 {
@@ -938,6 +976,7 @@ public class CurrentUserService : ICurrentUserService
     public string? Email => 
         _httpContextAccessor.HttpContext?.User?.FindFirst("email")?.Value;
 }
+```
 
 Here, sub = subject (unique user id in JWT/OIDC).
 Depending on your identity provider (Azure AD B2C, Auth0, etc.), you may use claims like "oid", "upn", or "preferred_username".
@@ -985,9 +1024,10 @@ public class ApplicationDbContext : DbContext
 
 4. Register in DI
 
+```csharp
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
-
+```
 
 ---
 
