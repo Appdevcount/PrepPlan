@@ -155,6 +155,7 @@ namespace ECommerce.Orders
     public interface IOrderService { }
     internal class OrderService : IOrderService { } // Internal - not accessible outside
 }
+```
 
 // Frontend Architecture: BFF (Backend for Frontend) Pattern
 **Full Stack Consideration - BFF Pattern:**
@@ -207,7 +208,9 @@ export default async function handler(req, res) {
 
     res.json(webOptimizedResponse);
 }
+```
 
+```csharp
 // Mobile BFF (ASP.NET Core) - Minimal payload
 [HttpGet("dashboard")]
 public async Task<ActionResult<MobileDashboard>> GetMobileDashboard()
@@ -227,7 +230,9 @@ public async Task<ActionResult<MobileDashboard>> GetMobileDashboard()
         TotalSpent = orders.Sum(o => o.Total)
     };
 }
+```
 
+```csharp
 namespace ECommerce.Inventory
 {
     public interface IInventoryService { }
