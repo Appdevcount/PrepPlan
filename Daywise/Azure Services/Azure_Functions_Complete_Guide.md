@@ -19,11 +19,24 @@
 15. [Deployment Methods](#deployment-methods)
 16. [Monitoring & Observability](#monitoring--observability)
 17. [Security & Authentication](#security--authentication)
-18. [Performance Optimization](#performance-optimization)
-19. [Real-World Scenarios](#real-world-scenarios)
-20. [Best Practices & Patterns](#best-practices--patterns)
-21. [Cost Optimization](#cost-optimization)
-22. [Troubleshooting Guide](#troubleshooting-guide)
+18. [Error Handling & Middleware](#error-handling--middleware)
+19. [Azure Functions Platform Features & Configuration](#azure-functions-platform-features--configuration)
+    - [CORS Configuration](#1-cors-cross-origin-resource-sharing)
+    - [Function Proxies](#2-proxies-function-proxies)
+    - [Custom Handlers](#3-custom-handlers)
+    - [Deployment Slots](#4-deployment-slots)
+    - [Application Settings](#5-application-settings--environment-variables)
+    - [Network Features](#6-network-features)
+    - [IP Restrictions](#7-ip-restrictions--access-restrictions)
+    - [Custom Domains & SSL](#8-custom-domains--ssltls)
+    - [Warm-up Trigger](#9-warm-up-trigger-premiumdedicated-plans)
+    - [Function Keys](#10-function-keys--authorization)
+    - [Easy Auth](#11-easy-auth-authentication--authorization)
+    - [Host.json Reference](#12-hostjson-complete-reference)
+20. [Real-World Scenarios](#real-world-scenarios)
+21. [Best Practices & Patterns](#best-practices--patterns)
+22. [Cost Optimization](#cost-optimization)
+23. [Troubleshooting Guide](#troubleshooting-guide)
 
 ---
 
@@ -1026,6 +1039,1716 @@ public class MultiOutput
 | `{sys.utcNow:MM}` | Month | `01` |
 | `{sys.utcNow:dd}` | Day | `15` |
 | `{sys.randGuid}` | Random GUID | `3e3f9b8a-...` |
+
+---
+
+## Comprehensive Bindings Examples (C#)
+
+### Input Bindings - Detailed Examples
+
+#### 1. Blob Storage Input Binding
+
+```csharp
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Extensions.Logging;
+using System.IO;
+using System.Text;
+
+namespace MyFunctionApp.Bindings
+{
+    public class BlobInputExamples
+    {
+        private readonly ILogger<BlobInputExamples> _logger;
+
+        public BlobInputExamples(ILogger<BlobInputExamples> logger)
+        {
+            _logger = logger;
+        }
+
+        // Example 1: Read blob as Stream
+        [Function("ReadBlobAsStream")]
+        public async Task Run(
+            [QueueTrigger("processing-queue")] string fileName,
+            [BlobInput("input-container/{queueTrigger}.txt", 
+                Connection = "AzureWebJobsStorage")] Stream blobStream)
+        {
+            _logger.LogInformation($"Processing file: {fileName}");
+
+            using var reader = new StreamReader(blobStream);
+            var content = await reader.ReadToEndAsync();
+            
+            _logger.LogInformation($"File content length: {content.Length}");
+            // Process content...
+        }
+
+        // Example 2: Read blob as string
+        [Function("ReadBlobAsString")]
+        public void ProcessText(
+            [QueueTrigger("text-queue")] string blobName,
+            [BlobInput("documents/{queueTrigger}", 
+                Connection = "AzureWebJobsStorage")] string blobContent)
+        {
+            _logger.LogInformation($"Content: {blobContent}");
+            // Direct string access
+        }
+
+        // Example 3: Read blob as byte array
+        [Function("ReadBlobAsBytes")]
+        public void ProcessBinary(
+            [QueueTrigger("binary-queue")] string fileName,
+            [BlobInput("images/{queueTrigger}.jpg", 
+                Connection = "AzureWebJobsStorage")] byte[] imageData)
+        {
+            _logger.LogInformation($"Image size: {imageData.Length} bytes");
+            // Process binary data...
+        }
+
+        // Example 4: Read JSON blob as object
+        [Function("ReadBlobAsObject")]
+        public void ProcessJson(
+            [QueueTrigger("json-queue")] string objectId,
+            [BlobInput("data/{queueTrigger}.json", 
+                Connection = "AzureWebJobsStorage")] CustomerData customer)
+        {
+            _logger.LogInformation($"Customer: {customer.Name}, Email: {customer.Email}");
+        }
+    }
+
+    public class CustomerData
+    {
+        public string Id { get; set; }
+        public string Name { get; set; }
+        public string Email { get; set; }
+    }
+}
+```
+
+#### 2. Queue Storage Input Binding
+
+```csharp
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Extensions.Logging;
+using Azure.Storage.Queues.Models;
+
+namespace MyFunctionApp.Bindings
+{
+    public class QueueInputExamples
+    {
+        private readonly ILogger<QueueInputExamples> _logger;
+
+        public QueueInputExamples(ILogger<QueueInputExamples> logger)
+        {
+            _logger = logger;
+        }
+
+        // Example 1: Simple string message
+        [Function("ProcessQueueString")]
+        public void ProcessString(
+            [QueueTrigger("orders", Connection = "AzureWebJobsStorage")] 
+            string message)
+        {
+            _logger.LogInformation($"Message: {message}");
+        }
+
+        // Example 2: JSON deserialized to object
+        [Function("ProcessQueueObject")]
+        public async Task ProcessObject(
+            [QueueTrigger("orders", Connection = "AzureWebJobsStorage")] 
+            OrderMessage order)
+        {
+            _logger.LogInformation($"Processing order: {order.OrderId}");
+            _logger.LogInformation($"Customer: {order.CustomerId}");
+            _logger.LogInformation($"Amount: ${order.Amount}");
+            
+            // Process order...
+            await Task.Delay(100); // Simulate processing
+        }
+
+        // Example 3: Access message metadata
+        [Function("ProcessQueueWithMetadata")]
+        public void ProcessWithMetadata(
+            [QueueTrigger("orders", Connection = "AzureWebJobsStorage")] 
+            string message,
+            string id,
+            string popReceipt,
+            int dequeueCount,
+            DateTimeOffset insertionTime,
+            DateTimeOffset expirationTime)
+        {
+            _logger.LogInformation($"Message ID: {id}");
+            _logger.LogInformation($"Dequeue count: {dequeueCount}");
+            _logger.LogInformation($"Inserted at: {insertionTime}");
+            _logger.LogInformation($"Expires at: {expirationTime}");
+            
+            // Handle based on dequeue count
+            if (dequeueCount > 3)
+            {
+                _logger.LogWarning("Message has been dequeued multiple times!");
+            }
+        }
+    }
+
+    public class OrderMessage
+    {
+        public string OrderId { get; set; }
+        public string CustomerId { get; set; }
+        public decimal Amount { get; set; }
+        public DateTime OrderDate { get; set; }
+    }
+}
+```
+
+#### 3. Table Storage Input Binding
+
+```csharp
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Extensions.Logging;
+using Azure.Data.Tables;
+
+namespace MyFunctionApp.Bindings
+{
+    public class TableInputExamples
+    {
+        private readonly ILogger<TableInputExamples> _logger;
+
+        public TableInputExamples(ILogger<TableInputExamples> logger)
+        {
+            _logger = logger;
+        }
+
+        // Example 1: Read single entity
+        [Function("ReadTableEntity")]
+        public void ReadEntity(
+            [HttpTrigger(AuthorizationLevel.Function, "get", 
+                Route = "user/{userId}")] HttpRequestData req,
+            [TableInput("Users", "{userId}", "{userId}", 
+                Connection = "AzureWebJobsStorage")] UserEntity user)
+        {
+            if (user != null)
+            {
+                _logger.LogInformation($"User found: {user.Name}, {user.Email}");
+            }
+            else
+            {
+                _logger.LogWarning("User not found");
+            }
+        }
+
+        // Example 2: Query multiple entities using TableClient
+        [Function("QueryTableEntities")]
+        public async Task QueryEntities(
+            [HttpTrigger(AuthorizationLevel.Function, "get", 
+                Route = "users")] HttpRequestData req,
+            [TableInput("Users", Connection = "AzureWebJobsStorage")] 
+            TableClient tableClient)
+        {
+            var query = tableClient.QueryAsync<UserEntity>(
+                filter: u => u.PartitionKey == "Active");
+
+            await foreach (var user in query)
+            {
+                _logger.LogInformation($"User: {user.Name}");
+            }
+        }
+    }
+
+    public class UserEntity : ITableEntity
+    {
+        public string PartitionKey { get; set; }
+        public string RowKey { get; set; }
+        public string Name { get; set; }
+        public string Email { get; set; }
+        public bool IsActive { get; set; }
+        public DateTimeOffset? Timestamp { get; set; }
+        public ETag ETag { get; set; }
+    }
+}
+```
+
+#### 4. Cosmos DB Input Binding
+
+```csharp
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
+using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
+
+namespace MyFunctionApp.Bindings
+{
+    public class CosmosDbInputExamples
+    {
+        private readonly ILogger<CosmosDbInputExamples> _logger;
+
+        public CosmosDbInputExamples(ILogger<CosmosDbInputExamples> logger)
+        {
+            _logger = logger;
+        }
+
+        // Example 1: Read single document by ID
+        [Function("GetOrderById")]
+        public HttpResponseData GetOrder(
+            [HttpTrigger(AuthorizationLevel.Function, "get", 
+                Route = "orders/{id}")] HttpRequestData req,
+            [CosmosDBInput(
+                databaseName: "OrdersDB",
+                containerName: "Orders",
+                Id = "{id}",
+                PartitionKey = "{id}",
+                Connection = "CosmosDBConnection")] OrderDocument order)
+        {
+            var response = req.CreateResponse(System.Net.HttpStatusCode.OK);
+            
+            if (order != null)
+            {
+                response.WriteAsJsonAsync(order);
+            }
+            else
+            {
+                response.StatusCode = System.Net.HttpStatusCode.NotFound;
+            }
+            
+            return response;
+        }
+
+        // Example 2: Query multiple documents with SQL
+        [Function("GetOrdersByCustomer")]
+        public HttpResponseData GetOrdersByCustomer(
+            [HttpTrigger(AuthorizationLevel.Function, "get", 
+                Route = "customers/{customerId}/orders")] HttpRequestData req,
+            [CosmosDBInput(
+                databaseName: "OrdersDB",
+                containerName: "Orders",
+                SqlQuery = "SELECT * FROM c WHERE c.customerId = {customerId}",
+                Connection = "CosmosDBConnection")] IEnumerable<OrderDocument> orders)
+        {
+            _logger.LogInformation($"Found {orders.Count()} orders");
+
+            var response = req.CreateResponse(System.Net.HttpStatusCode.OK);
+            response.WriteAsJsonAsync(orders);
+            return response;
+        }
+
+        // Example 3: Query with parameters
+        [Function("GetActiveOrders")]
+        public HttpResponseData GetActiveOrders(
+            [HttpTrigger(AuthorizationLevel.Function, "get")] HttpRequestData req,
+            [CosmosDBInput(
+                databaseName: "OrdersDB",
+                containerName: "Orders",
+                SqlQuery = "SELECT * FROM c WHERE c.status = 'Active' AND c.createdDate >= @startDate",
+                Connection = "CosmosDBConnection")] IEnumerable<OrderDocument> orders)
+        {
+            var response = req.CreateResponse(System.Net.HttpStatusCode.OK);
+            response.WriteAsJsonAsync(new
+            {
+                count = orders.Count(),
+                orders = orders
+            });
+            return response;
+        }
+    }
+
+    public class OrderDocument
+    {
+        [JsonProperty("id")]
+        public string Id { get; set; }
+        
+        [JsonProperty("customerId")]
+        public string CustomerId { get; set; }
+        
+        [JsonProperty("orderNumber")]
+        public string OrderNumber { get; set; }
+        
+        [JsonProperty("amount")]
+        public decimal Amount { get; set; }
+        
+        [JsonProperty("status")]
+        public string Status { get; set; }
+        
+        [JsonProperty("createdDate")]
+        public DateTime CreatedDate { get; set; }
+        
+        [JsonProperty("items")]
+        public List<OrderItem> Items { get; set; }
+    }
+
+    public class OrderItem
+    {
+        public string ProductId { get; set; }
+        public string ProductName { get; set; }
+        public int Quantity { get; set; }
+        public decimal Price { get; set; }
+    }
+}
+```
+
+#### 5. SQL Input Binding
+
+```csharp
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
+using Microsoft.Extensions.Logging;
+
+namespace MyFunctionApp.Bindings
+{
+    public class SqlInputExamples
+    {
+        private readonly ILogger<SqlInputExamples> _logger;
+
+        public SqlInputExamples(ILogger<SqlInputExamples> logger)
+        {
+            _logger = logger;
+        }
+
+        // Example 1: Simple SQL query
+        [Function("GetProducts")]
+        public HttpResponseData GetProducts(
+            [HttpTrigger(AuthorizationLevel.Function, "get")] HttpRequestData req,
+            [SqlInput(
+                commandText: "SELECT * FROM Products WHERE IsActive = 1",
+                commandType: System.Data.CommandType.Text,
+                connectionStringSetting: "SqlConnectionString")] 
+            IEnumerable<Product> products)
+        {
+            _logger.LogInformation($"Found {products.Count()} products");
+
+            var response = req.CreateResponse(System.Net.HttpStatusCode.OK);
+            response.WriteAsJsonAsync(products);
+            return response;
+        }
+
+        // Example 2: Parameterized query
+        [Function("GetProductsByCategory")]
+        public HttpResponseData GetProductsByCategory(
+            [HttpTrigger(AuthorizationLevel.Function, "get", 
+                Route = "products/category/{categoryId}")] HttpRequestData req,
+            [SqlInput(
+                commandText: "SELECT * FROM Products WHERE CategoryId = @CategoryId",
+                commandType: System.Data.CommandType.Text,
+                parameters: "@CategoryId={categoryId}",
+                connectionStringSetting: "SqlConnectionString")] 
+            IEnumerable<Product> products)
+        {
+            var response = req.CreateResponse(System.Net.HttpStatusCode.OK);
+            response.WriteAsJsonAsync(products);
+            return response;
+        }
+
+        // Example 3: Stored procedure
+        [Function("GetCustomerOrders")]
+        public HttpResponseData GetCustomerOrders(
+            [HttpTrigger(AuthorizationLevel.Function, "get", 
+                Route = "customers/{customerId}/orders")] HttpRequestData req,
+            [SqlInput(
+                commandText: "dbo.GetCustomerOrders",
+                commandType: System.Data.CommandType.StoredProcedure,
+                parameters: "@CustomerId={customerId}",
+                connectionStringSetting: "SqlConnectionString")] 
+            IEnumerable<CustomerOrder> orders)
+        {
+            var response = req.CreateResponse(System.Net.HttpStatusCode.OK);
+            response.WriteAsJsonAsync(orders);
+            return response;
+        }
+    }
+
+    public class Product
+    {
+        public int ProductId { get; set; }
+        public string ProductName { get; set; }
+        public string CategoryId { get; set; }
+        public decimal Price { get; set; }
+        public bool IsActive { get; set; }
+    }
+
+    public class CustomerOrder
+    {
+        public int OrderId { get; set; }
+        public int CustomerId { get; set; }
+        public DateTime OrderDate { get; set; }
+        public decimal TotalAmount { get; set; }
+        public string Status { get; set; }
+    }
+}
+```
+
+---
+
+### Output Bindings - Detailed Examples
+
+#### 1. Blob Storage Output Binding
+
+```csharp
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Extensions.Logging;
+using System.Text;
+
+namespace MyFunctionApp.Bindings
+{
+    public class BlobOutputExamples
+    {
+        private readonly ILogger<BlobOutputExamples> _logger;
+
+        public BlobOutputExamples(ILogger<BlobOutputExamples> logger)
+        {
+            _logger = logger;
+        }
+
+        // Example 1: Write string to blob
+        [Function("WriteBlobString")]
+        [BlobOutput("output-container/{rand-guid}.txt", 
+            Connection = "AzureWebJobsStorage")]
+        public string WriteText(
+            [QueueTrigger("data-queue")] string data)
+        {
+            _logger.LogInformation("Writing data to blob");
+            return $"Processed at {DateTime.UtcNow}: {data}";
+        }
+
+        // Example 2: Write byte array to blob
+        [Function("WriteBlobBytes")]
+        [BlobOutput("images/{sys.utcNow:yyyy-MM-dd}/{rand-guid}.jpg", 
+            Connection = "AzureWebJobsStorage")]
+        public byte[] WriteImage(
+            [QueueTrigger("image-queue")] byte[] imageData)
+        {
+            _logger.LogInformation($"Writing {imageData.Length} bytes");
+            
+            // Process image...
+            var processedImage = ProcessImage(imageData);
+            return processedImage;
+        }
+
+        // Example 3: Write stream to blob
+        [Function("WriteBlobStream")]
+        public async Task WriteStream(
+            [QueueTrigger("large-data-queue")] string data,
+            [BlobOutput("reports/{sys.utcNow:yyyy-MM-dd}/report-{rand-guid}.txt", 
+                Connection = "AzureWebJobsStorage")] Stream outputBlob)
+        {
+            using var writer = new StreamWriter(outputBlob);
+            await writer.WriteLineAsync("Report Header");
+            await writer.WriteLineAsync($"Generated: {DateTime.UtcNow}");
+            await writer.WriteLineAsync("---");
+            await writer.WriteAsync(data);
+        }
+
+        // Example 4: Write JSON object to blob
+        [Function("WriteBlobJson")]
+        [BlobOutput("data/{id}.json", Connection = "AzureWebJobsStorage")]
+        public ReportData WriteJson(
+            [TimerTrigger("0 0 * * * *")] TimerInfo timer)
+        {
+            _logger.LogInformation("Generating report");
+            
+            return new ReportData
+            {
+                Id = Guid.NewGuid().ToString(),
+                GeneratedAt = DateTime.UtcNow,
+                Metrics = new Dictionary<string, int>
+                {
+                    { "TotalOrders", 150 },
+                    { "CompletedOrders", 145 },
+                    { "PendingOrders", 5 }
+                }
+            };
+        }
+
+        private byte[] ProcessImage(byte[] input)
+        {
+            // Image processing logic
+            return input;
+        }
+    }
+
+    public class ReportData
+    {
+        public string Id { get; set; }
+        public DateTime GeneratedAt { get; set; }
+        public Dictionary<string, int> Metrics { get; set; }
+    }
+}
+```
+
+#### 2. Queue Storage Output Binding
+
+```csharp
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Extensions.Logging;
+using System.Text.Json;
+
+namespace MyFunctionApp.Bindings
+{
+    public class QueueOutputExamples
+    {
+        private readonly ILogger<QueueOutputExamples> _logger;
+
+        public QueueOutputExamples(ILogger<QueueOutputExamples> logger)
+        {
+            _logger = logger;
+        }
+
+        // Example 1: Single queue output - simple string
+        [Function("WriteQueueString")]
+        [QueueOutput("processing-queue", Connection = "AzureWebJobsStorage")]
+        public string SendMessage(
+            [HttpTrigger(AuthorizationLevel.Function, "post")] HttpRequestData req)
+        {
+            var message = $"Task created at {DateTime.UtcNow}";
+            _logger.LogInformation($"Queuing: {message}");
+            return message;
+        }
+
+        // Example 2: Single queue output - JSON object
+        [Function("WriteQueueObject")]
+        [QueueOutput("order-queue", Connection = "AzureWebJobsStorage")]
+        public OrderMessage SendOrder(
+            [HttpTrigger(AuthorizationLevel.Function, "post")] OrderRequest request)
+        {
+            _logger.LogInformation($"Queuing order: {request.OrderId}");
+            
+            return new OrderMessage
+            {
+                OrderId = request.OrderId,
+                CustomerId = request.CustomerId,
+                Amount = request.Amount,
+                OrderDate = DateTime.UtcNow
+            };
+        }
+
+        // Example 3: Multiple messages to same queue
+        [Function("WriteMultipleMessages")]
+        [QueueOutput("notifications-queue", Connection = "AzureWebJobsStorage")]
+        public List<NotificationMessage> SendNotifications(
+            [TimerTrigger("0 0 8 * * *")] TimerInfo timer)
+        {
+            _logger.LogInformation("Sending daily notifications");
+            
+            return new List<NotificationMessage>
+            {
+                new NotificationMessage { UserId = "user1", Message = "Daily summary" },
+                new NotificationMessage { UserId = "user2", Message = "Daily summary" },
+                new NotificationMessage { UserId = "user3", Message = "Daily summary" }
+            };
+        }
+
+        // Example 4: Multiple queue outputs (different queues)
+        [Function("WriteToMultipleQueues")]
+        public MultiQueueOutput ProcessOrder(
+            [QueueTrigger("incoming-orders")] OrderMessage order)
+        {
+            _logger.LogInformation($"Processing order: {order.OrderId}");
+            
+            return new MultiQueueOutput
+            {
+                PaymentQueue = new PaymentMessage
+                {
+                    OrderId = order.OrderId,
+                    Amount = order.Amount
+                },
+                ShippingQueue = new ShippingMessage
+                {
+                    OrderId = order.OrderId,
+                    CustomerId = order.CustomerId
+                },
+                NotificationQueue = new NotificationMessage
+                {
+                    UserId = order.CustomerId,
+                    Message = $"Order {order.OrderId} is being processed"
+                }
+            };
+        }
+    }
+
+    public class MultiQueueOutput
+    {
+        [QueueOutput("payment-queue", Connection = "AzureWebJobsStorage")]
+        public PaymentMessage PaymentQueue { get; set; }
+        
+        [QueueOutput("shipping-queue", Connection = "AzureWebJobsStorage")]
+        public ShippingMessage ShippingQueue { get; set; }
+        
+        [QueueOutput("notification-queue", Connection = "AzureWebJobsStorage")]
+        public NotificationMessage NotificationQueue { get; set; }
+    }
+
+    public class OrderRequest
+    {
+        public string OrderId { get; set; }
+        public string CustomerId { get; set; }
+        public decimal Amount { get; set; }
+    }
+
+    public class PaymentMessage
+    {
+        public string OrderId { get; set; }
+        public decimal Amount { get; set; }
+    }
+
+    public class ShippingMessage
+    {
+        public string OrderId { get; set; }
+        public string CustomerId { get; set; }
+    }
+
+    public class NotificationMessage
+    {
+        public string UserId { get; set; }
+        public string Message { get; set; }
+    }
+}
+```
+
+#### 3. Table Storage Output Binding
+
+```csharp
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Extensions.Logging;
+using Azure.Data.Tables;
+
+namespace MyFunctionApp.Bindings
+{
+    public class TableOutputExamples
+    {
+        private readonly ILogger<TableOutputExamples> _logger;
+
+        public TableOutputExamples(ILogger<TableOutputExamples> logger)
+        {
+            _logger = logger;
+        }
+
+        // Example 1: Write single entity
+        [Function("WriteTableEntity")]
+        [TableOutput("AuditLog", Connection = "AzureWebJobsStorage")]
+        public AuditLogEntity LogAction(
+            [HttpTrigger(AuthorizationLevel.Function, "post")] LogRequest request)
+        {
+            _logger.LogInformation($"Logging action: {request.Action}");
+            
+            return new AuditLogEntity
+            {
+                PartitionKey = request.UserId,
+                RowKey = Guid.NewGuid().ToString(),
+                Action = request.Action,
+                Timestamp = DateTime.UtcNow,
+                Details = request.Details
+            };
+        }
+
+        // Example 2: Write multiple entities
+        [Function("WriteMultipleEntities")]
+        [TableOutput("UserActivity", Connection = "AzureWebJobsStorage")]
+        public List<UserActivityEntity> LogActivities(
+            [QueueTrigger("activity-queue")] List<ActivityData> activities)
+        {
+            _logger.LogInformation($"Logging {activities.Count} activities");
+            
+            return activities.Select(a => new UserActivityEntity
+            {
+                PartitionKey = a.UserId,
+                RowKey = $"{DateTime.UtcNow.Ticks}_{Guid.NewGuid()}",
+                ActivityType = a.Type,
+                ActivityDate = DateTime.UtcNow,
+                Details = a.Details
+            }).ToList();
+        }
+
+        // Example 3: Update or insert entity
+        [Function("UpsertTableEntity")]
+        public async Task UpsertEntity(
+            [HttpTrigger(AuthorizationLevel.Function, "put", 
+                Route = "users/{userId}")] HttpRequestData req,
+            string userId,
+            [TableInput("Users", Connection = "AzureWebJobsStorage")] 
+            TableClient tableClient)
+        {
+            var user = await req.ReadFromJsonAsync<UserProfile>();
+            
+            var entity = new UserProfileEntity
+            {
+                PartitionKey = "Users",
+                RowKey = userId,
+                Name = user.Name,
+                Email = user.Email,
+                LastUpdated = DateTime.UtcNow
+            };
+
+            // Upsert (insert or replace)
+            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Replace);
+            
+            _logger.LogInformation($"User {userId} upserted");
+        }
+
+        // Example 4: Batch operations
+        [Function("BatchTableOperations")]
+        public async Task BatchWrite(
+            [QueueTrigger("batch-queue")] List<UserData> users,
+            [TableInput("Users", Connection = "AzureWebJobsStorage")] 
+            TableClient tableClient)
+        {
+            var batch = new List<TableTransactionAction>();
+            
+            foreach (var user in users)
+            {
+                var entity = new UserProfileEntity
+                {
+                    PartitionKey = "Users",
+                    RowKey = user.Id,
+                    Name = user.Name,
+                    Email = user.Email
+                };
+                
+                batch.Add(new TableTransactionAction(
+                    TableTransactionActionType.UpsertReplace, entity));
+            }
+            
+            // Submit batch (max 100 operations per batch)
+            if (batch.Any())
+            {
+                await tableClient.SubmitTransactionAsync(batch);
+                _logger.LogInformation($"Batch wrote {batch.Count} entities");
+            }
+        }
+    }
+
+    public class AuditLogEntity : ITableEntity
+    {
+        public string PartitionKey { get; set; }
+        public string RowKey { get; set; }
+        public string Action { get; set; }
+        public DateTime Timestamp { get; set; }
+        public string Details { get; set; }
+        DateTimeOffset? ITableEntity.Timestamp { get; set; }
+        ETag ITableEntity.ETag { get; set; }
+    }
+
+    public class UserActivityEntity : ITableEntity
+    {
+        public string PartitionKey { get; set; }
+        public string RowKey { get; set; }
+        public string ActivityType { get; set; }
+        public DateTime ActivityDate { get; set; }
+        public string Details { get; set; }
+        DateTimeOffset? ITableEntity.Timestamp { get; set; }
+        ETag ITableEntity.ETag { get; set; }
+    }
+
+    public class UserProfileEntity : ITableEntity
+    {
+        public string PartitionKey { get; set; }
+        public string RowKey { get; set; }
+        public string Name { get; set; }
+        public string Email { get; set; }
+        public DateTime LastUpdated { get; set; }
+        DateTimeOffset? ITableEntity.Timestamp { get; set; }
+        ETag ITableEntity.ETag { get; set; }
+    }
+
+    public class LogRequest
+    {
+        public string UserId { get; set; }
+        public string Action { get; set; }
+        public string Details { get; set; }
+    }
+
+    public class ActivityData
+    {
+        public string UserId { get; set; }
+        public string Type { get; set; }
+        public string Details { get; set; }
+    }
+
+    public class UserProfile
+    {
+        public string Name { get; set; }
+        public string Email { get; set; }
+    }
+
+    public class UserData
+    {
+        public string Id { get; set; }
+        public string Name { get; set; }
+        public string Email { get; set; }
+    }
+}
+```
+
+#### 4. Cosmos DB Output Binding
+
+```csharp
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
+
+namespace MyFunctionApp.Bindings
+{
+    public class CosmosDbOutputExamples
+    {
+        private readonly ILogger<CosmosDbOutputExamples> _logger;
+
+        public CosmosDbOutputExamples(ILogger<CosmosDbOutputExamples> logger)
+        {
+            _logger = logger;
+        }
+
+        // Example 1: Write single document
+        [Function("WriteCosmosDocument")]
+        [CosmosDBOutput(
+            databaseName: "OrdersDB",
+            containerName: "Orders",
+            Connection = "CosmosDBConnection",
+            CreateIfNotExists = true,
+            PartitionKey = "/customerId")]
+        public OrderDocument SaveOrder(
+            [HttpTrigger(AuthorizationLevel.Function, "post")] OrderRequest request)
+        {
+            _logger.LogInformation($"Saving order: {request.OrderId}");
+            
+            return new OrderDocument
+            {
+                Id = request.OrderId,
+                CustomerId = request.CustomerId,
+                OrderNumber = $"ORD-{DateTime.UtcNow.Ticks}",
+                Amount = request.Amount,
+                Status = "Pending",
+                CreatedDate = DateTime.UtcNow,
+                Items = request.Items
+            };
+        }
+
+        // Example 2: Write multiple documents
+        [Function("WriteManyCosmosDocuments")]
+        [CosmosDBOutput(
+            databaseName: "ProductsDB",
+            containerName: "Products",
+            Connection = "CosmosDBConnection")]
+        public List<ProductDocument> SaveProducts(
+            [BlobTrigger("import/{name}.json")] List<ProductImport> products)
+        {
+            _logger.LogInformation($"Importing {products.Count} products");
+            
+            return products.Select(p => new ProductDocument
+            {
+                Id = Guid.NewGuid().ToString(),
+                Sku = p.Sku,
+                Name = p.Name,
+                Price = p.Price,
+                CategoryId = p.CategoryId,
+                ImportedDate = DateTime.UtcNow
+            }).ToList();
+        }
+
+        // Example 3: Multiple outputs to different containers
+        [Function("ProcessOrderWithOutputs")]
+        public OrderProcessingOutput ProcessOrder(
+            [QueueTrigger("order-processing")] OrderMessage order)
+        {
+            _logger.LogInformation($"Processing order: {order.OrderId}");
+            
+            return new OrderProcessingOutput
+            {
+                // Save to Orders container
+                Order = new OrderDocument
+                {
+                    Id = order.OrderId,
+                    CustomerId = order.CustomerId,
+                    Amount = order.Amount,
+                    Status = "Processed",
+                    CreatedDate = DateTime.UtcNow
+                },
+                
+                // Save to Audit container
+                Audit = new AuditDocument
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    EntityType = "Order",
+                    EntityId = order.OrderId,
+                    Action = "Processed",
+                    Timestamp = DateTime.UtcNow,
+                    UserId = "system"
+                },
+                
+                // Save to Analytics container
+                Analytics = new OrderAnalyticsDocument
+                {
+                    Id = $"{DateTime.UtcNow:yyyyMMdd}_{order.CustomerId}",
+                    CustomerId = order.CustomerId,
+                    Date = DateTime.UtcNow.Date,
+                    OrderCount = 1,
+                    TotalAmount = order.Amount
+                }
+            };
+        }
+
+        // Example 4: Conditional write with conflict handling
+        [Function("UpsertCosmosDocument")]
+        public async Task UpsertDocument(
+            [HttpTrigger(AuthorizationLevel.Function, "put")] HttpRequestData req,
+            [CosmosDBInput(
+                databaseName: "CustomersDB",
+                containerName: "Customers",
+                Connection = "CosmosDBConnection")] CosmosClient cosmosClient)
+        {
+            var customerUpdate = await req.ReadFromJsonAsync<CustomerUpdate>();
+            
+            var container = cosmosClient.GetDatabase("CustomersDB")
+                .GetContainer("Customers");
+            
+            try
+            {
+                // Try to read existing document
+                var response = await container.ReadItemAsync<CustomerDocument>(
+                    customerUpdate.Id, 
+                    new PartitionKey(customerUpdate.CustomerId));
+                
+                var existing = response.Resource;
+                
+                // Update properties
+                existing.Name = customerUpdate.Name;
+                existing.Email = customerUpdate.Email;
+                existing.LastModified = DateTime.UtcNow;
+                
+                // Replace with ETag for optimistic concurrency
+                await container.ReplaceItemAsync(
+                    existing, 
+                    existing.Id, 
+                    new PartitionKey(existing.CustomerId),
+                    new ItemRequestOptions { IfMatchEtag = response.ETag });
+                
+                _logger.LogInformation($"Updated customer: {existing.Id}");
+            }
+            catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                // Create new document
+                var newCustomer = new CustomerDocument
+                {
+                    Id = customerUpdate.Id,
+                    CustomerId = customerUpdate.CustomerId,
+                    Name = customerUpdate.Name,
+                    Email = customerUpdate.Email,
+                    CreatedDate = DateTime.UtcNow,
+                    LastModified = DateTime.UtcNow
+                };
+                
+                await container.CreateItemAsync(
+                    newCustomer, 
+                    new PartitionKey(newCustomer.CustomerId));
+                
+                _logger.LogInformation($"Created customer: {newCustomer.Id}");
+            }
+        }
+    }
+
+    public class OrderProcessingOutput
+    {
+        [CosmosDBOutput(
+            databaseName: "OrdersDB",
+            containerName: "Orders",
+            Connection = "CosmosDBConnection")]
+        public OrderDocument Order { get; set; }
+        
+        [CosmosDBOutput(
+            databaseName: "OrdersDB",
+            containerName: "Audit",
+            Connection = "CosmosDBConnection")]
+        public AuditDocument Audit { get; set; }
+        
+        [CosmosDBOutput(
+            databaseName: "AnalyticsDB",
+            containerName: "OrderAnalytics",
+            Connection = "CosmosDBConnection")]
+        public OrderAnalyticsDocument Analytics { get; set; }
+    }
+
+    public class ProductDocument
+    {
+        [JsonProperty("id")]
+        public string Id { get; set; }
+        
+        [JsonProperty("sku")]
+        public string Sku { get; set; }
+        
+        [JsonProperty("name")]
+        public string Name { get; set; }
+        
+        [JsonProperty("price")]
+        public decimal Price { get; set; }
+        
+        [JsonProperty("categoryId")]
+        public string CategoryId { get; set; }
+        
+        [JsonProperty("importedDate")]
+        public DateTime ImportedDate { get; set; }
+    }
+
+    public class AuditDocument
+    {
+        [JsonProperty("id")]
+        public string Id { get; set; }
+        
+        [JsonProperty("entityType")]
+        public string EntityType { get; set; }
+        
+        [JsonProperty("entityId")]
+        public string EntityId { get; set; }
+        
+        [JsonProperty("action")]
+        public string Action { get; set; }
+        
+        [JsonProperty("timestamp")]
+        public DateTime Timestamp { get; set; }
+        
+        [JsonProperty("userId")]
+        public string UserId { get; set; }
+    }
+
+    public class OrderAnalyticsDocument
+    {
+        [JsonProperty("id")]
+        public string Id { get; set; }
+        
+        [JsonProperty("customerId")]
+        public string CustomerId { get; set; }
+        
+        [JsonProperty("date")]
+        public DateTime Date { get; set; }
+        
+        [JsonProperty("orderCount")]
+        public int OrderCount { get; set; }
+        
+        [JsonProperty("totalAmount")]
+        public decimal TotalAmount { get; set; }
+    }
+
+    public class ProductImport
+    {
+        public string Sku { get; set; }
+        public string Name { get; set; }
+        public decimal Price { get; set; }
+        public string CategoryId { get; set; }
+    }
+
+    public class CustomerUpdate
+    {
+        public string Id { get; set; }
+        public string CustomerId { get; set; }
+        public string Name { get; set; }
+        public string Email { get; set; }
+    }
+
+    public class CustomerDocument
+    {
+        [JsonProperty("id")]
+        public string Id { get; set; }
+        
+        [JsonProperty("customerId")]
+        public string CustomerId { get; set; }
+        
+        [JsonProperty("name")]
+        public string Name { get; set; }
+        
+        [JsonProperty("email")]
+        public string Email { get; set; }
+        
+        [JsonProperty("createdDate")]
+        public DateTime CreatedDate { get; set; }
+        
+        [JsonProperty("lastModified")]
+        public DateTime LastModified { get; set; }
+    }
+}
+```
+
+#### 5. Service Bus Output Binding
+
+```csharp
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Extensions.Logging;
+using Azure.Messaging.ServiceBus;
+
+namespace MyFunctionApp.Bindings
+{
+    public class ServiceBusOutputExamples
+    {
+        private readonly ILogger<ServiceBusOutputExamples> _logger;
+
+        public ServiceBusOutputExamples(ILogger<ServiceBusOutputExamples> logger)
+        {
+            _logger = logger;
+        }
+
+        // Example 1: Send to queue - simple message
+        [Function("SendServiceBusMessage")]
+        [ServiceBusOutput("order-processing", Connection = "ServiceBusConnection")]
+        public string SendToQueue(
+            [HttpTrigger(AuthorizationLevel.Function, "post")] OrderRequest order)
+        {
+            _logger.LogInformation($"Sending order to queue: {order.OrderId}");
+            return System.Text.Json.JsonSerializer.Serialize(order);
+        }
+
+        // Example 2: Send to queue - object (auto-serialized)
+        [Function("SendServiceBusObject")]
+        [ServiceBusOutput("notifications", Connection = "ServiceBusConnection")]
+        public NotificationMessage SendNotification(
+            [QueueTrigger("notification-trigger")] string userId)
+        {
+            return new NotificationMessage
+            {
+                UserId = userId,
+                Message = "Your order has been processed",
+                Timestamp = DateTime.UtcNow,
+                Priority = "High"
+            };
+        }
+
+        // Example 3: Send to topic with message properties
+        [Function("SendServiceBusWithProperties")]
+        public async Task SendToTopicWithProperties(
+            [HttpTrigger(AuthorizationLevel.Function, "post")] EventData eventData,
+            [ServiceBusOutput("events-topic", Connection = "ServiceBusConnection")] 
+            ServiceBusSender sender)
+        {
+            var message = new ServiceBusMessage(
+                System.Text.Json.JsonSerializer.Serialize(eventData))
+            {
+                ContentType = "application/json",
+                MessageId = Guid.NewGuid().ToString(),
+                Subject = eventData.EventType,
+                TimeToLive = TimeSpan.FromHours(24)
+            };
+            
+            // Add custom properties
+            message.ApplicationProperties["EventType"] = eventData.EventType;
+            message.ApplicationProperties["Source"] = "FunctionApp";
+            message.ApplicationProperties["Priority"] = eventData.Priority;
+            
+            // Add session ID for ordered processing
+            if (!string.IsNullOrEmpty(eventData.SessionId))
+            {
+                message.SessionId = eventData.SessionId;
+            }
+            
+            await sender.SendMessageAsync(message);
+            _logger.LogInformation($"Sent message {message.MessageId} to topic");
+        }
+
+        // Example 4: Send batch messages
+        [Function("SendServiceBusBatch")]
+        public async Task SendBatch(
+            [TimerTrigger("0 */5 * * * *")] TimerInfo timer,
+            [ServiceBusOutput("batch-processing", Connection = "ServiceBusConnection")] 
+            ServiceBusSender sender)
+        {
+            var messages = GenerateBatchMessages();
+            
+            // Create batch
+            using ServiceBusMessageBatch messageBatch = 
+                await sender.CreateMessageBatchAsync();
+            
+            foreach (var message in messages)
+            {
+                var sbMessage = new ServiceBusMessage(
+                    System.Text.Json.JsonSerializer.Serialize(message));
+                
+                if (!messageBatch.TryAddMessage(sbMessage))
+                {
+                    // Send current batch and create new one
+                    await sender.SendMessagesAsync(messageBatch);
+                    messageBatch.Dispose();
+                    
+                    var newBatch = await sender.CreateMessageBatchAsync();
+                    newBatch.TryAddMessage(sbMessage);
+                }
+            }
+            
+            // Send remaining messages
+            if (messageBatch.Count > 0)
+            {
+                await sender.SendMessagesAsync(messageBatch);
+                _logger.LogInformation($"Sent batch of {messageBatch.Count} messages");
+            }
+        }
+
+        // Example 5: Multiple Service Bus outputs
+        [Function("SendToMultipleServiceBusDestinations")]
+        public MultiServiceBusOutput ProcessEvent(
+            [EventHubTrigger("events", Connection = "EventHubConnection")] 
+            string eventData)
+        {
+            var evt = System.Text.Json.JsonSerializer.Deserialize<EventMessage>(eventData);
+            
+            return new MultiServiceBusOutput
+            {
+                // Send to orders queue
+                OrderQueue = new OrderProcessingMessage
+                {
+                    OrderId = evt.OrderId,
+                    Action = "Process"
+                },
+                
+                // Send to notifications topic
+                NotificationTopic = new NotificationMessage
+                {
+                    UserId = evt.UserId,
+                    Message = $"Event processed: {evt.EventType}"
+                },
+                
+                // Send to audit queue
+                AuditQueue = new AuditMessage
+                {
+                    EventId = evt.EventId,
+                    EventType = evt.EventType,
+                    Timestamp = DateTime.UtcNow
+                }
+            };
+        }
+
+        private List<BatchItem> GenerateBatchMessages()
+        {
+            return Enumerable.Range(1, 100)
+                .Select(i => new BatchItem
+                {
+                    Id = i,
+                    Data = $"Item {i}",
+                    Timestamp = DateTime.UtcNow
+                })
+                .ToList();
+        }
+    }
+
+    public class MultiServiceBusOutput
+    {
+        [ServiceBusOutput("order-processing", Connection = "ServiceBusConnection")]
+        public OrderProcessingMessage OrderQueue { get; set; }
+        
+        [ServiceBusOutput("notifications-topic", Connection = "ServiceBusConnection")]
+        public NotificationMessage NotificationTopic { get; set; }
+        
+        [ServiceBusOutput("audit-queue", Connection = "ServiceBusConnection")]
+        public AuditMessage AuditQueue { get; set; }
+    }
+
+    public class EventData
+    {
+        public string EventType { get; set; }
+        public string Priority { get; set; }
+        public string SessionId { get; set; }
+        public object Payload { get; set; }
+    }
+
+    public class OrderProcessingMessage
+    {
+        public string OrderId { get; set; }
+        public string Action { get; set; }
+    }
+
+    public class AuditMessage
+    {
+        public string EventId { get; set; }
+        public string EventType { get; set; }
+        public DateTime Timestamp { get; set; }
+    }
+
+    public class EventMessage
+    {
+        public string EventId { get; set; }
+        public string OrderId { get; set; }
+        public string UserId { get; set; }
+        public string EventType { get; set; }
+    }
+
+    public class BatchItem
+    {
+        public int Id { get; set; }
+        public string Data { get; set; }
+        public DateTime Timestamp { get; set; }
+    }
+}
+```
+
+#### 6. Event Grid Output Binding
+
+```csharp
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Extensions.Logging;
+using Azure.Messaging.EventGrid;
+
+namespace MyFunctionApp.Bindings
+{
+    public class EventGridOutputExamples
+    {
+        private readonly ILogger<EventGridOutputExamples> _logger;
+
+        public EventGridOutputExamples(ILogger<EventGridOutputExamples> logger)
+        {
+            _logger = logger;
+        }
+
+        // Example 1: Send single event
+        [Function("SendEventGridEvent")]
+        [EventGridOutput(TopicEndpointUri = "EventGridTopicEndpoint", 
+            TopicKeySetting = "EventGridTopicKey")]
+        public EventGridEvent PublishEvent(
+            [HttpTrigger(AuthorizationLevel.Function, "post")] OrderCompletedData order)
+        {
+            _logger.LogInformation($"Publishing order completed event: {order.OrderId}");
+            
+            return new EventGridEvent(
+                subject: $"orders/{order.OrderId}",
+                eventType: "OrderCompleted",
+                dataVersion: "1.0",
+                data: new
+                {
+                    orderId = order.OrderId,
+                    customerId = order.CustomerId,
+                    amount = order.Amount,
+                    completedAt = DateTime.UtcNow
+                });
+        }
+
+        // Example 2: Send multiple events
+        [Function("SendMultipleEventGridEvents")]
+        [EventGridOutput(TopicEndpointUri = "EventGridTopicEndpoint", 
+            TopicKeySetting = "EventGridTopicKey")]
+        public List<EventGridEvent> PublishBatchEvents(
+            [TimerTrigger("0 0 * * * *")] TimerInfo timer)
+        {
+            _logger.LogInformation("Publishing hourly summary events");
+            
+            var events = new List<EventGridEvent>();
+            
+            // Order summary event
+            events.Add(new EventGridEvent(
+                subject: "analytics/orders/hourly",
+                eventType: "OrderSummary",
+                dataVersion: "1.0",
+                data: new
+                {
+                    hour = DateTime.UtcNow.Hour,
+                    totalOrders = 150,
+                    totalRevenue = 45000.00m
+                }));
+            
+            // Inventory summary event
+            events.Add(new EventGridEvent(
+                subject: "analytics/inventory/hourly",
+                eventType: "InventorySummary",
+                dataVersion: "1.0",
+                data: new
+                {
+                    hour = DateTime.UtcNow.Hour,
+                    lowStockItems = 12,
+                    outOfStockItems = 3
+                }));
+            
+            return events;
+        }
+
+        // Example 3: Custom event with CloudEvent schema
+        [Function("SendCloudEvent")]
+        public async Task PublishCloudEvent(
+            [HttpTrigger(AuthorizationLevel.Function, "post")] PaymentProcessedData payment,
+            [EventGridOutput(TopicEndpointUri = "EventGridTopicEndpoint", 
+                TopicKeySetting = "EventGridTopicKey")] 
+            EventGridPublisherClient client)
+        {
+            var cloudEvent = new CloudEvent(
+                source: "/payments/processor",
+                type: "PaymentProcessed",
+                jsonSerializableData: new
+                {
+                    paymentId = payment.PaymentId,
+                    orderId = payment.OrderId,
+                    amount = payment.Amount,
+                    status = "Success"
+                })
+            {
+                Id = Guid.NewGuid().ToString(),
+                Time = DateTimeOffset.UtcNow,
+                Subject = $"payments/{payment.PaymentId}"
+            };
+            
+            await client.SendEventAsync(cloudEvent);
+            _logger.LogInformation($"Published payment event: {cloudEvent.Id}");
+        }
+    }
+
+    public class OrderCompletedData
+    {
+        public string OrderId { get; set; }
+        public string CustomerId { get; set; }
+        public decimal Amount { get; set; }
+    }
+
+    public class PaymentProcessedData
+    {
+        public string PaymentId { get; set; }
+        public string OrderId { get; set; }
+        public decimal Amount { get; set; }
+    }
+}
+```
+
+#### 7. SendGrid (Email) Output Binding
+
+```csharp
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Extensions.Logging;
+using SendGrid.Helpers.Mail;
+
+namespace MyFunctionApp.Bindings
+{
+    public class SendGridOutputExamples
+    {
+        private readonly ILogger<SendGridOutputExamples> _logger;
+
+        public SendGridOutputExamples(ILogger<SendGridOutputExamples> logger)
+        {
+            _logger = logger;
+        }
+
+        // Example 1: Send simple email
+        [Function("SendSimpleEmail")]
+        [SendGridOutput(ApiKey = "SendGridApiKey")]
+        public SendGridMessage SendEmail(
+            [QueueTrigger("email-queue")] EmailRequest emailRequest)
+        {
+            _logger.LogInformation($"Sending email to: {emailRequest.To}");
+            
+            var message = new SendGridMessage();
+            message.AddTo(emailRequest.To);
+            message.SetFrom(new EmailAddress("noreply@example.com", "Example App"));
+            message.SetSubject(emailRequest.Subject);
+            message.AddContent(MimeType.Html, emailRequest.Body);
+            
+            return message;
+        }
+
+        // Example 2: Send templated email
+        [Function("SendTemplatedEmail")]
+        [SendGridOutput(ApiKey = "SendGridApiKey")]
+        public SendGridMessage SendTemplateEmail(
+            [QueueTrigger("order-confirmation")] OrderConfirmation order)
+        {
+            _logger.LogInformation($"Sending order confirmation to: {order.CustomerEmail}");
+            
+            var message = new SendGridMessage();
+            message.AddTo(order.CustomerEmail);
+            message.SetFrom(new EmailAddress("orders@example.com", "Example Store"));
+            
+            // Use SendGrid template
+            message.SetTemplateId("d-1234567890abcdef");
+            message.SetTemplateData(new
+            {
+                order_id = order.OrderId,
+                customer_name = order.CustomerName,
+                order_total = order.Total.ToString("C"),
+                order_items = order.Items,
+                order_date = order.OrderDate.ToString("f")
+            });
+            
+            return message;
+        }
+
+        // Example 3: Send email with attachment
+        [Function("SendEmailWithAttachment")]
+        [SendGridOutput(ApiKey = "SendGridApiKey")]
+        public SendGridMessage SendWithAttachment(
+            [QueueTrigger("invoice-email")] InvoiceEmailRequest request,
+            [BlobInput("invoices/{queueTrigger}.pdf")] byte[] invoicePdf)
+        {
+            _logger.LogInformation($"Sending invoice email to: {request.CustomerEmail}");
+            
+            var message = new SendGridMessage();
+            message.AddTo(request.CustomerEmail);
+            message.SetFrom(new EmailAddress("billing@example.com", "Example Billing"));
+            message.SetSubject($"Invoice {request.InvoiceNumber}");
+            message.AddContent(MimeType.Html, 
+                $"<p>Please find attached invoice {request.InvoiceNumber}</p>");
+            
+            // Add attachment
+            message.AddAttachment(
+                filename: $"Invoice_{request.InvoiceNumber}.pdf",
+                content: Convert.ToBase64String(invoicePdf),
+                type: "application/pdf",
+                disposition: "attachment");
+            
+            return message;
+        }
+
+        // Example 4: Send to multiple recipients
+        [Function("SendBulkEmail")]
+        [SendGridOutput(ApiKey = "SendGridApiKey")]
+        public List<SendGridMessage> SendBulkEmails(
+            [TimerTrigger("0 0 9 * * MON")] TimerInfo timer,
+            [BlobInput("reports/weekly-summary.html")] string reportHtml)
+        {
+            _logger.LogInformation("Sending weekly summary emails");
+            
+            var recipients = GetSubscribers(); // Get list of subscribers
+            var messages = new List<SendGridMessage>();
+            
+            foreach (var recipient in recipients)
+            {
+                var message = new SendGridMessage();
+                message.AddTo(recipient.Email);
+                message.SetFrom(new EmailAddress("reports@example.com", "Weekly Reports"));
+                message.SetSubject("Weekly Summary Report");
+                
+                // Personalize content
+                var personalizedHtml = reportHtml.Replace("{{name}}", recipient.Name);
+                message.AddContent(MimeType.Html, personalizedHtml);
+                
+                // Add unsubscribe group
+                message.SetAsm(12345, new List<int> { 1 });
+                
+                messages.Add(message);
+            }
+            
+            return messages;
+        }
+
+        private List<Subscriber> GetSubscribers()
+        {
+            // Fetch from database
+            return new List<Subscriber>
+            {
+                new Subscriber { Email = "user1@example.com", Name = "User 1" },
+                new Subscriber { Email = "user2@example.com", Name = "User 2" }
+            };
+        }
+    }
+
+    public class EmailRequest
+    {
+        public string To { get; set; }
+        public string Subject { get; set; }
+        public string Body { get; set; }
+    }
+
+    public class OrderConfirmation
+    {
+        public string OrderId { get; set; }
+        public string CustomerEmail { get; set; }
+        public string CustomerName { get; set; }
+        public decimal Total { get; set; }
+        public List<string> Items { get; set; }
+        public DateTime OrderDate { get; set; }
+    }
+
+    public class InvoiceEmailRequest
+    {
+        public string InvoiceNumber { get; set; }
+        public string CustomerEmail { get; set; }
+    }
+
+    public class Subscriber
+    {
+        public string Email { get; set; }
+        public string Name { get; set; }
+    }
+}
+```
+
+#### 8. SQL Output Binding
+
+```csharp
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Extensions.Logging;
+
+namespace MyFunctionApp.Bindings
+{
+    public class SqlOutputExamples
+    {
+        private readonly ILogger<SqlOutputExamples> _logger;
+
+        public SqlOutputExamples(ILogger<SqlOutputExamples> logger)
+        {
+            _logger = logger;
+        }
+
+        // Example 1: Insert single record
+        [Function("InsertProduct")]
+        [SqlOutput("dbo.Products", connectionStringSetting: "SqlConnectionString")]
+        public Product SaveProduct(
+            [HttpTrigger(AuthorizationLevel.Function, "post")] ProductRequest request)
+        {
+            _logger.LogInformation($"Saving product: {request.Name}");
+            
+            return new Product
+            {
+                ProductId = 0, // Will be auto-generated
+                ProductName = request.Name,
+                CategoryId = request.CategoryId,
+                Price = request.Price,
+                IsActive = true,
+                CreatedDate = DateTime.UtcNow
+            };
+        }
+
+        // Example 2: Insert multiple records
+        [Function("InsertMultipleProducts")]
+        [SqlOutput("dbo.Products", connectionStringSetting: "SqlConnectionString")]
+        public List<Product> SaveProducts(
+            [BlobTrigger("import/{name}.json")] List<ProductImport> imports)
+        {
+            _logger.LogInformation($"Importing {imports.Count} products");
+            
+            return imports.Select(p => new Product
+            {
+                ProductName = p.Name,
+                CategoryId = p.CategoryId,
+                Price = p.Price,
+                IsActive = true,
+                CreatedDate = DateTime.UtcNow
+            }).ToList();
+        }
+
+        // Example 3: Upsert (update if exists, insert if not)
+        [Function("UpsertCustomer")]
+        [SqlOutput("dbo.Customers", connectionStringSetting: "SqlConnectionString")]
+        public Customer UpsertCustomer(
+            [HttpTrigger(AuthorizationLevel.Function, "put")] CustomerData data)
+        {
+            _logger.LogInformation($"Upserting customer: {data.Email}");
+            
+            return new Customer
+            {
+                CustomerId = data.CustomerId,
+                CustomerName = data.Name,
+                Email = data.Email,
+                PhoneNumber = data.Phone,
+                LastModified = DateTime.UtcNow
+            };
+        }
+    }
+
+    public class ProductRequest
+    {
+        public string Name { get; set; }
+        public string CategoryId { get; set; }
+        public decimal Price { get; set; }
+    }
+
+    public class CustomerData
+    {
+        public int CustomerId { get; set; }
+        public string Name { get; set; }
+        public string Email { get; set; }
+        public string Phone { get; set; }
+    }
+
+    public class Customer
+    {
+        public int CustomerId { get; set; }
+        public string CustomerName { get; set; }
+        public string Email { get; set; }
+        public string PhoneNumber { get; set; }
+        public DateTime LastModified { get; set; }
+    }
+}
+```
 
 ---
 
@@ -5496,6 +7219,1264 @@ namespace MyFunctionApp.Functions
 
 ---
 
+## Azure Functions Platform Features & Configuration
+
+### 1. CORS (Cross-Origin Resource Sharing)
+
+**CORS** allows your HTTP-triggered functions to be called from web applications hosted on different domains.
+
+#### Portal Configuration
+
+Navigate to: **Function App → CORS**
+
+```
+Azure Portal Steps:
+1. Go to Function App
+2. Select "CORS" under API section
+3. Add allowed origins:
+   - https://www.example.com
+   - https://app.example.com
+   - http://localhost:3000 (for local development)
+4. Enable "Access-Control-Allow-Credentials" if needed
+5. Save changes
+```
+
+#### host.json Configuration
+
+```json
+{
+  "version": "2.0",
+  "extensions": {
+    "http": {
+      "customHeaders": {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Max-Age": "86400"
+      }
+    }
+  }
+}
+```
+
+#### C# Code-Based CORS Handling
+
+```csharp
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
+using System.Net;
+
+namespace MyFunctionApp.Features
+{
+    public class CorsEnabledFunction
+    {
+        [Function("CorsExample")]
+        public async Task<HttpResponseData> Run(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", "options")] 
+            HttpRequestData req)
+        {
+            // Handle preflight OPTIONS request
+            if (req.Method.Equals("OPTIONS", StringComparison.OrdinalIgnoreCase))
+            {
+                var response = req.CreateResponse(HttpStatusCode.OK);
+                AddCorsHeaders(response);
+                return response;
+            }
+
+            // Handle actual request
+            var result = req.CreateResponse(HttpStatusCode.OK);
+            AddCorsHeaders(result);
+            await result.WriteAsJsonAsync(new { message = "CORS enabled response" });
+            return result;
+        }
+
+        private void AddCorsHeaders(HttpResponseData response)
+        {
+            response.Headers.Add("Access-Control-Allow-Origin", "*");
+            response.Headers.Add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+            response.Headers.Add("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Custom-Header");
+            response.Headers.Add("Access-Control-Max-Age", "86400");
+            response.Headers.Add("Access-Control-Allow-Credentials", "true");
+        }
+    }
+}
+```
+
+#### CORS Middleware (Advanced)
+
+```csharp
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
+using Microsoft.Azure.Functions.Worker.Middleware;
+using System.Net;
+
+namespace MyFunctionApp.Middleware
+{
+    /// <summary>
+    /// Global CORS middleware for all HTTP functions
+    /// </summary>
+    public class CorsMiddleware : IFunctionsWorkerMiddleware
+    {
+        private readonly string[] _allowedOrigins;
+        private readonly string[] _allowedMethods;
+        private readonly string[] _allowedHeaders;
+
+        public CorsMiddleware(IConfiguration configuration)
+        {
+            _allowedOrigins = configuration.GetSection("Cors:AllowedOrigins")
+                .Get<string[]>() ?? new[] { "*" };
+            
+            _allowedMethods = configuration.GetSection("Cors:AllowedMethods")
+                .Get<string[]>() ?? new[] { "GET", "POST", "PUT", "DELETE", "OPTIONS" };
+            
+            _allowedHeaders = configuration.GetSection("Cors:AllowedHeaders")
+                .Get<string[]>() ?? new[] { "Content-Type", "Authorization" };
+        }
+
+        public async Task Invoke(FunctionContext context, FunctionExecutionDelegate next)
+        {
+            var requestData = await context.GetHttpRequestDataAsync();
+
+            if (requestData != null)
+            {
+                // Handle preflight request
+                if (requestData.Method.Equals("OPTIONS", StringComparison.OrdinalIgnoreCase))
+                {
+                    var response = requestData.CreateResponse(HttpStatusCode.OK);
+                    AddCorsHeaders(response, requestData);
+                    
+                    var invocationResult = context.GetInvocationResult();
+                    invocationResult.Value = response;
+                    return;
+                }
+
+                // Process request
+                await next(context);
+
+                // Add CORS headers to response
+                var httpResponseData = context.GetHttpResponseData();
+                if (httpResponseData != null)
+                {
+                    AddCorsHeaders(httpResponseData, requestData);
+                }
+            }
+            else
+            {
+                await next(context);
+            }
+        }
+
+        private void AddCorsHeaders(HttpResponseData response, HttpRequestData request)
+        {
+            var origin = request.Headers.TryGetValues("Origin", out var origins) 
+                ? origins.FirstOrDefault() 
+                : "*";
+
+            // Check if origin is allowed
+            if (_allowedOrigins.Contains("*") || _allowedOrigins.Contains(origin))
+            {
+                response.Headers.Add("Access-Control-Allow-Origin", origin);
+                response.Headers.Add("Access-Control-Allow-Methods", 
+                    string.Join(", ", _allowedMethods));
+                response.Headers.Add("Access-Control-Allow-Headers", 
+                    string.Join(", ", _allowedHeaders));
+                response.Headers.Add("Access-Control-Max-Age", "86400");
+                response.Headers.Add("Access-Control-Allow-Credentials", "true");
+            }
+        }
+    }
+
+    // Register in Program.cs
+    public static class ProgramWithCors
+    {
+        public static void Main()
+        {
+            var host = new HostBuilder()
+                .ConfigureFunctionsWorkerDefaults(builder =>
+                {
+                    builder.UseMiddleware<CorsMiddleware>();
+                })
+                .Build();
+
+            host.Run();
+        }
+    }
+}
+```
+
+#### CORS Best Practices
+
+| Scenario | Recommended Configuration |
+|----------|---------------------------|
+| **Public API** | Use specific origins, avoid `*` |
+| **Internal API** | Whitelist only your app domains |
+| **Development** | Add `http://localhost:3000`, `http://localhost:4200` |
+| **Mobile Apps** | Consider using API keys instead |
+| **Preflight Caching** | Set `Access-Control-Max-Age: 86400` (24 hours) |
+| **Credentials** | Only enable `Allow-Credentials` when needed |
+
+---
+
+### 2. Proxies (Function Proxies)
+
+**Function Proxies** allow you to define API endpoints that forward requests to other functions or backends.
+
+⚠️ **Note:** Proxies are in maintenance mode. Consider using **Azure API Management** or **Azure Front Door** for new projects.
+
+#### proxies.json Configuration
+
+```json
+{
+  "$schema": "http://json.schemastore.org/proxies",
+  "proxies": {
+    "HelloProxy": {
+      "matchCondition": {
+        "route": "/api/hello",
+        "methods": [ "GET" ]
+      },
+      "backendUri": "https://mybackend.azurewebsites.net/api/hello"
+    },
+    
+    "ApiVersionProxy": {
+      "matchCondition": {
+        "route": "/api/v1/{*path}",
+        "methods": [ "GET", "POST", "PUT", "DELETE" ]
+      },
+      "backendUri": "https://mybackend.azurewebsites.net/api/{path}"
+    },
+    
+    "MockResponse": {
+      "matchCondition": {
+        "route": "/api/status"
+      },
+      "responseOverrides": {
+        "response.statusCode": "200",
+        "response.body": "{\"status\":\"healthy\",\"version\":\"1.0.0\"}"
+      }
+    },
+
+    "HeaderTransform": {
+      "matchCondition": {
+        "route": "/api/users/{id}"
+      },
+      "backendUri": "https://legacy-api.example.com/users/{id}",
+      "requestOverrides": {
+        "backend.request.headers.x-custom-auth": "{request.headers.authorization}",
+        "backend.request.headers.x-source": "azure-functions"
+      },
+      "responseOverrides": {
+        "response.headers.x-powered-by": "Azure Functions"
+      }
+    }
+  }
+}
+```
+
+#### Common Proxy Use Cases
+
+| Use Case | Configuration |
+|----------|---------------|
+| **API Versioning** | Route `/api/v1/*` → Backend A, `/api/v2/*` → Backend B |
+| **Mock Responses** | Return static JSON for testing |
+| **Header Transformation** | Add/modify headers between client and backend |
+| **Route Aggregation** | Multiple backends behind single endpoint |
+| **Legacy API Wrapper** | Add modern API layer over legacy systems |
+
+---
+
+### 3. Custom Handlers
+
+**Custom Handlers** enable you to run Azure Functions in **any language** by implementing a simple HTTP server.
+
+#### Architecture
+
+```
+┌────────────────────────────────────────────┐
+│        Azure Functions Host                │
+│  ┌──────────────────────────────────────┐ │
+│  │   Function Trigger                    │ │
+│  └──────────┬───────────────────────────┘ │
+│             │ HTTP Request               │
+│             ▼                            │
+│  ┌──────────────────────────────────────┐ │
+│  │   Custom Handler (Your Code)         │ │
+│  │   - Rust, Go, PHP, Ruby, etc.        │ │
+│  │   - Custom HTTP server on port 3000  │ │
+│  └──────────┬───────────────────────────┘ │
+│             │ HTTP Response              │
+│             ▼                            │
+│  ┌──────────────────────────────────────┐ │
+│  │   Function Response                   │ │
+│  └──────────────────────────────────────┘ │
+└────────────────────────────────────────────┘
+```
+
+#### host.json for Custom Handler
+
+```json
+{
+  "version": "2.0",
+  "logging": {
+    "logLevel": {
+      "default": "Information"
+    }
+  },
+  "customHandler": {
+    "description": {
+      "defaultExecutablePath": "handler",
+      "workingDirectory": "",
+      "arguments": []
+    },
+    "enableForwardingHttpRequest": true
+  }
+}
+```
+
+#### Example: Go Custom Handler
+
+**function.json**
+```json
+{
+  "bindings": [
+    {
+      "type": "httpTrigger",
+      "authLevel": "anonymous",
+      "direction": "in",
+      "name": "req",
+      "methods": ["get", "post"]
+    },
+    {
+      "type": "http",
+      "direction": "out",
+      "name": "res"
+    }
+  ]
+}
+```
+
+**handler.go**
+```go
+package main
+
+import (
+    "encoding/json"
+    "fmt"
+    "log"
+    "net/http"
+    "os"
+)
+
+type InvokeRequest struct {
+    Data     map[string]interface{} `json:"Data"`
+    Metadata map[string]interface{} `json:"Metadata"`
+}
+
+type InvokeResponse struct {
+    Outputs     map[string]interface{} `json:"Outputs"`
+    Logs        []string               `json:"Logs"`
+    ReturnValue interface{}            `json:"ReturnValue"`
+}
+
+func httpHandler(w http.ResponseWriter, r *http.Request) {
+    var invokeRequest InvokeRequest
+    
+    err := json.NewDecoder(r.Body).Decode(&invokeRequest)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+
+    // Process request
+    name := "World"
+    if val, ok := invokeRequest.Data["req"].(map[string]interface{}); ok {
+        if query, ok := val["Query"].(map[string]interface{}); ok {
+            if n, ok := query["name"].(string); ok {
+                name = n
+            }
+        }
+    }
+
+    // Create response
+    response := InvokeResponse{
+        Outputs: map[string]interface{}{
+            "res": map[string]interface{}{
+                "statusCode": 200,
+                "body":       fmt.Sprintf("Hello, %s!", name),
+            },
+        },
+        Logs: []string{
+            fmt.Sprintf("Processed request for %s", name),
+        },
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(response)
+}
+
+func main() {
+    customHandlerPort, exists := os.LookupEnv("FUNCTIONS_CUSTOMHANDLER_PORT")
+    if !exists {
+        customHandlerPort = "8080"
+    }
+    
+    mux := http.NewServeMux()
+    mux.HandleFunc("/api/HttpExample", httpHandler)
+    
+    fmt.Printf("Starting custom handler on port %s\n", customHandlerPort)
+    log.Fatal(http.ListenAndServe(":"+customHandlerPort, mux))
+}
+```
+
+#### Example: Rust Custom Handler
+
+**main.rs**
+```rust
+use actix_web::{post, web, App, HttpResponse, HttpServer, Result};
+use serde::{Deserialize, Serialize};
+use std::env;
+
+#[derive(Deserialize)]
+struct InvokeRequest {
+    #[serde(rename = "Data")]
+    data: serde_json::Value,
+    #[serde(rename = "Metadata")]
+    metadata: serde_json::Value,
+}
+
+#[derive(Serialize)]
+struct InvokeResponse {
+    #[serde(rename = "Outputs")]
+    outputs: serde_json::Value,
+    #[serde(rename = "Logs")]
+    logs: Vec<String>,
+    #[serde(rename = "ReturnValue")]
+    return_value: Option<serde_json::Value>,
+}
+
+#[post("/api/HttpExample")]
+async fn http_handler(req: web::Json<InvokeRequest>) -> Result<HttpResponse> {
+    let name = req.data["req"]["Query"]["name"]
+        .as_str()
+        .unwrap_or("World");
+
+    let response = InvokeResponse {
+        outputs: serde_json::json!({
+            "res": {
+                "statusCode": 200,
+                "body": format!("Hello, {}!", name)
+            }
+        }),
+        logs: vec![format!("Processed request for {}", name)],
+        return_value: None,
+    };
+
+    Ok(HttpResponse::Ok().json(response))
+}
+
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    let port = env::var("FUNCTIONS_CUSTOMHANDLER_PORT")
+        .unwrap_or_else(|_| "8080".to_string());
+    
+    println!("Starting custom handler on port {}", port);
+
+    HttpServer::new(|| App::new().service(http_handler))
+        .bind(format!("127.0.0.1:{}", port))?
+        .run()
+        .await
+}
+```
+
+---
+
+### 4. Deployment Slots
+
+**Deployment Slots** provide staging environments for your Function Apps (Premium and Dedicated plans only).
+
+#### Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **Slot Types** | Production (default) + up to 4 additional slots |
+| **Use Cases** | Blue-green deployment, A/B testing, staging validation |
+| **Slot Settings** | Some settings stick to slot, others swap |
+| **Traffic Routing** | Route percentage of traffic to different slots |
+| **Auto-Swap** | Automatically swap after deployment |
+
+#### Portal Configuration
+
+```
+Azure Portal Steps:
+1. Go to Function App
+2. Select "Deployment slots" (under Deployment)
+3. Click "+ Add Slot"
+4. Name: "staging"
+5. Clone settings from: "Production" (optional)
+6. Click "Add"
+```
+
+#### Slot-Specific Settings
+
+**Sticky Settings** (don't swap):
+- Publishing profile
+- Custom domain names
+- Non-public certificates and TLS/SSL settings
+- Scale settings
+- Always On
+- Diagnostic settings
+
+**Settings that Swap:**
+- General configuration (runtime, platform bits)
+- App settings (unless marked as slot setting)
+- Connection strings (unless marked as slot setting)
+- Handler mappings
+- Public certificates
+- WebJobs content
+- Hybrid connections
+
+#### Mark Setting as Slot Setting
+
+```bash
+# Azure CLI - Mark app setting as slot setting
+az functionapp config appsettings set \
+  --name MyFunctionApp \
+  --resource-group MyResourceGroup \
+  --settings "SETTING_NAME=value" \
+  --slot-settings SETTING_NAME
+```
+
+#### Swap Slots
+
+```bash
+# Swap staging to production
+az functionapp deployment slot swap \
+  --name MyFunctionApp \
+  --resource-group MyResourceGroup \
+  --slot staging \
+  --target-slot production
+
+# Swap with preview (two-phase swap)
+az functionapp deployment slot swap \
+  --name MyFunctionApp \
+  --resource-group MyResourceGroup \
+  --slot staging \
+  --target-slot production \
+  --action preview
+
+# Complete the swap
+az functionapp deployment slot swap \
+  --name MyFunctionApp \
+  --resource-group MyResourceGroup \
+  --action swap
+```
+
+#### Traffic Routing
+
+```bash
+# Route 20% of traffic to staging slot
+az functionapp traffic-routing set \
+  --name MyFunctionApp \
+  --resource-group MyResourceGroup \
+  --distribution staging=20
+```
+
+#### Auto-Swap Configuration
+
+```json
+// local.settings.json or Application Settings
+{
+  "WEBSITE_SWAP_WARMUP_PING_PATH": "/api/warmup",
+  "WEBSITE_SWAP_WARMUP_PING_STATUSES": "200,202",
+  "WEBSITE_ADD_SITENAME_BINDINGS_IN_APPHOST_CONFIG": "1"
+}
+```
+
+---
+
+### 5. Application Settings & Environment Variables
+
+#### Portal Configuration
+
+```
+Azure Portal:
+Function App → Configuration → Application settings
+```
+
+#### Add via Azure CLI
+
+```bash
+# Set single setting
+az functionapp config appsettings set \
+  --name MyFunctionApp \
+  --resource-group MyResourceGroup \
+  --settings "API_KEY=secret-value"
+
+# Set multiple settings
+az functionapp config appsettings set \
+  --name MyFunctionApp \
+  --resource-group MyResourceGroup \
+  --settings \
+    "DATABASE_CONNECTION=Server=..." \
+    "REDIS_HOST=myredis.redis.cache.windows.net" \
+    "LOG_LEVEL=Information"
+
+# Reference Key Vault secret
+az functionapp config appsettings set \
+  --name MyFunctionApp \
+  --resource-group MyResourceGroup \
+  --settings \
+    "MySecret=@Microsoft.KeyVault(SecretUri=https://myvault.vault.azure.net/secrets/MySecret/)"
+```
+
+#### Built-in Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `AZURE_FUNCTIONS_ENVIRONMENT` | `Development`, `Staging`, `Production` |
+| `WEBSITE_SITE_NAME` | Function App name |
+| `WEBSITE_INSTANCE_ID` | Unique instance identifier |
+| `WEBSITE_HOSTNAME` | Function App hostname |
+| `AzureWebJobsStorage` | Storage connection string (required) |
+| `FUNCTIONS_WORKER_RUNTIME` | `dotnet-isolated`, `python`, `node`, etc. |
+| `FUNCTIONS_EXTENSION_VERSION` | `~4` for Functions v4 |
+| `APPLICATIONINSIGHTS_CONNECTION_STRING` | App Insights connection |
+
+#### Access in Code (C#)
+
+```csharp
+// Access environment variables
+var apiKey = Environment.GetEnvironmentVariable("API_KEY");
+var connectionString = Environment.GetEnvironmentVariable("DATABASE_CONNECTION");
+
+// Or via IConfiguration
+public class MyFunction
+{
+    private readonly IConfiguration _configuration;
+
+    public MyFunction(IConfiguration configuration)
+    {
+        _configuration = configuration;
+    }
+
+    [Function("MyFunction")]
+    public async Task Run([TimerTrigger("0 0 * * * *")] TimerInfo timer)
+    {
+        var apiKey = _configuration["API_KEY"];
+        var dbConnection = _configuration["DATABASE_CONNECTION"];
+    }
+}
+```
+
+---
+
+### 6. Network Features
+
+#### A. Virtual Network (VNet) Integration
+
+**Enables outbound access to resources in VNet or on-premises via VPN/ExpressRoute.**
+
+**Available in:** Premium, Dedicated plans
+
+```bash
+# Enable VNet integration
+az functionapp vnet-integration add \
+  --name MyFunctionApp \
+  --resource-group MyResourceGroup \
+  --vnet MyVNet \
+  --subnet functions-subnet
+```
+
+**Use Cases:**
+- Access private databases (SQL, Cosmos DB with private endpoint)
+- Call internal APIs
+- Access on-premises resources via VPN
+- Comply with network security policies
+
+#### B. Private Endpoints
+
+**Enables inbound private access to your Function App from VNet.**
+
+```bash
+# Create private endpoint
+az network private-endpoint create \
+  --name MyFunctionAppPE \
+  --resource-group MyResourceGroup \
+  --vnet-name MyVNet \
+  --subnet private-endpoints-subnet \
+  --private-connection-resource-id $(az functionapp show \
+    --name MyFunctionApp \
+    --resource-group MyResourceGroup \
+    --query id -o tsv) \
+  --connection-name MyFunctionAppConnection \
+  --group-id sites
+```
+
+**Features:**
+- Function accessible only from VNet
+- Traffic doesn't traverse public internet
+- Use with Azure Private DNS zone
+- Ideal for secure, internal-only functions
+
+#### C. Service Endpoints
+
+**Alternative to Private Endpoints for Azure services.**
+
+```bash
+# Enable service endpoint on subnet
+az network vnet subnet update \
+  --vnet-name MyVNet \
+  --name functions-subnet \
+  --resource-group MyResourceGroup \
+  --service-endpoints Microsoft.Storage Microsoft.Sql
+```
+
+#### Network Feature Comparison
+
+| Feature | VNet Integration | Private Endpoint | Service Endpoint |
+|---------|------------------|------------------|------------------|
+| **Direction** | Outbound | Inbound | Outbound |
+| **Use Case** | Access private resources | Secure inbound access | Access Azure services |
+| **Cost** | Included | ~$7.50/month + data | Free |
+| **Traffic** | Via VNet | Private IP only | Via service endpoint |
+| **Plans** | Premium, Dedicated | Premium, Dedicated | Premium, Dedicated |
+
+---
+
+### 7. IP Restrictions & Access Restrictions
+
+**Control which IP addresses can access your Function App.**
+
+#### Portal Configuration
+
+```
+Function App → Networking → Access restrictions
+```
+
+#### Add IP Restriction via CLI
+
+```bash
+# Allow specific IP
+az functionapp config access-restriction add \
+  --name MyFunctionApp \
+  --resource-group MyResourceGroup \
+  --rule-name "Allow-Office" \
+  --action Allow \
+  --ip-address 203.0.113.0/24 \
+  --priority 100
+
+# Allow Service Tag (e.g., Azure Front Door)
+az functionapp config access-restriction add \
+  --name MyFunctionApp \
+  --resource-group MyResourceGroup \
+  --rule-name "Allow-AFD" \
+  --action Allow \
+  --service-tag AzureFrontDoor.Backend \
+  --priority 200
+
+# Deny all others (implicit)
+```
+
+#### Access Restriction Rules
+
+| Rule Type | Example | Use Case |
+|-----------|---------|----------|
+| **IP Address** | `203.0.113.0/24` | Allow office network |
+| **Service Tag** | `AzureFrontDoor.Backend` | Traffic through Azure Front Door |
+| **VNet/Subnet** | `/subscriptions/.../virtualNetworks/...` | Allow from specific VNet |
+
+#### SCM (Kudu) Separate Restrictions
+
+```bash
+# Apply restrictions to deployment/SCM site separately
+az functionapp config access-restriction add \
+  --name MyFunctionApp \
+  --resource-group MyResourceGroup \
+  --rule-name "Allow-DevOps" \
+  --action Allow \
+  --ip-address 198.51.100.0/24 \
+  --priority 100 \
+  --scm-site true
+```
+
+---
+
+### 8. Custom Domains & SSL/TLS
+
+#### Add Custom Domain
+
+```bash
+# Add custom domain
+az functionapp config hostname add \
+  --hostname api.example.com \
+  --webapp-name MyFunctionApp \
+  --resource-group MyResourceGroup
+
+# Verify domain ownership (DNS)
+# Add TXT record or CNAME record as instructed
+```
+
+#### DNS Configuration
+
+**Option 1: CNAME Record**
+```
+Type: CNAME
+Name: api
+Value: myfunctionapp.azurewebsites.net
+TTL: 3600
+```
+
+**Option 2: A Record + TXT Record**
+```
+Type: A
+Name: api
+Value: <Function App IP>
+
+Type: TXT
+Name: asuid.api
+Value: <Custom domain verification ID>
+```
+
+#### SSL/TLS Certificate
+
+**Option 1: Managed Certificate (Free)**
+```bash
+# Create free managed certificate
+az functionapp config ssl create \
+  --hostname api.example.com \
+  --name MyFunctionApp \
+  --resource-group MyResourceGroup
+```
+
+**Option 2: Upload Custom Certificate**
+```bash
+# Upload PFX certificate
+az functionapp config ssl upload \
+  --certificate-file certificate.pfx \
+  --certificate-password <password> \
+  --name MyFunctionApp \
+  --resource-group MyResourceGroup
+
+# Bind certificate to hostname
+az functionapp config ssl bind \
+  --certificate-thumbprint <thumbprint> \
+  --ssl-type SNI \
+  --name MyFunctionApp \
+  --resource-group MyResourceGroup
+```
+
+**Option 3: Import from Key Vault**
+```bash
+az functionapp config ssl import \
+  --key-vault MyKeyVault \
+  --key-vault-certificate-name MyCertificate \
+  --name MyFunctionApp \
+  --resource-group MyResourceGroup
+```
+
+#### Enforce HTTPS
+
+```bash
+az functionapp update \
+  --name MyFunctionApp \
+  --resource-group MyResourceGroup \
+  --set httpsOnly=true
+```
+
+---
+
+### 9. Warm-up Trigger (Premium/Dedicated Plans)
+
+**Pre-warm instances before they receive traffic after scaling out.**
+
+```csharp
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Extensions.Logging;
+
+namespace MyFunctionApp.Features
+{
+    public class WarmupFunction
+    {
+        private readonly ILogger<WarmupFunction> _logger;
+        private readonly IMyService _myService;
+
+        public WarmupFunction(
+            ILogger<WarmupFunction> logger,
+            IMyService myService)
+        {
+            _logger = logger;
+            _myService = myService;
+        }
+
+        /// <summary>
+        /// Warm-up trigger - runs when new instance is added
+        /// Use to pre-load caches, establish connections, etc.
+        /// </summary>
+        [Function("warmup")]
+        public async Task Run([WarmupTrigger] WarmupContext context)
+        {
+            _logger.LogInformation("Warming up instance");
+
+            // Pre-load configuration
+            await LoadConfigurationAsync();
+
+            // Establish database connections
+            await _myService.InitializeConnectionPoolAsync();
+
+            // Pre-load caches
+            await PreLoadCachesAsync();
+
+            // Warm up HTTP clients
+            await WarmupHttpClientsAsync();
+
+            _logger.LogInformation("Instance warm-up complete");
+        }
+
+        private async Task LoadConfigurationAsync()
+        {
+            // Load configuration from Key Vault, App Configuration, etc.
+            _logger.LogInformation("Loading configuration");
+            await Task.Delay(100); // Simulate config load
+        }
+
+        private async Task PreLoadCachesAsync()
+        {
+            // Pre-populate in-memory caches
+            _logger.LogInformation("Pre-loading caches");
+            await Task.Delay(200); // Simulate cache load
+        }
+
+        private async Task WarmupHttpClientsAsync()
+        {
+            // Make initial HTTP requests to warm up connections
+            _logger.LogInformation("Warming up HTTP clients");
+            await Task.Delay(100); // Simulate HTTP warmup
+        }
+    }
+}
+```
+
+**What to Do in Warm-up:**
+- ✅ Load configuration from Key Vault
+- ✅ Establish database connection pools
+- ✅ Pre-load in-memory caches
+- ✅ Initialize HTTP clients
+- ✅ JIT compile frequently-used code paths
+- ❌ Don't perform time-consuming operations (keep under 2-3 seconds)
+
+---
+
+### 10. Function Keys & Authorization
+
+#### Function Key Levels
+
+| Level | Scope | Use Case |
+|-------|-------|----------|
+| **Function Key** | Single function | Function-specific access |
+| **Host Key** | All functions in app | Admin operations |
+| **System Key** | Internal use | Durable Functions, extensions |
+| **Master Key** | All functions (admin) | Legacy, avoid using |
+
+#### Manage Keys via CLI
+
+```bash
+# List function keys
+az functionapp keys list \
+  --name MyFunctionApp \
+  --resource-group MyResourceGroup
+
+# Create new function key
+az functionapp function keys set \
+  --name MyFunctionApp \
+  --resource-group MyResourceGroup \
+  --function-name MyFunction \
+  --key-name client1 \
+  --key-value <secret-value>
+
+# Delete function key
+az functionapp function keys delete \
+  --name MyFunctionApp \
+  --resource-group MyResourceGroup \
+  --function-name MyFunction \
+  --key-name client1
+```
+
+#### Use Function Key in Request
+
+```bash
+# Query parameter
+curl "https://myfunctionapp.azurewebsites.net/api/MyFunction?code=<function-key>"
+
+# Header
+curl "https://myfunctionapp.azurewebsites.net/api/MyFunction" \
+  -H "x-functions-key: <function-key>"
+```
+
+#### Authorization Level in Code
+
+```csharp
+// Anonymous - no key required
+[Function("PublicApi")]
+[HttpTrigger(AuthorizationLevel.Anonymous, "get")]
+
+// Function - function key required
+[Function("ProtectedApi")]
+[HttpTrigger(AuthorizationLevel.Function, "get")]
+
+// Admin - host/master key required
+[Function("AdminApi")]
+[HttpTrigger(AuthorizationLevel.Admin, "post")]
+```
+
+---
+
+### 11. Easy Auth (Authentication / Authorization)
+
+**Built-in authentication without writing code (App Service Authentication).**
+
+#### Supported Identity Providers
+
+- Microsoft Entra ID (Azure AD)
+- Facebook
+- Google
+- Twitter
+- Apple
+- OpenID Connect providers
+- GitHub
+
+#### Enable via Portal
+
+```
+Function App → Authentication → Add identity provider
+→ Select Microsoft → Configure
+```
+
+#### Enable via CLI
+
+```bash
+# Enable Azure AD authentication
+az functionapp auth update \
+  --name MyFunctionApp \
+  --resource-group MyResourceGroup \
+  --enabled true \
+  --action LoginWithAzureActiveDirectory \
+  --aad-client-id <client-id> \
+  --aad-client-secret <client-secret> \
+  --aad-allowed-token-audiences "https://myfunctionapp.azurewebsites.net"
+```
+
+#### Auth Configuration
+
+```json
+// File: /site/wwwroot/auth.json (advanced configuration)
+{
+  "platform": {
+    "enabled": true
+  },
+  "globalValidation": {
+    "requireAuthentication": true,
+    "unauthenticatedClientAction": "RedirectToLoginPage"
+  },
+  "identityProviders": {
+    "azureActiveDirectory": {
+      "enabled": true,
+      "registration": {
+        "openIdIssuer": "https://sts.windows.net/<tenant-id>/",
+        "clientId": "<client-id>"
+      },
+      "validation": {
+        "allowedAudiences": [
+          "https://myfunctionapp.azurewebsites.net"
+        ]
+      }
+    }
+  },
+  "login": {
+    "tokenStore": {
+      "enabled": true
+    }
+  }
+}
+```
+
+#### Access User Claims in Code
+
+```csharp
+[Function("AuthenticatedFunction")]
+public async Task<HttpResponseData> Run(
+    [HttpTrigger(AuthorizationLevel.Anonymous, "get")] HttpRequestData req,
+    FunctionContext context)
+{
+    // Easy Auth populates these headers
+    var principalId = req.Headers.GetValues("X-MS-CLIENT-PRINCIPAL-ID").FirstOrDefault();
+    var principalName = req.Headers.GetValues("X-MS-CLIENT-PRINCIPAL-NAME").FirstOrDefault();
+    
+    // Or decode the claims from X-MS-CLIENT-PRINCIPAL header
+    var claimsPrincipal = GetClaimsPrincipalFromHeader(req);
+
+    var response = req.CreateResponse(HttpStatusCode.OK);
+    await response.WriteAsJsonAsync(new
+    {
+        userId = principalId,
+        userName = principalName,
+        email = claimsPrincipal.FindFirst("email")?.Value
+    });
+
+    return response;
+}
+
+private ClaimsPrincipal GetClaimsPrincipalFromHeader(HttpRequestData req)
+{
+    if (req.Headers.TryGetValues("X-MS-CLIENT-PRINCIPAL", out var principalHeaders))
+    {
+        var principal = principalHeaders.FirstOrDefault();
+        if (!string.IsNullOrEmpty(principal))
+        {
+            var decoded = Convert.FromBase64String(principal);
+            var json = Encoding.UTF8.GetString(decoded);
+            // Parse JSON to ClaimsPrincipal
+            // ... implementation
+        }
+    }
+    return null;
+}
+```
+
+---
+
+### 12. Host.json Complete Reference
+
+```json
+{
+  "version": "2.0",
+  
+  // Logging configuration
+  "logging": {
+    "logLevel": {
+      "default": "Information",
+      "Host.Results": "Error",
+      "Function": "Information",
+      "Microsoft": "Warning"
+    },
+    "applicationInsights": {
+      "samplingSettings": {
+        "isEnabled": true,
+        "maxTelemetryItemsPerSecond": 20,
+        "excludedTypes": "Request;Exception"
+      },
+      "enableLiveMetrics": true,
+      "enableDependencyTracking": true,
+      "enablePerformanceCountersCollection": true
+    }
+  },
+
+  // HTTP extension
+  "extensions": {
+    "http": {
+      "routePrefix": "api",
+      "maxOutstandingRequests": 200,
+      "maxConcurrentRequests": 100,
+      "dynamicThrottlesEnabled": true,
+      "hsts": {
+        "isEnabled": true,
+        "maxAge": "365"
+      },
+      "customHeaders": {
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY"
+      }
+    },
+
+    // Queue trigger settings
+    "queues": {
+      "maxPollingInterval": "00:00:02",
+      "visibilityTimeout": "00:00:30",
+      "batchSize": 16,
+      "maxDequeueCount": 5,
+      "newBatchThreshold": 8
+    },
+
+    // Service Bus settings
+    "serviceBus": {
+      "prefetchCount": 100,
+      "messageHandlerOptions": {
+        "autoComplete": true,
+        "maxConcurrentCalls": 16,
+        "maxAutoRenewDuration": "00:05:00"
+      },
+      "sessionHandlerOptions": {
+        "autoComplete": false,
+        "messageWaitTimeout": "00:00:30",
+        "maxAutoRenewDuration": "00:55:00",
+        "maxConcurrentSessions": 8
+      }
+    },
+
+    // Event Hub settings
+    "eventHub": {
+      "maxEventBatchSize": 100,
+      "prefetchCount": 300,
+      "batchCheckpointFrequency": 1
+    },
+
+    // Blob trigger settings
+    "blob": {
+      "maxDegreeOfParallelism": 8
+    },
+
+    // Durable Functions settings
+    "durableTask": {
+      "maxConcurrentActivityFunctions": 10,
+      "maxConcurrentOrchestrators": 10,
+      "storageProvider": {
+        "type": "azure_storage",
+        "connectionStringName": "AzureWebJobsStorage"
+      },
+      "tracing": {
+        "traceInputsAndOutputs": true,
+        "traceReplayEvents": false
+      }
+    }
+  },
+
+  // Function timeout
+  "functionTimeout": "00:05:00",
+
+  // Health monitor
+  "healthMonitor": {
+    "enabled": true,
+    "healthCheckInterval": "00:00:10",
+    "healthCheckWindow": "00:02:00",
+    "healthCheckThreshold": 6,
+    "counterThreshold": 0.80
+  },
+
+  // Singleton configuration
+  "singleton": {
+    "lockPeriod": "00:00:15",
+    "listenerLockPeriod": "00:01:00",
+    "listenerLockRecoveryPollingInterval": "00:01:00",
+    "lockAcquisitionTimeout": "00:01:00",
+    "lockAcquisitionPollingInterval": "00:00:05"
+  },
+
+  // Retry policies
+  "retry": {
+    "strategy": "exponentialBackoff",
+    "maxRetryCount": 3,
+    "minimumInterval": "00:00:05",
+    "maximumInterval": "00:15:00"
+  },
+
+  // Aggregator (for batching invocations)
+  "aggregator": {
+    "batchSize": 1000,
+    "flushTimeout": "00:00:30"
+  }
+}
+```
+
+---
+
 ## Real-World Scenarios (C# Implementation)
 
 ### Scenario 1: E-Commerce Order Processing System
@@ -7197,7 +10178,7 @@ Tell me which direction you want 👌
 
 ## Conclusion
 
-This comprehensive guide covered Azure Functions implementation in C# with:
+This comprehensive guide covered Azure Functions implementation with:
 
 ✅ **All Trigger Types** - HTTP, Timer, Queue, Blob, Service Bus, Event Grid, Event Hub, Cosmos DB
 ✅ **Durable Functions** - Orchestration patterns (Chaining, Fan-out/Fan-in, Human Interaction, Monitor)
@@ -7205,9 +10186,27 @@ This comprehensive guide covered Azure Functions implementation in C# with:
 ✅ **Security** - Managed Identity, JWT validation, Azure AD B2C, API Keys
 ✅ **Error Handling** - Global middleware, custom exceptions, retry policies
 ✅ **Monitoring** - Application Insights, structured logging, custom metrics, health checks
+✅ **Platform Features** - CORS, Proxies, Custom Handlers, Deployment Slots
+✅ **Network Configuration** - VNet Integration, Private Endpoints, IP Restrictions
+✅ **Authentication** - Easy Auth, Custom Domains, SSL/TLS, Function Keys
+✅ **Advanced Configuration** - Application Settings, Warm-up Triggers, host.json
 ✅ **Real-World Scenario** - Complete E-Commerce order processing system
 ✅ **Deployment** - Azure DevOps, GitHub Actions, IaC
 ✅ **Best Practices** - DI, async/await, logging, security
+
+### Quick Reference: Common Tasks
+
+| Task | Command/Configuration |
+|------|----------------------|
+| **Enable CORS** | Portal → CORS → Add origins |
+| **Add App Setting** | `az functionapp config appsettings set --settings "KEY=value"` |
+| **Create Deployment Slot** | Portal → Deployment slots → Add Slot |
+| **Enable VNet Integration** | `az functionapp vnet-integration add` |
+| **Add Custom Domain** | `az functionapp config hostname add` |
+| **Enable HTTPS Only** | `az functionapp update --set httpsOnly=true` |
+| **Add IP Restriction** | `az functionapp config access-restriction add` |
+| **View Logs** | Portal → Log Stream or `func azure functionapp logstream` |
+| **Swap Slots** | `az functionapp deployment slot swap` |
 
 ### Additional Resources
 
@@ -7215,5 +10214,7 @@ This comprehensive guide covered Azure Functions implementation in C# with:
 - [Azure Functions Best Practices](https://docs.microsoft.com/azure/azure-functions/functions-best-practices)
 - [Durable Functions Documentation](https://docs.microsoft.com/azure/azure-functions/durable/)
 - [Application Insights for Azure Functions](https://docs.microsoft.com/azure/azure-functions/functions-monitoring)
+- [Azure Functions on GitHub](https://github.com/Azure/Azure-Functions)
+- [Azure Functions Host Settings Reference](https://docs.microsoft.com/azure/azure-functions/functions-host-json)
 
 **Happy Coding! 🚀**

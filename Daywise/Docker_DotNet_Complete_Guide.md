@@ -11,6 +11,7 @@
 - [Development Workflows](#development-workflows)
 - [CI/CD Integration](#cicd-integration)
 - [Azure Deployment - ACR to App Services & Container Apps](#azure-deployment---acr-to-app-services--container-apps)
+- [Azure Functions with Docker](#azure-functions-with-docker)
 - [Security Best Practices](#security-best-practices)
 - [Performance Optimization](#performance-optimization)
 - [Networking in Docker](#networking-in-docker)
@@ -2729,51 +2730,725 @@ az containerapp logs show \
    └──────────────┘              └──────────────┘           └──────────────┘
 ```
 
-#### Detailed Flow Explanation
+---
 
-**Step 1: Azure Pipeline Builds Image**
-```yaml
-# Pipeline authenticates using Service Connection
-# Service Connection contains:
-#   - Service Principal Client ID
-#   - Service Principal Client Secret
-#   - Tenant ID
-#   - Subscription ID
+### Deep Dive: Authentication & Connection Process
 
-# Docker@2 task uses these credentials to:
-docker login myappacr.azurecr.io \
-  -u <service-principal-id> \
-  -p <service-principal-secret>
-```
+#### Method 1: Admin Credentials (Development Only)
 
-**Step 2: Image is Pushed to ACR**
+**When to use:** Quick prototyping, development environments  
+**NOT recommended for:** Production, CI/CD pipelines
+
+**How it works:**
+
 ```bash
-# Image is stored in ACR with full path:
-# myappacr.azurecr.io/myapi:v1.0.0
+# =============================================================================
+# STEP 1: ENABLE ADMIN ACCESS ON ACR
+# =============================================================================
+# When you create ACR with --admin-enabled true, Azure generates:
+#   - Admin Username (same as ACR name)
+#   - Two Admin Passwords (primary and secondary)
 
-# ACR stores:
-#   - Image layers (deduplicated)
-#   - Manifest (image metadata)
-#   - Tags (version labels)
+az acr create \
+  --name myappacr \
+  --resource-group rg-myapp \
+  --sku Standard \
+  --admin-enabled true
+
+# =============================================================================
+# STEP 2: RETRIEVE ADMIN CREDENTIALS
+# =============================================================================
+az acr credential show --name myappacr
+
+# Output:
+# {
+#   "username": "myappacr",
+#   "passwords": [
+#     {
+#       "name": "password",
+#       "value": "abc123xyz789..."  # Primary password
+#     },
+#     {
+#       "name": "password2",
+#       "value": "def456uvw012..."  # Secondary password
+#     }
+#   ]
+# }
+
+# =============================================================================
+# STEP 3: LOGIN TO ACR USING ADMIN CREDENTIALS
+# =============================================================================
+# Docker login uses these credentials
+docker login myappacr.azurecr.io \
+  -u myappacr \
+  -p abc123xyz789...
+
+# What happens internally:
+# 1. Docker sends credentials to ACR login endpoint
+# 2. ACR validates username/password against stored admin credentials
+# 3. ACR returns authentication token (valid for 3 hours)
+# 4. Docker stores token in ~/.docker/config.json
+# 5. Subsequent docker push/pull commands use this token
+
+# =============================================================================
+# STEP 4: PUSH IMAGE TO ACR
+# =============================================================================
+docker tag myapi:latest myappacr.azurecr.io/myapi:v1
+docker push myappacr.azurecr.io/myapi:v1
+
+# Push process:
+# 1. Docker reads auth token from config.json
+# 2. For each layer:
+#    a. Calculate layer SHA256 hash
+#    b. Check if layer exists in ACR (send HEAD request)
+#    c. If not exists, upload layer blob
+# 3. Upload image manifest (JSON describing layers)
+# 4. Create/update tag pointing to manifest
+
+# =============================================================================
+# STEP 5: CONFIGURE APP SERVICE TO PULL FROM ACR
+# =============================================================================
+az webapp config container set \
+  --name app-myapi \
+  --resource-group rg-myapp \
+  --docker-custom-image-name myappacr.azurecr.io/myapi:v1 \
+  --docker-registry-server-url https://myappacr.azurecr.io \
+  --docker-registry-server-user myappacr \
+  --docker-registry-server-password abc123xyz789...
+
+# What gets stored:
+# App Service stores these in encrypted app settings:
+#   DOCKER_REGISTRY_SERVER_URL = https://myappacr.azurecr.io
+#   DOCKER_REGISTRY_SERVER_USERNAME = myappacr
+#   DOCKER_REGISTRY_SERVER_PASSWORD = abc123xyz789...
+
+# =============================================================================
+# STEP 6: APP SERVICE PULLS IMAGE (Container Startup)
+# =============================================================================
+# When container starts/restarts:
+# 1. App Service reads DOCKER_REGISTRY_SERVER_* settings
+# 2. Authenticates with ACR using username/password
+# 3. ACR returns access token
+# 4. App Service requests image manifest
+# 5. ACR validates token and returns manifest
+# 6. App Service checks which layers are already cached locally
+# 7. Downloads missing layers in parallel
+# 8. Assembles container filesystem from layers
+# 9. Starts container with specified command (ENTRYPOINT/CMD)
 ```
 
-**Step 3: App Service Pulls from ACR**
+**Admin Credentials Flow Diagram:**
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      ADMIN CREDENTIALS FLOW                             │
+└─────────────────────────────────────────────────────────────────────────┘
+
+    Developer          Docker CLI          ACR                App Service
+        │                  │                 │                      │
+        │ 1. docker login  │                 │                      │
+        ├─────────────────▶│                 │                      │
+        │                  │ 2. POST /oauth2/token                 │
+        │                  │    (username/password)                │
+        │                  ├────────────────▶│                      │
+        │                  │ 3. Return JWT   │                      │
+        │                  │◀────────────────┤                      │
+        │                  │ Store in        │                      │
+        │                  │ ~/.docker/      │                      │
+        │                  │ config.json     │                      │
+        │                  │                 │                      │
+        │ 4. docker push   │                 │                      │
+        ├─────────────────▶│                 │                      │
+        │                  │ 5. PUT /v2/{repo}/manifests/{tag}     │
+        │                  │    Authorization: Bearer <token>      │
+        │                  ├────────────────▶│                      │
+        │                  │ 6. Upload layers│                      │
+        │                  ├────────────────▶│                      │
+        │                  │ 7. 201 Created  │                      │
+        │                  │◀────────────────┤                      │
+        │                  │                 │                      │
+        │                  │                 │ 8. Container Restart │
+        │                  │                 │◀─────────────────────│
+        │                  │                 │ 9. GET /oauth2/token │
+        │                  │                 │    (username/pass)   │
+        │                  │                 │◀─────────────────────│
+        │                  │                 │10. Return JWT        │
+        │                  │                 ├─────────────────────▶│
+        │                  │                 │11. GET Manifest       │
+        │                  │                 │◀─────────────────────│
+        │                  │                 │12. Return Manifest    │
+        │                  │                 ├─────────────────────▶│
+        │                  │                 │13. GET Layers         │
+        │                  │                 │◀─────────────────────│
+        │                  │                 │14. Return Layer Blobs │
+        │                  │                 ├─────────────────────▶│
+        │                  │                 │  15. Start Container  │
+        │                  │                 │      ✓ Running        │
+```
+
+---
+
+#### Method 2: Service Principal (CI/CD Pipelines)
+
+**When to use:** Azure DevOps, GitHub Actions, GitLab CI  
+**Recommended for:** Automated deployments, CI/CD pipelines
+
+**Complete Setup Process:**
+
+```bash
+# =============================================================================
+# UNDERSTANDING SERVICE PRINCIPALS
+# =============================================================================
+# Service Principal = Application identity in Azure AD
+# Think of it as a "service account" for applications
+# Components:
+#   - Application ID (Client ID): Unique identifier
+#   - Client Secret: Password for the app
+#   - Tenant ID: Azure AD tenant
+#   - Object ID: Azure AD object identifier
+
+# =============================================================================
+# STEP 1: CREATE SERVICE PRINCIPAL WITH ACR PERMISSIONS
+# =============================================================================
+RESOURCE_GROUP="rg-myapp"
+ACR_NAME="myappacr"
+SP_NAME="sp-myapp-acr-push"
+
+# Get ACR resource ID (needed for scoping the role)
+ACR_REGISTRY_ID=$(az acr show \
+  --name $ACR_NAME \
+  --query id \
+  --output tsv)
+
+echo "ACR Resource ID: $ACR_REGISTRY_ID"
+# Output: /subscriptions/{sub-id}/resourceGroups/rg-myapp/providers/Microsoft.ContainerRegistry/registries/myappacr
+
+# Create Service Principal and assign AcrPush role
+# This command does THREE things:
+#   1. Creates app registration in Azure AD
+#   2. Creates service principal (identity) for the app
+#   3. Assigns RBAC role to the service principal
+SP_CREDENTIALS=$(az ad sp create-for-rbac \
+  --name $SP_NAME \
+  --role AcrPush \
+  --scope $ACR_REGISTRY_ID \
+  --sdk-auth)
+
+echo $SP_CREDENTIALS
+# Output (SAVE THIS - shown only once):
+# {
+#   "clientId": "12345678-1234-1234-1234-123456789abc",
+#   "clientSecret": "super-secret-password-xyz",
+#   "subscriptionId": "abcdef01-2345-6789-abcd-ef0123456789",
+#   "tenantId": "98765432-9876-5432-9876-543210987654",
+#   "activeDirectoryEndpointUrl": "https://login.microsoftonline.com",
+#   "resourceManagerEndpointUrl": "https://management.azure.com/",
+#   "activeDirectoryGraphResourceId": "https://graph.windows.net/",
+#   "sqlManagementEndpointUrl": "https://management.core.windows.net:8443/",
+#   "galleryEndpointUrl": "https://gallery.azure.com/",
+#   "managementEndpointUrl": "https://management.core.windows.net/"
+# }
+
+# UNDERSTANDING ROLES:
+#   AcrPush:  Can push and pull images (for CI/CD)
+#   AcrPull:  Can only pull images (for App Service)
+#   Owner:    Full access including RBAC management
+#   Contributor: Can modify but not manage access
+
+# =============================================================================
+# STEP 2: VERIFY SERVICE PRINCIPAL PERMISSIONS
+# =============================================================================
+# Extract client ID from JSON
+CLIENT_ID=$(echo $SP_CREDENTIALS | jq -r '.clientId')
+
+# List role assignments
+az role assignment list \
+  --assignee $CLIENT_ID \
+  --scope $ACR_REGISTRY_ID \
+  --output table
+
+# Output:
+# Principal            Role     Scope
+# -------------------  -------  ---------------------------------------
+# sp-myapp-acr-push    AcrPush  /subscriptions/.../registries/myappacr
+
+# =============================================================================
+# STEP 3: TEST SERVICE PRINCIPAL LOGIN (Local Testing)
+# =============================================================================
+CLIENT_SECRET=$(echo $SP_CREDENTIALS | jq -r '.clientSecret')
+TENANT_ID=$(echo $SP_CREDENTIALS | jq -r '.tenantId')
+
+# Login to Azure CLI using Service Principal
+az login --service-principal \
+  -u $CLIENT_ID \
+  -p $CLIENT_SECRET \
+  --tenant $TENANT_ID
+
+# Login to ACR using Service Principal
+az acr login \
+  --name $ACR_NAME \
+  --username $CLIENT_ID \
+  --password $CLIENT_SECRET
+
+# Or use Docker directly:
+docker login $ACR_NAME.azurecr.io \
+  -u $CLIENT_ID \
+  -p $CLIENT_SECRET
+
+# Test push
+docker tag myapi:latest $ACR_NAME.azurecr.io/myapi:test-sp
+docker push $ACR_NAME.azurecr.io/myapi:test-sp
+# ✓ Successfully pushed
+
+# =============================================================================
+# STEP 4: CONFIGURE AZURE DEVOPS SERVICE CONNECTION
+# =============================================================================
+# Option A: Using Azure DevOps UI
+# 1. Go to Project Settings → Service Connections
+# 2. New Service Connection → Docker Registry
+# 3. Select "Azure Container Registry"
+# 4. Choose "Service Principal"
+# 5. Enter:
+#    - Docker Registry: https://myappacr.azurecr.io
+#    - Service Principal ID: {clientId}
+#    - Service Principal Key: {clientSecret}
+#    - Tenant ID: {tenantId}
+#    - Connection Name: ACR-MyApp
+
+# Option B: Using Azure CLI (creates connection programmatically)
+# Note: Requires Azure DevOps extension
+az devops service-endpoint create \
+  --service-endpoint-type dockerregistry \
+  --name "ACR-MyApp" \
+  --url "https://$ACR_NAME.azurecr.io" \
+  --username $CLIENT_ID \
+  --password $CLIENT_SECRET
+
+# =============================================================================
+# STEP 5: USE SERVICE CONNECTION IN AZURE PIPELINE
+# =============================================================================
+# In azure-pipelines.yml:
+```
+
+**Azure Pipeline Configuration:**
+
 ```yaml
-# App Service configuration:
-container:
-  registry: myappacr.azurecr.io
-  image: myapi:v1.0.0
-  
-authentication:
-  type: ManagedIdentity  # or AdminCredentials
-  
-# When container starts:
-# 1. App Service requests token from Azure AD (using Managed Identity)
-# 2. Azure AD validates identity and returns token
-# 3. App Service uses token to authenticate with ACR
-# 4. ACR validates token and grants access
-# 5. App Service pulls image layers
-# 6. Container starts with pulled image
+# azure-pipelines.yml
+trigger:
+  branches:
+    include:
+      - main
+
+variables:
+  # These reference the Service Connection created above
+  dockerRegistryServiceConnection: 'ACR-MyApp'
+  imageRepository: 'myapi'
+  containerRegistry: 'myappacr.azurecr.io'
+  tag: '$(Build.BuildId)'
+
+stages:
+- stage: Build
+  jobs:
+  - job: BuildAndPush
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    # =============================================================================
+    # WHAT HAPPENS BEHIND THE SCENES:
+    # =============================================================================
+    # When this task runs, Azure DevOps:
+    #   1. Retrieves Service Principal credentials from Service Connection
+    #   2. Calls Azure AD token endpoint:
+    #        POST https://login.microsoftonline.com/{tenantId}/oauth2/v2.0/token
+    #        Body:
+    #          client_id={clientId}
+    #          client_secret={clientSecret}
+    #          scope=https://management.azure.com/.default
+    #          grant_type=client_credentials
+    #   3. Azure AD validates credentials
+    #   4. Azure AD returns access token (JWT)
+    #   5. Azure DevOps uses token to call ACR token exchange endpoint:
+    #        POST https://myappacr.azurecr.io/oauth2/exchange
+    #        Body:
+    #          grant_type=access_token
+    #          service=myappacr.azurecr.io
+    #          access_token={AAD_token}
+    #   6. ACR validates AAD token and checks RBAC permissions
+    #   7. ACR returns registry-specific refresh token
+    #   8. Docker task uses refresh token for push/pull operations
+    # =============================================================================
+    
+    - task: Docker@2
+      displayName: 'Build and Push Image'
+      inputs:
+        command: buildAndPush
+        repository: $(imageRepository)
+        dockerfile: '$(Build.SourcesDirectory)/Dockerfile'
+        containerRegistry: $(dockerRegistryServiceConnection)  # Uses Service Connection
+        tags: |
+          $(tag)
+          latest
+```
+
+**Service Principal Authentication Flow:**
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│              SERVICE PRINCIPAL AUTHENTICATION FLOW                           │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+ Azure Pipeline      Azure AD         ACR Token         ACR Registry
+      │                 │              Exchange             │
+      │ 1. Get SP       │                 │                 │
+      │    credentials  │                 │                 │
+      │    from Service │                 │                 │
+      │    Connection   │                 │                 │
+      │                 │                 │                 │
+      │ 2. POST /oauth2/token            │                 │
+      │    client_id + client_secret     │                 │
+      ├────────────────▶│                 │                 │
+      │                 │                 │                 │
+      │                 │ 3. Validate SP  │                 │
+      │                 │    credentials  │                 │
+      │                 │    against      │                 │
+      │                 │    Azure AD     │                 │
+      │                 │                 │                 │
+      │ 4. Return AAD   │                 │                 │
+      │    Access Token │                 │                 │
+      │    (JWT)        │                 │                 │
+      │◀────────────────┤                 │                 │
+      │                 │                 │                 │
+      │ 5. POST /oauth2/exchange          │                 │
+      │    grant_type=access_token        │                 │
+      │    + AAD token  │                 │                 │
+      ├─────────────────┼────────────────▶│                 │
+      │                 │                 │                 │
+      │                 │                 │ 6. Validate AAD │
+      │                 │                 │    token        │
+      │                 │                 │    signature    │
+      │                 │                 │                 │
+      │                 │                 │ 7. Check RBAC   │
+      │                 │                 │    (AcrPush?)   │
+      │                 │                 │                 │
+      │                 │ 8. Return ACR refresh token       │
+      │◀────────────────┼─────────────────┤                 │
+      │                 │                 │                 │
+      │ 9. Build Docker image             │                 │
+      │                 │                 │                 │
+      │10. docker push  │                 │                 │
+      │    (using refresh token)          │                 │
+      ├─────────────────┼─────────────────┼────────────────▶│
+      │                 │                 │                 │
+      │                 │                 │11. Validate     │
+      │                 │                 │    refresh token│
+      │                 │                 │                 │
+      │                 │                 │12. Accept layers│
+      │◀────────────────┼─────────────────┼─────────────────┤
+      │                 │                 │                 │
+      │ ✓ Push Complete │                 │                 │
+```
+
+---
+
+#### Method 3: Managed Identity (Production - Most Secure)
+
+**When to use:** App Service, Container Apps, AKS, Azure Functions  
+**Recommended for:** Production deployments, Azure-native services
+
+**Why Managed Identity is Best:**
+- ✅ No credentials to manage or rotate
+- ✅ No secrets stored in code or config
+- ✅ Automatic credential rotation by Azure
+- ✅ Audit trail in Azure AD
+- ✅ Least privilege access
+
+**Complete Setup Process:**
+
+```bash
+# =============================================================================
+# STEP 1: ENABLE MANAGED IDENTITY ON APP SERVICE
+# =============================================================================
+RESOURCE_GROUP="rg-myapp"
+APP_SERVICE_NAME="app-myapi"
+ACR_NAME="myappacr"
+
+# Enable System-Assigned Managed Identity
+# This creates an identity in Azure AD automatically
+az webapp identity assign \
+  --name $APP_SERVICE_NAME \
+  --resource-group $RESOURCE_GROUP
+
+# Output:
+# {
+#   "principalId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",  # Object ID in Azure AD
+#   "tenantId": "11111111-2222-3333-4444-555555555555",
+#   "type": "SystemAssigned"
+# }
+
+# Save the Principal ID (we need it for RBAC)
+PRINCIPAL_ID=$(az webapp identity show \
+  --name $APP_SERVICE_NAME \
+  --resource-group $RESOURCE_GROUP \
+  --query principalId \
+  --output tsv)
+
+echo "Managed Identity Principal ID: $PRINCIPAL_ID"
+
+# =============================================================================
+# UNDERSTANDING MANAGED IDENTITY TYPES:
+# =============================================================================
+# System-Assigned: 
+#   - Created with the resource, deleted with the resource
+#   - 1:1 relationship (one identity per resource)
+#   - Use for: Single app accessing Azure resources
+#
+# User-Assigned:
+#   - Created independently, can be assigned to multiple resources
+#   - Many:Many relationship
+#   - Use for: Multiple apps sharing same identity
+# =============================================================================
+
+# =============================================================================
+# STEP 2: GRANT MANAGED IDENTITY ACCESS TO ACR
+# =============================================================================
+# Get ACR resource ID
+ACR_REGISTRY_ID=$(az acr show \
+  --name $ACR_NAME \
+  --query id \
+  --output tsv)
+
+echo "ACR Resource ID: $ACR_REGISTRY_ID"
+
+# Assign AcrPull role to the Managed Identity
+# This creates an RBAC role assignment in Azure
+az role assignment create \
+  --assignee $PRINCIPAL_ID \
+  --role AcrPull \
+  --scope $ACR_REGISTRY_ID
+
+# What this does:
+#   - Creates entry in ACR's access control (IAM)
+#   - Grants permission to pull images (but not push)
+#   - Permission propagates within 1-2 minutes
+#   - No credentials exchanged - just permission grant
+
+# Verify the assignment
+az role assignment list \
+  --assignee $PRINCIPAL_ID \
+  --scope $ACR_REGISTRY_ID \
+  --output table
+
+# Output:
+# Principal            Role     Scope
+# -------------------  -------  ---------------------------------------
+# app-myapi            AcrPull  /subscriptions/.../registries/myappacr
+
+# =============================================================================
+# STEP 3: CONFIGURE APP SERVICE TO USE ACR WITH MANAGED IDENTITY
+# =============================================================================
+# Configure container settings WITHOUT credentials
+# App Service will use Managed Identity automatically
+az webapp config container set \
+  --name $APP_SERVICE_NAME \
+  --resource-group $RESOURCE_GROUP \
+  --docker-custom-image-name $ACR_NAME.azurecr.io/myapi:latest \
+  --docker-registry-server-url https://$ACR_NAME.azurecr.io
+  # NOTE: NO --docker-registry-server-user or --docker-registry-server-password
+  #       When these are omitted, App Service tries Managed Identity first
+
+# =============================================================================
+# STEP 4: ENABLE MANAGED IDENTITY FOR ACR (App Setting)
+# =============================================================================
+# Explicitly tell App Service to use Managed Identity for ACR
+az webapp config appsettings set \
+  --name $APP_SERVICE_NAME \
+  --resource-group $RESOURCE_GROUP \
+  --settings DOCKER_REGISTRY_SERVER_URL="https://$ACR_NAME.azurecr.io"
+
+# =============================================================================
+# STEP 5: TEST THE CONFIGURATION
+# =============================================================================
+# Restart App Service to pull image using Managed Identity
+az webapp restart \
+  --name $APP_SERVICE_NAME \
+  --resource-group $RESOURCE_GROUP
+
+# Watch logs to see authentication in action
+az webapp log tail \
+  --name $APP_SERVICE_NAME \
+  --resource-group $RESOURCE_GROUP
+
+# Look for:
+#   "Pulling image from Azure Container Registry using Managed Identity"
+#   "Successfully pulled image using Managed Identity"
+```
+
+**Managed Identity Authentication Flow (The Magic!):**
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│            MANAGED IDENTITY AUTHENTICATION FLOW (MOST SECURE)                │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+ App Service       Azure Instance     Azure AD         ACR
+   Container         Metadata                       Registry
+      │               Service                          │
+      │                  │                             │
+      │ 1. Container     │                             │
+      │    start/restart │                             │
+      │    triggered     │                             │
+      │                  │                             │
+      │ 2. Request token │                             │
+      │    for ACR       │                             │
+      │    resource      │                             │
+      ├─────────────────▶│                             │
+      │                  │                             │
+      │                  │ 3. GET /metadata/identity/oauth2/token
+      │                  │    resource=https://management.azure.com
+      │                  │    Metadata: true
+      │                  ├────────────────▶│            │
+      │                  │                 │            │
+      │                  │    4. Validate  │            │
+      │                  │       Managed   │            │
+      │                  │       Identity  │            │
+      │                  │       (Principal│            │
+      │                  │       ID)       │            │
+      │                  │                 │            │
+      │                  │    5. Check if identity has  │
+      │                  │       valid permissions      │
+      │                  │                 │            │
+      │                  │    6. Generate  │            │
+      │                  │       access    │            │
+      │                  │       token     │            │
+      │                  │       (JWT)     │            │
+      │                  │                 │            │
+      │                  │    7. Return AAD access token
+      │                  │◀────────────────┤            │
+      │                  │                 │            │
+      │ 8. Return token  │                 │            │
+      │◀─────────────────┤                 │            │
+      │                  │                 │            │
+      │ 9. Exchange AAD token for ACR-specific token    │
+      │    POST https://myappacr.azurecr.io/oauth2/exchange
+      │    grant_type=access_token                      │
+      │    service=myappacr.azurecr.io                  │
+      │    access_token={AAD_token}                     │
+      ├─────────────────┼─────────────────┼────────────▶│
+      │                  │                 │            │
+      │                  │                 │  10. Validate
+      │                  │                 │      AAD token
+      │                  │                 │                        │
+      │                  │                 │  11. Check RBAC
+      │                  │                 │      (AcrPull role)
+      │                  │                 │                        │
+      │                  │                 │  12. Generate ACR
+      │                  │                 │      refresh token
+      │                  │                 │                        │
+      │ 13. Return ACR refresh token                    │
+      │◀────────────────┼─────────────────┼─────────────┤
+      │                  │                 │            │
+      │14. GET /v2/{repository}/manifests/{tag}         │
+      │    Authorization: Bearer {refresh_token}        │
+      ├─────────────────┼─────────────────┼────────────▶│
+      │                  │                 │            │
+      │                  │                 │  15. Validate token
+      │                  │                 │                        │
+      │ 16. Return image manifest                       │
+      │◀────────────────┼─────────────────┼─────────────┤
+      │                  │                 │            │
+      │17. Download image layers                        │
+      ├────────────────────────────────────────────────▶│
+      │◀────────────────────────────────────────────────┤
+      │                  │                 │            │
+      │ 18. Start container                             │
+      │     ✓ Running                                   │
+      │                  │                 │            │
+
+KEY POINTS:
+  ✓ NO credentials stored anywhere
+  ✓ Token obtained from Instance Metadata Service (IMDS)
+  ✓ IMDS only accessible from within Azure VM/Service
+  ✓ Token automatically rotates
+  ✓ RBAC enforced at ACR level
+```
+
+**Understanding the Token Exchange:**
+
+```bash
+# =============================================================================
+# WHAT'S IN THE AAD ACCESS TOKEN (JWT)?
+# =============================================================================
+# The token App Service receives from Azure AD contains:
+
+{
+  "aud": "https://management.azure.com",              # Audience (for Azure Resource Manager)
+  "iss": "https://sts.windows.net/{tenant-id}/",      # Issuer (Azure AD)
+  "iat": 1706734800,                                   # Issued at (Unix timestamp)
+  "exp": 1706738400,                                   # Expires at (4 hours later)
+  "sub": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",      # Subject (Principal ID)
+  "tid": "11111111-2222-3333-4444-555555555555",      # Tenant ID
+  "oid": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",      # Object ID (same as Principal ID)
+  "appid": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",    # Application ID
+  "roles": [],                                          # Assigned roles
+  "xms_mirid": "/subscriptions/.../resourceGroups/rg-myapp/providers/Microsoft.Web/sites/app-myapi"
+}
+
+# =============================================================================
+# WHAT'S IN THE ACR REFRESH TOKEN?
+# =============================================================================
+# After exchange, ACR returns a different token:
+
+{
+  "access_token": "eyJ0eXAiOiJKV1QiLCJhbGc...",         # Short-lived access token (5 min)
+  "refresh_token": "eyJ0eXAiOiJKV1QiLCJhbGc...",        # Long-lived refresh token (hours)
+  "token_type": "Bearer",
+  "expires_in": 300,                                    # Access token valid for 5 minutes
+  "scope": "repository:myapi:pull"                     # Allowed operations
+}
+
+# The access_token is used for actual pull operations
+# The refresh_token can be used to get new access tokens without re-authenticating
+```
+
+**Security Benefits:**
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│           MANAGED IDENTITY vs OTHER AUTHENTICATION METHODS         │
+└────────────────────────────────────────────────────────────────────┘
+
+                Admin Creds    Service Principal   Managed Identity
+                ───────────    ─────────────────   ────────────────
+Credentials     ❌ Static        ❌ Client Secret    ✅ None stored
+stored in       password       needs secure
+config          stored         storage
+
+Rotation        ❌ Manual        ❌ Manual           ✅ Automatic
+                rotation       rotation required   by Azure
+                needed
+
+Secret          ❌ Can leak      ❌ Can leak if      ✅ No secrets
+leakage         if exposed     code/config         to leak
+risk            in logs/code   compromised
+
+Audit trail     ⚠️  Limited      ✅ Full audit       ✅ Full audit
+                               trail               trail + identity
+                                                   attribution
+
+Revocation      ⚠️  Regenerate   ✅ Delete SP        ✅ Remove role
+                password       or rotate secret    assignment
+
+Cross-tenant    ❌ Not           ⚠️  Requires        ❌ Not possible
+access          supported      trust setup         (security feature)
+
+Complexity      ✅ Simple        ⚠️  Medium          ✅ Simple
+                               (requires SP        (built into
+                               management)         Azure)
+
+Cost            ✅ Free          ✅ Free             ✅ Free
+
+Best for        Development    CI/CD Pipelines     Production Azure
+                only           External systems    Services
 ```
 
 #### Authentication Setup in Azure DevOps
@@ -3114,6 +3789,879 @@ fi
 ✅ **Choose appropriate SKU** (Basic/Standard/Premium)  
 ✅ **Monitor resource consumption**  
 ✅ **Use Azure Cost Management** for tracking  
+
+---
+
+## Azure Functions with Docker
+
+### Overview
+
+Azure Functions supports custom Docker containers, allowing you to:
+- Use custom base images and runtime versions
+- Install additional system dependencies
+- Have full control over the runtime environment
+- Deploy the same container to multiple environments
+- Use languages/versions not natively supported by Azure Functions
+
+**When to Use Docker with Azure Functions:**
+- ✅ Need specific OS-level dependencies
+- ✅ Want consistent deployment across environments
+- ✅ Require specific runtime versions
+- ✅ Need to test locally exactly as it runs in Azure
+- ✅ Want to use unsupported language versions
+
+---
+
+### Approach 1: Using Azure Functions Base Images
+
+#### Step 1: Create Function App with Dockerfile
+
+```bash
+# =============================================================================
+# CREATE .NET 8 ISOLATED FUNCTION APP WITH DOCKER SUPPORT
+# =============================================================================
+
+# Install Azure Functions Core Tools (if not installed)
+# Windows (requires admin):
+# npm install -g azure-functions-core-tools@4 --unsafe-perm true
+
+# Linux/Mac:
+# npm install -g azure-functions-core-tools@4
+
+# Create new Function App project
+mkdir MyFunctionApp
+cd MyFunctionApp
+
+# Initialize Functions project with Docker support
+# --docker flag generates a Dockerfile
+func init --worker-runtime dotnet-isolated --target-framework net8.0 --docker
+
+# Project structure created:
+# MyFunctionApp/
+# ├── MyFunctionApp.csproj
+# ├── Program.cs
+# ├── host.json
+# ├── local.settings.json
+# ├── .gitignore
+# └── Dockerfile  ← Generated automatically
+
+# Create a sample HTTP trigger function
+func new --template "HTTP trigger" --name HttpTrigger --authlevel function
+```
+
+#### Step 2: Examine Generated Dockerfile
+
+```dockerfile
+# =============================================================================
+# AZURE FUNCTIONS DOCKERFILE (Generated by func init --docker)
+# =============================================================================
+# This is the Dockerfile generated by Azure Functions Core Tools
+# It follows best practices for Azure Functions containerization
+
+# -----------------------------------------------------------------------------
+# Stage 1: Build - Use Azure Functions SDK image
+# -----------------------------------------------------------------------------
+# The Azure Functions base image includes:
+#   - .NET SDK
+#   - Azure Functions Core Tools
+#   - Required extensions and dependencies
+FROM mcr.microsoft.com/azure-functions/dotnet-isolated:4-dotnet-isolated8.0-build AS installer-env
+
+# Set working directory
+WORKDIR /src
+
+# Copy project file first (for layer caching)
+COPY ["MyFunctionApp.csproj", "./"]
+
+# Restore NuGet packages
+RUN dotnet restore "MyFunctionApp.csproj"
+
+# Copy all source files
+COPY . .
+
+# Build and publish the function app
+# Note: Functions use publish, not build
+RUN dotnet publish "MyFunctionApp.csproj" \
+    --output /home/site/wwwroot \
+    --configuration Release
+
+# -----------------------------------------------------------------------------
+# Stage 2: Runtime - Use Azure Functions runtime image
+# -----------------------------------------------------------------------------
+# This is a lightweight image with only the runtime
+# It knows how to execute Azure Functions
+FROM mcr.microsoft.com/azure-functions/dotnet-isolated:4-dotnet-isolated8.0
+
+# Set environment variables required by Azure Functions runtime
+ENV AzureWebJobsScriptRoot=/home/site/wwwroot \
+    AzureFunctionsJobHost__Logging__Console__IsEnabled=true
+
+# Copy published application from build stage
+COPY --from=installer-env ["/home/site/wwwroot", "/home/site/wwwroot"]
+
+# No ENTRYPOINT needed - the base image handles it
+# The Azure Functions host will automatically start
+```
+
+#### Step 3: Enhanced Dockerfile for Production
+
+```dockerfile
+# =============================================================================
+# PRODUCTION-READY AZURE FUNCTIONS DOCKERFILE
+# =============================================================================
+# Enhanced version with security, logging, and monitoring
+
+# -----------------------------------------------------------------------------
+# Build Arguments for flexibility
+# -----------------------------------------------------------------------------
+ARG DOTNET_VERSION=8.0
+ARG BUILD_CONFIGURATION=Release
+
+# -----------------------------------------------------------------------------
+# Build Stage
+# -----------------------------------------------------------------------------
+FROM mcr.microsoft.com/azure-functions/dotnet-isolated:4-dotnet-isolated${DOTNET_VERSION}-build AS build
+
+WORKDIR /src
+
+# Copy solution/project files
+COPY ["MyFunctionApp.csproj", "./"]
+COPY ["Directory.Build.props", "./"]
+
+# Restore with logging
+RUN dotnet restore "MyFunctionApp.csproj" \
+    --verbosity minimal
+
+# Copy source code
+COPY . .
+
+# Build with optimizations
+RUN dotnet build "MyFunctionApp.csproj" \
+    -c ${BUILD_CONFIGURATION} \
+    -o /app/build \
+    --no-restore
+
+# -----------------------------------------------------------------------------
+# Publish Stage
+# -----------------------------------------------------------------------------
+FROM build AS publish
+
+RUN dotnet publish "MyFunctionApp.csproj" \
+    -c ${BUILD_CONFIGURATION} \
+    -o /home/site/wwwroot \
+    --no-restore \
+    --no-build \
+    /p:UseAppHost=false
+
+# -----------------------------------------------------------------------------
+# Runtime Stage
+# -----------------------------------------------------------------------------
+FROM mcr.microsoft.com/azure-functions/dotnet-isolated:4-dotnet-isolated${DOTNET_VERSION} AS final
+
+# Install additional tools for debugging/monitoring
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        curl \
+        wget \
+        procps && \
+    rm -rf /var/lib/apt/lists/*
+
+# Set Azure Functions environment variables
+ENV AzureWebJobsScriptRoot=/home/site/wwwroot \
+    AzureFunctionsJobHost__Logging__Console__IsEnabled=true \
+    ASPNETCORE_ENVIRONMENT=Production \
+    DOTNET_RUNNING_IN_CONTAINER=true
+
+# Copy published function app
+COPY --from=publish ["/home/site/wwwroot", "/home/site/wwwroot"]
+
+# Health check for monitoring
+# Check if the Functions host is responsive
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost/admin/host/health || exit 1
+
+# Add metadata labels
+LABEL maintainer="your-team@company.com" \
+      version="1.0" \
+      description="Azure Functions - MyFunctionApp"
+```
+
+#### Step 4: Build and Test Locally
+
+```bash
+# =============================================================================
+# LOCAL DOCKER BUILD AND TEST
+# =============================================================================
+
+# Build the Docker image
+docker build -t myfunctionapp:latest .
+
+# Run locally with environment variables
+docker run -d \
+  --name myfunctionapp-local \
+  -p 8080:80 \
+  -e AzureWebJobsStorage="UseDevelopmentStorage=true" \
+  -e FUNCTIONS_WORKER_RUNTIME="dotnet-isolated" \
+  myfunctionapp:latest
+
+# Test the function
+# Wait for startup (check logs)
+docker logs -f myfunctionapp-local
+
+# Once ready, test the HTTP trigger
+curl http://localhost:8080/api/HttpTrigger?name=Docker
+
+# Expected response:
+# "Hello, Docker. This HTTP triggered function executed successfully."
+
+# View function runtime information
+curl http://localhost:8080/admin/host/status
+
+# Stop and remove
+docker stop myfunctionapp-local
+docker rm myfunctionapp-local
+```
+
+---
+
+### Approach 2: Deploy to Azure Function App (Linux Container)
+
+#### Method A: Deploy from Local Docker Image to ACR
+
+```bash
+# =============================================================================
+# COMPLETE DEPLOYMENT WORKFLOW - LOCAL TO AZURE
+# =============================================================================
+
+# Variables
+RESOURCE_GROUP="rg-functions-prod"
+LOCATION="eastus"
+ACR_NAME="myfunctionsacr"
+FUNCTION_APP_NAME="func-myapp"
+STORAGE_ACCOUNT="stfuncmyapp"
+APP_INSIGHTS_NAME="appi-myapp"
+IMAGE_NAME="myfunctionapp"
+IMAGE_TAG="v1.0.0"
+
+# =============================================================================
+# STEP 1: CREATE AZURE RESOURCES
+# =============================================================================
+
+# Create resource group
+az group create \
+  --name $RESOURCE_GROUP \
+  --location $LOCATION
+
+# Create ACR
+az acr create \
+  --resource-group $RESOURCE_GROUP \
+  --name $ACR_NAME \
+  --sku Standard \
+  --admin-enabled true
+
+# Create Storage Account (required for Azure Functions)
+az storage account create \
+  --name $STORAGE_ACCOUNT \
+  --resource-group $RESOURCE_GROUP \
+  --location $LOCATION \
+  --sku Standard_LRS
+
+# Get storage connection string
+STORAGE_CONNECTION=$(az storage account show-connection-string \
+  --name $STORAGE_ACCOUNT \
+  --resource-group $RESOURCE_GROUP \
+  --query connectionString \
+  --output tsv)
+
+# Create Application Insights
+az monitor app-insights component create \
+  --app $APP_INSIGHTS_NAME \
+  --location $LOCATION \
+  --resource-group $RESOURCE_GROUP
+
+# Get Application Insights key
+APP_INSIGHTS_KEY=$(az monitor app-insights component show \
+  --app $APP_INSIGHTS_NAME \
+  --resource-group $RESOURCE_GROUP \
+  --query instrumentationKey \
+  --output tsv)
+
+# =============================================================================
+# STEP 2: BUILD AND PUSH DOCKER IMAGE TO ACR
+# =============================================================================
+
+# Login to ACR
+az acr login --name $ACR_NAME
+
+# Build image with ACR name
+docker build -t $ACR_NAME.azurecr.io/$IMAGE_NAME:$IMAGE_TAG .
+
+# Tag as latest
+docker tag $ACR_NAME.azurecr.io/$IMAGE_NAME:$IMAGE_TAG \
+           $ACR_NAME.azurecr.io/$IMAGE_NAME:latest
+
+# Push to ACR
+docker push $ACR_NAME.azurecr.io/$IMAGE_NAME:$IMAGE_TAG
+docker push $ACR_NAME.azurecr.io/$IMAGE_NAME:latest
+
+# Verify
+az acr repository list --name $ACR_NAME --output table
+az acr repository show-tags --name $ACR_NAME --repository $IMAGE_NAME --output table
+
+# =============================================================================
+# STEP 3: CREATE FUNCTION APP WITH CUSTOM CONTAINER
+# =============================================================================
+
+# Get ACR credentials
+ACR_USERNAME=$(az acr credential show --name $ACR_NAME --query username --output tsv)
+ACR_PASSWORD=$(az acr credential show --name $ACR_NAME --query passwords[0].value --output tsv)
+
+# Create Function App on Linux Consumption plan
+# Note: For containers, we need Premium or Dedicated plan
+az functionapp plan create \
+  --resource-group $RESOURCE_GROUP \
+  --name plan-$FUNCTION_APP_NAME \
+  --location $LOCATION \
+  --is-linux \
+  --sku EP1  # Elastic Premium 1 (supports containers)
+
+# Create Function App with custom container
+az functionapp create \
+  --name $FUNCTION_APP_NAME \
+  --resource-group $RESOURCE_GROUP \
+  --plan plan-$FUNCTION_APP_NAME \
+  --storage-account $STORAGE_ACCOUNT \
+  --runtime custom \
+  --deployment-container-image-name $ACR_NAME.azurecr.io/$IMAGE_NAME:latest \
+  --docker-registry-server-url https://$ACR_NAME.azurecr.io \
+  --docker-registry-server-user $ACR_USERNAME \
+  --docker-registry-server-password $ACR_PASSWORD
+
+# =============================================================================
+# STEP 4: CONFIGURE FUNCTION APP SETTINGS
+# =============================================================================
+
+# Configure application settings
+az functionapp config appsettings set \
+  --name $FUNCTION_APP_NAME \
+  --resource-group $RESOURCE_GROUP \
+  --settings \
+    AzureWebJobsStorage="$STORAGE_CONNECTION" \
+    FUNCTIONS_WORKER_RUNTIME="dotnet-isolated" \
+    APPINSIGHTS_INSTRUMENTATIONKEY="$APP_INSIGHTS_KEY" \
+    DOCKER_ENABLE_CI="true"
+
+# =============================================================================
+# STEP 5: ENABLE MANAGED IDENTITY AND GRANT ACR ACCESS
+# =============================================================================
+
+# Enable System-Assigned Managed Identity
+az functionapp identity assign \
+  --name $FUNCTION_APP_NAME \
+  --resource-group $RESOURCE_GROUP
+
+# Get Principal ID
+PRINCIPAL_ID=$(az functionapp identity show \
+  --name $FUNCTION_APP_NAME \
+  --resource-group $RESOURCE_GROUP \
+  --query principalId \
+  --output tsv)
+
+# Grant ACR Pull access
+ACR_ID=$(az acr show --name $ACR_NAME --query id --output tsv)
+az role assignment create \
+  --assignee $PRINCIPAL_ID \
+  --role AcrPull \
+  --scope $ACR_ID
+
+# Update Function App to use Managed Identity for ACR
+# (Remove username/password, rely on Managed Identity)
+az functionapp config container set \
+  --name $FUNCTION_APP_NAME \
+  --resource-group $RESOURCE_GROUP \
+  --docker-custom-image-name $ACR_NAME.azurecr.io/$IMAGE_NAME:latest \
+  --docker-registry-server-url https://$ACR_NAME.azurecr.io
+
+# =============================================================================
+# STEP 6: VERIFY DEPLOYMENT
+# =============================================================================
+
+# Restart Function App
+az functionapp restart \
+  --name $FUNCTION_APP_NAME \
+  --resource-group $RESOURCE_GROUP
+
+# Get Function App URL
+FUNCTION_URL=$(az functionapp show \
+  --name $FUNCTION_APP_NAME \
+  --resource-group $RESOURCE_GROUP \
+  --query defaultHostName \
+  --output tsv)
+
+echo "Function App URL: https://$FUNCTION_URL"
+
+# Get function key
+FUNCTION_KEY=$(az functionapp keys list \
+  --name $FUNCTION_APP_NAME \
+  --resource-group $RESOURCE_GROUP \
+  --query functionKeys.default \
+  --output tsv)
+
+# Test the function
+curl "https://$FUNCTION_URL/api/HttpTrigger?code=$FUNCTION_KEY&name=Azure"
+
+# Stream logs
+az functionapp log tail \
+  --name $FUNCTION_APP_NAME \
+  --resource-group $RESOURCE_GROUP
+```
+
+#### Method B: Deploy Using Azure Functions Core Tools
+
+```bash
+# =============================================================================
+# PUBLISH FUNCTION APP WITH CONTAINER USING FUNC CLI
+# =============================================================================
+
+# Login to Azure
+az login
+
+# Set default subscription
+az account set --subscription "Your-Subscription-Name"
+
+# Publish to Azure (builds and deploys in one command)
+func azure functionapp publish $FUNCTION_APP_NAME --build remote
+
+# Or publish with specific image
+func azure functionapp publish $FUNCTION_APP_NAME \
+  --docker-only \
+  --image-name $ACR_NAME.azurecr.io/$IMAGE_NAME:$IMAGE_TAG
+```
+
+---
+
+### Approach 3: CI/CD Pipeline for Azure Functions
+
+#### Azure DevOps Pipeline
+
+```yaml
+# azure-pipelines-functions.yml
+# =============================================================================
+# AZURE PIPELINE FOR FUNCTION APP CONTAINER DEPLOYMENT
+# =============================================================================
+
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+
+variables:
+  # Azure Resources
+  azureSubscription: 'Azure-Subscription-Connection'
+  resourceGroup: 'rg-functions-prod'
+  functionAppName: 'func-myapp'
+  
+  # ACR Configuration
+  dockerRegistryServiceConnection: 'ACR-Functions'
+  imageRepository: 'myfunctionapp'
+  containerRegistry: 'myfunctionsacr.azurecr.io'
+  
+  # Build Configuration
+  dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile'
+  tag: '$(Build.BuildId)'
+
+stages:
+# =============================================================================
+# STAGE 1: BUILD AND TEST
+# =============================================================================
+- stage: Build
+  displayName: 'Build and Test Function App'
+  jobs:
+  - job: Build
+    displayName: 'Build Job'
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    # Restore and build .NET project
+    - task: UseDotNet@2
+      displayName: 'Install .NET 8 SDK'
+      inputs:
+        version: '8.x'
+    
+    - task: DotNetCoreCLI@2
+      displayName: 'Restore NuGet Packages'
+      inputs:
+        command: 'restore'
+        projects: '**/*.csproj'
+    
+    - task: DotNetCoreCLI@2
+      displayName: 'Build Function App'
+      inputs:
+        command: 'build'
+        projects: '**/*.csproj'
+        arguments: '--configuration Release --no-restore'
+    
+    # Run unit tests
+    - task: DotNetCoreCLI@2
+      displayName: 'Run Unit Tests'
+      inputs:
+        command: 'test'
+        projects: '**/*Tests.csproj'
+        arguments: '--configuration Release --no-build --collect:"XPlat Code Coverage"'
+    
+    # Publish test results
+    - task: PublishTestResults@2
+      displayName: 'Publish Test Results'
+      inputs:
+        testResultsFormat: 'VSTest'
+        testResultsFiles: '**/*.trx'
+        mergeTestResults: true
+
+# =============================================================================
+# STAGE 2: BUILD AND PUSH DOCKER IMAGE
+# =============================================================================
+- stage: ContainerBuild
+  displayName: 'Build and Push Container'
+  dependsOn: Build
+  condition: succeeded()
+  jobs:
+  - job: Docker
+    displayName: 'Docker Build and Push'
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    # Build and push Docker image to ACR
+    - task: Docker@2
+      displayName: 'Build and Push Docker Image'
+      inputs:
+        command: buildAndPush
+        repository: $(imageRepository)
+        dockerfile: $(dockerfilePath)
+        containerRegistry: $(dockerRegistryServiceConnection)
+        tags: |
+          $(tag)
+          latest
+    
+    # Scan image for vulnerabilities (optional but recommended)
+    - task: Bash@3
+      displayName: 'Scan Docker Image'
+      inputs:
+        targetType: 'inline'
+        script: |
+          # Using Trivy for vulnerability scanning
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest image \
+            $(containerRegistry)/$(imageRepository):$(tag) \
+            --severity HIGH,CRITICAL \
+            --exit-code 0  # Don't fail build, just warn
+
+# =============================================================================
+# STAGE 3: DEPLOY TO DEV ENVIRONMENT
+# =============================================================================
+- stage: DeployDev
+  displayName: 'Deploy to Development'
+  dependsOn: ContainerBuild
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+  jobs:
+  - deployment: DeployDev
+    displayName: 'Deploy to Dev Function App'
+    pool:
+      vmImage: 'ubuntu-latest'
+    environment: 'development'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          # Update Function App container
+          - task: AzureCLI@2
+            displayName: 'Update Function App Container'
+            inputs:
+              azureSubscription: $(azureSubscription)
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                az functionapp config container set \
+                  --name $(functionAppName)-dev \
+                  --resource-group $(resourceGroup)-dev \
+                  --docker-custom-image-name $(containerRegistry)/$(imageRepository):$(tag)
+                
+                # Restart to apply changes
+                az functionapp restart \
+                  --name $(functionAppName)-dev \
+                  --resource-group $(resourceGroup)-dev
+          
+          # Wait for deployment to complete
+          - task: Bash@3
+            displayName: 'Verify Deployment'
+            inputs:
+              targetType: 'inline'
+              script: |
+                echo "Waiting for function app to start..."
+                sleep 30
+                
+                # Get function URL
+                FUNCTION_URL=$(az functionapp show \
+                  --name $(functionAppName)-dev \
+                  --resource-group $(resourceGroup)-dev \
+                  --query defaultHostName \
+                  --output tsv)
+                
+                echo "Function App URL: https://$FUNCTION_URL"
+                
+                # Health check
+                HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://$FUNCTION_URL/admin/host/health)
+                
+                if [ $HTTP_STATUS -eq 200 ]; then
+                  echo "✅ Deployment successful!"
+                else
+                  echo "❌ Deployment failed! Health check returned: $HTTP_STATUS"
+                  exit 1
+                fi
+
+# =============================================================================
+# STAGE 4: DEPLOY TO PRODUCTION
+# =============================================================================
+- stage: DeployProd
+  displayName: 'Deploy to Production'
+  dependsOn: ContainerBuild
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  jobs:
+  - deployment: DeployProd
+    displayName: 'Deploy to Production Function App'
+    pool:
+      vmImage: 'ubuntu-latest'
+    environment: 'production'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          # Deploy to production with slot swap
+          - task: AzureCLI@2
+            displayName: 'Deploy to Staging Slot'
+            inputs:
+              azureSubscription: $(azureSubscription)
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                # Create staging slot if doesn't exist
+                az functionapp deployment slot create \
+                  --name $(functionAppName) \
+                  --resource-group $(resourceGroup) \
+                  --slot staging \
+                  --configuration-source $(functionAppName) || true
+                
+                # Update staging slot with new image
+                az functionapp config container set \
+                  --name $(functionAppName) \
+                  --resource-group $(resourceGroup) \
+                  --slot staging \
+                  --docker-custom-image-name $(containerRegistry)/$(imageRepository):$(tag)
+                
+                # Restart staging slot
+                az functionapp restart \
+                  --name $(functionAppName) \
+                  --resource-group $(resourceGroup) \
+                  --slot staging
+          
+          # Smoke test staging slot
+          - task: Bash@3
+            displayName: 'Test Staging Slot'
+            inputs:
+              targetType: 'inline'
+              script: |
+                echo "Testing staging slot..."
+                sleep 30
+                
+                # Get staging slot URL
+                STAGING_URL=$(az functionapp show \
+                  --name $(functionAppName) \
+                  --resource-group $(resourceGroup) \
+                  --slot staging \
+                  --query defaultHostName \
+                  --output tsv)
+                
+                # Run smoke tests
+                # Add your smoke test logic here
+                echo "Smoke tests passed for https://$STAGING_URL"
+          
+          # Swap slots (Blue-Green deployment)
+          - task: AzureFunctionAppContainer@1
+            displayName: 'Swap Staging to Production'
+            inputs:
+              azureSubscription: $(azureSubscription)
+              appName: $(functionAppName)
+              resourceGroupName: $(resourceGroup)
+              slotName: 'staging'
+              deployToSlotOrASE: true
+              action: 'Slot Swap'
+              sourceSlot: 'staging'
+              targetSlot: 'production'
+          
+          # Verify production deployment
+          - task: Bash@3
+            displayName: 'Verify Production Deployment'
+            inputs:
+              targetType: 'inline'
+              script: |
+                echo "Verifying production deployment..."
+                sleep 20
+                
+                PROD_URL=$(az functionapp show \
+                  --name $(functionAppName) \
+                  --resource-group $(resourceGroup) \
+                  --query defaultHostName \
+                  --output tsv)
+                
+                HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://$PROD_URL/admin/host/health)
+                
+                if [ $HTTP_STATUS -eq 200 ]; then
+                  echo "✅ Production deployment successful!"
+                  echo "🌐 Function App URL: https://$PROD_URL"
+                else
+                  echo "❌ Production deployment failed! Rolling back..."
+                  # Swap back to previous version
+                  az functionapp deployment slot swap \
+                    --name $(functionAppName) \
+                    --resource-group $(resourceGroup) \
+                    --slot production \
+                    --target-slot staging
+                  exit 1
+                fi
+```
+
+---
+
+### Approach 4: GitHub Actions Workflow
+
+```yaml
+# .github/workflows/deploy-functions.yml
+name: Build and Deploy Azure Function
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+
+env:
+  AZURE_FUNCTIONAPP_NAME: 'func-myapp'
+  ACR_NAME: 'myfunctionsacr'
+  IMAGE_NAME: 'myfunctionapp'
+  RESOURCE_GROUP: 'rg-functions-prod'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    # Checkout code
+    - name: 'Checkout GitHub Action'
+      uses: actions/checkout@v4
+    
+    # Login to Azure
+    - name: 'Login to Azure'
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+    
+    # Login to ACR
+    - name: 'Login to Azure Container Registry'
+      uses: azure/docker-login@v1
+      with:
+        login-server: ${{ env.ACR_NAME }}.azurecr.io
+        username: ${{ secrets.ACR_USERNAME }}
+        password: ${{ secrets.ACR_PASSWORD }}
+    
+    # Build and push Docker image
+    - name: 'Build and Push Docker Image'
+      run: |
+        docker build -t ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }} .
+        docker tag ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+                   ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:latest
+        docker push ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        docker push ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:latest
+    
+    # Deploy to Azure Functions
+    - name: 'Deploy to Azure Functions'
+      uses: Azure/functions-container-action@v1
+      with:
+        app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
+        image: ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
+```
+
+---
+
+### Best Practices for Azure Functions with Docker
+
+#### 1. Dockerfile Optimization
+
+```dockerfile
+# Use specific version tags (not 'latest')
+FROM mcr.microsoft.com/azure-functions/dotnet-isolated:4-dotnet-isolated8.0
+
+# Keep images small
+# - Use multi-stage builds
+# - Clean up package manager caches
+# - Only install required dependencies
+
+# Set appropriate timeout for long-running functions
+ENV AzureFunctionsJobHost__functionTimeout=00:10:00
+```
+
+#### 2. Configuration Management
+
+```bash
+# Use Azure Key Vault for secrets
+az functionapp config appsettings set \
+  --name $FUNCTION_APP_NAME \
+  --resource-group $RESOURCE_GROUP \
+  --settings \
+    @Microsoft.KeyVault(SecretUri=https://myvault.vault.azure.net/secrets/apikey/)
+```
+
+#### 3. Monitoring and Logging
+
+```csharp
+// Program.cs
+using Microsoft.Extensions.Hosting;
+using Microsoft.ApplicationInsights.Extensibility;
+
+var host = new HostBuilder()
+    .ConfigureFunctionsWorkerDefaults()
+    .ConfigureServices(services =>
+    {
+        // Add Application Insights
+        services.AddApplicationInsightsTelemetryWorkerService();
+        services.ConfigureFunctionsApplicationInsights();
+    })
+    .Build();
+
+host.Run();
+```
+
+#### 4. Testing Containerized Functions Locally
+
+```bash
+# Run with Azure Storage Emulator (Azurite)
+docker run -d \
+  --name azurite \
+  -p 10000:10000 \
+  -p 10001:10001 \
+  -p 10002:10002 \
+  mcr.microsoft.com/azure-storage/azurite
+
+# Run Function App pointing to Azurite
+docker run -d \
+  --name myfunctionapp \
+  --link azurite \
+  -p 8080:80 \
+  -e AzureWebJobsStorage="DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;" \
+  myfunctionapp:latest
+```
 
 ---
 
