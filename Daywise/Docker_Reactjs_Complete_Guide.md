@@ -1,20 +1,18 @@
-# Docker for .NET Developers - Complete Guide
+# Docker for React Developers - Complete Guide
 
 ## Table of Contents
 - [Introduction](#introduction)
 - [Docker Fundamentals](#docker-fundamentals)
-- [Docker for .NET - Getting Started](#docker-for-net---getting-started)
+- [Docker for React - Getting Started](#docker-for-react---getting-started)
 - [Dockerfile Best Practices](#dockerfile-best-practices)
 - [Multi-Stage Builds](#multi-stage-builds)
 - [Docker Compose](#docker-compose)
-- [Container Orchestration](#container-orchestration)
 - [Development Workflows](#development-workflows)
 - [CI/CD Integration](#cicd-integration)
-- [Azure Deployment - ACR to App Services & Container Apps](#azure-deployment---acr-to-app-services--container-apps)
+- [Azure Deployment - Static Web Apps & Front Door](#azure-deployment---static-web-apps--front-door)
 - [Security Best Practices](#security-best-practices)
 - [Performance Optimization](#performance-optimization)
 - [Networking in Docker](#networking-in-docker)
-- [Data Management & Volumes](#data-management--volumes)
 - [Debugging & Troubleshooting](#debugging--troubleshooting)
 - [Production Deployment Strategies](#production-deployment-strategies)
 - [Real-World Scenarios](#real-world-scenarios)
@@ -27,19 +25,21 @@
 ### What is Docker?
 Docker is a platform for developing, shipping, and running applications in containers. Containers package an application with all its dependencies, ensuring consistency across different environments.
 
-### Why Docker for .NET?
-- **Consistency**: Same environment in dev, test, and production
-- **Isolation**: Applications run independently without conflicts
-- **Portability**: Run anywhere Docker is supported
-- **Scalability**: Easy horizontal scaling
-- **Efficiency**: Lightweight compared to VMs
-- **DevOps Integration**: Seamless CI/CD pipeline integration
+### Why Docker for React?
+- **Consistency**: Same Node.js environment across dev, test, and production
+- **Isolation**: Multiple React apps with different Node versions without conflicts
+- **Reproducible Builds**: Identical build environment eliminates "works on my machine"
+- **Portability**: Container runs anywhere - AWS, Azure, GCP, on-premises
+- **Development Experience**: Hot reload, consistent tooling across team
+- **CI/CD Integration**: Automated builds and deployments
+- **Static Hosting**: Build optimized production bundles in containers
 
 ### Prerequisites
 - Docker Desktop (Windows/Mac) or Docker Engine (Linux)
-- .NET SDK (6.0+, 7.0, 8.0)
+- Node.js (16.x, 18.x, or 20.x)
+- npm or yarn package manager
 - Basic command-line knowledge
-- Understanding of .NET project structure
+- Understanding of React project structure (create-react-app, Vite, Next.js)
 
 ---
 
@@ -131,223 +131,271 @@ docker network inspect mynetwork
 
 ---
 
-## Docker for .NET - Getting Started
+## Docker for React - Getting Started
 
-### Basic Dockerfile for .NET 8 Web API
+### Basic Dockerfile for React App (Development)
 
 ```dockerfile
-# Basic Dockerfile (Not optimized - for learning purposes only)
-# This simple example shows the minimal requirements but lacks optimization
+# Basic Dockerfile for Development (Not optimized - for learning purposes only)
+# This simple example shows minimal requirements for running React dev server
 
-# FROM: Specifies the base image - this is the runtime-only image for ASP.NET Core 8.0
-# mcr.microsoft.com = Microsoft Container Registry
-# Using runtime-only image means .NET SDK is NOT included (smaller size)
-FROM mcr.microsoft.com/dotnet/aspnet:8.0
+# FROM: Specifies the base image - official Node.js image
+# node:20-alpine: Node.js version 20 on Alpine Linux (lightweight)
+FROM node:20-alpine
 
 # WORKDIR: Sets the working directory inside the container
 # All subsequent commands will run from this directory
 # If the directory doesn't exist, it will be created
 WORKDIR /app
 
-# COPY: Copies files from host machine to container
-# This assumes you've already built and published the app on your host
-# Syntax: COPY <source-on-host> <destination-in-container>
-COPY bin/Release/net8.0/publish/ .
+# COPY: Copy package files first (for better layer caching)
+# When only code changes (not dependencies), Docker reuses the install layer
+COPY package.json package-lock.json ./
 
-# ENTRYPOINT: Defines the command that runs when container starts
-# JSON format (exec form) is preferred - doesn't invoke shell
-# This runs: dotnet MyApi.dll
-ENTRYPOINT ["dotnet", "MyApi.dll"]
+# RUN: Install dependencies
+# npm ci: Clean install from package-lock.json (faster, more reliable than npm install)
+RUN npm ci
+
+# COPY: Copy all application source code
+COPY . .
+
+# EXPOSE: Documents which port the app uses (metadata only)
+# React dev server typically runs on port 3000
+EXPOSE 3000
+
+# CMD: Default command when container starts
+# npm start: Runs the development server with hot reload
+CMD ["npm", "start"]
 ```
 
 ### Build and Run Commands
 
 ```bash
-# Build the .NET application
-dotnet publish -c Release -o out
-
 # Build Docker image
-docker build -t myapi:latest .
+docker build -t my-react-app:dev .
 
-# Run container
-docker run -d -p 5000:80 --name myapi-container myapi:latest
+# Run container with volume mount (for hot reload)
+docker run -d \
+  -p 3000:3000 \
+  -v $(pwd)/src:/app/src \
+  --name react-dev \
+  my-react-app:dev
 
-# Test the API
-curl http://localhost:5000/api/health
+# View logs
+docker logs -f react-dev
+
+# Open browser
+# Navigate to http://localhost:3000
+
+# Stop container
+docker stop react-dev
 ```
 
 ---
 
 ## Dockerfile Best Practices
 
-### 1. **Multi-Stage Build Pattern** (Recommended)
+### 1. **Multi-Stage Build Pattern** (Recommended for Production)
 
 ```dockerfile
 # =============================================================================
-# MULTI-STAGE BUILD - Best practice for production .NET applications
+# MULTI-STAGE BUILD - Best practice for production React applications
 # =============================================================================
 # Benefits:
-# - Smaller final image (only runtime, not SDK)
+# - Smaller final image (only static files + nginx, not Node.js)
 # - Better layer caching (faster rebuilds)
 # - Secure (build tools not in production image)
+# - Serves static files efficiently with nginx
 # =============================================================================
 
 # -----------------------------------------------------------------------------
-# Stage 1: Build
+# Stage 1: Build React Application
 # -----------------------------------------------------------------------------
-# FROM: Use SDK image (includes compiler, build tools)
+# FROM: Use Node.js image for building
 # AS build: Names this stage "build" for reference in later stages
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+# node:20-alpine: Lightweight Alpine Linux with Node.js 20
+FROM node:20-alpine AS build
 
 # WORKDIR: Set working directory for build operations
-WORKDIR /src
-
-# -----------------------------------------------------------------------------
-# Copy project files FIRST (for Docker layer caching)
-# -----------------------------------------------------------------------------
-# Why separate from source code?
-# - Project files change less frequently than source code
-# - If only source changes, Docker reuses cached restore layer
-# - This dramatically speeds up subsequent builds
-# Syntax: COPY ["<source-relative-to-context>", "<destination-in-container>"]
-COPY ["MyApi/MyApi.csproj", "MyApi/"]
-COPY ["MyApi.Core/MyApi.Core.csproj", "MyApi.Core/"]
-COPY ["MyApi.Infrastructure/MyApi.Infrastructure.csproj", "MyApi.Infrastructure/"]
-
-# -----------------------------------------------------------------------------
-# Restore NuGet dependencies
-# -----------------------------------------------------------------------------
-# RUN: Executes command during image build
-# dotnet restore: Downloads all NuGet packages specified in .csproj
-# This layer is cached until .csproj files change
-RUN dotnet restore "MyApi/MyApi.csproj"
-
-# -----------------------------------------------------------------------------
-# Copy remaining source code
-# -----------------------------------------------------------------------------
-# Now copy all source files (*.cs, etc.)
-# Put this AFTER restore so changing code doesn't invalidate restore cache
-COPY . .
-
-# -----------------------------------------------------------------------------
-# Build the application
-# -----------------------------------------------------------------------------
-# WORKDIR: Change to the main project directory
-WORKDIR "/src/MyApi"
-
-# RUN dotnet build:
-#   -c Release: Build in Release configuration (optimized, no debug symbols)
-#   -o /app/build: Output compiled files to /app/build directory
-#   --no-restore: Skip restore (we already did it above)
-RUN dotnet build "MyApi.csproj" -c Release -o /app/build
-
-# -----------------------------------------------------------------------------
-# Stage 2: Publish
-# -----------------------------------------------------------------------------
-# FROM build AS publish: Start from the "build" stage (reuse its filesystem)
-# This is faster than starting from scratch
-FROM build AS publish
-
-# RUN dotnet publish:
-#   -c Release: Publish release build
-#   -o /app/publish: Output published files to /app/publish
-#   /p:UseAppHost=false: Don't create native executable (use 'dotnet' command)
-#   --no-restore: Skip restore (already done)
-#   --no-build: Skip build (already done)
-RUN dotnet publish "MyApi.csproj" -c Release -o /app/publish /p:UseAppHost=false
-
-# -----------------------------------------------------------------------------
-# Stage 3: Final runtime image
-# -----------------------------------------------------------------------------
-# FROM: Use lightweight runtime-only image (NO SDK, much smaller ~200MB vs ~700MB)
-# AS final: Name this stage "final" (optional, for multi-stage debugging)
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
-
-# WORKDIR: Set working directory for the application
 WORKDIR /app
 
 # -----------------------------------------------------------------------------
-# Create non-root user for security best practice
+# Copy package files FIRST (for Docker layer caching)
 # -----------------------------------------------------------------------------
-# RUN: Execute shell commands (using && to chain commands in single layer)
-# addgroup: Create system group for the app
-#   --system: System group (not a regular user group)
-#   --gid 1000: Group ID 1000
-# adduser: Create system user
-#   --system: System user (not a regular user)
-#   --uid 1000: User ID 1000
-#   --ingroup appuser: Add user to appuser group
-#   --shell /bin/sh: Set default shell
-RUN addgroup --system --gid 1000 appuser \
-    && adduser --system --uid 1000 --ingroup appuser --shell /bin/sh appuser
+# Why separate from source code?
+# - package.json and package-lock.json change less frequently than source
+# - If only source changes, Docker reuses cached node_modules layer
+# - This dramatically speeds up subsequent builds (10x faster)
+COPY package.json package-lock.json ./
 
 # -----------------------------------------------------------------------------
-# Copy published application from publish stage
+# Install dependencies
 # -----------------------------------------------------------------------------
-# COPY --from=publish: Copy files from the "publish" stage
-# This brings ONLY the published output, not source code or build artifacts
-# Result: Much smaller final image
-COPY --from=publish /app/publish .
+# RUN: Executes command during image build
+# npm ci (Clean Install):
+#   - Installs exactly what's in package-lock.json
+#   - Faster than npm install
+#   - More reliable for CI/CD
+#   - Removes existing node_modules first
+# This layer is cached until package*.json files change
+RUN npm ci --only=production=false
 
 # -----------------------------------------------------------------------------
-# Change file ownership to non-root user
+# Copy source code
 # -----------------------------------------------------------------------------
-# chown: Change owner and group of files
-#   -R: Recursive (all files and subdirectories)
-# This ensures appuser can read/write application files
-RUN chown -R appuser:appuser /app
+# Now copy all source files (src/, public/, etc.)
+# Put this AFTER npm ci so changing code doesn't invalidate install cache
+COPY . .
 
 # -----------------------------------------------------------------------------
+# Build the application for production
+# -----------------------------------------------------------------------------
+# RUN npm run build:
+#   - Creates optimized production build
+#   - Output goes to /app/build directory (create-react-app)
+#   - Or /app/dist directory (Vite)
+#   - Minifies JavaScript, CSS
+#   - Optimizes images
+#   - Creates static HTML/JS/CSS files
+# 
+# Build arguments for environment-specific builds:
+ARG REACT_APP_API_URL
+ARG REACT_APP_ENV=production
+
+# Set build-time environment variables
+ENV REACT_APP_API_URL=$REACT_APP_API_URL
+ENV REACT_APP_ENV=$REACT_APP_ENV
+ENV NODE_ENV=production
+
+# Run the build
+RUN npm run build
+
+# -----------------------------------------------------------------------------
+# Stage 2: Production Image with Nginx
+# -----------------------------------------------------------------------------
+# FROM: Use lightweight nginx image to serve static files
+# nginx:alpine: Only ~20MB vs Node.js ~100MB
+# Alpine is minimal Linux distribution for containers
+FROM nginx:alpine AS production
+
+# -----------------------------------------------------------------------------
+# Install curl for health checks
+# -----------------------------------------------------------------------------
+# apk: Alpine Package Keeper (Alpine's package manager)
+#   add: Install packages
+#   --no-cache: Don't cache the package index (saves ~5MB)
+RUN apk add --no-cache curl
+
+# -----------------------------------------------------------------------------
+# Copy built static files from build stage
+# -----------------------------------------------------------------------------
+# COPY --from=build: Copy files from the "build" stage
+# Source: /app/build (create-react-app output)
+# Destination: /usr/share/nginx/html (nginx default web root)
+# Result: Only static files in final image, no Node.js or source code
+COPY --from=build /app/build /usr/share/nginx/html
+
+# -----------------------------------------------------------------------------
+# Copy custom nginx configuration
+# -----------------------------------------------------------------------------
+# This handles:
+#   - Single Page Application routing (all routes → index.html)
+#   - Gzip compression
+#   - Caching headers
+#   - Security headers
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# -----------------------------------------------------------------------------
+# Create non-root user for security
+# -----------------------------------------------------------------------------
+# nginx:x:101:101: Create nginx user with UID/GID 101
+# This is security best practice - don't run as root
+RUN adduser -D -u 101 -g nginx nginx || true
+
+# Change ownership of nginx directories to non-root user
+RUN chown -R nginx:nginx /usr/share/nginx/html \
+    && chown -R nginx:nginx /var/cache/nginx \
+    && chown -R nginx:nginx /var/log/nginx \
+    && touch /var/run/nginx.pid \
+    && chown -R nginx:nginx /var/run/nginx.pid
+
 # Switch to non-root user
-# -----------------------------------------------------------------------------
-# USER: All subsequent commands (and container runtime) run as this user
-# Security: Running as non-root limits damage if container is compromised
-USER appuser
+# USER: All subsequent commands run as this user
+USER nginx
 
 # -----------------------------------------------------------------------------
-# Expose ports (documentation only - doesn't actually open ports)
+# Expose port 80 (HTTP)
 # -----------------------------------------------------------------------------
-# EXPOSE: Documents which ports the application listens on
-# Note: This is metadata only; use -p flag in docker run to actually publish
+# EXPOSE: Documents which port nginx listens on
+# Note: This is metadata only; use -p flag in docker run to publish
 EXPOSE 80
-EXPOSE 443
-
-# -----------------------------------------------------------------------------
-# Set environment variables
-# -----------------------------------------------------------------------------
-# ENV: Set environment variables available at runtime
-# ASPNETCORE_URLS: Tell Kestrel which URLs to listen on
-#   http://+:80 means "listen on all interfaces on port 80"
-# DOTNET_RUNNING_IN_CONTAINER: Informs .NET runtime it's in a container
-#   Enables container-aware optimizations
-ENV ASPNETCORE_URLS=http://+:80
-ENV DOTNET_RUNNING_IN_CONTAINER=true
 
 # -----------------------------------------------------------------------------
 # Health check configuration
 # -----------------------------------------------------------------------------
-# HEALTHCHECK: Docker periodically runs this command to check container health
+# HEALTHCHECK: Docker periodically runs this to check container health
 #   --interval=30s: Check every 30 seconds
-#   --timeout=3s: Each check has 3 second timeout
-#   --start-period=5s: Wait 5 seconds before first check (app startup time)
+#   --timeout=3s: Each check must complete within 3 seconds
+#   --start-period=5s: Wait 5 seconds before first check
 #   --retries=3: Mark unhealthy after 3 consecutive failures
-# CMD: The actual health check command
-#   wget: Makes HTTP request to /health endpoint
-#   exit 1: Return failure code if wget fails
+# curl -f: Fail on HTTP errors (4xx, 5xx)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost/health || exit 1
+    CMD curl -f http://localhost/ || exit 1
 
 # -----------------------------------------------------------------------------
-# Entry point - command that runs when container starts
+# Start nginx
 # -----------------------------------------------------------------------------
-# ENTRYPOINT: Main process for the container
-# JSON form (exec form) is preferred:
-#   - No shell processing
-#   - Signals (SIGTERM) sent directly to process
-#   - More efficient
-# This runs: dotnet MyApi.dll
-ENTRYPOINT ["dotnet", "MyApi.dll"]
+# CMD: Default command when container starts
+# nginx -g 'daemon off;': Run nginx in foreground
+#   - daemon off: Keep nginx in foreground (required for Docker)
+#   - Without this, container would exit immediately
+CMD ["nginx", "-g", "daemon off;"]
 ```
+
+### nginx.conf for React SPA
+
+```nginx
+# /nginx.conf
+# Nginx configuration for React Single Page Applications
+
+server {
+    listen 80;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Gzip compression for better performance
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+    gzip_min_length 1000;
+    gzip_comp_level 6;
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "no-referrer-when-downgrade" always;
+
+    # Cache static assets (JS, CSS, images)
+    location ~* \.(?:css|js|jpg|jpeg|gif|png|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+
+    # SPA routing: serve index.html for all routes
+    # This allows React Router to handle routes client-side
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Health check endpoint
+    location /health {
+        access_log off;
+        return 200 "healthy\n";
+        add_header Content-Type text/plain;
+    }
+}
 
 ### 2. **Optimized with Build Arguments**
 
@@ -431,67 +479,125 @@ COPY --from=publish /app/publish .
 ENTRYPOINT ["dotnet", "MyApi.dll"]
 ```
 
-### 3. **With Alpine Linux for Smaller Images**
+### 3. **Ultra-Lightweight with Vite (Modern Build Tool)**
 
 ```dockerfile
 # =============================================================================
-# ALPINE LINUX BUILD - Minimal image size
+# VITE BUILD - Modern, fast build tool for React
 # =============================================================================
-# Alpine Linux is a lightweight distribution (~5MB base)
-# Final image: ~110MB vs ~210MB for standard Debian-based image
-# Trade-off: Some compatibility issues with native libraries
+# Vite benefits:
+# - Faster builds (10x faster than CRA)
+# - Better tree-shaking (smaller bundles)
+# - Built-in TypeScript support
+# - Hot Module Replacement (HMR) during development
 # =============================================================================
 
 # -----------------------------------------------------------------------------
-# Build stage using Alpine-based SDK
+# Build stage with Vite
 # -----------------------------------------------------------------------------
-# -alpine: Alpine Linux variant (musl libc instead of glibc)
-# Smaller but may have compatibility issues with some NuGet packages
-FROM mcr.microsoft.com/dotnet/sdk:8.0-alpine AS build
-
-WORKDIR /src
-
-# Copy project file and restore
-COPY ["MyApi/MyApi.csproj", "MyApi/"]
-RUN dotnet restore "MyApi/MyApi.csproj"
-
-# Copy source and publish
-COPY . .
-WORKDIR "/src/MyApi"
-RUN dotnet publish -c Release -o /app/publish
-
-# -----------------------------------------------------------------------------
-# Final stage using Alpine runtime
-# -----------------------------------------------------------------------------
-# aspnet:8.0-alpine: Runtime-only Alpine image (~110MB total)
-FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine AS final
+# Using Alpine for minimal base image
+FROM node:20-alpine AS build
 
 WORKDIR /app
 
 # -----------------------------------------------------------------------------
-# Install ICU libraries for internationalization support
+# Install dependencies
 # -----------------------------------------------------------------------------
-# RUN apk: Alpine's package manager (apk = Alpine Package Keeper)
-#   add: Install packages
-#   --no-cache: Don't cache package index (saves space)
-# icu-libs: International Components for Unicode
-#   Required for culture-aware operations (dates, currencies, sorting)
-RUN apk add --no-cache icu-libs
+# Copy package files
+COPY package.json package-lock.json ./
+
+# npm ci: Clean install from lockfile
+RUN npm ci
 
 # -----------------------------------------------------------------------------
-# Configure globalization settings
+# Copy source and build with Vite
 # -----------------------------------------------------------------------------
-# ENV: Set environment variable
-# DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false:
-#   Tells .NET to use ICU for globalization (not invariant mode)
-#   Without this, culture-specific operations will fail
-ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
+COPY . .
 
-# Copy published application
-COPY --from=publish /app/publish .
+# Vite build:
+#   - Output goes to /app/dist (Vite default)
+#   - Smaller bundles due to better tree-shaking
+#   - Faster build times with esbuild
+ENV NODE_ENV=production
+RUN npm run build
 
-# Start application
-ENTRYPOINT ["dotnet", "MyApi.dll"]
+# Show build stats
+RUN echo "Vite build complete:" && \
+    ls -lh dist/ && \
+    du -sh dist/
+
+# -----------------------------------------------------------------------------
+# Production stage with nginx
+# -----------------------------------------------------------------------------
+# Smallest possible production image
+FROM nginx:alpine AS production
+
+# Install curl for health checks
+RUN apk add --no-cache curl
+
+# -----------------------------------------------------------------------------
+# Copy Vite build output
+# -----------------------------------------------------------------------------
+# Note: Vite outputs to 'dist' not 'build'
+COPY --from=build /app/dist /usr/share/nginx/html
+
+# Copy nginx config for SPA routing
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Expose HTTP port
+EXPOSE 80
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s CMD curl -f http://localhost/ || exit 1
+
+# Start nginx
+CMD ["nginx", "-g", "daemon off;"]
+```
+
+### vite.config.ts Example
+
+```typescript
+// vite.config.ts
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import path from 'path'
+
+export default defineConfig({
+  plugins: [react()],
+  
+  // Build optimization
+  build: {
+    outDir: 'dist',
+    sourcemap: false, // Disable for production
+    minify: 'esbuild',
+    
+    // Split chunks for better caching
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+        },
+      },
+    },
+    
+    // Chunk size warnings
+    chunkSizeWarningLimit: 1000,
+  },
+  
+  // Development server
+  server: {
+    host: '0.0.0.0', // Listen on all interfaces (for Docker)
+    port: 3000,
+    strictPort: true,
+  },
+  
+  // Path aliases
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
+})
 ```
 
 ### 4. **Best Practices Summary**
@@ -691,212 +797,296 @@ ENTRYPOINT ["dotnet", "MyApi.dll"]
 
 ### Advanced Multi-Stage Build with Testing
 
+For React applications, multi-stage builds separate build, test, and production stages.
+
 ```dockerfile
 # =============================================================================
 # ADVANCED MULTI-STAGE BUILD WITH INTEGRATED TESTING
 # =============================================================================
 # This Dockerfile demonstrates:
-#   - Separate stages for restore, build, test, and publish
+#   - Separate stages for dependencies, build, test, and production
 #   - Running tests as part of the build process
 #   - Using --target flag to build specific stages
 #   - Ensuring code quality before deployment
 # =============================================================================
 
 # -----------------------------------------------------------------------------
-# Stage 1: Restore dependencies
+# Stage 1: Dependencies (base for all other stages)
 # -----------------------------------------------------------------------------
-# FROM ... AS restore: Name this stage "restore"
-# Separating restore allows better caching granularity
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS restore
+# FROM ... AS dependencies: Name this stage "dependencies"
+# Separating dependencies allows better caching granularity
+FROM node:20-alpine AS dependencies
 
-WORKDIR /src
+WORKDIR /app
 
-# Copy solution and project files
-# This stage caches until project structure changes
-COPY ["MyApi.sln", "./"]
-COPY ["src/MyApi/MyApi.csproj", "src/MyApi/"]
-COPY ["src/MyApi.Core/MyApi.Core.csproj", "src/MyApi.Core/"]
-COPY ["tests/MyApi.Tests/MyApi.Tests.csproj", "tests/MyApi.Tests/"]
+# Copy package files
+# This stage caches until package.json or package-lock.json changes
+COPY package.json package-lock.json ./
 
-# Restore all projects (including test projects)
-# RUN dotnet restore: Downloads NuGet packages for all projects
-# This layer is reused until any .csproj changes
-RUN dotnet restore
+# Install ALL dependencies (including devDependencies for testing)
+# npm ci: Clean install from package-lock.json
+# This layer is reused until any package file changes
+RUN npm ci
 
 # -----------------------------------------------------------------------------
 # Stage 2: Build
 # -----------------------------------------------------------------------------
-# FROM restore AS build: Start from restore stage (inherit restored packages)
-FROM restore AS build
+# FROM dependencies AS build: Start from dependencies stage
+FROM dependencies AS build
 
 # Copy all source code
-# Now that dependencies are restored, bring in the code
+# Now that dependencies are installed, bring in the code
 COPY . .
 
-# Build in Release configuration
-# RUN dotnet build:
-#   -c Release: Optimized build (no debug symbols)
-#   --no-restore: Don't restore again (use cached restore)
-# Compiles all projects: production code AND test projects
-RUN dotnet build -c Release --no-restore
+# Build the application
+# Creates optimized production build
+ENV NODE_ENV=production
+RUN npm run build
+
+# Display build size for monitoring
+RUN du -sh /app/build || du -sh /app/dist
 
 # -----------------------------------------------------------------------------
-# Stage 3: Run tests (critical for CI/CD)
+# Stage 3: Test (critical for CI/CD)
 # -----------------------------------------------------------------------------
-# FROM build AS test: Start from build stage (has compiled assemblies)
+# FROM dependencies AS test: Start from dependencies stage
 # Named "test" so can target with: docker build --target test
-FROM build AS test
+FROM dependencies AS test
 
-# Run unit/integration tests
-# RUN dotnet test:
-#   --no-build: Use already compiled binaries
-#   -c Release: Test the Release build
-#   --logger \"trx\": Output in TRX format (Test Results XML)
-#   LogFileName: Name for the test results file
+# Copy source code
+COPY . .
+
+# Run tests
 # If tests FAIL, the Docker build FAILS
 # This prevents deploying broken code
-RUN dotnet test --no-build -c Release --logger \"trx;LogFileName=test_results.trx\"
+RUN npm test -- --coverage --watchAll=false
+ENV CI=true
 
-# Note: Test results are in this stage
-# To extract: docker create --name mytest myapi:test
-#            docker cp mytest:/src/tests/MyApi.Tests/TestResults ./test-results
-#            docker rm mytest
-
-# -----------------------------------------------------------------------------
-# Stage 4: Publish
-# -----------------------------------------------------------------------------
-# FROM build AS publish: Start from build stage (NOT test stage)
-# Why? Test failures stop the build before reaching this stage
-# But we don't need test artifacts in published output
-FROM build AS publish
-
-# Publish the main application
-#   \"src/MyApi/MyApi.csproj\": Main API project (not tests)
-#   --no-restore, --no-build: Use cached artifacts
-RUN dotnet publish \"src/MyApi/MyApi.csproj\" \
-    -c Release \
-    -o /app/publish \
-    --no-restore \
-    --no-build
+# Note: Test results and coverage are in this stage
+# To extract: docker create --name test-container react-app:test
+#            docker cp test-container:/app/coverage ./coverage
+#            docker rm test-container
 
 # -----------------------------------------------------------------------------
-# Stage 5: Final runtime (production image)
+# Stage 4: Production (nginx serves static files)
 # -----------------------------------------------------------------------------
-# FROM ... AS final: Lightweight runtime image
-# Only contains published application (no source, no tests, no SDK)
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
+# FROM nginx:alpine AS production: Lightweight nginx for serving
+# Only contains built static files, not source code or node_modules
+FROM nginx:alpine AS production
 
-WORKDIR /app
+# Install curl for health checks
+RUN apk add --no-cache curl
 
-# Copy published output from publish stage
-COPY --from=publish /app/publish .
+# Copy built static files from build stage
+# Note: Change 'build' to 'dist' if using Vite
+COPY --from=build /app/build /usr/share/nginx/html
 
-# Use non-root user for security
-# $APP_UID: Environment variable (if not set, runs as default user)
-USER $APP_UID
+# Copy custom nginx configuration
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Start the application
-ENTRYPOINT [\"dotnet\", \"MyApi.dll\"]
+# Create non-root nginx user
+RUN adduser -D -u 101 -g nginx nginx || true && \
+    chown -R nginx:nginx /usr/share/nginx/html && \
+    chown -R nginx:nginx /var/cache/nginx && \
+    chown -R nginx:nginx /var/log/nginx && \
+    touch /var/run/nginx.pid && \
+    chown -R nginx:nginx /var/run/nginx.pid
+
+# Switch to non-root user
+USER nginx
+
+# Expose HTTP port
+EXPOSE 80
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost/ || exit 1
+
+# Start nginx
+CMD ["nginx", "-g", "daemon off;"]
 
 # =============================================================================
 # BUILD COMMANDS:
 # =============================================================================
 # Test only (CI pipeline):
-#   docker build --target test -t myapi:test .
+#   docker build --target test -t my-react-app:test .
 #
 # Full build with tests (build fails if tests fail):
-#   docker build --target final -t myapi:latest .
-#   (Tests run automatically, but final image doesn't include them)
+#   docker build -t my-react-app:prod .
+#   (Tests run automatically during build, but final image doesn't include them)
 #
-# Skip tests (not recommended for prod):
-#   docker build --target publish -t myapi:latest .
+# Skip tests (not recommended for production):
+#   docker build --target production -t my-react-app:prod .
+#   (Skips test stage)
+#
+# Extract test results:
+#   docker build --target test -t my-react-app:test .
+#   docker create --name temp my-react-app:test
+#   docker cp temp:/app/coverage ./coverage
+#   docker rm temp
 # =============================================================================
 ```
 
-### Build with Different Base Images
+### Multi-Target Dockerfile - Development and Production
+
+Single Dockerfile that can build both development and production images:
 
 ```dockerfile
 # =============================================================================
 # MULTI-TARGET DOCKERFILE - Development and Production in One File
 # =============================================================================
-# Single Dockerfile that can build both:
-#   1. Development image (with SDK and hot reload)
-#   2. Production image (runtime only, optimized)
+# Single Dockerfile that can build:
+#   1. Development image (with hot reload)
+#   2. Production image (optimized static files with nginx)
 # =============================================================================
 
 # -----------------------------------------------------------------------------
-# Development image (Stage 1) - Full SDK for development workflow
+# Development image (Stage 1) - Full Node.js for development workflow
 # -----------------------------------------------------------------------------
 # FROM ... AS development: Name this stage "development"
-# Target with: docker build --target development -t myapi:dev .
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS development
+# Target with: docker build --target development -t my-react-app:dev .
+FROM node:20-alpine AS development
 
 WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install all dependencies (including devDependencies)
+RUN npm install
 
 # Copy all source files (in dev, we want everything)
 COPY . .
 
-# Restore dependencies
-# In development, we restore every time since we mount volumes
-RUN dotnet restore
+# -----------------------------------------------------------------------------
+# Environment variables for development
+# -----------------------------------------------------------------------------
+# Enable polling for file watching in containers (especially on Windows/Mac)
+ENV CHOKIDAR_USEPOLLING=true
+ENV REACT_APP_ENV=development
+ENV NODE_ENV=development
+
+# Expose development server port
+EXPOSE 3000
 
 # -----------------------------------------------------------------------------
 # Entry point for development with hot reload
 # -----------------------------------------------------------------------------
-# ENTRYPOINT: Start with file watcher
-# dotnet watch run:
+# ENTRYPOINT: Start development server with hot reload
+# npm start: Runs React development server
 #   - Monitors for file changes
-#   - Automatically recompiles and restarts
+#   - Automatically recompiles and hot-reloads
 #   - Essential for dev productivity
 # Use with volume mount:
-#   docker run -v $(pwd):/app myapi:dev
+#   docker run -v $(pwd)/src:/app/src -v $(pwd)/public:/app/public my-react-app:dev
 # When you edit files on host, app automatically reloads
-ENTRYPOINT [\"dotnet\", \"watch\", \"run\"]
+CMD ["npm", "start"]
 
 # =============================================================================
-# Production image (Stage 2) - Lightweight runtime
+# Build stages for production
 # =============================================================================
 
 # -----------------------------------------------------------------------------
-# First build the production artifacts
+# Install production dependencies only
 # -----------------------------------------------------------------------------
-# Use development stage as base, but build release version
-FROM development AS build
-
-# Build and publish in Release mode
-# Output to /app/bin/Release/net8.0/publish
-RUN dotnet publish -c Release -o /app/bin/Release/net8.0/publish
-
-# -----------------------------------------------------------------------------
-# Final production image - Runtime only
-# -----------------------------------------------------------------------------
-# FROM ... AS production: Name this stage "production"
-# Target with: docker build --target production -t myapi:prod .
-# or simply: docker build -t myapi:prod . (production is the default)
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS production
+FROM node:20-alpine AS prod-dependencies
 
 WORKDIR /app
 
-# Copy ONLY the published output (not source code)
-# --from=build: Copy from the build stage above
-# This creates a minimal image with only runtime files
-COPY --from=build /app/bin/Release/net8.0/publish .
+COPY package*.json ./
 
-# Start the published application
-# No hot reload, no source code, just the compiled app
-ENTRYPOINT [\"dotnet\", \"MyApi.dll\"]
+# Install ONLY production dependencies (no devDependencies)
+# Smaller node_modules, faster builds
+RUN npm ci --only=production
+
+# -----------------------------------------------------------------------------
+# Build stage - Create optimized production bundle
+# -----------------------------------------------------------------------------
+FROM node:20-alpine AS build
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install all dependencies (need devDependencies for build)
+RUN npm ci
+
+# Copy source code
+COPY . .
+
+# Build arguments for environment-specific builds
+ARG REACT_APP_API_URL
+ARG REACT_APP_ENV=production
+
+# Set build-time environment variables
+ENV REACT_APP_API_URL=$REACT_APP_API_URL
+ENV REACT_APP_ENV=$REACT_APP_ENV
+ENV NODE_ENV=production
+
+# Build the application
+# Creates optimized production build
+RUN npm run build
+
+# Display build statistics
+RUN echo "Production build complete. Size:" && \
+    du -sh build/ 2>/dev/null || du -sh dist/ 2>/dev/null
+
+# -----------------------------------------------------------------------------
+# Final production image - Nginx serves static files
+# -----------------------------------------------------------------------------
+# FROM ... AS production: Name this stage "production"
+# Target with: docker build --target production -t my-react-app:prod .
+# or simply: docker build -t my-react-app:prod . (production is the default)
+FROM nginx:alpine AS production
+
+# Install curl for health checks
+RUN apk add --no-cache curl
+
+# Copy built static files from build stage
+# Note: Change path if using Vite (dist instead of build)
+COPY --from=build /app/build /usr/share/nginx/html
+
+# Copy nginx configuration for React SPA routing
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Create non-root user and set ownership
+RUN adduser -D -u 101 -g nginx nginx || true && \
+    chown -R nginx:nginx /usr/share/nginx/html && \
+    chown -R nginx:nginx /var/cache/nginx && \
+    chown -R nginx:nginx /var/log/nginx && \
+    touch /var/run/nginx.pid && \
+    chown -R nginx:nginx /var/run/nginx.pid
+
+# Switch to non-root user (security best practice)
+USER nginx
+
+# Expose HTTP port
+EXPOSE 80
+
+# Health check configuration
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost/ || exit 1
+
+# Start nginx in foreground
+CMD ["nginx", "-g", "daemon off;"]
 
 # =============================================================================
 # USAGE EXAMPLES:
 # =============================================================================
 #
 # Build development image:
-#   docker build --target development -t myapi:dev .
-#   docker run -p 5000:80 -v $(pwd):/app myapi:dev
+#   docker build --target development -t my-react-app:dev .
+#   docker run -p 3000:3000 -v $(pwd)/src:/app/src my-react-app:dev
 #
 # Build production image (default):
-#   docker build -t myapi:prod .
-#   docker run -p 5000:80 myapi:prod
+#   docker build -t my-react-app:prod .
+#   docker run -p 80:80 my-react-app:prod
+#
+# Build with environment variables:
+#   docker build \
+#     --build-arg REACT_APP_API_URL=https://api.example.com \
+#     -t my-react-app:prod .
 #
 # In docker-compose.yml:
 #   development:
@@ -2025,431 +2215,903 @@ deploy_prod:
 
 ---
 
-## Azure Deployment - ACR to App Services & Container Apps
+## Azure Deployment - Static Web Apps & Front Door
 
 ### Overview
 
-This section covers the complete workflow for deploying containerized .NET applications to Azure:
+This section covers deploying React applications to Azure using two modern approaches:
 
-1. **Build & Push**: Build Docker image and push to Azure Container Registry (ACR)
-2. **Deploy**: Pull from ACR and deploy to Azure App Service or Azure Container Apps
-3. **Automation**: Use Azure Pipelines for CI/CD
-4. **Authentication**: How services authenticate and connect
+1. **Azure Static Web Apps (SWA)**: Global CDN-backed hosting for static sites
+2. **Azure Front Door**: Enterprise-grade CDN with advanced routing and caching
+3. **CI/CD Integration**: GitHub Actions or Azure Pipelines for automated deployments
+4. **Docker Build**: Optional containerized builds for consistency
+
+### Why Azure Static Web Apps + Front Door?
+
+**Azure Static Web Apps Benefits:**
+- ✅ Built-in global CDN (no configuration needed)
+- ✅ Free SSL certificates
+- ✅ GitHub/GitLab integration (automatic deployments)
+- ✅ Preview environments for pull requests
+- ✅ Serverless API integration (Azure Functions)
+- ✅ Custom domains with automatic DNS
+- ✅ Built-in authentication (AAD, GitHub, Twitter, etc.)
+
+**Azure Front Door Benefits:**
+- ✅ Enterprise-grade global CDN
+- ✅ Advanced routing rules and URL rewrites
+- ✅ WAF (Web Application Firewall) integration
+- ✅ Traffic acceleration and caching
+- ✅ Multi-region failover
+- ✅ Real-time analytics
+- ✅ DDoS protection
 
 ### Architecture Flow
 
 ```
-┌─────────────────┐
-│  Source Code    │
-│  (GitHub/Azure) │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────────────────────────────────────────────┐
-│           Azure Pipeline (Build & Deploy)               │
-│  ┌────────────┐  ┌──────────────┐  ┌────────────────┐  │
-│  │   Build    │─▶│ Push to ACR  │─▶│ Deploy to      │  │
-│  │   Docker   │  │              │  │ App Service/   │  │
-│  │   Image    │  │              │  │ Container Apps │  │
-│  └────────────┘  └──────────────┘  └────────────────┘  │
-└─────────────────────────────────────────────────────────┘
-         │                    │                  │
-         ▼                    ▼                  ▼
-┌─────────────────┐  ┌──────────────┐  ┌───────────────┐
-│  Docker Image   │  │ Azure        │  │ Running       │
-│  myapi:latest   │  │ Container    │  │ Container     │
-│                 │  │ Registry     │  │ in Azure      │
-└─────────────────┘  └──────────────┘  └───────────────┘
+┌──────────────────────┐
+│    Source Code       │
+│  (GitHub/Azure Repos)│
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────────────────────────────────────┐
+│         CI/CD Pipeline (GitHub Actions)              │
+│  ┌───────────┐  ┌────────────┐  ┌────────────────┐  │
+│  │  Docker   │─▶│  Build     │─▶│  Deploy to     │  │
+│  │  Build    │  │  React App │  │  Static Web    │  │
+│  │  (Optional)│  │            │  │  Apps          │  │
+│  └───────────┘  └────────────┘  └────────────────┘  │
+└──────────────────────────────────────────────────────┘
+           │                                   │
+           ▼                                   ▼
+┌──────────────────────┐          ┌────────────────────┐
+│  Azure Storage       │          │  Azure Static      │
+│  (Build Artifacts)   │          │  Web Apps          │
+│                      │          │  - Global CDN      │
+│                      │          │  - Free SSL        │
+│                      │          │  - Auto-deploy     │
+└──────────────────────┘          └──────────┬─────────┘
+                                             │
+                                             ▼
+                                  ┌────────────────────┐
+                                  │  Azure Front Door  │
+                                  │  - WAF             │
+                                  │  - Caching         │
+                                  │  - Routing         │
+                                  └────────────────────┘
 ```
 
 ---
 
-### Prerequisites
+### Method 1: Azure Static Web Apps (Recommended for React)
 
-#### 1. Azure Resources Setup
+#### Prerequisites
 
 ```bash
-# Variables
-RESOURCE_GROUP="rg-myapp-prod"
-LOCATION="eastus"
-ACR_NAME="myappacr"  # Must be globally unique
-APP_SERVICE_PLAN="plan-myapp"
-APP_SERVICE_NAME="app-myapi"
-CONTAINER_APP_ENV="env-myapp"
-CONTAINER_APP_NAME="ca-myapi"
+# Install Azure CLI (if not already installed)
+# Windows: winget install Microsoft.AzureCLI
+# Mac: brew install azure-cli
+# Linux: curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+# Install Static Web Apps CLI for local testing
+npm install -g @azure/static-web-apps-cli
 
 # Login to Azure
 az login
 
 # Set subscription (if you have multiple)
 az account set --subscription "Your-Subscription-Name"
+```
+
+#### Step 1: Create Azure Static Web App via Azure Portal
+
+1. Navigate to [Azure Portal](https://portal.azure.com)
+2. Click "+ Create a resource"
+3. Search for "Static Web Apps"
+4. Fill in details:
+   - **Subscription**: Your subscription
+   - **Resource Group**: Create new or select existing
+   - **Name**: `my-react-app` (DNS-safe name)
+   - **Plan**: Free (for development) or Standard (for production)
+   - **Region**: Choose closest to your users
+   - **Source**: GitHub or Azure DevOps
+5. Sign in to GitHub and authorize Azure
+6. Select:
+   - **Organization**: Your GitHub org
+   - **Repository**: Your React repo
+   - **Branch**: `main` or `master`
+7. Build Presets: **React**
+8. Build Details:
+   - **App location**: `/` (root of repo)
+   - **API location**: `/api` (if using Azure Functions)
+   - **Output location**: `build` (for CRA) or `dist` (for Vite)
+9. Click "Review + Create"
+
+#### Step 2: Create via Azure CLI
+
+```bash
+# Variables
+RESOURCE_GROUP="rg-my-react-app"
+LOCATION="eastus2"
+SWA_NAME="my-react-app"
+GITHUB_REPO="https://github.com/your-org/your-repo"
+BRANCH="main"
 
 # Create resource group
 az group create \
   --name $RESOURCE_GROUP \
   --location $LOCATION
 
-# Create Azure Container Registry
-az acr create \
+# Create Static Web App
+az staticwebapp create \
+  --name $SWA_NAME \
   --resource-group $RESOURCE_GROUP \
-  --name $ACR_NAME \
-  --sku Standard \
-  --admin-enabled true
+  --source $GITHUB_REPO \
+  --location $LOCATION \
+  --branch $BRANCH \
+  --app-location "/" \
+  --output-location "build" \
+  --login-with-github
 
-# Get ACR credentials (needed for pipelines)
-az acr credential show --name $ACR_NAME
-
-# Create App Service Plan (Linux)
-az appservice plan create \
-  --name $APP_SERVICE_PLAN \
+# Get deployment token (for CI/CD)
+DEPLOYMENT_TOKEN=$(az staticwebapp secrets list \
+  --name $SWA_NAME \
   --resource-group $RESOURCE_GROUP \
-  --is-linux \
-  --sku B1
+  --query "properties.apiKey" \
+  --output tsv)
 
-# Create App Service (Web App for Containers)
-az webapp create \
-  --resource-group $RESOURCE_GROUP \
-  --plan $APP_SERVICE_PLAN \
-  --name $APP_SERVICE_NAME \
-  --deployment-container-image-name $ACR_NAME.azurecr.io/myapi:latest
-```
-
-#### 2. Service Principal for Authentication (Recommended for Production)
-
-```bash
-# Create Service Principal with ACR push/pull permissions
-SP_NAME="sp-myapp-acr"
-
-# Get ACR resource ID
-ACR_REGISTRY_ID=$(az acr show --name $ACR_NAME --query id --output tsv)
-
-# Create service principal and assign roles
-az ad sp create-for-rbac \
-  --name $SP_NAME \
-  --role AcrPush \
-  --scope $ACR_REGISTRY_ID
-
-# Output will show:
-# {
-#   "appId": "xxxx-xxxx-xxxx-xxxx",
-#   "displayName": "sp-myapp-acr",
-#   "password": "xxxx-xxxx-xxxx-xxxx",
-#   "tenant": "xxxx-xxxx-xxxx-xxxx"
-# }
-
-# Save these values - you'll need them for Azure Pipeline
+echo "Deployment Token: $DEPLOYMENT_TOKEN"
+# Save this token - you'll need it for GitHub Actions
 ```
 
 ---
 
-### Method 1: Azure Pipelines - Complete CI/CD
+### Method 2: GitHub Actions for Static Web Apps
 
-#### azure-pipelines.yml (Complete Pipeline)
+Azure Static Web Apps automatically creates a GitHub Actions workflow file when you link your repository. Here's the generated workflow with explanations:
+
+#### .github/workflows/azure-static-web-apps.yml
 
 ```yaml
 # =============================================================================
-# AZURE PIPELINE FOR .NET CONTAINER DEPLOYMENT
+# GITHUB ACTIONS WORKFLOW - AZURE STATIC WEB APPS DEPLOYMENT
+# =============================================================================
+# Automatically generated by Azure, customized for React + Docker build
+# This workflow:
+#   1. Builds React app (optionally in Docker)
+#   2. Runs tests
+#   3. Deploys to Azure Static Web Apps
+#   4. Creates preview environments for PRs
+# =============================================================================
+
+name: Azure Static Web Apps CI/CD
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches:
+      - main
+
+# Environment variables
+env:
+  NODE_VERSION: '20.x'
+  REACT_APP_API_URL: ${{ secrets.REACT_APP_API_URL }}
+
+jobs:
+  # ===========================================================================
+  # JOB 1: BUILD AND DEPLOY
+  # ===========================================================================
+  build_and_deploy_job:
+    # Only run if PR is not being closed
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
+    runs-on: ubuntu-latest
+    name: Build and Deploy Job
+    
+    steps:
+      # -----------------------------------------------------------------------
+      # Checkout code
+      # -----------------------------------------------------------------------
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          lfs: false
+
+      # -----------------------------------------------------------------------
+      # Optional: Build with Docker (for consistency)
+      # -----------------------------------------------------------------------
+      - name: Build with Docker
+        if: false  # Set to 'true' to enable Docker build
+        run: |
+          docker build \
+            --build-arg REACT_APP_API_URL=${{ secrets.REACT_APP_API_URL }} \
+            --target build \
+            -t react-build:${{ github.sha }} \
+            .
+          
+          # Extract build artifacts from Docker image
+          docker create --name temp-container react-build:${{ github.sha }}
+          docker cp temp-container:/app/build ./build
+          docker rm temp-container
+
+      # -----------------------------------------------------------------------
+      # Standard Node.js build (alternative to Docker)
+      # -----------------------------------------------------------------------
+      - name: Set up Node.js
+        if: true  # Set to 'false' if using Docker build above
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        if: true
+        run: npm ci
+
+      - name: Run tests
+        if: true
+        run: npm test -- --coverage --watchAll=false
+        env:
+          CI: true
+
+      - name: Build application
+        if: true
+        run: npm run build
+        env:
+          REACT_APP_API_URL: ${{ secrets.REACT_APP_API_URL }}
+          REACT_APP_ENV: production
+          NODE_ENV: production
+
+      # -----------------------------------------------------------------------
+      # Deploy to Azure Static Web Apps
+      # -----------------------------------------------------------------------
+      - name: Deploy to Azure Static Web Apps
+        id: deploy
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          # Azure Static Web Apps deployment token (stored in GitHub Secrets)
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          
+          # Repository/build configuration
+          repo_token: ${{ secrets.GITHUB_TOKEN }} # For commenting on PRs
+          action: "upload"
+          
+          # App build settings
+          app_location: "/" # App source code path
+          api_location: "api" # API source code path (if using Azure Functions)
+          output_location: "build" # Built app folder (change to 'dist' for Vite)
+          
+          # Skip API build if no serverless functions
+          skip_api_build: false
+
+  # ===========================================================================
+  # JOB 2: CLOSE PR (Cleanup preview environment)
+  # ===========================================================================
+  close_pull_request_job:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    name: Close Pull Request Job
+    
+    steps:
+      - name: Close Pull Request
+        id: closepullrequest
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          action: "close"
+```
+
+#### Secrets Configuration
+
+Add these secrets to your GitHub repository (Settings → Secrets and variables → Actions):
+
+1. **AZURE_STATIC_WEB_APPS_API_TOKEN**
+   - Get from Azure Portal: Static Web App → Manage deployment token
+   - Or via CLI: `az staticwebapp secrets list --name <app-name> --resource-group <rg-name>`
+
+2. **REACT_APP_API_URL**
+   - Your backend API URL
+   - Example: `https://api.example.com`
+
+3. **REACT_APP_* (any other environment variables)**
+   - All your React environment variables
+
+---
+
+### Method 3: Azure DevOps Pipeline for Static Web Apps
+
+#### azure-pipelines.yml
+
+```yaml
+# =============================================================================
+# AZURE DEVOPS PIPELINE - STATIC WEB APPS DEPLOYMENT
 # =============================================================================
 # This pipeline:
-#   1. Builds .NET application
+#   1. Builds React app in Docker (optional)
 #   2. Runs tests
-#   3. Builds Docker image
-#   4. Pushes to Azure Container Registry (ACR)
-#   5. Deploys to Azure App Service OR Azure Container Apps
+#   3. Deploys to Azure Static Web Apps
 # =============================================================================
 
 trigger:
   branches:
     include:
-    - main      # Production deployments
-    - develop   # Development deployments
+      - main
+      - develop
   paths:
     exclude:
-    - README.md
-    - docs/*
+      - README.md
+      - docs/*
 
-# Pipeline variables
+pr:
+  branches:
+    include:
+      - main
+  
 variables:
-  # Build Configuration
-  buildConfiguration: 'Release'
-  dotNetVersion: '8.x'
+  # Build configuration
+  nodeVersion: '20.x'
+  buildOutputPath: 'build'  # Change to 'dist' for Vite
   
-  # Azure Container Registry
-  azureSubscription: 'Your-Service-Connection-Name'  # Created in Azure DevOps
-  containerRegistry: 'myappacr.azurecr.io'
-  imageRepository: 'myapi'
-  dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile'
+  # Azure Static Web Apps
+  azureStaticWebAppName: 'my-react-app'
+  resourceGroup: 'rg-my-react-app'
   
-  # Versioning
-  tag: '$(Build.BuildNumber)'
-  
-  # Deployment targets
-  appServiceName: 'app-myapi'
-  containerAppName: 'ca-myapi'
-  resourceGroup: 'rg-myapp-prod'
+  # Environment variables for build
+  REACT_APP_API_URL: $(ReactAppApiUrl)  # Defined in pipeline variables
+  REACT_APP_ENV: 'production'
 
-# Agent pool (Microsoft-hosted)
 pool:
   vmImage: 'ubuntu-latest'
 
 stages:
-# =============================================================================
-# STAGE 1: BUILD & TEST
-# =============================================================================
-- stage: Build
-  displayName: 'Build and Test'
-  jobs:
-  - job: BuildJob
-    displayName: 'Build .NET Application'
-    steps:
-    
-    # ---------------------------------------------------------------------
-    # Setup .NET SDK
-    # ---------------------------------------------------------------------
-    - task: UseDotNet@2
-      displayName: 'Install .NET SDK'
-      inputs:
-        packageType: 'sdk'
-        version: '$(dotNetVersion)'
-        installationPath: $(Agent.ToolsDirectory)/dotnet
-
-    # ---------------------------------------------------------------------
-    # Restore NuGet packages
-    # ---------------------------------------------------------------------
-    - task: DotNetCoreCLI@2
-      displayName: 'Restore NuGet Packages'
-      inputs:
-        command: 'restore'
-        projects: '**/*.csproj'
-        feedsToUse: 'select'
-        # If using private feeds:
-        # vstsFeed: 'YourFeedId'
-
-    # ---------------------------------------------------------------------
-    # Build solution
-    # ---------------------------------------------------------------------
-    - task: DotNetCoreCLI@2
-      displayName: 'Build Solution'
-      inputs:
-        command: 'build'
-        projects: '**/*.csproj'
-        arguments: '--configuration $(buildConfiguration) --no-restore'
-
-    # ---------------------------------------------------------------------
-    # Run unit tests
-    # ---------------------------------------------------------------------
-    - task: DotNetCoreCLI@2
-      displayName: 'Run Unit Tests'
-      inputs:
-        command: 'test'
-        projects: '**/*Tests/*.csproj'
-        arguments: '--configuration $(buildConfiguration) --no-build --collect:"XPlat Code Coverage" --logger trx'
-        publishTestResults: true
-
-    # ---------------------------------------------------------------------
-    # Publish code coverage
-    # ---------------------------------------------------------------------
-    - task: PublishCodeCoverageResults@1
-      displayName: 'Publish Code Coverage'
-      inputs:
-        codeCoverageTool: 'Cobertura'
-        summaryFileLocation: '$(Agent.TempDirectory)/**/*coverage.cobertura.xml'
-
-# =============================================================================
-# STAGE 2: BUILD & PUSH DOCKER IMAGE TO ACR
-# =============================================================================
-- stage: ContainerBuild
-  displayName: 'Build and Push Container'
-  dependsOn: Build
-  condition: succeeded()
-  jobs:
-  - job: DockerBuild
-    displayName: 'Build Docker Image'
-    steps:
-
-    # ---------------------------------------------------------------------
-    # Login to Azure Container Registry
-    # ---------------------------------------------------------------------
-    # Method 1: Using Service Connection (Recommended)
-    - task: Docker@2
-      displayName: 'Login to ACR'
-      inputs:
-        command: 'login'
-        containerRegistry: '$(azureSubscription)'
-
-    # ---------------------------------------------------------------------
-    # Build Docker image
-    # ---------------------------------------------------------------------
-    # This task:
-    #   - Reads the Dockerfile
-    #   - Builds the image with multi-stage build
-    #   - Tags with build number and 'latest'
-    - task: Docker@2
-      displayName: 'Build Docker Image'
-      inputs:
-        command: 'build'
-        repository: '$(imageRepository)'
-        dockerfile: '$(dockerfilePath)'
-        containerRegistry: '$(azureSubscription)'
-        tags: |
-          $(tag)
-          latest
-        arguments: '--build-arg BUILD_CONFIGURATION=$(buildConfiguration)'
-
-    # ---------------------------------------------------------------------
-    # Scan image for vulnerabilities (optional but recommended)
-    # ---------------------------------------------------------------------
-    - task: trivy@1
-      displayName: 'Scan Image with Trivy'
-      inputs:
-        image: '$(containerRegistry)/$(imageRepository):$(tag)'
-        exitCode: '0'  # Don't fail pipeline on vulnerabilities (or set to 1)
-      continueOnError: true
-
-    # ---------------------------------------------------------------------
-    # Push image to Azure Container Registry
-    # ---------------------------------------------------------------------
-    # Pushes both tags: $(tag) and 'latest'
-    - task: Docker@2
-      displayName: 'Push Image to ACR'
-      inputs:
-        command: 'push'
-        repository: '$(imageRepository)'
-        containerRegistry: '$(azureSubscription)'
-        tags: |
-          $(tag)
-          latest
-
-    # ---------------------------------------------------------------------
-    # Save image information for deployment stage
-    # ---------------------------------------------------------------------
-    - task: Bash@3
-      displayName: 'Save Image Details'
-      inputs:
-        targetType: 'inline'
-        script: |
-          echo "Image: $(containerRegistry)/$(imageRepository):$(tag)" > $(Build.ArtifactStagingDirectory)/image-info.txt
-          echo "Tag: $(tag)" >> $(Build.ArtifactStagingDirectory)/image-info.txt
-
-    # Publish artifact for deployment stage
-    - task: PublishPipelineArtifact@1
-      displayName: 'Publish Image Info'
-      inputs:
-        targetPath: '$(Build.ArtifactStagingDirectory)'
-        artifactName: 'imageinfo'
-
-# =============================================================================
-# STAGE 3: DEPLOY TO AZURE APP SERVICE
-# =============================================================================
-- stage: DeployAppService
-  displayName: 'Deploy to App Service'
-  dependsOn: ContainerBuild
-  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
-  jobs:
-  - deployment: DeployToAppService
-    displayName: 'Deploy Container to App Service'
-    environment: 'production-appservice'  # Configure in Azure DevOps Environments
-    strategy:
-      runOnce:
-        deploy:
-          steps:
-          
-          # Download image info
-          - task: DownloadPipelineArtifact@2
+  # ===========================================================================
+  # STAGE 1: BUILD & TEST
+  # ===========================================================================
+  - stage: Build
+    displayName: 'Build and Test'
+    jobs:
+      - job: BuildJob
+        displayName: 'Build React Application'
+        steps:
+          # -----------------------------------------------------------------
+          # Option A: Standard Node.js build
+          # -----------------------------------------------------------------
+          - task: NodeTool@0
+            displayName: 'Install Node.js'
             inputs:
-              artifactName: 'imageinfo'
-              targetPath: '$(Pipeline.Workspace)/imageinfo'
+              versionSpec: '$(nodeVersion)'
 
-          # -------------------------------------------------------------
-          # Configure App Service to use ACR
-          # -------------------------------------------------------------
-          # This task:
-          #   1. Authenticates App Service to ACR (using Managed Identity)
-          #   2. Configures the container image to deploy
-          #   3. Sets environment variables
-          - task: AzureWebAppContainer@1
-            displayName: 'Deploy to App Service'
+          - script: npm ci
+            displayName: 'Install Dependencies'
+
+          - script: npm run test -- --coverage --watchAll=false
+            displayName: 'Run Tests'
+            env:
+              CI: true
+
+          - script: npm run build
+            displayName: 'Build React App'
+            env:
+              REACT_APP_API_URL: $(REACT_APP_API_URL)
+              REACT_APP_ENV: $(REACT_APP_ENV)
+              NODE_ENV: production
+
+          # -----------------------------------------------------------------
+          # Option B: Docker build (alternative)
+          # -----------------------------------------------------------------
+          - task: Docker@2
+            displayName: 'Build with Docker'
+            enabled: false  # Set to 'true' to use Docker build
             inputs:
-              azureSubscription: '$(azureSubscription)'
-              appName: '$(appServiceName)'
-              resourceGroupName: '$(resourceGroup)'
+              command: 'build'
+              Dockerfile: '**/Dockerfile'
+              tags: '$(Build.BuildId)'
+              arguments: |
+                --build-arg REACT_APP_API_URL=$(REACT_APP_API_URL)
+                --target build
+
+          # -----------------------------------------------------------------
+          # Publish build artifacts
+          # -----------------------------------------------------------------
+          - task: PublishBuildArtifacts@1
+            displayName: 'Publish Build Artifacts'
+            inputs:
+              PathtoPublish: '$(System.DefaultWorkingDirectory)/$(buildOutputPath)'
+              ArtifactName: 'build'
+              publishLocation: 'Container'
+
+  # ===========================================================================
+  # STAGE 2: DEPLOY TO AZURE STATIC WEB APPS
+  # ===========================================================================
+  - stage: Deploy
+    displayName: 'Deploy to Azure Static Web Apps'
+    dependsOn: Build
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: DeployToSWA
+        displayName: 'Deploy to Static Web Apps'
+        environment: 'production'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                # -------------------------------------------------------
+                # Download build artifacts
+                # -------------------------------------------------------
+                - task: DownloadBuildArtifacts@1
+                  inputs:
+                    buildType: 'current'
+                    downloadType: 'single'
+                    artifactName: 'build'
+                    downloadPath: '$(System.ArtifactsDirectory)'
+
+                # -------------------------------------------------------
+                # Deploy to Azure Static Web Apps
+                # -------------------------------------------------------
+                - task: AzureStaticWebApp@0
+                  displayName: 'Deploy to Static Web Apps'
+                  inputs:
+                    app_location: '$(System.ArtifactsDirectory)/build'
+                    # api_location: 'api'  # Uncomment if using Azure Functions
+                    output_location: ''
+                    azure_static_web_apps_api_token: $(AZURE_STATIC_WEB_APPS_API_TOKEN)
+
+  # ===========================================================================
+  # STAGE 3: SMOKE TESTS
+  # ===========================================================================
+  - stage: SmokeTests
+    displayName: 'Run Smoke Tests'
+    dependsOn: Deploy
+    condition: succeeded()
+    jobs:
+      - job: SmokeTestsJob
+        displayName: 'Execute Smoke Tests'
+        steps:
+          - script: |
+              # Get Static Web App URL
+              SWA_URL=$(az staticwebapp show \
+                --name $(azureStaticWebAppName) \
+                --resource-group $(resourceGroup) \
+                --query "defaultHostname" \
+                --output tsv)
               
-              # Container settings
-              containers: '$(containerRegistry)/$(imageRepository):$(tag)'
+              echo "Testing app at: https://$SWA_URL"
               
-              # App settings (environment variables)
-              appSettings: |
-                -ASPNETCORE_ENVIRONMENT "Production"
-                -WEBSITES_PORT "8080"
-                -DOCKER_REGISTRY_SERVER_URL "https://$(containerRegistry)"
-                -DOCKER_ENABLE_CI "true"
+              # Test homepage
+              HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://$SWA_URL)
+              
+              if [ $HTTP_STATUS -eq 200 ]; then
+                echo "✅ Smoke test passed! App is running."
+              else
+                echo "❌ Smoke test failed! HTTP Status: $HTTP_STATUS"
+                exit 1
+              fi
+            displayName: 'Run Smoke Tests'
+            env:
+              AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
+```
 
-          # -------------------------------------------------------------
-          # Verify deployment
-          # -------------------------------------------------------------
-          - task: AzureCLI@2
-            displayName: 'Verify Deployment'
-            inputs:
-              azureSubscription: '$(azureSubscription)'
-              scriptType: 'bash'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
-                # Wait for app to be running
-                echo "Waiting for App Service to start..."
-                sleep 30
-                
-                # Get App Service URL
-                APP_URL=$(az webapp show \
-                  --name $(appServiceName) \
-                  --resource-group $(resourceGroup) \
-                  --query defaultHostName \
-                  --output tsv)
-                
-                echo "App Service URL: https://$APP_URL"
-                
-                # Health check
-                HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://$APP_URL/health)
-                
-                if [ $HTTP_STATUS -eq 200 ]; then
-                  echo "✅ Deployment successful! Health check passed."
-                else
-                  echo "❌ Health check failed with status: $HTTP_STATUS"
-                  exit 1
-                fi
+---
 
-# =============================================================================
-# STAGE 4: DEPLOY TO AZURE CONTAINER APPS (Alternative to App Service)
-# =============================================================================
-- stage: DeployContainerApps
-  displayName: 'Deploy to Container Apps'
-  dependsOn: ContainerBuild
-  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
-  jobs:
-  - deployment: DeployToContainerApps
-    displayName: 'Deploy to Azure Container Apps'
-    environment: 'production-containerapps'
-    strategy:
-      runOnce:
-        deploy:
-          steps:
+### Method 4: Azure Front Door Configuration
 
-          # -------------------------------------------------------------
-          # Deploy to Azure Container Apps
-          # -------------------------------------------------------------
-          - task: AzureCLI@2
-            displayName: 'Deploy to Container Apps'
-            inputs:
-              azureSubscription: '$(azureSubscription)'
-              scriptType: 'bash'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
-                # Install Container Apps extension
-                az extension add --name containerapp --upgrade
-                
-                # Get ACR credentials
-                ACR_USERNAME=$(az acr credential show \
-                  --name $(echo $(containerRegistry) | cut -d'.' -f1) \
-                  --query username \
+Azure Front Door provides enterprise-grade CDN, WAF, and advanced routing capabilities for your React app.
+
+#### Step 1: Create Azure Front Door
+
+```bash
+# Variables
+RESOURCE_GROUP="rg-my-react-app"
+LOCATION="global" # Front Door is a global service
+FRONTDOOR_NAME="myreactapp-fd"
+SWA_HOSTNAME="your-swa-app.azurestaticapps.net"  # From Static Web App
+
+# Create Front Door profile (Premium SKU for StaticWeb Apps)
+az afd profile create \
+  --profile-name $FRONTDOOR_NAME \
+  --resource-group $RESOURCE_GROUP \
+  --sku Premium_AzureFrontDoor
+
+# Create endpoint
+az afd endpoint create \
+  --endpoint-name "${FRONTDOOR_NAME}-endpoint" \
+  --profile-name $FRONTDOOR_NAME \
+  --resource-group $RESOURCE_GROUP \
+  --enabled-state Enabled
+
+# Create origin group
+az afd origin-group create \
+  --origin-group-name "swa-origin-group" \
+  --profile-name $FRONTDOOR_NAME \
+  --resource-group $RESOURCE_GROUP \
+  --probe-request-type GET \
+  --probe-protocol Https \
+  --probe-path "/" \
+  --probe-interval-in-seconds 120 \
+  --sample-size 4 \
+  --successful-samples-required 3 \
+  --additional-latency-in-milliseconds 50
+
+# Add Static Web App as origin
+az afd origin create \
+  --host-name $SWA_HOSTNAME \
+  --origin-group-name "swa-origin-group" \
+  --origin-name "swa-origin" \
+  --profile-name $FRONTDOOR_NAME \
+  --resource-group $RESOURCE_GROUP \
+  --enabled-state Enabled \
+  --priority 1 \
+  --weight 1000 \
+  --http-port 80 \
+  --https-port 443 \
+  --origin-host-header $SWA_HOSTNAME
+
+# Create route
+az afd route create \
+  --endpoint-name "${FRONTDOOR_NAME}-endpoint" \
+  --profile-name $FRONTDOOR_NAME \
+  --resource-group $RESOURCE_GROUP \
+  --route-name "default-route" \
+  --origin-group "swa-origin-group" \
+  --supported-protocols Https Http \
+  --https-redirect Enabled \
+  --forwarding-protocol HttpsOnly \
+  --patterns-to-match "/*"
+```
+
+#### Step 2: Configure WAF (Web Application Firewall)
+
+```bash
+# Create WAF policy
+az network front-door waf-policy create \
+  --name "${FRONTDOOR_NAME}-waf" \
+  --resource-group $RESOURCE_GROUP \
+  --sku Premium_AzureFrontDoor \
+  --mode Prevention
+
+# Configure managed rules (OWASP protection)
+az network front-door waf-policy managed-rules add \
+  --policy-name "${FRONTDOOR_NAME}-waf" \
+  --resource-group $RESOURCE_GROUP \
+  --type Microsoft_DefaultRuleSet \
+  --version 2.1 \
+  --action Block
+
+# Add bot protection
+az network front-door waf-policy managed-rules add \
+  --policy-name "${FRONTDOOR_NAME}-waf" \
+  --resource-group $RESOURCE_GROUP \
+  --type Microsoft_BotManagerRuleSet \
+  --version 1.0 \
+  --action Block
+
+# Configure rate limiting (prevent DDoS)
+az network front-door waf-policy rule create \
+  --policy-name "${FRONTDOOR_NAME}-waf" \
+  --resource-group $RESOURCE_GROUP \
+  --name "RateLimitRule" \
+  --rule-type RateLimitRule \
+  --rate-limit-duration 1 \
+  --rate-limit-threshold 100 \
+  --action Block \
+  --priority 100
+
+# Associate WAF with Front Door endpoint
+az afd security-policy create \
+  --profile-name $FRONTDOOR_NAME \
+  --resource-group $RESOURCE_GROUP \
+  --security-policy-name "waf-policy" \
+  --domains "${FRONTDOOR_NAME}-endpoint.azurefd.net" \
+  --waf-policy "/subscriptions/{sub-id}/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/frontdoorwebapplicationfirewallpolicies/${FRONTDOOR_NAME}-waf"
+```
+
+#### Step 3: Configure Custom Domain with Front Door
+
+```bash
+# Add custom domain to Front Door
+CUSTOM_DOMAIN="www.yourdomain.com"
+
+az afd custom-domain create \
+  --custom-domain-name "www-yourdomain-com" \
+  --profile-name $FRONTDOOR_NAME \
+  --resource-group $RESOURCE_GROUP \
+  --host-name $CUSTOM_DOMAIN \
+  --certificate-type ManagedCertificate \
+  --minimum-tls-version TLS12
+
+# Get validation token
+VALIDATION_TOKEN=$(az afd custom-domain show \
+  --custom-domain-name "www-yourdomain-com" \
+  --profile-name $FRONTDOOR_NAME \
+  --resource-group $RESOURCE_GROUP \
+  --query "validationProperties.validationToken" \
+  --output tsv)
+
+echo "Add this TXT record to your DNS:"
+echo "Name: _dnsauth.www"
+echo "Value: $VALIDATION_TOKEN"
+
+# After DNS propagates, associate domain with route
+az afd route update \
+  --endpoint-name "${FRONTDOOR_NAME}-endpoint" \
+  --profile-name $FRONTDOOR_NAME \
+  --resource-group $RESOURCE_GROUP \
+  --route-name "default-route" \
+  --custom-domains "www-yourdomain-com"
+```
+
+---
+
+### Static Web App Configuration File
+
+Create `staticwebapp.config.json` in the root of your React project:
+
+```json
+{
+  "$schema": "https://json.schemastore.org/staticwebapp.config.json",
+  
+  "routes": [
+    {
+      "route": "/api/*",
+      "rewrite": "/api/*"
+    },
+    {
+      "route": "/login",
+      "rewrite": "/index.html"
+    },
+    {
+      "route": "/logout",
+      "allowedRoles": ["authenticated"]
+    }
+  ],
+  
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": ["/images/*.{png,jpg,gif}", "/css/*", "/api/*"]
+  },
+  
+  "responseOverrides": {
+    "404": {
+      "rewrite": "/index.html",
+      "statusCode": 200
+    }
+  },
+  
+  "globalHeaders": {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "X-XSS-Protection": "1; mode=block",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+    "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://your-api.com"
+  },
+  
+  "mimeTypes": {
+    ".json": "application/json",
+    ".wasm": "application/wasm"
+  },
+  
+  "platform": {
+    "apiRuntime": "node:18"
+  },
+  
+  "networking": {
+    "allowedIpRanges": ["0.0.0.0/0"]
+  }
+}
+```
+
+---
+
+### Local Development with Static Web Apps CLI
+
+```bash
+# Install SWA CLI globally
+npm install -g @azure/static-web-apps-cli
+
+# Start development server
+swa start http://localhost:3000 --api-location ./api
+
+# With custom configuration
+swa start build --api-location api --port 4280
+
+# Login to Azure (for testing authentication)
+swa login
+
+# Deploy from CLI
+swa deploy ./build \
+  --deployment-token $AZURE_STATIC_WEB_APPS_API_TOKEN \
+  --app-location . \
+  --output-location build
+
+# View logs
+swa --help
+```
+
+---
+
+### Performance Optimization for Azure
+
+#### 1. **Enable Compression in nginx** (if using containers)
+
+```nginx
+# nginx.conf
+gzip on;
+gzip_vary on;
+gzip_min_length 1024;
+gzip_types
+  text/plain
+  text/css
+  text/xml
+  text/javascript
+  application/x-javascript
+  application/javascript
+  application/xml+rss
+  application/json
+  application/vnd.ms-fontobject
+  application/x-font-ttf
+  font/opentype
+  image/svg+xml
+  image/x-icon;
+```
+
+#### 2. **Optimize React Build**
+
+```javascript
+// package.json - add optimization scripts
+{
+  "scripts": {
+    "build": "react-scripts build",
+    "build:analyze": "npm run build && npx source-map-explorer 'build/static/js/*.js'",
+    "build:prod": "GENERATE_SOURCEMAP=false npm run build"
+  }
+}
+```
+
+#### 3. **Configure Caching Headers** (Static Web Apps)
+
+```json
+// staticwebapp.config.json
+{
+  "routes": [
+    {
+      "route": "/static/*",
+      "headers": {
+        "Cache-Control": "public, max-age=31536000, immutable"
+      }
+    },
+    {
+      "route": "/*.{png,jpg,jpeg,gif,svg,ico,webp}",
+      "headers": {
+        "Cache-Control": "public, max-age=31536000, immutable"
+      }
+    },
+    {
+      "route": "/*.{js,css}",
+      "headers": {
+        "Cache-Control": "public, max-age=31536000, immutable"
+      }
+    }
+  ]
+}
+```
+
+---
+
+### Monitoring & Troubleshooting
+
+#### View Static Web App Logs
+
+```bash
+# Stream logs
+az staticwebapp show \
+  --name $SWA_NAME \
+  --resource-group $RESOURCE_GROUP
+
+# Get deployment history
+az staticwebapp environment list \
+  --name $SWA_NAME \
+  --resource-group $RESOURCE_GROUP
+
+# View build logs (from GitHub Actions or Azure DevOps)
+```
+
+#### Front Door Diagnostics
+
+```bash
+# Enable diagnostics
+az monitor diagnostic-settings create \
+  --name "fd-diagnostics" \
+  --resource "/subscriptions/{sub-id}/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Cdn/profiles/$FRONTDOOR_NAME" \
+  --logs '[{"category":"FrontDoorAccessLog","enabled":true}, {"category":"FrontDoorHealthProbeLog","enabled":true"}]' \
+  --metrics '[{"category":"AllMetrics","enabled":true}]' \
+  --workspace "/subscriptions/{sub-id}/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.OperationalInsights/workspaces/{workspace-name}"
+
+# View metrics
+az monitor metrics list \
+  --resource "/subscriptions/{sub-id}/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Cdn/profiles/$FRONTDOOR_NAME" \
+  --metric-names "RequestCount" "OriginRequestCount" "OriginLatency"
+```
+
+#### Common Issues
+
+**1. Static Web App Build Fails**
+```bash
+# Check build logs in GitHub Actions or Azure DevOps
+# Common issues:
+# - Wrong app_location or output_location in workflow
+# - Missing environment variables
+# - npm ci fails (delete package-lock.json and regenerate)
+
+# Solution: Update workflow file
+app_location: "/"
+output_location: "build"  # or "dist" for Vite
+```
+
+**2. CORS Errors**
+```json
+// staticwebapp.config.json
+{
+  "globalHeaders": {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization"
+  }
+}
+```
+
+**3. 404 on Refresh (React Router)**
+```json
+// staticwebapp.config.json
+{
+  "navigationFallback": {
+    "rewrite": "/index.html"
+  }
+}
+```
+
+---
+
+### Best Practices Summary
+
+#### Security
+✅ Use Azure Front Door with WAF for production  
+✅ Enable HTTPS redirect and minimum TLS 1.2  
+✅ Configure security headers in staticwebapp.config.json  
+✅ Use Azure Key Vault for API keys and secrets  
+✅ Enable Azure AD authentication if needed  
+✅ Configure rate limiting to prevent DDoS  
+
+#### Performance
+✅ Enable compression (gzip/brotli)  
+✅ Configure aggressive caching for static assets  
+✅ Use CDN (built-in with Static Web Apps)  
+✅ Optimize bundle size (code splitting, tree-shaking)  
+✅ Use image optimization and lazy loading  
+✅ Enable Front Door caching rules  
+
+#### Operations
+✅ Use preview environments for PRs (automatic with SWA)  
+✅ Implement proper monitoring with Application Insights  
+✅ Configure custom domains with managed certificates  
+✅ Use staging slots for zero-downtime deployments  
+✅ Implement health checks and synthetic monitoring  
+✅ Document rollback procedures  
+
+#### Cost Optimization
+✅ Use Free tier for personal/dev projects  
+✅ Standard tier for production ($9/month)  
+✅ Front Door Premium only if you need WAF/Private Link  
+✅ Monitor bandwidth usage  
+✅ Clean up preview environments after PR merge  
+
+---
+
+## Security Best Practices
                   --output tsv)
                 
                 ACR_PASSWORD=$(az acr credential show \
