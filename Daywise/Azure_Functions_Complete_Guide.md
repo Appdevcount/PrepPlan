@@ -2742,15 +2742,4090 @@ app.eventGrid('eventGridTrigger', {
 
 ---
 
-*(Continued in next part due to length...)*
+## Durable Functions - Orchestration (C# Implementation)
 
-**Note**: This is Part 1 of the Azure Functions guide. The document continues with:
-- Durable Functions
-- Testing Strategies
-- Deployment Methods
-- Monitoring & Observability
-- Security & Authentication
-- Real-world Scenarios
-- Best Practices
+### What are Durable Functions?
 
-Would you like me to continue with the remaining sections?
+Durable Functions is an extension of Azure Functions that enables **stateful workflows** in a serverless environment. It allows you to:
+- Chain function calls together
+- Fan-out/fan-in patterns
+- Long-running orchestrations
+- Human interaction workflows
+- Monitor patterns
+
+### Key Concepts
+
+```
+┌───────────────────────────────────────────────────────────┐
+│             DURABLE FUNCTIONS ARCHITECTURE                │
+├───────────────────────────────────────────────────────────┤
+│                                                           │
+│  Client Function (Starter)                                 │
+│    └── Starts orchestration                              │
+│                                                           │
+│  Orchestrator Function                                    │
+│    ├── Defines workflow logic                            │
+│    ├── Calls activity functions                          │
+│    ├── Maintains state automatically                     │
+│    └── Can wait for external events                      │
+│                                                           │
+│  Activity Functions                                       │
+│    └── Do the actual work (API calls, DB operations)     │
+│                                                           │
+└───────────────────────────────────────────────────────────┘
+```
+
+### Installation
+
+```xml
+<!-- Add to .csproj -->
+<PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.DurableTask" Version="1.1.0" />
+```
+
+### 1. Basic Orchestration - Function Chaining
+
+```csharp
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
+using Microsoft.DurableTask;
+using Microsoft.DurableTask.Client;
+using Microsoft.Extensions.Logging;
+
+namespace MyFunctionApp.DurableFunctions
+{
+    /// <summary>
+    /// Function Chaining Pattern
+    /// Use Case: Order Processing Pipeline
+    /// </summary>
+    public class OrderProcessingOrchestration
+    {
+        private readonly ILogger<OrderProcessingOrchestration> _logger;
+
+        public OrderProcessingOrchestration(ILogger<OrderProcessingOrchestration> logger)
+        {
+            _logger = logger;
+        }
+
+        // === HTTP STARTER ===
+        [Function(nameof(StartOrderProcessing))]
+        public async Task<HttpResponseData> StartOrderProcessing(
+            [HttpTrigger(AuthorizationLevel.Function, "post")] HttpRequestData req,
+            [DurableClient] DurableTaskClient client)
+        {
+            _logger.LogInformation("Starting order processing orchestration");
+
+            // Parse request
+            var orderRequest = await req.ReadFromJsonAsync<OrderRequest>();
+            
+            // Start orchestration
+            string instanceId = await client.ScheduleNewOrchestrationInstanceAsync(
+                nameof(OrderProcessingOrchestrator),
+                orderRequest);
+
+            _logger.LogInformation($\"Started orchestration with ID = '{instanceId}'\");
+
+            // Return management URLs
+            return await client.CreateCheckStatusResponseAsync(req, instanceId);
+        }
+
+        // === ORCHESTRATOR ===
+        [Function(nameof(OrderProcessingOrchestrator))]
+        public async Task<OrderResult> OrderProcessingOrchestrator(
+            [OrchestrationTrigger] TaskOrchestrationContext context)
+        {
+            var order = context.GetInput<OrderRequest>();
+            var logger = context.CreateReplaySafeLogger<OrderProcessingOrchestration>();
+
+            logger.LogInformation($\"Processing order {order.OrderId}\");
+
+            try
+            {
+                // Step 1: Validate order
+                logger.LogInformation(\"Step 1: Validating order\");
+                var validationResult = await context.CallActivityAsync<ValidationResult>(
+                    nameof(ValidateOrder),
+                    order);
+
+                if (!validationResult.IsValid)
+                {
+                    logger.LogWarning($\"Order validation failed: {validationResult.Message}\");
+                    return new OrderResult
+                    {
+                        OrderId = order.OrderId,
+                        Status = \"Validation Failed\",
+                        Message = validationResult.Message
+                    };
+                }
+
+                // Step 2: Reserve inventory
+                logger.LogInformation(\"Step 2: Reserving inventory\");
+                var inventoryResult = await context.CallActivityAsync<InventoryResult>(
+                    nameof(ReserveInventory),
+                    order);
+
+                if (!inventoryResult.Success)
+                {
+                    logger.LogWarning(\"Insufficient inventory\");
+                    return new OrderResult
+                    {
+                        OrderId = order.OrderId,
+                        Status = \"Out of Stock\",
+                        Message = \"Insufficient inventory\"
+                    };
+                }
+
+                // Step 3: Process payment
+                logger.LogInformation(\"Step 3: Processing payment\");
+                var paymentResult = await context.CallActivityAsync<PaymentResult>(
+                    nameof(ProcessPayment),
+                    new PaymentRequest
+                    {
+                        OrderId = order.OrderId,
+                        Amount = order.TotalAmount,
+                        PaymentMethod = order.PaymentMethod
+                    });
+
+                if (!paymentResult.Success)
+                {
+                    // Rollback inventory
+                    logger.LogWarning(\"Payment failed - rolling back inventory\");
+                    await context.CallActivityAsync(
+                        nameof(ReleaseInventory),
+                        inventoryResult.ReservationId);
+
+                    return new OrderResult
+                    {
+                        OrderId = order.OrderId,
+                        Status = \"Payment Failed\",
+                        Message = paymentResult.Message
+                    };
+                }
+
+                // Step 4: Create shipment
+                logger.LogInformation(\"Step 4: Creating shipment\");
+                var shipmentResult = await context.CallActivityAsync<ShipmentResult>(
+                    nameof(CreateShipment),
+                    new ShipmentRequest
+                    {
+                        OrderId = order.OrderId,
+                        Items = order.Items,
+                        ShippingAddress = order.ShippingAddress
+                    });
+
+                // Step 5: Send confirmation email
+                logger.LogInformation(\"Step 5: Sending confirmation email\");
+                await context.CallActivityAsync(
+                    nameof(SendConfirmationEmail),
+                    new EmailRequest
+                    {
+                        To = order.CustomerEmail,
+                        OrderId = order.OrderId,
+                        TrackingNumber = shipmentResult.TrackingNumber
+                    });
+
+                logger.LogInformation($\"Order {order.OrderId} processed successfully\");
+
+                return new OrderResult
+                {
+                    OrderId = order.OrderId,
+                    Status = \"Completed\",
+                    TransactionId = paymentResult.TransactionId,
+                    TrackingNumber = shipmentResult.TrackingNumber,
+                    Message = \"Order processed successfully\"
+                };
+            }
+            catch (Exception ex)
+            {
+                logger.LogError($\"Error processing order: {ex.Message}\");
+                
+                return new OrderResult
+                {
+                    OrderId = order.OrderId,
+                    Status = \"Failed\",
+                    Message = $\"Error: {ex.Message}\"
+                };
+            }
+        }
+
+        // === ACTIVITY FUNCTIONS ===
+
+        [Function(nameof(ValidateOrder))]
+        public ValidationResult ValidateOrder([ActivityTrigger] OrderRequest order)
+        {
+            _logger.LogInformation($\"Validating order {order.OrderId}\");
+
+            // Validation logic
+            if (string.IsNullOrEmpty(order.CustomerEmail))
+            {
+                return new ValidationResult
+                {
+                    IsValid = false,
+                    Message = \"Customer email is required\"
+                };
+            }
+
+            if (order.Items == null || !order.Items.Any())
+            {
+                return new ValidationResult
+                {
+                    IsValid = false,
+                    Message = \"Order must contain at least one item\"
+                };
+            }
+
+            if (order.TotalAmount <= 0)
+            {
+                return new ValidationResult
+                {
+                    IsValid = false,
+                    Message = \"Invalid order amount\"
+                };
+            }
+
+            return new ValidationResult { IsValid = true, Message = \"Valid\" };
+        }
+
+        [Function(nameof(ReserveInventory))]
+        public async Task<InventoryResult> ReserveInventory([ActivityTrigger] OrderRequest order)
+        {
+            _logger.LogInformation($\"Reserving inventory for order {order.OrderId}\");
+
+            // Simulate inventory check
+            await Task.Delay(500);
+
+            // In real implementation, call inventory service
+            var reservationId = Guid.NewGuid().ToString();
+
+            return new InventoryResult
+            {
+                Success = true,
+                ReservationId = reservationId
+            };
+        }
+
+        [Function(nameof(ProcessPayment))]
+        public async Task<PaymentResult> ProcessPayment([ActivityTrigger] PaymentRequest payment)
+        {
+            _logger.LogInformation($\"Processing payment for order {payment.OrderId}\");
+
+            // Simulate payment processing
+            await Task.Delay(1000);
+
+            // In real implementation, call payment gateway
+            var transactionId = Guid.NewGuid().ToString();
+
+            return new PaymentResult
+            {
+                Success = true,
+                TransactionId = transactionId,
+                Message = \"Payment processed successfully\"
+            };
+        }
+
+        [Function(nameof(CreateShipment))]
+        public async Task<ShipmentResult> CreateShipment([ActivityTrigger] ShipmentRequest shipment)
+        {
+            _logger.LogInformation($\"Creating shipment for order {shipment.OrderId}\");
+
+            // Simulate shipment creation
+            await Task.Delay(800);
+
+            var trackingNumber = $\"TRACK-{DateTime.UtcNow.Ticks}\";
+
+            return new ShipmentResult
+            {
+                Success = true,
+                TrackingNumber = trackingNumber
+            };
+        }
+
+        [Function(nameof(SendConfirmationEmail))]
+        public async Task SendConfirmationEmail([ActivityTrigger] EmailRequest email)
+        {
+            _logger.LogInformation($\"Sending confirmation email to {email.To}\");
+
+            // Simulate email sending
+            await Task.Delay(300);
+
+            // In real implementation, use SendGrid or similar
+        }
+
+        [Function(nameof(ReleaseInventory))]
+        public async Task ReleaseInventory([ActivityTrigger] string reservationId)
+        {
+            _logger.LogInformation($\"Releasing inventory reservation {reservationId}\");
+            await Task.Delay(200);
+        }
+    }
+
+    // Models
+    public class OrderRequest
+    {
+        public string OrderId { get; set; }
+        public string CustomerEmail { get; set; }
+        public List<OrderItemRequest> Items { get; set; }
+        public decimal TotalAmount { get; set; }
+        public string PaymentMethod { get; set; }
+        public string ShippingAddress { get; set; }
+    }
+
+    public class OrderItemRequest
+    {
+        public string ProductId { get; set; }
+        public int Quantity { get; set; }
+        public decimal Price { get; set; }
+    }
+
+    public class ValidationResult
+    {
+        public bool IsValid { get; set; }
+        public string Message { get; set; }
+    }
+
+    public class InventoryResult
+    {
+        public bool Success { get; set; }
+        public string ReservationId { get; set; }
+    }
+
+    public class PaymentRequest
+    {
+        public string OrderId { get; set; }
+        public decimal Amount { get; set; }
+        public string PaymentMethod { get; set; }
+    }
+
+    public class PaymentResult
+    {
+        public bool Success { get; set; }
+        public string TransactionId { get; set; }
+        public string Message { get; set; }
+    }
+
+    public class ShipmentRequest
+    {
+        public string OrderId { get; set; }
+        public List<OrderItemRequest> Items { get; set; }
+        public string ShippingAddress { get; set; }
+    }
+
+    public class ShipmentResult
+    {
+        public bool Success { get; set; }
+        public string TrackingNumber { get; set; }
+    }
+
+    public class EmailRequest
+    {
+        public string To { get; set; }
+        public string OrderId { get; set; }
+        public string TrackingNumber { get; set; }
+    }
+
+    public class OrderResult
+    {
+        public string OrderId { get; set; }
+        public string Status { get; set; }
+        public string TransactionId { get; set; }
+        public string TrackingNumber { get; set; }
+        public string Message { get; set; }
+    }
+}
+```
+
+### 2. Fan-Out/Fan-In Pattern
+
+```csharp
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
+using Microsoft.DurableTask;
+using Microsoft.DurableTask.Client;
+using Microsoft.Extensions.Logging;
+
+namespace MyFunctionApp.DurableFunctions
+{
+    /// <summary>
+    /// Fan-Out/Fan-In Pattern
+    /// Use Case: Process multiple tasks in parallel, then aggregate results
+    /// Example: Generate reports from multiple data sources
+    /// </summary>
+    public class ReportGenerationOrchestration
+    {
+        private readonly ILogger<ReportGenerationOrchestration> _logger;
+
+        public ReportGenerationOrchestration(ILogger<ReportGenerationOrchestration> logger)
+        {
+            _logger = logger;
+        }
+
+        [Function(nameof(StartReportGeneration))]
+        public async Task<HttpResponseData> StartReportGeneration(
+            [HttpTrigger(AuthorizationLevel.Function, \"post\")] HttpRequestData req,
+            [DurableClient] DurableTaskClient client)
+        {
+            var reportRequest = await req.ReadFromJsonAsync<ReportRequest>();
+
+            string instanceId = await client.ScheduleNewOrchestrationInstanceAsync(
+                nameof(GenerateMonthlyReportOrchestrator),
+                reportRequest);
+
+            return await client.CreateCheckStatusResponseAsync(req, instanceId);
+        }
+
+        [Function(nameof(GenerateMonthlyReportOrchestrator))]
+        public async Task<MonthlyReport> GenerateMonthlyReportOrchestrator(
+            [OrchestrationTrigger] TaskOrchestrationContext context)
+        {
+            var request = context.GetInput<ReportRequest>();
+            var logger = context.CreateReplaySafeLogger<ReportGenerationOrchestration>();
+
+            logger.LogInformation($\"Generating monthly report for {request.Year}-{request.Month:00}\");
+
+            // Fan-out: Start multiple tasks in parallel
+            var tasks = new List<Task<ReportSection>>();
+
+            // Task 1: Sales data
+            tasks.Add(context.CallActivityAsync<ReportSection>(
+                nameof(GetSalesData),
+                new DateRange { Year = request.Year, Month = request.Month }));
+
+            // Task 2: Customer data
+            tasks.Add(context.CallActivityAsync<ReportSection>(
+                nameof(GetCustomerData),
+                new DateRange { Year = request.Year, Month = request.Month }));
+
+            // Task 3: Inventory data
+            tasks.Add(context.CallActivityAsync<ReportSection>(
+                nameof(GetInventoryData),
+                new DateRange { Year = request.Year, Month = request.Month }));
+
+            // Task 4: Financial data
+            tasks.Add(context.CallActivityAsync<ReportSection>(
+                nameof(GetFinancialData),
+                new DateRange { Year = request.Year, Month = request.Month }));
+
+            // Task 5: Marketing data
+            tasks.Add(context.CallActivityAsync<ReportSection>(
+                nameof(GetMarketingData),
+                new DateRange { Year = request.Year, Month = request.Month }));
+
+            // Fan-in: Wait for all tasks to complete
+            logger.LogInformation(\"Waiting for all report sections to complete...\");
+            var results = await Task.WhenAll(tasks);
+
+            // Aggregate results
+            var report = new MonthlyReport
+            {
+                ReportId = Guid.NewGuid().ToString(),
+                Year = request.Year,
+                Month = request.Month,
+                GeneratedDate = DateTime.UtcNow,
+                Sections = results.ToList(),
+                Summary = CreateSummary(results)
+            };
+
+            // Generate PDF
+            logger.LogInformation(\"Generating PDF report\");
+            var pdfUrl = await context.CallActivityAsync<string>(
+                nameof(GeneratePdfReport),
+                report);
+
+            report.PdfUrl = pdfUrl;
+
+            // Send notification
+            await context.CallActivityAsync(
+                nameof(SendReportNotification),
+                new ReportNotification
+                {
+                    ReportUrl = pdfUrl,
+                    Recipients = request.Recipients
+                });
+
+            logger.LogInformation(\"Monthly report generation completed\");
+            return report;
+        }
+
+        // Activity Functions
+        [Function(nameof(GetSalesData))]
+        public async Task<ReportSection> GetSalesData([ActivityTrigger] DateRange dateRange)
+        {
+            _logger.LogInformation($\"Fetching sales data for {dateRange.Year}-{dateRange.Month:00}\");
+            
+            // Simulate data fetching
+            await Task.Delay(2000);
+
+            return new ReportSection
+            {
+                SectionName = \"Sales\",
+                Data = new Dictionary<string, object>
+                {
+                    { \"TotalSales\", 125000.00m },
+                    { \"OrderCount\", 450 },
+                    { \"AverageOrderValue\", 277.78m }
+                }
+            };
+        }
+
+        [Function(nameof(GetCustomerData))]
+        public async Task<ReportSection> GetCustomerData([ActivityTrigger] DateRange dateRange)
+        {
+            _logger.LogInformation($\"Fetching customer data for {dateRange.Year}-{dateRange.Month:00}\");
+            await Task.Delay(1500);
+
+            return new ReportSection
+            {
+                SectionName = \"Customers\",
+                Data = new Dictionary<string, object>
+                {
+                    { \"NewCustomers\", 85 },
+                    { \"ReturnCustomers\", 320 },
+                    { \"ChurnRate\", 2.5 }
+                }
+            };
+        }
+
+        [Function(nameof(GetInventoryData))]
+        public async Task<ReportSection> GetInventoryData([ActivityTrigger] DateRange dateRange)
+        {
+            _logger.LogInformation($\"Fetching inventory data for {dateRange.Year}-{dateRange.Month:00}\");
+            await Task.Delay(1800);
+
+            return new ReportSection
+            {
+                SectionName = \"Inventory\",
+                Data = new Dictionary<string, object>
+                {
+                    { \"TotalProducts\", 1250 },
+                    { \"LowStockItems\", 45 },
+                    { \"OutOfStockItems\", 8 }
+                }
+            };
+        }
+
+        [Function(nameof(GetFinancialData))]
+        public async Task<ReportSection> GetFinancialData([ActivityTrigger] DateRange dateRange)
+        {
+            _logger.LogInformation($\"Fetching financial data for {dateRange.Year}-{dateRange.Month:00}\");
+            await Task.Delay(2200);
+
+            return new ReportSection
+            {
+                SectionName = \"Financial\",
+                Data = new Dictionary<string, object>
+                {
+                    { \"Revenue\", 125000.00m },
+                    { \"Expenses\", 78000.00m },
+                    { \"NetProfit\", 47000.00m }
+                }
+            };
+        }
+
+        [Function(nameof(GetMarketingData))]
+        public async Task<ReportSection> GetMarketingData([ActivityTrigger] DateRange dateRange)
+        {
+            _logger.LogInformation($\"Fetching marketing data for {dateRange.Year}-{dateRange.Month:00}\");
+            await Task.Delay(1600);
+
+            return new ReportSection
+            {
+                SectionName = \"Marketing\",
+                Data = new Dictionary<string, object>
+                {
+                    { \"CampaignsSent\", 12 },
+                    { \"EmailOpenRate\", 23.5 },
+                    { \"ConversionRate\", 4.2 }
+                }
+            };
+        }
+
+        [Function(nameof(GeneratePdfReport))]
+        public async Task<string> GeneratePdfReport([ActivityTrigger] MonthlyReport report)
+        {
+            _logger.LogInformation($\"Generating PDF for report {report.ReportId}\");
+            
+            // Simulate PDF generation
+            await Task.Delay(3000);
+
+            // Upload to blob storage and return URL
+            var url = $\"https://storage.example.com/reports/{report.ReportId}.pdf\";
+            return url;
+        }
+
+        [Function(nameof(SendReportNotification))]
+        public async Task SendReportNotification([ActivityTrigger] ReportNotification notification)
+        {
+            _logger.LogInformation($\"Sending report notification to {notification.Recipients.Count} recipients\");
+            await Task.Delay(500);
+        }
+
+        private string CreateSummary(ReportSection[] sections)
+        {
+            return $\"Report generated with {sections.Length} sections\";
+        }
+    }
+
+    // Models
+    public class ReportRequest
+    {
+        public int Year { get; set; }
+        public int Month { get; set; }
+        public List<string> Recipients { get; set; }
+    }
+
+    public class DateRange
+    {
+        public int Year { get; set; }
+        public int Month { get; set; }
+    }
+
+    public class ReportSection
+    {
+        public string SectionName { get; set; }
+        public Dictionary<string, object> Data { get; set; }
+    }
+
+    public class MonthlyReport
+    {
+        public string ReportId { get; set; }
+        public int Year { get; set; }
+        public int Month { get; set; }
+        public DateTime GeneratedDate { get; set; }
+        public List<ReportSection> Sections { get; set; }
+        public string Summary { get; set; }
+        public string PdfUrl { get; set; }
+    }
+
+    public class ReportNotification
+    {
+        public string ReportUrl { get; set; }
+        public List<string> Recipients { get; set; }
+    }
+}
+```
+
+### 3. Human Interaction Pattern (Approval Workflow)
+
+```csharp
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
+using Microsoft.DurableTask;
+using Microsoft.DurableTask.Client;
+using Microsoft.Extensions.Logging;
+
+namespace MyFunctionApp.DurableFunctions
+{
+    /// <summary>
+    /// Human Interaction Pattern
+    /// Use Case: Approval workflow with timeout
+    /// Example: Expense approval system
+    /// </summary>
+    public class ApprovalWorkflowOrchestration
+    {
+        private readonly ILogger<ApprovalWorkflowOrchestration> _logger;
+
+        public ApprovalWorkflowOrchestration(ILogger<ApprovalWorkflowOrchestration> logger)
+        {
+            _logger = logger;
+        }
+
+        [Function(nameof(StartApprovalWorkflow))]
+        public async Task<HttpResponseData> StartApprovalWorkflow(
+            [HttpTrigger(AuthorizationLevel.Function, \"post\")] HttpRequestData req,
+            [DurableClient] DurableTaskClient client)
+        {
+            var expenseRequest = await req.ReadFromJsonAsync<ExpenseRequest>();
+
+            string instanceId = await client.ScheduleNewOrchestrationInstanceAsync(
+                nameof(ExpenseApprovalOrchestrator),
+                expenseRequest);
+
+            _logger.LogInformation($\"Started expense approval workflow: {instanceId}\");
+
+            return await client.CreateCheckStatusResponseAsync(req, instanceId);
+        }
+
+        [Function(nameof(ApproveExpense))]
+        public async Task<HttpResponseData> ApproveExpense(
+            [HttpTrigger(AuthorizationLevel.Function, \"post\", Route = \"approval/{instanceId}/approve\")] 
+            HttpRequestData req,
+            [DurableClient] DurableTaskClient client,
+            string instanceId)
+        {
+            _logger.LogInformation($\"Approving expense: {instanceId}\");
+
+            // Raise approval event
+            await client.RaiseEventAsync(instanceId, \"ApprovalEvent\", new ApprovalResponse
+            {
+                Approved = true,
+                ApproverEmail = \"manager@company.com\",
+                ApprovedDate = DateTime.UtcNow,
+                Comments = \"Approved\"
+            });
+
+            var response = req.CreateResponse(System.Net.HttpStatusCode.OK);
+            await response.WriteStringAsync(\"Expense approved\");
+            return response;
+        }
+
+        [Function(nameof(RejectExpense))]
+        public async Task<HttpResponseData> RejectExpense(
+            [HttpTrigger(AuthorizationLevel.Function, \"post\", Route = \"approval/{instanceId}/reject\")] 
+            HttpRequestData req,
+            [DurableClient] DurableTaskClient client,
+            string instanceId)
+        {
+            _logger.LogInformation($\"Rejecting expense: {instanceId}\");
+
+            var body = await req.ReadFromJsonAsync<RejectionRequest>();
+
+            await client.RaiseEventAsync(instanceId, \"ApprovalEvent\", new ApprovalResponse
+            {
+                Approved = false,
+                ApproverEmail = \"manager@company.com\",
+                ApprovedDate = DateTime.UtcNow,
+                Comments = body.Reason
+            });
+
+            var response = req.CreateResponse(System.Net.HttpStatusCode.OK);
+            await response.WriteStringAsync(\"Expense rejected\");
+            return response;
+        }
+
+        [Function(nameof(ExpenseApprovalOrchestrator))]
+        public async Task<ExpenseResult> ExpenseApprovalOrchestrator(
+            [OrchestrationTrigger] TaskOrchestrationContext context)
+        {
+            var expense = context.GetInput<ExpenseRequest>();
+            var logger = context.CreateReplaySafeLogger<ApprovalWorkflowOrchestration>();
+
+            logger.LogInformation($\"Processing expense request: {expense.RequestId}\");
+
+            try
+            {
+                // Step 1: Validate expense
+                var validation = await context.CallActivityAsync<ValidationResult>(
+                    nameof(ValidateExpense),
+                    expense);
+
+                if (!validation.IsValid)
+                {
+                    return new ExpenseResult
+                    {
+                        RequestId = expense.RequestId,
+                        Status = \"Rejected\",
+                        Reason = validation.Message
+                    };
+                }
+
+                // Step 2: Check if auto-approval is possible (< $500)
+                if (expense.Amount < 500)
+                {
+                    logger.LogInformation(\"Auto-approving expense under $500\");
+                    
+                    await context.CallActivityAsync(
+                        nameof(ProcessExpensePayment),
+                        expense);
+
+                    return new ExpenseResult
+                    {
+                        RequestId = expense.RequestId,
+                        Status = \"Auto-Approved\",
+                        ApprovedAmount = expense.Amount
+                    };
+                }
+
+                // Step 3: Send approval request to manager
+                logger.LogInformation(\"Sending approval request to manager\");
+                
+                await context.CallActivityAsync(
+                    nameof(SendApprovalRequest),
+                    new ApprovalEmail
+                    {
+                        RequestId = expense.RequestId,
+                        EmployeeName = expense.EmployeeName,
+                        Amount = expense.Amount,
+                        Description = expense.Description,
+                        ApprovalUrl = $\"https://portal.company.com/approval/{context.InstanceId}\"
+                    });
+
+                // Step 4: Wait for approval event with timeout (48 hours)
+                using var timeoutCts = new CancellationTokenSource();
+                var approvalTask = context.WaitForExternalEvent<ApprovalResponse>(\"ApprovalEvent\");
+                var timeoutTask = context.CreateTimer(
+                    context.CurrentUtcDateTime.AddHours(48),
+                    timeoutCts.Token);
+
+                var winner = await Task.WhenAny(approvalTask, timeoutTask);
+
+                if (winner == approvalTask)
+                {
+                    // Approval received
+                    timeoutCts.Cancel();
+                    var approvalResponse = await approvalTask;
+
+                    if (approvalResponse.Approved)
+                    {
+                        logger.LogInformation(\"Expense approved by manager\");
+
+                        await context.CallActivityAsync(
+                            nameof(ProcessExpensePayment),
+                            expense);
+
+                        await context.CallActivityAsync(
+                            nameof(SendApprovalNotification),
+                            new NotificationRequest
+                            {
+                                To = expense.EmployeeEmail,
+                                Subject = \"Expense Approved\",
+                                Message = $\"Your expense request #{expense.RequestId} has been approved.\"
+                            });
+
+                        return new ExpenseResult
+                        {
+                            RequestId = expense.RequestId,
+                            Status = \"Approved\",
+                            ApprovedAmount = expense.Amount,
+                            ApproverEmail = approvalResponse.ApproverEmail,
+                            ApprovedDate = approvalResponse.ApprovedDate
+                        };
+                    }
+                    else
+                    {
+                        logger.LogInformation(\"Expense rejected by manager\");
+
+                        await context.CallActivityAsync(
+                            nameof(SendApprovalNotification),
+                            new NotificationRequest
+                            {
+                                To = expense.EmployeeEmail,
+                                Subject = \"Expense Rejected\",
+                                Message = $\"Your expense request #{expense.RequestId} has been rejected. Reason: {approvalResponse.Comments}\"
+                            });
+
+                        return new ExpenseResult
+                        {
+                            RequestId = expense.RequestId,
+                            Status = \"Rejected\",
+                            Reason = approvalResponse.Comments
+                        };
+                    }
+                }
+                else
+                {
+                    // Timeout - escalate to senior manager
+                    logger.LogWarning(\"Approval timeout - escalating\");
+
+                    await context.CallActivityAsync(
+                        nameof(EscalateApproval),
+                        expense);
+
+                    return new ExpenseResult
+                    {
+                        RequestId = expense.RequestId,
+                        Status = \"Escalated\",
+                        Reason = \"No response within 48 hours - escalated to senior management\"
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError($\"Error in expense approval: {ex.Message}\");
+                throw;
+            }
+        }
+
+        // Activity Functions
+        [Function(nameof(ValidateExpense))]
+        public ValidationResult ValidateExpense([ActivityTrigger] ExpenseRequest expense)
+        {
+            if (expense.Amount <= 0)
+                return new ValidationResult { IsValid = false, Message = \"Invalid amount\" };
+
+            if (string.IsNullOrEmpty(expense.Description))
+                return new ValidationResult { IsValid = false, Message = \"Description required\" };
+
+            if (expense.Amount > 10000)
+                return new ValidationResult { IsValid = false, Message = \"Amount exceeds maximum limit\" };
+
+            return new ValidationResult { IsValid = true };
+        }
+
+        [Function(nameof(SendApprovalRequest))]
+        public async Task SendApprovalRequest([ActivityTrigger] ApprovalEmail email)
+        {
+            _logger.LogInformation($\"Sending approval request for {email.RequestId}\");
+            // Send email logic here
+            await Task.Delay(500);
+        }
+
+        [Function(nameof(ProcessExpensePayment))]
+        public async Task ProcessExpensePayment([ActivityTrigger] ExpenseRequest expense)
+        {
+            _logger.LogInformation($\"Processing payment for expense {expense.RequestId}\");
+            // Payment processing logic
+            await Task.Delay(1000);
+        }
+
+        [Function(nameof(SendApprovalNotification))]
+        public async Task SendApprovalNotification([ActivityTrigger] NotificationRequest notification)
+        {
+            _logger.LogInformation($\"Sending notification to {notification.To}\");
+            await Task.Delay(300);
+        }
+
+        [Function(nameof(EscalateApproval))]
+        public async Task EscalateApproval([ActivityTrigger] ExpenseRequest expense)
+        {
+            _logger.LogInformation($\"Escalating expense {expense.RequestId} to senior management\");
+            // Escalation logic
+            await Task.Delay(500);
+        }
+    }
+
+    // Models
+    public class ExpenseRequest
+    {
+        public string RequestId { get; set; }
+        public string EmployeeName { get; set; }
+        public string EmployeeEmail { get; set; }
+        public decimal Amount { get; set; }
+        public string Description { get; set; }
+        public string Category { get; set; }
+        public DateTime RequestDate { get; set; }
+    }
+
+    public class ApprovalEmail
+    {
+        public string RequestId { get; set; }
+        public string EmployeeName { get; set; }
+        public decimal Amount { get; set; }
+        public string Description { get; set; }
+        public string ApprovalUrl { get; set; }
+    }
+
+    public class ApprovalResponse
+    {
+        public bool Approved { get; set; }
+        public string ApproverEmail { get; set; }
+        public DateTime ApprovedDate { get; set; }
+        public string Comments { get; set; }
+    }
+
+    public class RejectionRequest
+    {
+        public string Reason { get; set; }
+    }
+
+    public class ExpenseResult
+    {
+        public string RequestId { get; set; }
+        public string Status { get; set; }
+        public decimal? ApprovedAmount { get; set; }
+        public string ApproverEmail { get; set; }
+        public DateTime? ApprovedDate { get; set; }
+        public string Reason { get; set; }
+    }
+
+    public class NotificationRequest
+    {
+        public string To { get; set; }
+        public string Subject { get; set; }
+        public string Message { get; set; }
+    }
+}
+```
+
+### 4. Monitor Pattern (Long-Running Status Check)
+
+```csharp
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
+using Microsoft.DurableTask;
+using Microsoft.DurableTask.Client;
+using Microsoft.Extensions.Logging;
+
+namespace MyFunctionApp.DurableFunctions
+{
+    /// <summary>
+    /// Monitor Pattern
+    /// Use Case: Poll external system until condition is met
+    /// Example: Monitor deployment status
+    /// </summary>
+    public class DeploymentMonitorOrchestration
+    {
+        private readonly ILogger<DeploymentMonitorOrchestration> _logger;
+
+        public DeploymentMonitorOrchestration(ILogger<DeploymentMonitorOrchestration> logger)
+        {
+            _logger = logger;
+        }
+
+        [Function(nameof(StartDeploymentMonitor))]
+        public async Task<HttpResponseData> StartDeploymentMonitor(
+            [HttpTrigger(AuthorizationLevel.Function, \"post\")] HttpRequestData req,
+            [DurableClient] DurableTaskClient client)
+        {
+            var deploymentRequest = await req.ReadFromJsonAsync<DeploymentRequest>();
+
+            string instanceId = await client.ScheduleNewOrchestrationInstanceAsync(
+                nameof(MonitorDeploymentOrchestrator),
+                deploymentRequest);
+
+            return await client.CreateCheckStatusResponseAsync(req, instanceId);
+        }
+
+        [Function(nameof(MonitorDeploymentOrchestrator))]
+        public async Task<DeploymentResult> MonitorDeploymentOrchestrator(
+            [OrchestrationTrigger] TaskOrchestrationContext context)
+        {
+            var deployment = context.GetInput<DeploymentRequest>();
+            var logger = context.CreateReplaySafeLogger<DeploymentMonitorOrchestration>();
+
+            logger.LogInformation($\"Monitoring deployment: {deployment.DeploymentId}\");
+
+            var expiryTime = context.CurrentUtcDateTime.AddHours(2); // 2 hour timeout
+            var pollingInterval = TimeSpan.FromSeconds(30); // Check every 30 seconds
+
+            while (context.CurrentUtcDateTime < expiryTime)
+            {
+                // Check deployment status
+                var status = await context.CallActivityAsync<DeploymentStatus>(
+                    nameof(CheckDeploymentStatus),
+                    deployment.DeploymentId);
+
+                logger.LogInformation($\"Deployment status: {status.State}\");
+
+                if (status.State == \"Succeeded\")
+                {
+                    // Deployment successful
+                    await context.CallActivityAsync(
+                        nameof(SendDeploymentNotification),
+                        new DeploymentNotification
+                        {
+                            DeploymentId = deployment.DeploymentId,
+                            Status = \"Success\",
+                            Message = \"Deployment completed successfully\"
+                        });
+
+                    return new DeploymentResult
+                    {
+                        DeploymentId = deployment.DeploymentId,
+                        Status = \"Succeeded\",
+                        CompletedAt = context.CurrentUtcDateTime,
+                        Duration = context.CurrentUtcDateTime - deployment.StartedAt
+                    };
+                }
+                else if (status.State == \"Failed\")
+                {
+                    // Deployment failed
+                    await context.CallActivityAsync(
+                        nameof(SendDeploymentNotification),
+                        new DeploymentNotification
+                        {
+                            DeploymentId = deployment.DeploymentId,
+                            Status = \"Failed\",
+                            Message = $\"Deployment failed: {status.ErrorMessage}\"
+                        });
+
+                    return new DeploymentResult
+                    {
+                        DeploymentId = deployment.DeploymentId,
+                        Status = \"Failed\",
+                        ErrorMessage = status.ErrorMessage,
+                        CompletedAt = context.CurrentUtcDateTime
+                    };
+                }
+
+                // Still in progress - wait before checking again
+                var nextCheck = context.CurrentUtcDateTime.Add(pollingInterval);
+                await context.CreateTimer(nextCheck, CancellationToken.None);
+            }
+
+            // Timeout reached
+            logger.LogWarning($\"Deployment monitoring timeout: {deployment.DeploymentId}\");
+
+            await context.CallActivityAsync(
+                nameof(SendDeploymentNotification),
+                new DeploymentNotification
+                {
+                    DeploymentId = deployment.DeploymentId,
+                    Status = \"Timeout\",
+                    Message = \"Deployment monitoring timeout - manual check required\"
+                });
+
+            return new DeploymentResult
+            {
+                DeploymentId = deployment.DeploymentId,
+                Status = \"Timeout\",
+                ErrorMessage = \"Deployment monitoring timeout after 2 hours\"
+            };
+        }
+
+        [Function(nameof(CheckDeploymentStatus))]
+        public async Task<DeploymentStatus> CheckDeploymentStatus([ActivityTrigger] string deploymentId)
+        {
+            _logger.LogInformation($\"Checking deployment status: {deploymentId}\");
+
+            // Simulate API call to deployment service
+            await Task.Delay(500);
+
+            // In real implementation, call Azure DevOps, GitHub Actions, etc.
+            var random = new Random();
+            var progress = random.Next(0, 100);
+
+            if (progress > 90)
+            {
+                return new DeploymentStatus { State = \"Succeeded\", Progress = 100 };
+            }
+            else if (progress < 10)
+            {
+                return new DeploymentStatus 
+                { 
+                    State = \"Failed\", 
+                    ErrorMessage = \"Build failed - syntax error in code\" 
+                };
+            }
+            else
+            {
+                return new DeploymentStatus { State = \"InProgress\", Progress = progress };
+            }
+        }
+
+        [Function(nameof(SendDeploymentNotification))]
+        public async Task SendDeploymentNotification([ActivityTrigger] DeploymentNotification notification)
+        {
+            _logger.LogInformation($\"Sending deployment notification: {notification.Status}\");
+            await Task.Delay(300);
+        }
+    }
+
+    // Models
+    public class DeploymentRequest
+    {
+        public string DeploymentId { get; set; }
+        public string Environment { get; set; }
+        public DateTime StartedAt { get; set; }
+    }
+
+    public class DeploymentStatus
+    {
+        public string State { get; set; } // InProgress, Succeeded, Failed
+        public int Progress { get; set; }
+        public string ErrorMessage { get; set; }
+    }
+
+    public class DeploymentNotification
+    {
+        public string DeploymentId { get; set; }
+        public string Status { get; set; }
+        public string Message { get; set; }
+    }
+
+    public class DeploymentResult
+    {
+        public string DeploymentId { get; set; }
+        public string Status { get; set; }
+        public string ErrorMessage { get; set; }
+        public DateTime? CompletedAt { get; set; }
+        public TimeSpan? Duration { get; set; }
+    }
+}
+```
+
+---
+
+## Testing Strategies (C# Implementation)
+
+### 1. Unit Testing Azure Functions
+
+```csharp
+// Install packages:
+// Microsoft.Azure.Functions.Worker
+// Microsoft.Extensions.Logging
+// Moq
+// xUnit
+
+using Xunit;
+using Moq;
+using Microsoft.Extensions.Logging;
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
+using System.Net;
+using System.Text;
+using System.Text.Json;
+
+namespace MyFunctionApp.Tests
+{
+    public class HttpTriggerFunctionTests
+    {
+        private readonly Mock<ILogger<HttpTriggerFunction>> _loggerMock;
+        private readonly Mock<IOrderService> _orderServiceMock;
+        private readonly HttpTriggerFunction _function;
+
+        public HttpTriggerFunctionTests()
+        {
+            _loggerMock = new Mock<ILogger<HttpTriggerFunction>>();
+            _orderServiceMock = new Mock<IOrderService>();
+            _function = new HttpTriggerFunction(_loggerMock.Object, _orderServiceMock.Object);
+        }
+
+        [Fact]
+        public async Task GetOrder_ValidId_ReturnsOrder()
+        {
+            // Arrange
+            var orderId = \"12345\";
+            var expectedOrder = new Order
+            {
+                Id = orderId,
+                OrderNumber = \"ORD-001\",
+                TotalAmount = 100.00m
+            };
+
+            _orderServiceMock
+                .Setup(s => s.GetOrderAsync(orderId))
+                .ReturnsAsync(expectedOrder);
+
+            var context = CreateMockFunctionContext();
+            var request = CreateMockHttpRequest(\"GET\", $\"/api/orders/{orderId}\");
+
+            // Act
+            var response = await _function.GetOrder(request, orderId, context);
+
+            // Assert
+            Assert.NotNull(response);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            
+            // Verify service was called
+            _orderServiceMock.Verify(s => s.GetOrderAsync(orderId), Times.Once);
+        }
+
+        [Fact]
+        public async Task GetOrder_InvalidId_ReturnsNotFound()
+        {
+            // Arrange
+            var orderId = \"invalid\";
+
+            _orderServiceMock
+                .Setup(s => s.GetOrderAsync(orderId))
+                .ReturnsAsync((Order)null);
+
+            var context = CreateMockFunctionContext();
+            var request = CreateMockHttpRequest(\"GET\", $\"/api/orders/{orderId}\");
+
+            // Act
+            var response = await _function.GetOrder(request, orderId, context);
+
+            // Assert
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task CreateOrder_ValidRequest_ReturnsCreated()
+        {
+            // Arrange
+            var orderRequest = new OrderRequest
+            {
+                CustomerEmail = \"test@example.com\",
+                Items = new List<OrderItemRequest>
+                {
+                    new OrderItemRequest { ProductId = \"P1\", Quantity = 2, Price = 50.00m }
+                },
+                TotalAmount = 100.00m
+            };
+
+            var createdOrder = new Order
+            {
+                Id = Guid.NewGuid().ToString(),
+                OrderNumber = \"ORD-001\",
+                CustomerEmail = orderRequest.CustomerEmail,
+                TotalAmount = orderRequest.TotalAmount,
+                Status = \"Pending\"
+            };
+
+            _orderServiceMock
+                .Setup(s => s.CreateOrderAsync(It.IsAny<OrderRequest>()))
+                .ReturnsAsync(createdOrder);
+
+            var context = CreateMockFunctionContext();
+            var request = CreateMockHttpRequest(\"POST\", \"/api/orders\", orderRequest);
+
+            // Act
+            var response = await _function.CreateOrder(request, context);
+
+            // Assert
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            _orderServiceMock.Verify(s => s.CreateOrderAsync(It.IsAny<OrderRequest>()), Times.Once);
+        }
+
+        [Fact]
+        public async Task CreateOrder_InvalidRequest_ReturnsBadRequest()
+        {
+            // Arrange
+            var orderRequest = new OrderRequest
+            {
+                CustomerEmail = \"\", // Invalid - empty email
+                Items = new List<OrderItemRequest>(),
+                TotalAmount = 100.00m
+            };
+
+            var context = CreateMockFunctionContext();
+            var request = CreateMockHttpRequest(\"POST\", \"/api/orders\", orderRequest);
+
+            // Act
+            var response = await _function.CreateOrder(request, context);
+
+            // Assert
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            _orderServiceMock.Verify(s => s.CreateOrderAsync(It.IsAny<OrderRequest>()), Times.Never);
+        }
+
+        // Helper methods
+        private FunctionContext CreateMockFunctionContext()
+        {
+            var context = new Mock<FunctionContext>();
+            var serviceProvider = new Mock<IServiceProvider>();
+            
+            context.SetupProperty(c => c.InstanceServices, serviceProvider.Object);
+            
+            return context.Object;
+        }
+
+        private HttpRequestData CreateMockHttpRequest(string method, string url, object body = null)
+        {
+            var context = CreateMockFunctionContext();
+            var request = new Mock<HttpRequestData>(context);
+
+            request.Setup(r => r.Method).Returns(method);
+            request.Setup(r => r.Url).Returns(new Uri($\"https://localhost{url}\"));
+            request.Setup(r => r.CreateResponse()).Returns(() =>
+            {
+                var response = new Mock<HttpResponseData>(context);
+                response.SetupProperty(r => r.StatusCode);
+                response.SetupProperty(r => r.Headers, new HttpHeadersCollection());
+                response.SetupProperty(r => r.Body, new MemoryStream());
+                return response.Object;
+            });
+
+            if (body != null)
+            {
+                var json = JsonSerializer.Serialize(body);
+                var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
+                request.Setup(r => r.Body).Returns(stream);
+            }
+
+            return request.Object;
+        }
+    }
+
+    // Additional Test Class for Timer Functions
+    public class TimerTriggerFunctionTests
+    {
+        private readonly Mock<ILogger<DailyReportFunction>> _loggerMock;
+        private readonly Mock<IReportService> _reportServiceMock;
+        private readonly DailyReportFunction _function;
+
+        public TimerTriggerFunctionTests()
+        {
+            _loggerMock = new Mock<ILogger<DailyReportFunction>>();
+            _reportServiceMock = new Mock<IReportService>();
+            _function = new DailyReportFunction(_loggerMock.Object, _reportServiceMock.Object);
+        }
+
+        [Fact]
+        public async Task GenerateDailyReport_CallsReportService()
+        {
+            // Arrange
+            var timerInfo = new TimerInfo
+            {
+                ScheduleStatus = new ScheduleStatus
+                {
+                    Last = DateTime.UtcNow.AddDays(-1),
+                    Next = DateTime.UtcNow.AddDays(1)
+                }
+            };
+
+            _reportServiceMock
+                .Setup(s => s.GenerateDailyReportAsync())
+                .ReturnsAsync(true);
+
+            // Act
+            await _function.Run(timerInfo);
+
+            // Assert
+            _reportServiceMock.Verify(s => s.GenerateDailyReportAsync(), Times.Once);
+        }
+    }
+
+    // Test models
+    public class TimerInfo
+    {
+        public ScheduleStatus ScheduleStatus { get; set; }
+        public bool IsPastDue { get; set; }
+    }
+
+    public class ScheduleStatus
+    {
+        public DateTime Last { get; set; }
+        public DateTime Next { get; set; }
+    }
+}
+```
+
+### 2. Integration Testing
+
+```csharp
+using Xunit;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Azure.Storage.Queues;
+using Azure.Storage.Blobs;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
+
+namespace MyFunctionApp.IntegrationTests
+{
+    /// <summary>
+    /// Integration tests using TestServer or actual Azure resources
+    /// </summary>
+    public class FunctionIntegrationTests : IAsyncLifetime
+    {
+        private readonly string _storageConnectionString;
+        private readonly QueueClient _queueClient;
+        private readonly BlobContainerClient _containerClient;
+        private readonly HttpClient _httpClient;
+
+        public FunctionIntegrationTests()
+        {
+            // Use Azurite for local testing or actual Azure Storage
+            _storageConnectionString = \"UseDevelopmentStorage=true\"; // Azurite
+            
+            _queueClient = new QueueClient(_storageConnectionString, \"test-queue\");
+            _containerClient = new BlobContainerClient(_storageConnectionString, \"test-container\");
+            _httpClient = new HttpClient
+            {
+                BaseAddress = new Uri(\"http://localhost:7071\") // Local Functions host
+            };
+        }
+
+        public async Task InitializeAsync()
+        {
+            // Setup test resources
+            await _queueClient.CreateIfNotExistsAsync();
+            await _containerClient.CreateIfNotExistsAsync();
+        }
+
+        public async Task DisposeAsync()
+        {
+            // Cleanup test resources
+            await _queueClient.DeleteIfExistsAsync();
+            await _containerClient.DeleteIfExistsAsync();
+            _httpClient.Dispose();
+        }
+
+        [Fact]
+        public async Task HttpTrigger_EndToEnd_Success()
+        {
+            // Arrange
+            var order = new
+            {
+                customerEmail = \"test@example.com\",
+                items = new[]
+                {
+                    new { productId = \"P1\", quantity = 2, price = 50.00 }
+                },
+                totalAmount = 100.00
+            };
+
+            var content = new StringContent(
+                JsonSerializer.Serialize(order),
+                Encoding.UTF8,
+                \"application/json\");
+
+            // Act
+            var response = await _httpClient.PostAsync(\"/api/orders\", content);
+
+            // Assert
+            Assert.True(response.IsSuccessStatusCode);
+            
+            var responseBody = await response.Content.ReadAsStringAsync();
+            var createdOrder = JsonSerializer.Deserialize<Order>(responseBody);
+            
+            Assert.NotNull(createdOrder);
+            Assert.NotNull(createdOrder.Id);
+            Assert.Equal(order.customerEmail, createdOrder.CustomerEmail);
+        }
+
+        [Fact]
+        public async Task QueueTrigger_ProcessesMessage_Success()
+        {
+            // Arrange
+            var message = JsonSerializer.Serialize(new
+            {
+                orderId = \"ORD-123\",
+                action = \"process\"
+            });
+
+            // Act
+            await _queueClient.SendMessageAsync(message);
+
+            // Wait for processing (in real tests, use polling or message confirmation)
+            await Task.Delay(5000);
+
+            // Assert
+            // Check if message was processed (e.g., check database, output queue, etc.)
+            var properties = await _queueClient.GetPropertiesAsync();
+            Assert.Equal(0, properties.Value.ApproximateMessagesCount);
+        }
+
+        [Fact]
+        public async Task BlobTrigger_ProcessesBlob_Success()
+        {
+            // Arrange
+            var blobName = $\"test-{Guid.NewGuid()}.txt\";
+            var blobContent = \"Test content\";
+            var blobClient = _containerClient.GetBlobClient(blobName);
+
+            // Act
+            await blobClient.UploadAsync(
+                new BinaryData(blobContent),
+                overwrite: true);
+
+            // Wait for processing
+            await Task.Delay(5000);
+
+            // Assert
+            // Verify that the blob was processed (check output container, database, etc.)
+            var outputBlobName = $\"processed-{blobName}\";
+            var outputBlobClient = _containerClient.GetBlobClient(outputBlobName);
+            var exists = await outputBlobClient.ExistsAsync();
+            
+            Assert.True(exists);
+        }
+    }
+}
+```
+
+### 3. Durable Functions Testing
+
+```csharp
+using Xunit;
+using Moq;
+using Microsoft.DurableTask;
+using Microsoft.Extensions.Logging;
+
+namespace MyFunctionApp.Tests
+{
+    public class DurableOrchestrationTests
+    {
+        private readonly Mock<ILogger<OrderProcessingOrchestration>> _loggerMock;
+        private readonly OrderProcessingOrchestration _orchestration;
+
+        public DurableOrchestrationTests()
+        {
+            _loggerMock = new Mock<ILogger<OrderProcessingOrchestration>>();
+            _orchestration = new OrderProcessingOrchestration(_loggerMock.Object);
+        }
+
+        [Fact]
+        public async Task ValidateOrder_ValidOrder_ReturnsTrue()
+        {
+            // Arrange
+            var order = new OrderRequest
+            {
+                OrderId = \"ORD-001\",
+                CustomerEmail = \"test@example.com\",
+                Items = new List<OrderItemRequest>
+                {
+                    new OrderItemRequest { ProductId = \"P1\", Quantity = 1, Price = 100 }
+                },
+                TotalAmount = 100
+            };
+
+            // Act
+            var result = _orchestration.ValidateOrder(order);
+
+            // Assert
+            Assert.True(result.IsValid);
+        }
+
+        [Fact]
+        public async Task ValidateOrder_EmptyEmail_ReturnsFalse()
+        {
+            // Arrange
+            var order = new OrderRequest
+            {
+                OrderId = \"ORD-001\",
+                CustomerEmail = \"\",
+                Items = new List<OrderItemRequest> { new OrderItemRequest() },
+                TotalAmount = 100
+            };
+
+            // Act
+            var result = _orchestration.ValidateOrder(order);
+
+            // Assert
+            Assert.False(result.IsValid);
+            Assert.Contains(\"email\", result.Message.ToLower());
+        }
+
+        [Fact]
+        public async Task ProcessPayment_ValidPayment_ReturnsSuccess()
+        {
+            // Arrange
+            var payment = new PaymentRequest
+            {
+                OrderId = \"ORD-001\",
+                Amount = 100,
+                PaymentMethod = \"CreditCard\"
+            };
+
+            // Act
+            var result = await _orchestration.ProcessPayment(payment);
+
+            // Assert
+            Assert.True(result.Success);
+            Assert.NotNull(result.TransactionId);
+        }
+    }
+}
+```
+
+---
+
+## Security & Authentication (C# Implementation)
+
+### 1. Managed Identity Configuration
+
+```csharp
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Azure.Identity;
+using Azure.Storage.Blobs;
+using Azure.Security.KeyVault.Secrets;
+using Microsoft.Azure.Cosmos;
+
+namespace MyFunctionApp
+{
+    public class Program
+    {
+        public static void Main()
+        {
+            var host = new HostBuilder()
+                .ConfigureFunctionsWorkerDefaults()
+                .ConfigureServices((context, services) =>
+                {
+                    // Configure Managed Identity
+                    var credential = new DefaultAzureCredential();
+
+                    // Blob Storage with Managed Identity
+                    var blobServiceEndpoint = context.Configuration[\"BlobServiceEndpoint\"];
+                    services.AddSingleton(sp => 
+                        new BlobServiceClient(new Uri(blobServiceEndpoint), credential));
+
+                    // Key Vault with Managed Identity
+                    var keyVaultEndpoint = context.Configuration[\"KeyVaultEndpoint\"];
+                    services.AddSingleton(sp => 
+                        new SecretClient(new Uri(keyVaultEndpoint), credential));
+
+                    // Cosmos DB with Managed Identity
+                    var cosmosEndpoint = context.Configuration[\"CosmosDbEndpoint\"];
+                    services.AddSingleton(sp => 
+                        new CosmosClient(cosmosEndpoint, credential));
+
+                    // Application Insights
+                    services.AddApplicationInsightsTelemetryWorkerService();
+                    services.ConfigureFunctionsApplicationInsights();
+                })
+                .Build();
+
+            host.Run();
+        }
+    }
+}
+```
+
+### 2. JWT Token Validation
+
+```csharp
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
+using Microsoft.Extensions.Logging;
+using System.IdentityModel.Tokens.Jwt;
+using Microsoft.IdentityModel.Tokens;
+using System.Security.Claims;
+using System.Net;
+
+namespace MyFunctionApp.Security
+{
+    /// <summary>
+    /// Secure HTTP Function with JWT validation
+    /// </summary>
+    public class SecureHttpFunction
+    {
+        private readonly ILogger<SecureHttpFunction> _logger;
+        private readonly ITokenValidator _tokenValidator;
+
+        public SecureHttpFunction(
+            ILogger<SecureHttpFunction> logger,
+            ITokenValidator tokenValidator)
+        {
+            _logger = logger;
+            _tokenValidator = tokenValidator;
+        }
+
+        [Function(nameof(SecureEndpoint))]
+        public async Task<HttpResponseData> SecureEndpoint(
+            [HttpTrigger(AuthorizationLevel.Anonymous, \"get\", \"post\")] 
+            HttpRequestData req)
+        {
+            _logger.LogInformation(\"Processing secure request\");
+
+            // Extract and validate token
+            if (!req.Headers.TryGetValues(\"Authorization\", out var authHeaders))
+            {
+                return await CreateUnauthorizedResponse(req, \"Missing Authorization header\");
+            }
+
+            var authHeader = authHeaders.FirstOrDefault();
+            if (string.IsNullOrEmpty(authHeader) || !authHeader.StartsWith(\"Bearer \"))
+            {
+                return await CreateUnauthorizedResponse(req, \"Invalid Authorization header format\");
+            }
+
+            var token = authHeader.Substring(\"Bearer \".Length).Trim();
+
+            try
+            {
+                // Validate token
+                var principal = await _tokenValidator.ValidateTokenAsync(token);
+
+                if (principal == null)
+                {
+                    return await CreateUnauthorizedResponse(req, \"Invalid token\");
+                }
+
+                // Check claims/roles
+                if (!principal.IsInRole(\"Admin\") && !principal.IsInRole(\"User\"))
+                {
+                    return await CreateForbiddenResponse(req, \"Insufficient permissions\");
+                }
+
+                // Extract user information
+                var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                var email = principal.FindFirst(ClaimTypes.Email)?.Value;
+
+                _logger.LogInformation($\"Authenticated user: {email}\");
+
+                // Process request
+                var response = req.CreateResponse(HttpStatusCode.OK);
+                await response.WriteAsJsonAsync(new
+                {
+                    message = \"Success\",
+                    userId,
+                    email,
+                    roles = principal.Claims
+                        .Where(c => c.Type == ClaimTypes.Role)
+                        .Select(c => c.Value)
+                        .ToList()
+                });
+
+                return response;
+            }
+            catch (SecurityTokenExpiredException)
+            {
+                return await CreateUnauthorizedResponse(req, \"Token expired\");
+            }
+            catch (SecurityTokenValidationException ex)
+            {
+                _logger.LogWarning($\"Token validation failed: {ex.Message}\");
+                return await CreateUnauthorizedResponse(req, \"Token validation failed\");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, \"Error processing secure request\");
+                return await CreateErrorResponse(req, \"Internal server error\");
+            }
+        }
+
+        private async Task<HttpResponseData> CreateUnauthorizedResponse(
+            HttpRequestData req, string message)
+        {
+            var response = req.CreateResponse(HttpStatusCode.Unauthorized);
+            await response.WriteAsJsonAsync(new { error = message });
+            return response;
+        }
+
+        private async Task<HttpResponseData> CreateForbiddenResponse(
+            HttpRequestData req, string message)
+        {
+            var response = req.CreateResponse(HttpStatusCode.Forbidden);
+            await response.WriteAsJsonAsync(new { error = message });
+            return response;
+        }
+
+        private async Task<HttpResponseData> CreateErrorResponse(
+            HttpRequestData req, string message)
+        {
+            var response = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await response.WriteAsJsonAsync(new { error = message });
+            return response;
+        }
+    }
+
+    // Token Validator Implementation
+    public interface ITokenValidator
+    {
+        Task<ClaimsPrincipal> ValidateTokenAsync(string token);
+    }
+
+    public class JwtTokenValidator : ITokenValidator
+    {
+        private readonly ILogger<JwtTokenValidator> _logger;
+        private readonly TokenValidationParameters _validationParameters;
+
+        public JwtTokenValidator(
+            ILogger<JwtTokenValidator> logger,
+            IConfiguration configuration)
+        {
+            _logger = logger;
+
+            _validationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidIssuer = configuration[\"Jwt:Issuer\"],
+                
+                ValidateAudience = true,
+                ValidAudience = configuration[\"Jwt:Audience\"],
+                
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(
+                    Encoding.UTF8.GetBytes(configuration[\"Jwt:SecretKey\"])),
+                
+                ValidateLifetime = true,
+                ClockSkew = TimeSpan.FromMinutes(5)
+            };
+        }
+
+        public async Task<ClaimsPrincipal> ValidateTokenAsync(string token)
+        {
+            var tokenHandler = new JwtSecurityTokenHandler();
+
+            try
+            {
+                var principal = tokenHandler.ValidateToken(
+                    token,
+                    _validationParameters,
+                    out SecurityToken validatedToken);
+
+                var jwtToken = validatedToken as JwtSecurityToken;
+
+                if (jwtToken == null ||
+                    !jwtToken.Header.Alg.Equals(
+                        SecurityAlgorithms.HmacSha256,
+                        StringComparison.InvariantCultureIgnoreCase))
+                {
+                    throw new SecurityTokenValidationException(\"Invalid token algorithm\");
+                }
+
+                return await Task.FromResult(principal);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, \"Token validation error\");
+                throw;
+            }
+        }
+    }
+}
+```
+
+### 3. Azure AD B2C Authentication
+
+```csharp
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
+using Microsoft.Extensions.Logging;
+using Microsoft.Identity.Web;
+using Microsoft.Identity.Web.Resource;
+using System.Net;
+
+namespace MyFunctionApp.Security
+{
+    /// <summary>
+    /// Azure AD B2C Protected Function
+    /// </summary>
+    public class AadB2CProtectedFunction
+    {
+        private readonly ILogger<AadB2CProtectedFunction> _logger;
+
+        public AadB2CProtectedFunction(ILogger<AadB2CProtectedFunction> logger)
+        {
+            _logger = logger;
+        }
+
+        [Function(nameof(GetUserProfile))]
+        [RequiredScope(\"User.Read\")] // Require specific scope
+        public async Task<HttpResponseData> GetUserProfile(
+            [HttpTrigger(AuthorizationLevel.Anonymous, \"get\", Route = \"profile\")] 
+            HttpRequestData req,
+            FunctionContext executionContext)
+        {
+            _logger.LogInformation(\"Getting user profile\");
+
+            try
+            {
+                // Azure AD B2C automatically validates the token
+                // User claims are available in FunctionContext
+
+                var principal = executionContext.Items[\"User\"] as ClaimsPrincipal;
+
+                if (principal == null)
+                {
+                    var response = req.CreateResponse(HttpStatusCode.Unauthorized);
+                    await response.WriteAsJsonAsync(new { error = \"Unauthorized\" });
+                    return response;
+                }
+
+                var userId = principal.FindFirst(\"sub\")?.Value;
+                var email = principal.FindFirst(\"emails\")?.Value;
+                var name = principal.FindFirst(\"name\")?.Value;
+
+                _logger.LogInformation($\"User: {email}\");
+
+                var successResponse = req.CreateResponse(HttpStatusCode.OK);
+                await successResponse.WriteAsJsonAsync(new
+                {
+                    userId,
+                    email,
+                    name,
+                    roles = principal.Claims
+                        .Where(c => c.Type == \"extension_Role\")
+                        .Select(c => c.Value)
+                        .ToList()
+                });
+
+                return successResponse;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, \"Error getting user profile\");
+                var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
+                await errorResponse.WriteAsJsonAsync(new { error = \"Internal server error\" });
+                return errorResponse;
+            }
+        }
+    }
+
+    // Configure in Program.cs
+    public class ProgramWithAadB2C
+    {
+        public static void Main()
+        {
+            var host = new HostBuilder()
+                .ConfigureFunctionsWorkerDefaults(builder =>
+                {
+                    // Add authentication middleware
+                    builder.UseMiddleware<AadB2CAuthenticationMiddleware>();
+                })
+                .ConfigureServices((context, services) =>
+                {
+                    // Configure Azure AD B2C
+                    services.AddAuthentication(options =>
+                    {
+                        options.DefaultScheme = \"Bearer\";
+                    })
+                    .AddMicrosoftIdentityWebApi(options =>
+                    {
+                        context.Configuration.Bind(\"AzureAdB2C\", options);
+                        options.TokenValidationParameters.NameClaimType = \"name\";
+                    },
+                    options =>
+                    {
+                        context.Configuration.Bind(\"AzureAdB2C\", options);
+                    });
+
+                    services.AddAuthorization();
+                })
+                .Build();
+
+            host.Run();
+        }
+    }
+}
+```
+
+### 4. API Key Validation
+
+```csharp
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
+using Microsoft.Extensions.Logging;
+using System.Net;
+
+namespace MyFunctionApp.Security
+{
+    /// <summary>
+    /// API Key based authentication
+    /// </summary>
+    public class ApiKeyProtectedFunction
+    {
+        private readonly ILogger<ApiKeyProtectedFunction> _logger;
+        private readonly IApiKeyValidator _apiKeyValidator;
+
+        public ApiKeyProtectedFunction(
+            ILogger<ApiKeyProtectedFunction> logger,
+            IApiKeyValidator apiKeyValidator)
+        {
+            _logger = logger;
+            _apiKeyValidator = apiKeyValidator;
+        }
+
+        [Function(nameof(SecureApiEndpoint))]
+        public async Task<HttpResponseData> SecureApiEndpoint(
+            [HttpTrigger(AuthorizationLevel.Anonymous, \"get\", \"post\")] 
+            HttpRequestData req)
+        {
+            _logger.LogInformation(\"Processing API request\");
+
+            // Extract API key from header
+            if (!req.Headers.TryGetValues(\"X-API-Key\", out var apiKeyHeaders))
+            {
+                return await CreateUnauthorizedResponse(req, \"Missing API key\");
+            }
+
+            var apiKey = apiKeyHeaders.FirstOrDefault();
+
+            if (string.IsNullOrEmpty(apiKey))
+            {
+                return await CreateUnauthorizedResponse(req, \"Invalid API key\");
+            }
+
+            // Validate API key
+            var validationResult = await _apiKeyValidator.ValidateAsync(apiKey);
+
+            if (!validationResult.IsValid)
+            {
+                _logger.LogWarning($\"Invalid API key attempt\");
+                return await CreateUnauthorizedResponse(req, \"Unauthorized\");
+            }
+
+            // Check rate limits
+            if (validationResult.RateLimitExceeded)
+            {
+                _logger.LogWarning($\"Rate limit exceeded for client: {validationResult.ClientId}\");
+                
+                var response = req.CreateResponse(HttpStatusCode.TooManyRequests);
+                response.Headers.Add(\"Retry-After\", \"60\");
+                await response.WriteAsJsonAsync(new
+                {
+                    error = \"Rate limit exceeded\",
+                    retryAfter = 60
+                });
+                return response;
+            }
+
+            _logger.LogInformation($\"Authenticated client: {validationResult.ClientId}\");
+
+            // Process request
+            var successResponse = req.CreateResponse(HttpStatusCode.OK);
+            await successResponse.WriteAsJsonAsync(new
+            {
+                message = \"Success\",
+                clientId = validationResult.ClientId,
+                remainingRequests = validationResult.RemainingRequests
+            });
+
+            return successResponse;
+        }
+
+        private async Task<HttpResponseData> CreateUnauthorizedResponse(
+            HttpRequestData req, string message)
+        {
+            var response = req.CreateResponse(HttpStatusCode.Unauthorized);
+            await response.WriteAsJsonAsync(new { error = message });
+            return response;
+        }
+    }
+
+    // API Key Validator
+    public interface IApiKeyValidator
+    {
+        Task<ApiKeyValidationResult> ValidateAsync(string apiKey);
+    }
+
+    public class ApiKeyValidator : IApiKeyValidator
+    {
+        private readonly ILogger<ApiKeyValidator> _logger;
+        private readonly IConfiguration _configuration;
+        private readonly Dictionary<string, ApiKeyInfo> _apiKeys;
+        private readonly Dictionary<string, RateLimitInfo> _rateLimits;
+
+        public ApiKeyValidator(
+            ILogger<ApiKeyValidator> logger,
+            IConfiguration configuration)
+        {
+            _logger = logger;
+            _configuration = configuration;
+            _apiKeys = new Dictionary<string, ApiKeyInfo>();
+            _rateLimits = new Dictionary<string, RateLimitInfo>();
+            
+            LoadApiKeys();
+        }
+
+        public async Task<ApiKeyValidationResult> ValidateAsync(string apiKey)
+        {
+            // Check if API key exists
+            if (!_apiKeys.TryGetValue(apiKey, out var keyInfo))
+            {
+                return new ApiKeyValidationResult { IsValid = false };
+            }
+
+            // Check if API key is expired
+            if (keyInfo.ExpiresAt.HasValue && keyInfo.ExpiresAt.Value < DateTime.UtcNow)
+            {
+                _logger.LogWarning($\"Expired API key used: {keyInfo.ClientId}\");
+                return new ApiKeyValidationResult { IsValid = false };
+            }
+
+            // Check rate limits
+            var rateLimitExceeded = await CheckRateLimitAsync(keyInfo.ClientId, keyInfo.RateLimit);
+
+            return new ApiKeyValidationResult
+            {
+                IsValid = true,
+                ClientId = keyInfo.ClientId,
+                RateLimitExceeded = rateLimitExceeded,
+                RemainingRequests = CalculateRemainingRequests(keyInfo.ClientId, keyInfo.RateLimit)
+            };
+        }
+
+        private void LoadApiKeys()
+        {
+            // In production, load from Key Vault or database
+            var keys = _configuration.GetSection(\"ApiKeys\").Get<List<ApiKeyInfo>>();
+            
+            if (keys != null)
+            {
+                foreach (var key in keys)
+                {
+                    _apiKeys[key.Key] = key;
+                }
+            }
+        }
+
+        private async Task<bool> CheckRateLimitAsync(string clientId, int maxRequestsPerMinute)
+        {
+            var now = DateTime.UtcNow;
+
+            if (!_rateLimits.TryGetValue(clientId, out var rateLimitInfo))
+            {
+                rateLimitInfo = new RateLimitInfo
+                {
+                    WindowStart = now,
+                    RequestCount = 0
+                };
+                _rateLimits[clientId] = rateLimitInfo;
+            }
+
+            // Reset window if needed
+            if (now - rateLimitInfo.WindowStart > TimeSpan.FromMinutes(1))
+            {
+                rateLimitInfo.WindowStart = now;
+                rateLimitInfo.RequestCount = 0;
+            }
+
+            rateLimitInfo.RequestCount++;
+
+            return await Task.FromResult(rateLimitInfo.RequestCount > maxRequestsPerMinute);
+        }
+
+        private int CalculateRemainingRequests(string clientId, int maxRequestsPerMinute)
+        {
+            if (!_rateLimits.TryGetValue(clientId, out var rateLimitInfo))
+            {
+                return maxRequestsPerMinute;
+            }
+
+            return Math.Max(0, maxRequestsPerMinute - rateLimitInfo.RequestCount);
+        }
+    }
+
+    public class ApiKeyInfo
+    {
+        public string Key { get; set; }
+        public string ClientId { get; set; }
+        public string ClientName { get; set; }
+        public int RateLimit { get; set; } = 1000; // Requests per minute
+        public DateTime? ExpiresAt { get; set; }
+    }
+
+    public class RateLimitInfo
+    {
+        public DateTime WindowStart { get; set; }
+        public int RequestCount { get; set; }
+    }
+
+    public class ApiKeyValidationResult
+    {
+        public bool IsValid { get; set; }
+        public string ClientId { get; set; }
+        public bool RateLimitExceeded { get; set; }
+        public int RemainingRequests { get; set; }
+    }
+}
+```
+
+---
+
+## Error Handling & Middleware (C# Implementation)
+
+### 1. Global Error Handling Middleware
+
+```csharp
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Middleware;
+using Microsoft.Extensions.Logging;
+using System.Net;
+using System.Text.Json;
+
+namespace MyFunctionApp.Middleware
+{
+    /// <summary>
+    /// Global error handling middleware
+    /// </summary>
+    public class ErrorHandlingMiddleware : IFunctionsWorkerMiddleware
+    {
+        private readonly ILogger<ErrorHandlingMiddleware> _logger;
+
+        public ErrorHandlingMiddleware(ILogger<ErrorHandlingMiddleware> logger)
+        {
+            _logger = logger;
+        }
+
+        public async Task Invoke(FunctionContext context, FunctionExecutionDelegate next)
+        {
+            try
+            {
+                // Execute the function
+                await next(context);
+            }
+            catch (ValidationException ex)
+            {
+                _logger.LogWarning(ex, \"Validation error in function {FunctionName}\", 
+                    context.FunctionDefinition.Name);
+                
+                await HandleValidationError(context, ex);
+            }
+            catch (BusinessException ex)
+            {
+                _logger.LogWarning(ex, \"Business logic error in function {FunctionName}\", 
+                    context.FunctionDefinition.Name);
+                
+                await HandleBusinessError(context, ex);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, \"Unauthorized access in function {FunctionName}\", 
+                    context.FunctionDefinition.Name);
+                
+                await HandleUnauthorizedError(context, ex);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, \"Unhandled exception in function {FunctionName}\", 
+                    context.FunctionDefinition.Name);
+                
+                await HandleUnexpectedError(context, ex);
+            }
+        }
+
+        private async Task HandleValidationError(FunctionContext context, ValidationException ex)
+        {
+            var httpContext = await context.GetHttpRequestDataAsync();
+            if (httpContext != null)
+            {
+                var response = httpContext.CreateResponse(HttpStatusCode.BadRequest);
+                await response.WriteAsJsonAsync(new ErrorResponse
+                {
+                    Error = \"ValidationError\",
+                    Message = ex.Message,
+                    Errors = ex.Errors,
+                    TraceId = context.InvocationId
+                });
+                
+                context.GetInvocationResult().Value = response;
+            }
+        }
+
+        private async Task HandleBusinessError(FunctionContext context, BusinessException ex)
+        {
+            var httpContext = await context.GetHttpRequestDataAsync();
+            if (httpContext != null)
+            {
+                var response = httpContext.CreateResponse(HttpStatusCode.UnprocessableEntity);
+                await response.WriteAsJsonAsync(new ErrorResponse
+                {
+                    Error = \"BusinessError\",
+                    Message = ex.Message,
+                    Code = ex.ErrorCode,
+                    TraceId = context.InvocationId
+                });
+                
+                context.GetInvocationResult().Value = response;
+            }
+        }
+
+        private async Task HandleUnauthorizedError(FunctionContext context, UnauthorizedAccessException ex)
+        {
+            var httpContext = await context.GetHttpRequestDataAsync();
+            if (httpContext != null)
+            {
+                var response = httpContext.CreateResponse(HttpStatusCode.Forbidden);
+                await response.WriteAsJsonAsync(new ErrorResponse
+                {
+                    Error = \"UnauthorizedAccess\",
+                    Message = \"You don't have permission to access this resource\",
+                    TraceId = context.InvocationId
+                });
+                
+                context.GetInvocationResult().Value = response;
+            }
+        }
+
+        private async Task HandleUnexpectedError(FunctionContext context, Exception ex)
+        {
+            var httpContext = await context.GetHttpRequestDataAsync();
+            if (httpContext != null)
+            {
+                var response = httpContext.CreateResponse(HttpStatusCode.InternalServerError);
+                await response.WriteAsJsonAsync(new ErrorResponse
+                {
+                    Error = \"InternalServerError\",
+                    Message = \"An unexpected error occurred. Please try again later.\",
+                    TraceId = context.InvocationId
+                    // Don't expose internal error details to clients
+                });
+                
+                context.GetInvocationResult().Value = response;
+            }
+        }
+    }
+
+    // Error Response Model
+    public class ErrorResponse
+    {
+        public string Error { get; set; }
+        public string Message { get; set; }
+        public string Code { get; set; }
+        public Dictionary<string, string[]> Errors { get; set; }
+        public string TraceId { get; set; }
+    }
+
+    // Custom Exceptions
+    public class ValidationException : Exception
+    {
+        public Dictionary<string, string[]> Errors { get; set; }
+
+        public ValidationException(string message, Dictionary<string, string[]> errors)
+            : base(message)
+        {
+            Errors = errors;
+        }
+    }
+
+    public class BusinessException : Exception
+    {
+        public string ErrorCode { get; set; }
+
+        public BusinessException(string message, string errorCode = null)
+            : base(message)
+        {
+            ErrorCode = errorCode;
+        }
+    }
+}
+```
+
+### 2. Logging Middleware
+
+```csharp
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Middleware;
+using Microsoft.Extensions.Logging;
+using System.Diagnostics;
+
+namespace MyFunctionApp.Middleware
+{
+    /// <summary>
+    /// Logging middleware for request/response tracking
+    /// </summary>
+    public class LoggingMiddleware : IFunctionsWorkerMiddleware
+    {
+        private readonly ILogger<LoggingMiddleware> _logger;
+
+        public LoggingMiddleware(ILogger<LoggingMiddleware> logger)
+        {
+            _logger = logger;
+        }
+
+        public async Task Invoke(FunctionContext context, FunctionExecutionDelegate next)
+        {
+            var stopwatch = Stopwatch.StartNew();
+            var functionName = context.FunctionDefinition.Name;
+            var invocationId = context.InvocationId;
+
+            _logger.LogInformation(
+                \"[{InvocationId}] Function {FunctionName} started\",
+                invocationId,
+                functionName);
+
+            try
+            {
+                // Log HTTP request details
+                var httpRequest = await context.GetHttpRequestDataAsync();
+                if (httpRequest != null)
+                {
+                    _logger.LogInformation(
+                        \"[{InvocationId}] HTTP {Method} {Url}\",
+                        invocationId,
+                        httpRequest.Method,
+                        httpRequest.Url);
+                }
+
+                // Execute function
+                await next(context);
+
+                stopwatch.Stop();
+
+                _logger.LogInformation(
+                    \"[{InvocationId}] Function {FunctionName} completed successfully in {Duration}ms\",
+                    invocationId,
+                    functionName,
+                    stopwatch.ElapsedMilliseconds);
+            }
+            catch (Exception ex)
+            {
+                stopwatch.Stop();
+
+                _logger.LogError(ex,
+                    \"[{InvocationId}] Function {FunctionName} failed after {Duration}ms\",
+                    invocationId,
+                    functionName,
+                    stopwatch.ElapsedMilliseconds);
+
+                throw;
+            }
+        }
+    }
+}
+```
+
+### 3. Retry Policy Implementation
+
+```csharp
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Extensions.Logging;
+using Polly;
+using Polly.Retry;
+
+namespace MyFunctionApp.Functions
+{
+    /// <summary>
+    /// Function with retry policy using Polly
+    /// </summary>
+    public class ResilientFunction
+    {
+        private readonly ILogger<ResilientFunction> _logger;
+        private readonly IExternalService _externalService;
+        private readonly AsyncRetryPolicy _retryPolicy;
+
+        public ResilientFunction(
+            ILogger<ResilientFunction> logger,
+            IExternalService externalService)
+        {
+            _logger = logger;
+            _externalService = externalService;
+
+            // Configure retry policy
+            _retryPolicy = Policy
+                .Handle<HttpRequestException>()
+                .Or<TimeoutException>()
+                .WaitAndRetryAsync(
+                    retryCount: 3,
+                    sleepDurationProvider: retryAttempt => 
+                        TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
+                    onRetry: (exception, timeSpan, retryCount, context) =>
+                    {
+                        _logger.LogWarning(
+                            \"Retry {RetryCount} after {Delay}s due to {Exception}\",
+                            retryCount,
+                            timeSpan.TotalSeconds,
+                            exception.GetType().Name);
+                    });
+        }
+
+        [Function(nameof(ProcessWithRetry))]
+        public async Task<HttpResponseData> ProcessWithRetry(
+            [HttpTrigger(AuthorizationLevel.Function, \"post\")] HttpRequestData req)
+        {
+            _logger.LogInformation(\"Processing request with retry policy\");
+
+            try
+            {
+                // Execute with retry policy
+                var result = await _retryPolicy.ExecuteAsync(async () =>
+                {
+                    return await _externalService.CallExternalApiAsync();
+                });
+
+                var response = req.CreateResponse(HttpStatusCode.OK);
+                await response.WriteAsJsonAsync(result);
+                return response;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, \"Failed after all retries\");
+                
+                var errorResponse = req.CreateResponse(HttpStatusCode.ServiceUnavailable);
+                await errorResponse.WriteAsJsonAsync(new
+                {
+                    error = \"Service temporarily unavailable. Please try again later.\"
+                });
+                return errorResponse;
+            }
+        }
+    }
+
+    // Configure advanced policies in Program.cs
+    public class ProgramWithPolly
+    {
+        public static void Main()
+        {
+            var host = new HostBuilder()
+                .ConfigureFunctionsWorkerDefaults()
+                .ConfigureServices((context, services) =>
+                {
+                    // Circuit Breaker Policy
+                    var circuitBreakerPolicy = Policy
+                        .Handle<HttpRequestException>()
+                        .CircuitBreakerAsync(
+                            exceptionsAllowedBeforeBreaking: 5,
+                            durationOfBreak: TimeSpan.FromSeconds(30));
+
+                    // Timeout Policy
+                    var timeoutPolicy = Policy
+                        .TimeoutAsync<HttpResponseMessage>(TimeSpan.FromSeconds(10));
+
+                    // Combine policies
+                    var combinedPolicy = Policy.WrapAsync(
+                        circuitBreakerPolicy,
+                        timeoutPolicy);
+
+                    services.AddSingleton(combinedPolicy);
+                })
+                .Build();
+
+            host.Run();
+        }
+    }
+}
+```
+
+---
+
+## Real-World Scenarios (C# Implementation)
+
+### Scenario 1: E-Commerce Order Processing System
+
+```csharp
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
+using Microsoft.DurableTask;
+using Microsoft.DurableTask.Client;
+using Microsoft.Extensions.Logging;
+using Azure.Messaging.ServiceBus;
+using Azure.Storage.Blobs;
+using System.Text.Json;
+
+namespace MyFunctionApp.RealWorld
+{
+    /// <summary>
+    /// Complete E-Commerce Order Processing System
+    /// Combines multiple triggers, bindings, and orchestrations
+    /// </summary>
+    public class ECommerceOrderSystem
+    {
+        private readonly ILogger<ECommerceOrderSystem> _logger;
+        private readonly IOrderRepository _orderRepository;
+        private readonly IInventoryService _inventoryService;
+        private readonly IPaymentService _paymentService;
+        private readonly IShippingService _shippingService;
+        private readonly INotificationService _notificationService;
+
+        public ECommerceOrderSystem(
+            ILogger<ECommerceOrderSystem> logger,
+            IOrderRepository orderRepository,
+            IInventoryService inventoryService,
+            IPaymentService paymentService,
+            IShippingService shippingService,
+            INotificationService notificationService)
+        {
+            _logger = logger;
+            _orderRepository = orderRepository;
+            _inventoryService = inventoryService;
+            _paymentService = paymentService;
+            _shippingService = shippingService;
+            _notificationService = notificationService;
+        }
+
+        // === STEP 1: Receive Order via HTTP ===
+        [Function(nameof(CreateOrder))]
+        public async Task<HttpResponseData> CreateOrder(
+            [HttpTrigger(AuthorizationLevel.Function, \"post\", Route = \"orders\")] 
+            HttpRequestData req,
+            [DurableClient] DurableTaskClient durableClient)
+        {
+            _logger.LogInformation(\"Received new order request\");
+
+            try
+            {
+                // Parse request
+                var orderRequest = await req.ReadFromJsonAsync<CreateOrderRequest>();
+
+                if (orderRequest == null)
+                {
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { error = \"Invalid request body\" });
+                    return badRequest;
+                }
+
+                // Validate order
+                var validationErrors = ValidateOrder(orderRequest);
+                if (validationErrors.Any())
+                {
+                    var validationError = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await validationError.WriteAsJsonAsync(new
+                    {
+                        error = \"Validation failed\",
+                        errors = validationErrors
+                    });
+                    return validationError;
+                }
+
+                // Create order entity
+                var order = new Order
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    OrderNumber = GenerateOrderNumber(),
+                    CustomerId = orderRequest.CustomerId,
+                    CustomerName = orderRequest.CustomerName,
+                    CustomerEmail = orderRequest.CustomerEmail,
+                    ShippingAddress = orderRequest.ShippingAddress,
+                    BillingAddress = orderRequest.BillingAddress,
+                    Items = orderRequest.Items.Select(i => new OrderItem
+                    {
+                        ProductId = i.ProductId,
+                        ProductName = i.ProductName,
+                        Quantity = i.Quantity,
+                        UnitPrice = i.UnitPrice,
+                        SubTotal = i.Quantity * i.UnitPrice
+                    }).ToList(),
+                    SubTotal = orderRequest.Items.Sum(i => i.Quantity * i.UnitPrice),
+                    Tax = CalculateTax(orderRequest.Items, orderRequest.ShippingAddress),
+                    ShippingCost = CalculateShipping(orderRequest.Items, orderRequest.ShippingAddress),
+                    Status = \"Pending\",
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                order.TotalAmount = order.SubTotal + order.Tax + order.ShippingCost;
+
+                // Save order to database
+                await _orderRepository.CreateAsync(order);
+
+                _logger.LogInformation($\"Order created: {order.OrderNumber}\");
+
+                // Start durable orchestration for order processing
+                var instanceId = await durableClient.ScheduleNewOrchestrationInstanceAsync(
+                    nameof(OrderProcessingOrchestrator),
+                    order);
+
+                _logger.LogInformation($\"Started orchestration {instanceId} for order {order.OrderNumber}\");
+
+                // Return response with order details and tracking
+                var response = req.CreateResponse(HttpStatusCode.Created);
+                response.Headers.Add(\"Location\", $\"/api/orders/{order.Id}\");
+                await response.WriteAsJsonAsync(new
+                {
+                    orderId = order.Id,
+                    orderNumber = order.OrderNumber,
+                    status = order.Status,
+                    totalAmount = order.TotalAmount,
+                    estimatedDelivery = DateTime.UtcNow.AddDays(5),
+                    orchestrationId = instanceId,
+                    trackingUrl = $\"/api/orders/{order.Id}/status\"
+                });
+
+                return response;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, \"Error creating order\");
+                var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
+                await errorResponse.WriteAsJsonAsync(new { error = \"Failed to create order\" });
+                return errorResponse;
+            }
+        }
+
+        // === STEP 2: Durable Orchestration ===
+        [Function(nameof(OrderProcessingOrchestrator))]
+        public async Task<OrderProcessingResult> OrderProcessingOrchestrator(
+            [OrchestrationTrigger] TaskOrchestrationContext context)
+        {
+            var order = context.GetInput<Order>();
+            var logger = context.CreateReplaySafeLogger<ECommerceOrderSystem>();
+
+            logger.LogInformation($\"Processing order {order.OrderNumber}\");
+
+            var result = new OrderProcessingResult { OrderId = order.Id };
+
+            try
+            {
+                // === Step 1: Reserve Inventory ===
+                logger.LogInformation(\"Step 1: Reserving inventory\");
+                var inventoryReservation = await context.CallActivityAsync<InventoryReservationResult>(
+                    nameof(ReserveInventoryActivity),
+                    order);
+
+                if (!inventoryReservation.Success)
+                {
+                    // Inventory not available
+                    await context.CallActivityAsync(
+                        nameof(UpdateOrderStatus),
+                        new OrderStatusUpdate
+                        {
+                            OrderId = order.Id,
+                            Status = \"Cancelled\",
+                            Reason = \"Insufficient inventory\"
+                        });
+
+                    await context.CallActivityAsync(
+                        nameof(SendNotification),
+                        new OrderNotification
+                        {
+                            OrderId = order.Id,
+                            Type = \"OrderCancelled\",
+                            Recipient = order.CustomerEmail,
+                            Message = \"Your order has been cancelled due to insufficient inventory.\"
+                        });
+
+                    result.Status = \"Cancelled\";
+                    result.Message = \"Insufficient inventory\";
+                    return result;
+                }
+
+                result.ReservationId = inventoryReservation.ReservationId;
+
+                // === Step 2: Process Payment ===
+                logger.LogInformation(\"Step 2: Processing payment\");
+                var paymentResult = await context.CallActivityAsync<PaymentProcessingResult>(
+                    nameof(ProcessPaymentActivity),
+                    new PaymentRequest
+                    {
+                        OrderId = order.Id,
+                        Amount = order.TotalAmount,
+                        PaymentMethod = order.PaymentMethod,
+                        BillingAddress = order.BillingAddress
+                    });
+
+                if (!paymentResult.Success)
+                {
+                    // Payment failed - release inventory
+                    logger.LogWarning(\"Payment failed - releasing inventory\");
+
+                    await context.CallActivityAsync(
+                        nameof(ReleaseInventoryActivity),
+                        inventoryReservation.ReservationId);
+
+                    await context.CallActivityAsync(
+                        nameof(UpdateOrderStatus),
+                        new OrderStatusUpdate
+                        {
+                            OrderId = order.Id,
+                            Status = \"PaymentFailed\",
+                            Reason = paymentResult.ErrorMessage
+                        });
+
+                    await context.CallActivityAsync(
+                        nameof(SendNotification),
+                        new OrderNotification
+                        {
+                            OrderId = order.Id,
+                            Type = \"PaymentFailed\",
+                            Recipient = order.CustomerEmail,
+                            Message = $\"Payment failed: {paymentResult.ErrorMessage}\"
+                        });
+
+                    result.Status = \"PaymentFailed\";
+                    result.Message = paymentResult.ErrorMessage;
+                    return result;
+                }
+
+                result.TransactionId = paymentResult.TransactionId;
+
+                // === Step 3: Update Order Status ===
+                await context.CallActivityAsync(
+                    nameof(UpdateOrderStatus),
+                    new OrderStatusUpdate
+                    {
+                        OrderId = order.Id,
+                        Status = \"Confirmed\",
+                        TransactionId = paymentResult.TransactionId
+                    });
+
+                // === Step 4: Send Confirmation Email ===
+                await context.CallActivityAsync(
+                    nameof(SendNotification),
+                    new OrderNotification
+                    {
+                        OrderId = order.Id,
+                        Type = \"OrderConfirmed\",
+                        Recipient = order.CustomerEmail,
+                        Message = \"Your order has been confirmed!\"
+                    });
+
+                // === Step 5: Create Shipment (with delay for processing) ===
+                logger.LogInformation(\"Step 5: Creating shipment\");
+                
+                // Simulate processing delay (1 hour in production, 10 seconds for demo)
+                await context.CreateTimer(context.CurrentUtcDateTime.AddHours(1), CancellationToken.None);
+
+                var shipmentResult = await context.CallActivityAsync<ShipmentCreationResult>(
+                    nameof(CreateShipmentActivity),
+                    order);
+
+                result.TrackingNumber = shipmentResult.TrackingNumber;
+
+                // === Step 6: Update Order with Tracking ===
+                await context.CallActivityAsync(
+                    nameof(UpdateOrderStatus),
+                    new OrderStatusUpdate
+                    {
+                        OrderId = order.Id,
+                        Status = \"Shipped\",
+                        TrackingNumber = shipmentResult.TrackingNumber
+                    });
+
+                // === Step 7: Send Shipping Notification ===
+                await context.CallActivityAsync(
+                    nameof(SendNotification),
+                    new OrderNotification
+                    {
+                        OrderId = order.Id,
+                        Type = \"OrderShipped\",
+                        Recipient = order.CustomerEmail,
+                        Message = $\"Your order has shipped! Tracking: {shipmentResult.TrackingNumber}\"
+                    });
+
+                // === Step 8: Generate Invoice PDF ===
+                var invoiceUrl = await context.CallActivityAsync<string>(
+                    nameof(GenerateInvoiceActivity),
+                    order);
+
+                result.InvoiceUrl = invoiceUrl;
+
+                logger.LogInformation($\"Order {order.OrderNumber} processed successfully\");
+
+                result.Status = \"Completed\";
+                result.Message = \"Order processed successfully\";
+                return result;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError($\"Error processing order: {ex.Message}\");
+
+                // Handle failure - release resources
+                if (!string.IsNullOrEmpty(result.ReservationId))
+                {
+                    await context.CallActivityAsync(
+                        nameof(ReleaseInventoryActivity),
+                        result.ReservationId);
+                }
+
+                await context.CallActivityAsync(
+                    nameof(UpdateOrderStatus),
+                    new OrderStatusUpdate
+                    {
+                        OrderId = order.Id,
+                        Status = \"Failed\",
+                        Reason = \"Processing error\"
+                    });
+
+                result.Status = \"Failed\";
+                result.Message = ex.Message;
+                return result;
+            }
+        }
+
+        // === Activity Functions ===
+
+        [Function(nameof(ReserveInventoryActivity))]
+        public async Task<InventoryReservationResult> ReserveInventoryActivity(
+            [ActivityTrigger] Order order)
+        {
+            _logger.LogInformation($\"Reserving inventory for order {order.OrderNumber}\");
+
+            try
+            {
+                var reservationId = await _inventoryService.ReserveAsync(
+                    order.Items.Select(i => new InventoryReservationItem
+                    {
+                        ProductId = i.ProductId,
+                        Quantity = i.Quantity
+                    }).ToList());
+
+                return new InventoryReservationResult
+                {
+                    Success = true,
+                    ReservationId = reservationId
+                };
+            }
+            catch (InsufficientInventoryException ex)
+            {
+                _logger.LogWarning($\"Insufficient inventory: {ex.Message}\");
+                return new InventoryReservationResult
+                {
+                    Success = false,
+                    ErrorMessage = ex.Message
+                };
+            }
+        }
+
+        [Function(nameof(ProcessPaymentActivity))]
+        public async Task<PaymentProcessingResult> ProcessPaymentActivity(
+            [ActivityTrigger] PaymentRequest payment)
+        {
+            _logger.LogInformation($\"Processing payment for order {payment.OrderId}\");
+
+            try
+            {
+                var transactionId = await _paymentService.ProcessPaymentAsync(payment);
+
+                return new PaymentProcessingResult
+                {
+                    Success = true,
+                    TransactionId = transactionId
+                };
+            }
+            catch (PaymentException ex)
+            {
+                _logger.LogError(ex, \"Payment processing failed\");
+                return new PaymentProcessingResult
+                {
+                    Success = false,
+                    ErrorMessage = ex.Message
+                };
+            }
+        }
+
+        [Function(nameof(CreateShipmentActivity))]
+        public async Task<ShipmentCreationResult> CreateShipmentActivity(
+            [ActivityTrigger] Order order)
+        {
+            _logger.LogInformation($\"Creating shipment for order {order.OrderNumber}\");
+
+            var trackingNumber = await _shippingService.CreateShipmentAsync(new ShipmentRequest
+            {
+                OrderId = order.Id,
+                OrderNumber = order.OrderNumber,
+                RecipientName = order.CustomerName,
+                ShippingAddress = order.ShippingAddress,
+                Items = order.Items.Select(i => new ShipmentItem
+                {
+                    ProductId = i.ProductId,
+                    Quantity = i.Quantity,
+                    Weight = 1.0m // In real app, get from product catalog
+                }).ToList()
+            });
+
+            return new ShipmentCreationResult
+            {
+                Success = true,
+                TrackingNumber = trackingNumber
+            };
+        }
+
+        [Function(nameof(GenerateInvoiceActivity))]
+        public async Task<string> GenerateInvoiceActivity([ActivityTrigger] Order order)
+        {
+            _logger.LogInformation($\"Generating invoice for order {order.OrderNumber}\");
+
+            // Generate PDF invoice
+            var invoicePdf = GenerateInvoicePdf(order);
+
+            // Upload to blob storage
+            var blobServiceClient = new BlobServiceClient(Environment.GetEnvironmentVariable(\"AzureWebJobsStorage\"));
+            var containerClient = blobServiceClient.GetBlobContainerClient(\"invoices\");
+            await containerClient.CreateIfNotExistsAsync();
+
+            var blobName = $\"{order.OrderNumber}-{DateTime.UtcNow:yyyyMMdd}.pdf\";
+            var blobClient = containerClient.GetBlobClient(blobName);
+
+            await blobClient.UploadAsync(new BinaryData(invoicePdf), overwrite: true);
+
+            return blobClient.Uri.ToString();
+        }
+
+        [Function(nameof(ReleaseInventoryActivity))]
+        public async Task ReleaseInventoryActivity([ActivityTrigger] string reservationId)
+        {
+            _logger.LogInformation($\"Releasing inventory reservation {reservationId}\");
+            await _inventoryService.ReleaseAsync(reservationId);
+        }
+
+        [Function(nameof(UpdateOrderStatus))]
+        public async Task UpdateOrderStatus([ActivityTrigger] OrderStatusUpdate update)
+        {
+            _logger.LogInformation($\"Updating order {update.OrderId} status to {update.Status}\");
+
+            var order = await _orderRepository.GetByIdAsync(update.OrderId);
+            if (order != null)
+            {
+                order.Status = update.Status;
+                order.StatusReason = update.Reason;
+                order.TransactionId = update.TransactionId;
+                order.TrackingNumber = update.TrackingNumber;
+                order.UpdatedAt = DateTime.UtcNow;
+
+                await _orderRepository.UpdateAsync(order);
+            }
+        }
+
+        [Function(nameof(SendNotification))]
+        public async Task SendNotification([ActivityTrigger] OrderNotification notification)
+        {
+            _logger.LogInformation($\"Sending {notification.Type} notification for order {notification.OrderId}\");
+            await _notificationService.SendEmailAsync(
+                notification.Recipient,
+                GetEmailSubject(notification.Type),
+                notification.Message);
+        }
+
+        // === Step 3: Query Order Status ===
+        [Function(nameof(GetOrderStatus))]
+        public async Task<HttpResponseData> GetOrderStatus(
+            [HttpTrigger(AuthorizationLevel.Function, \"get\", Route = \"orders/{orderId}/status\")] 
+            HttpRequestData req,
+            string orderId)
+        {
+            _logger.LogInformation($\"Getting status for order {orderId}\");
+
+            try
+            {
+                var order = await _orderRepository.GetByIdAsync(orderId);
+
+                if (order == null)
+                {
+                    var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                    await notFound.WriteAsJsonAsync(new { error = \"Order not found\" });
+                    return notFound;
+                }
+
+                var response = req.CreateResponse(HttpStatusCode.OK);
+                await response.WriteAsJsonAsync(new
+                {
+                    orderId = order.Id,
+                    orderNumber = order.OrderNumber,
+                    status = order.Status,
+                    createdAt = order.CreatedAt,
+                    updatedAt = order.UpdatedAt,
+                    trackingNumber = order.TrackingNumber,
+                    estimatedDelivery = CalculateEstimatedDelivery(order)
+                });
+
+                return response;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $\"Error getting order status: {orderId}\");
+                var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
+                await errorResponse.WriteAsJsonAsync(new { error = \"Failed to get order status\" });
+                return errorResponse;
+            }
+        }
+
+        // === Step 4: Handle Shipment Updates via Service Bus ===
+        [Function(nameof(ProcessShipmentUpdate))]
+        public async Task ProcessShipmentUpdate(
+            [ServiceBusTrigger(\"shipment-updates\", Connection = \"ServiceBusConnection\")] 
+            ServiceBusReceivedMessage message)
+        {
+            _logger.LogInformation($\"Processing shipment update: {message.MessageId}\");
+
+            try
+            {
+                var update = JsonSerializer.Deserialize<ShipmentUpdate>(message.Body);
+
+                var order = await _orderRepository.GetByTrackingNumberAsync(update.TrackingNumber);
+
+                if (order != null)
+                {
+                    var newStatus = MapShipmentStatusToOrderStatus(update.Status);
+                    
+                    order.Status = newStatus;
+                    order.UpdatedAt = DateTime.UtcNow;
+                    await _orderRepository.UpdateAsync(order);
+
+                    // Send notification to customer
+                    await _notificationService.SendEmailAsync(
+                        order.CustomerEmail,
+                        $\"Order Update: {newStatus}\",
+                        $\"Your order {order.OrderNumber} is now {newStatus}. \" +
+                        $\"Current location: {update.Location}\");
+
+                    _logger.LogInformation($\"Updated order {order.OrderNumber} to status {newStatus}\");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, \"Error processing shipment update\");
+                throw; // Will retry based on Service Bus configuration
+            }
+        }
+
+        // Helper methods
+        private List<string> ValidateOrder(CreateOrderRequest order)
+        {
+            var errors = new List<string>();
+
+            if (string.IsNullOrEmpty(order.CustomerEmail))
+                errors.Add(\"Customer email is required\");
+
+            if (order.Items == null || !order.Items.Any())
+                errors.Add(\"Order must contain at least one item\");
+
+            if (string.IsNullOrEmpty(order.ShippingAddress))
+                errors.Add(\"Shipping address is required\");
+
+            return errors;
+        }
+
+        private string GenerateOrderNumber()
+        {
+            return $\"ORD-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString().Substring(0, 8).ToUpper()}\";
+        }
+
+        private decimal CalculateTax(List<CreateOrderItemRequest> items, string address)
+        {
+            // Simplified tax calculation
+            var subtotal = items.Sum(i => i.Quantity * i.UnitPrice);
+            return subtotal * 0.08m; // 8% tax
+        }
+
+        private decimal CalculateShipping(List<CreateOrderItemRequest> items, string address)
+        {
+            // Simplified shipping calculation
+            var totalWeight = items.Sum(i => i.Quantity);
+            return totalWeight * 2.50m;
+        }
+
+        private byte[] GenerateInvoicePdf(Order order)
+        {
+            // In real implementation, use a PDF library like iTextSharp or QuestPDF
+            return Encoding.UTF8.GetBytes($\"Invoice for order {order.OrderNumber}\");
+        }
+
+        private string GetEmailSubject(string notificationType)
+        {
+            return notificationType switch
+            {
+                \"OrderConfirmed\" => \"Order Confirmation\",
+                \"OrderShipped\" => \"Your Order Has Shipped!\",
+                \"OrderDelivered\" => \"Your Order Has Been Delivered\",
+                \"OrderCancelled\" => \"Order Cancelled\",
+                \"PaymentFailed\" => \"Payment Failed\",
+                _ => \"Order Update\"
+            };
+        }
+
+        private DateTime? CalculateEstimatedDelivery(Order order)
+        {
+            if (order.Status == \"Shipped\" && order.UpdatedAt.HasValue)
+            {
+                return order.UpdatedAt.Value.AddDays(3); // 3 days for delivery
+            }
+            return null;
+        }
+
+        private string MapShipmentStatusToOrderStatus(string shipmentStatus)
+        {
+            return shipmentStatus switch
+            {
+                \"InTransit\" => \"Shipped\",
+                \"OutForDelivery\" => \"OutForDelivery\",
+                \"Delivered\" => \"Delivered\",
+                _ => \"Shipped\"
+            };
+        }
+    }
+
+    // Models for E-Commerce System
+    public class CreateOrderRequest
+    {
+        public string CustomerId { get; set; }
+        public string CustomerName { get; set; }
+        public string CustomerEmail { get; set; }
+        public string ShippingAddress { get; set; }
+        public string BillingAddress { get; set; }
+        public List<CreateOrderItemRequest> Items { get; set; }
+        public string PaymentMethod { get; set; }
+    }
+
+    public class CreateOrderItemRequest
+    {
+        public string ProductId { get; set; }
+        public string ProductName { get; set; }
+        public int Quantity { get; set; }
+        public decimal UnitPrice { get; set; }
+    }
+
+    public class OrderProcessingResult
+    {
+        public string OrderId { get; set; }
+        public string Status { get; set; }
+        public string Message { get; set; }
+        public string ReservationId { get; set; }
+        public string TransactionId { get; set; }
+        public string TrackingNumber { get; set; }
+        public string InvoiceUrl { get; set; }
+    }
+
+    public class InventoryReservationResult
+    {
+        public bool Success { get; set; }
+        public string ReservationId { get; set; }
+        public string ErrorMessage { get; set; }
+    }
+
+    public class PaymentProcessingResult
+    {
+        public bool Success { get; set; }
+        public string TransactionId { get; set; }
+        public string ErrorMessage { get; set; }
+    }
+
+    public class ShipmentCreationResult
+    {
+        public bool Success { get; set; }
+        public string TrackingNumber { get; set; }
+    }
+
+    public class OrderStatusUpdate
+    {
+        public string OrderId { get; set; }
+        public string Status { get; set; }
+        public string Reason { get; set; }
+        public string TransactionId { get; set; }
+        public string TrackingNumber { get; set; }
+    }
+
+    public class ShipmentUpdate
+    {
+        public string TrackingNumber { get; set; }
+        public string Status { get; set; }
+        public string Location { get; set; }
+        public DateTime Timestamp { get; set; }
+    }
+
+    public class InventoryReservationItem
+    {
+        public string ProductId { get; set; }
+        public int Quantity { get; set; }
+    }
+
+    public class ShipmentItem
+    {
+        public string ProductId { get; set; }
+        public int Quantity { get; set; }
+        public decimal Weight { get; set; }
+    }
+
+    // Custom Exceptions
+    public class InsufficientInventoryException : Exception
+    {
+        public InsufficientInventoryException(string message) : base(message) { }
+    }
+
+    public class PaymentException : Exception
+    {
+        public PaymentException(string message) : base(message) { }
+    }
+
+    // Service Interfaces (implement these based on your architecture)
+    public interface IOrderRepository
+    {
+        Task<Order> GetByIdAsync(string orderId);
+        Task<Order> GetByTrackingNumberAsync(string trackingNumber);
+        Task CreateAsync(Order order);
+        Task UpdateAsync(Order order);
+    }
+
+    public interface IInventoryService
+    {
+        Task<string> ReserveAsync(List<InventoryReservationItem> items);
+        Task ReleaseAsync(string reservationId);
+    }
+
+    public interface IPaymentService
+    {
+        Task<string> ProcessPaymentAsync(PaymentRequest payment);
+    }
+
+    public interface IShippingService
+    {
+        Task<string> CreateShipmentAsync(ShipmentRequest shipment);
+    }
+
+    public interface INotificationService
+    {
+        Task SendEmailAsync(string recipient, string subject, string message);
+    }
+}
+```
+
+---
+
+## Monitoring & Observability (C# Implementation)
+
+### 1. Application Insights Integration
+
+```csharp
+using Microsoft.ApplicationInsights;
+using Microsoft.ApplicationInsights.DataContracts;
+using Microsoft.ApplicationInsights.Extensibility;
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
+using Microsoft.Extensions.Logging;
+using System.Diagnostics;
+
+namespace MyFunctionApp.Observability
+{
+    /// <summary>
+    /// Comprehensive monitoring and observability implementation
+    /// </summary>
+    public class MonitoredFunction
+    {
+        private readonly ILogger<MonitoredFunction> _logger;
+        private readonly TelemetryClient _telemetryClient;
+
+        public MonitoredFunction(
+            ILogger<MonitoredFunction> logger,
+            TelemetryClient telemetryClient)
+        {
+            _logger = logger;
+            _telemetryClient = telemetryClient;
+        }
+
+        [Function(nameof(ProcessWithTelemetry))]
+        public async Task<HttpResponseData> ProcessWithTelemetry(
+            [HttpTrigger(AuthorizationLevel.Function, \"post\")] HttpRequestData req)
+        {
+            var stopwatch = Stopwatch.StartNew();
+            var operationId = Activity.Current?.Id ?? Guid.NewGuid().ToString();
+
+            _logger.LogInformation(\"[{OperationId}] Starting request processing\", operationId);
+
+            // Track custom event
+            _telemetryClient.TrackEvent(\"OrderProcessingStarted\", new Dictionary<string, string>
+            {
+                { \"OperationId\", operationId },
+                { \"Timestamp\", DateTime.UtcNow.ToString(\"o\") }
+            });
+
+            try
+            {
+                var requestBody = await req.ReadAsStringAsync();
+
+                // Track custom metric - request size
+                _telemetryClient.TrackMetric(\"RequestSize\", requestBody?.Length ?? 0);
+
+                // Simulate processing with detailed tracking
+                using (var operation = _telemetryClient.StartOperation<RequestTelemetry>(\"ProcessOrder\"))
+                {
+                    operation.Telemetry.Properties[\"OrderType\"] = \"Standard\";
+                    operation.Telemetry.Properties[\"Source\"] = \"WebAPI\";
+
+                    // Step 1: Validate (track duration)
+                    var validateStopwatch = Stopwatch.StartNew();
+                    await ValidateRequest(requestBody);
+                    validateStopwatch.Stop();
+                    _telemetryClient.TrackMetric(\"ValidationDuration\", validateStopwatch.ElapsedMilliseconds);
+
+                    // Step 2: Process (track duration)
+                    var processStopwatch = Stopwatch.StartNew();
+                    var result = await ProcessRequest(requestBody);
+                    processStopwatch.Stop();
+                    _telemetryClient.TrackMetric(\"ProcessingDuration\", processStopwatch.ElapsedMilliseconds);
+
+                    // Track dependency - Database call
+                    var dbStopwatch = Stopwatch.StartNew();
+                    var dependencyTelemetry = new DependencyTelemetry
+                    {
+                        Name = \"SaveToDatabase\",
+                        Type = \"SQL\",
+                        Target = \"OrdersDB\",
+                        Data = \"INSERT INTO Orders\",
+                        Timestamp = DateTimeOffset.UtcNow,
+                        Duration = TimeSpan.FromMilliseconds(0)
+                    };
+
+                    try
+                 {
+                        await SaveToDatabase(result);
+                        dbStopwatch.Stop();
+                        dependencyTelemetry.Duration = dbStopwatch.Elapsed;
+                        dependencyTelemetry.Success = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        dependencyTelemetry.Success = false;
+                        dependencyTelemetry.ResultCode = \"Error\";
+                        throw;
+                    }
+                    finally
+                    {
+                        _telemetryClient.TrackDependency(dependencyTelemetry);
+                    }
+
+                    operation.Telemetry.Success = true;
+                }
+
+                stopwatch.Stop();
+
+                // Track successful completion
+                _telemetryClient.TrackEvent(\"OrderProcessingCompleted\", new Dictionary<string, string>
+                {
+                    { \"OperationId\", operationId },
+                    { \"Duration\", stopwatch.ElapsedMilliseconds.ToString() }
+                },
+                new Dictionary<string, double>
+                {
+                    { \"ProcessingTimeMs\", stopwatch.ElapsedMilliseconds }
+                });
+
+                _logger.LogInformation(
+                    \"[{OperationId}] Request processed successfully in {Duration}ms\",
+                    operationId,
+                    stopwatch.ElapsedMilliseconds);
+
+                var response = req.CreateResponse(HttpStatusCode.OK);
+                await response.WriteAsJsonAsync(new { success = true, operationId });
+                return response;
+            }
+            catch (ValidationException ex)
+            {
+                stopwatch.Stop();
+
+                _telemetryClient.TrackException(ex, new Dictionary<string, string>
+                {
+                    { \"OperationId\", operationId },
+                    { \"ExceptionType\", \"Validation\" },
+                    { \"Duration\", stopwatch.ElapsedMilliseconds.ToString() }
+                });
+
+                _logger.LogWarning(ex, \"[{OperationId}] Validation failed\", operationId);
+
+                var response = req.CreateResponse(HttpStatusCode.BadRequest);
+                await response.WriteAsJsonAsync(new { error = ex.Message, operationId });
+                return response;
+            }
+            catch (Exception ex)
+            {
+                stopwatch.Stop();
+
+                _telemetryClient.TrackException(ex, new Dictionary<string, string>
+                {
+                    { \"OperationId\", operationId },
+                    { \"FunctionName\", nameof(ProcessWithTelemetry) },
+                    { \"Duration\", stopwatch.ElapsedMilliseconds.ToString() }
+                });
+
+                _logger.LogError(ex, \"[{OperationId}] Error processing request\", operationId);
+
+                var response = req.CreateResponse(HttpStatusCode.InternalServerError);
+                await response.WriteAsJsonAsync(new { error = \"Internal server error\", operationId });
+                return response;
+            }
+        }
+
+        // Custom metrics tracking
+        [Function(nameof(TrackCustomMetrics))]
+        [FixedDelayRetry(3, \"00:00:05\")]
+        public async Task TrackCustomMetrics(
+            [TimerTrigger(\"0 */5 * * * *\")] TimerInfo timer)
+        {
+            _logger.LogInformation(\"Tracking custom metrics\");
+
+            try
+            {
+                // Track business metrics
+                var activeOrders = await GetActiveOrdersCount();
+                _telemetryClient.TrackMetric(\"ActiveOrders\", activeOrders);
+
+                var pendingPayments = await GetPendingPaymentsCount();
+                _telemetryClient.TrackMetric(\"PendingPayments\", pendingPayments);
+
+                var averageOrderValue = await GetAverageOrderValue();
+                _telemetryClient.TrackMetric(\"AverageOrderValue\", (double)averageOrderValue);
+
+                // Track system health
+                var queueDepth = await GetQueueDepth();
+                _telemetryClient.TrackMetric(\"QueueDepth\", queueDepth);
+
+                var memoryUsage = GC.GetTotalMemory(false) / 1024 / 1024; // MB
+                _telemetryClient.TrackMetric(\"MemoryUsageMB\", memoryUsage);
+
+                _logger.LogInformation(
+                    \"Metrics tracked - Active Orders: {ActiveOrders}, Pending Payments: {PendingPayments}\",
+                    activeOrders,
+                    pendingPayments);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, \"Error tracking metrics\");
+                _telemetryClient.TrackException(ex);
+            }
+        }
+
+        // Health check endpoint
+        [Function(nameof(HealthCheck))]
+        public async Task<HttpResponseData> HealthCheck(
+            [HttpTrigger(AuthorizationLevel.Anonymous, \"get\", Route = \"health\")] 
+            HttpRequestData req)
+        {
+            var health = new
+            {
+                status = \"Healthy\",
+                timestamp = DateTime.UtcNow,
+                checks = new
+                {
+                    database = await CheckDatabaseHealth(),
+                    storage = await CheckStorageHealth(),
+                    external_api = await CheckExternalApiHealth()
+                }
+            };
+
+            var allHealthy = health.checks.database && health.checks.storage && health.checks.external_api;
+
+            var response = req.CreateResponse(allHealthy ? HttpStatusCode.OK : HttpStatusCode.ServiceUnavailable);
+            await response.WriteAsJsonAsync(health);
+
+            // Track availability
+            _telemetryClient.TrackAvailability(
+                \"HealthCheck\",
+                DateTimeOffset.UtcNow,
+                TimeSpan.FromMilliseconds(100),
+                \"HealthEndpoint\",
+                allHealthy);
+
+            return response;
+        }
+
+        // Helper methods
+        private async Task ValidateRequest(string requestBody)
+        {
+            await Task.Delay(50); // Simulate validation
+            if (string.IsNullOrEmpty(requestBody))
+                throw new ValidationException(\"Request body cannot be empty\");
+        }
+
+        private async Task<object> ProcessRequest(string requestBody)
+        {
+            await Task.Delay(200); // Simulate processing
+            return new { id = Guid.NewGuid(), processed = true };
+        }
+
+        private async Task SaveToDatabase(object data)
+        {
+            await Task.Delay(100); // Simulate database save
+        }
+
+        private async Task<int> GetActiveOrdersCount()
+        {
+            await Task.Delay(50);
+            return new Random().Next(100, 500);
+        }
+
+        private async Task<int> GetPendingPaymentsCount()
+        {
+            await Task.Delay(50);
+            return new Random().Next(10, 50);
+        }
+
+        private async Task<decimal> GetAverageOrderValue()
+        {
+            await Task.Delay(50);
+            return new Random().Next(50, 200);
+        }
+
+        private async Task<int> GetQueueDepth()
+        {
+            await Task.Delay(50);
+            return new Random().Next(0, 100);
+        }
+
+        private async Task<bool> CheckDatabaseHealth()
+        {
+            await Task.Delay(50);
+            return true;
+        }
+
+        private async Task<bool> CheckStorageHealth()
+        {
+            await Task.Delay(50);
+            return true;
+        }
+
+        private async Task<bool> CheckExternalApiHealth()
+        {
+            await Task.Delay(50);
+            return true;
+        }
+    }
+}
+```
+
+### 2. Structured Logging
+
+```csharp
+using Microsoft.Extensions.Logging;
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
+using System.Text.Json;
+
+namespace MyFunctionApp.Observability
+{
+    /// <summary>
+    /// Structured logging best practices
+    /// </summary>
+    public class StructuredLoggingFunction
+    {
+        private readonly ILogger<StructuredLoggingFunction> _logger;
+
+        public StructuredLoggingFunction(ILogger<StructuredLoggingFunction> logger)
+        {
+            _logger = logger;
+        }
+
+        [Function(nameof(ProcessOrderWithLogging))]
+        public async Task<HttpResponseData> ProcessOrderWithLogging(
+            [HttpTrigger(AuthorizationLevel.Function, \"post\")] HttpRequestData req)
+        {
+            var correlationId = req.Headers.Contains(\"x-correlation-id\")
+                ? req.Headers.GetValues(\"x-correlation-id\").FirstOrDefault()
+                : Guid.NewGuid().ToString();
+
+            using (_logger.BeginScope(new Dictionary<string, object>
+            {
+                [\"CorrelationId\"] = correlationId,
+                [\"FunctionName\"] = nameof(ProcessOrderWithLogging)
+            }))
+            {
+                _logger.LogInformation(
+                    \"Processing order request - CorrelationId: {CorrelationId}, Method: {Method}, URL: {Url}\",
+                    correlationId,
+                    req.Method,
+                    req.Url);
+
+                try
+                {
+                    var order = await req.ReadFromJsonAsync<Order>();
+
+                    _logger.LogInformation(
+                        \"Order received - OrderId: {OrderId}, CustomerId: {CustomerId}, Amount: {Amount}, ItemCount: {ItemCount}\",
+                        order.Id,
+                        order.CustomerId,
+                        order.TotalAmount,
+                        order.Items?.Count ?? 0);
+
+                    // Validate order
+                    if (order.TotalAmount <= 0)
+                    {
+                        _logger.LogWarning(
+                            \"Invalid order amount - OrderId: {OrderId}, Amount: {Amount}\",
+                            order.Id,
+                            order.TotalAmount);
+
+                        var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                        await badRequest.WriteAsJsonAsync(new { error = \"Invalid amount\" });
+                        return badRequest;
+                    }
+
+                    // Process order (simulated)
+                    await Task.Delay(100);
+
+                    _logger.LogInformation(
+                        \"Order processed successfully - OrderId: {OrderId}, Duration: {DurationMs}ms\",
+                        order.Id,
+                        100);
+
+                    // Log important business event
+                    _logger.LogInformation(
+                        \"BUSINESS_EVENT: OrderCompleted - OrderId: {OrderId}, Value: {OrderValue}, Customer: {CustomerId}\",
+                        order.Id,
+                        order.TotalAmount,
+                        order.CustomerId);
+
+                    var response = req.CreateResponse(HttpStatusCode.OK);
+                    await response.WriteAsJsonAsync(new
+                    {
+                        success = true,
+                        orderId = order.Id,
+                        correlationId
+                    });
+
+                    return response;
+                }
+                catch (JsonException ex)
+                {
+                    _logger.LogError(ex,
+                        \"Invalid JSON in request - CorrelationId: {CorrelationId}\",
+                        correlationId);
+
+                    var badRequest = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await badRequest.WriteAsJsonAsync(new { error = \"Invalid JSON\" });
+                    return badRequest;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex,
+                        \"Unhandled error processing order - CorrelationId: {CorrelationId}, ExceptionType: {ExceptionType}\",
+                        correlationId,
+                        ex.GetType().Name);
+
+                    var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
+                    await errorResponse.WriteAsJsonAsync(new { error = \"Internal server error\", correlationId });
+                    return errorResponse;
+                }
+            }
+        }
+    }
+}
+```
+
+---
+
+## Deployment Methods (C# Implementation)
+
+### 1. Azure DevOps YAML Pipeline
+
+```yaml
+# azure-pipelines.yml
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  buildConfiguration: 'Release'
+  azureSubscription: 'Azure-ServiceConnection'
+  functionAppName: 'my-function-app'
+  dotnetVersion: '8.x'
+
+stages:
+- stage: Build
+  jobs:
+  - job: BuildJob
+    steps:
+    - task: UseDotNet@2
+      displayName: 'Install .NET SDK'
+      inputs:
+        version: $(dotnetVersion)
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Restore NuGet packages'
+      inputs:
+        command: 'restore'
+        projects: '**/*.csproj'
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Build solution'
+      inputs:
+        command: 'build'
+        projects: '**/*.csproj'
+        arguments: '--configuration $(buildConfiguration)'
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Run unit tests'
+      inputs:
+        command: 'test'
+        projects: '**/*Tests.csproj'
+        arguments: '--configuration $(buildConfiguration) --collect:\"XPlat Code Coverage\"'
+
+    - task: PublishCodeCoverageResults@1
+      displayName: 'Publish code coverage'
+      inputs:
+        codeCoverageTool: 'Cobertura'
+        summaryFileLocation: '$(Agent.TempDirectory)/**/*cobertura.xml'
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Publish Function App'
+      inputs:
+        command: 'publish'
+        publishWebProjects: false
+        projects: '**/MyFunctionApp.csproj'
+        arguments: '--configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)'
+        zipAfterPublish: true
+
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish artifacts'
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+        ArtifactName: 'drop'
+
+- stage: DeployDev
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+  dependsOn: Build
+  jobs:
+  - deployment: DeployDev
+    environment: 'Development'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: AzureFunctionApp@1
+            displayName: 'Deploy to Dev'
+            inputs:
+              azureSubscription: $(azureSubscription)
+              appType: 'functionAppLinux'
+              appName: '$(functionAppName)-dev'
+              package: '$(Pipeline.Workspace)/drop/*.zip'
+              deploymentMethod: 'zipDeploy'
+              appSettings: |
+                -FUNCTIONS_WORKER_RUNTIME dotnet-isolated
+                -FUNCTIONS_EXTENSION_VERSION ~4
+                -AzureWebJobsStorage $(DevStorageConnectionString)
+                -APPINSIGHTS_INSTRUMENTATIONKEY $(DevAppInsightsKey)
+
+- stage: DeployProd
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  dependsOn: Build
+  jobs:
+  - deployment: DeployProd
+    environment: 'Production'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: AzureFunctionApp@1
+            displayName: 'Deploy to Production'
+            inputs:
+              azureSubscription: $(azureSubscription)
+              appType: 'functionAppLinux'
+              appName: '$(functionAppName)-prod'
+              package: '$(Pipeline.Workspace)/drop/*.zip'
+              deploymentMethod: 'zipDeploy'
+              appSettings: |
+                -FUNCTIONS_WORKER_RUNTIME dotnet-isolated
+                -FUNCTIONS_EXTENSION_VERSION ~4
+                -AzureWebJobsStorage $(ProdStorageConnectionString)
+                -APPINSIGHTS_INSTRUMENTATIONKEY $(ProdAppInsightsKey)
+```
+
+### 2. GitHub Actions Workflow
+
+```yaml
+# .github/workflows/deploy-functions.yml
+name: Deploy Azure Functions
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  AZURE_FUNCTIONAPP_NAME: my-function-app
+  AZURE_FUNCTIONAPP_PACKAGE_PATH: '.'
+  DOTNET_VERSION: '8.0.x'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Build
+      run: dotnet build --configuration Release --no-restore
+
+    - name: Test
+      run: dotnet test --no-build --verbosity normal --collect:\"XPlat Code Coverage\"
+
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+
+    - name: Publish
+      run: dotnet publish --configuration Release --output ./output
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: function-app
+        path: ./output
+
+  deploy-dev:
+    if: github.ref == 'refs/heads/develop'
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    environment:
+      name: Development
+      url: https://${{ env.AZURE_FUNCTIONAPP_NAME }}-dev.azurewebsites.net
+    steps:
+    - name: Download artifact
+      uses: actions/download-artifact@v3
+      with:
+        name: function-app
+        path: ./output
+
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS_DEV }}
+
+    - name: Deploy to Azure Functions
+      uses: Azure/functions-action@v1
+      with:
+        app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}-dev
+        package: './output'
+
+  deploy-prod:
+    if: github.ref == 'refs/heads/main'
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    environment:
+      name: Production
+      url: https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net
+    steps:
+    - name: Download artifact
+      uses: actions/download-artifact@v3
+      with:
+        name: function-app
+        path: ./output
+
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS_PROD }}
+
+    - name: Deploy to Azure Functions
+      uses: Azure/functions-action@v1
+      with:
+        app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
+        package: './output'
+```
+
+---
+
+## Best Practices & Patterns (C# Summary)
+
+### Key Takeaways
+
+```csharp
+// ✅ DO: Use dependency injection
+public class GoodFunction
+{
+    private readonly ILogger<GoodFunction> _logger;
+    private readonly IOrderService _orderService;
+
+    public GoodFunction(ILogger<GoodFunction> logger, IOrderService orderService)
+    {
+        _logger = logger;
+        _orderService = orderService;
+    }
+}
+
+// ❌ DON'T: Use static dependencies
+public static class BadFunction
+{
+    private static HttpClient _httpClient = new HttpClient(); // Memory leak!
+}
+
+// ✅ DO: Use async/await properly
+public async Task<HttpResponseData> ProcessAsync(HttpRequestData req)
+{
+    var result = await _service.GetDataAsync();
+    return await CreateResponseAsync(req, result);
+}
+
+// ❌ DON'T: Block async calls
+public HttpResponseData ProcessSync(HttpRequestData req)
+{
+    var result = _service.GetDataAsync().Result; // Deadlock risk!
+    return CreateResponseAsync(req, result).Result;
+}
+
+// ✅ DO: Handle exceptions gracefully
+try
+{
+    await ProcessOrderAsync(order);
+}
+catch (ValidationException ex)
+{
+    _logger.LogWarning(ex, \"Validation failed for order {OrderId}\", order.Id);
+    return BadRequest(\"Validation failed\");
+}
+
+// ✅ DO: Use structured logging
+_logger.LogInformation(
+    \"Order processed - OrderId: {OrderId}, Amount: {Amount}\",
+    order.Id,
+    order.TotalAmount);
+
+// ❌ DON'T: Use string interpolation in logs
+_logger.LogInformation($\"Order {order.Id} processed\"); // Poor for querying
+
+// ✅ DO: Use Managed Identity
+var credential = new DefaultAzureCredential();
+var blobClient = new BlobServiceClient(endpoint, credential);
+
+// ❌ DON'T: Store secrets in code
+var connectionString = \"DefaultEndpointsProtocol=https;AccountName=...\"; // Bad!
+```
+
+---
+
+## Conclusion
+
+This comprehensive guide covered Azure Functions implementation in C# with:
+
+✅ **All Trigger Types** - HTTP, Timer, Queue, Blob, Service Bus, Event Grid, Event Hub, Cosmos DB
+✅ **Durable Functions** - Orchestration patterns (Chaining, Fan-out/Fan-in, Human Interaction, Monitor)
+✅ **Complete Testing** - Unit tests, Integration tests, Durable Functions tests
+✅ **Security** - Managed Identity, JWT validation, Azure AD B2C, API Keys
+✅ **Error Handling** - Global middleware, custom exceptions, retry policies
+✅ **Monitoring** - Application Insights, structured logging, custom metrics, health checks
+✅ **Real-World Scenario** - Complete E-Commerce order processing system
+✅ **Deployment** - Azure DevOps, GitHub Actions, IaC
+✅ **Best Practices** - DI, async/await, logging, security
+
+### Additional Resources
+
+- [Official Azure Functions Documentation](https://docs.microsoft.com/azure/azure-functions/)
+- [Azure Functions Best Practices](https://docs.microsoft.com/azure/azure-functions/functions-best-practices)
+- [Durable Functions Documentation](https://docs.microsoft.com/azure/azure-functions/durable/)
+- [Application Insights for Azure Functions](https://docs.microsoft.com/azure/azure-functions/functions-monitoring)
+
+**Happy Coding! 🚀**

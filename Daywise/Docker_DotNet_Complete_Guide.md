@@ -2390,7 +2390,7 @@ stages:
           - task: AzureCLI@2
             displayName: 'Verify Deployment'
             inputs:
-              azureSubscription: '$(azureSubscription)'
+              azureSubscription: '$(azureSubscription     )'
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
