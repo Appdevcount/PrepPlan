@@ -1,0 +1,412 @@
+Copyright (C) Microsoft Corporation. All rights reserved.
+
+Try the new cross-platform PowerShell https://aka.ms/pscore6
+
+PS E:\repos> cd "D:\Containering\Podman"
+PS D:\Containering\Podman> podman start
+PS D:\Containering\Podman> podman ps
+n system connection list`, or try `podman machine init` and `podman machine start` to manage a new Linux VM
+Error: unable to connect to Podman socket: failed to connect: dial tcp 127.0.0.1:54702:connectex: No connection could be made because the target machine actively refused it.
+PS D:\Containering\Podman> podman machine start
+Starting machine "podman-machine-default"
+API forwarding listening on: npipe:////./pipe/docker_engine
+time="2026-02-22T08:47:54+05:30" level=error msg="Process exited with status 2"
+Machine "podman-machine-default" started successfully
+PS D:\Containering\Podman> podman ps
+PS D:\Containering\Podman> podman images
+localhost/simpleapi              latest      0f48bc0cf7be  10 hours ago   235 MB
+<none>                           <none>      239bde6ec370  11 hours ago   900 MB
+mcr.microsoft.com/dotnet/sdk     10.0        2ccbbe6cf279  11 days ago    894 MB
+mcr.microsoft.com/dotnet/aspnet  10.0        0b6ec319bfb2  11 days ago    234 MB
+PS D:\Containering\Podman> podman ps
+PS D:\Containering\Podman> podman ps -a
+CONTAINER ID  IMAGE                       COMMAND     CREATED       STATUS      PORTS               NAMES
+3884de58dcfe  localhost/simpleapi:latest              10 hours ago  Exited (0) 292 years ago  0.0.0.0:80->80/tcp  simpleapicontainer
+PS D:\Containering\Podman> #List all containers (including stopped ones)
+PS D:\Containering\Podman> #Remove the old container - podman rm simpleapicontainer
+PS D:\Containering\Podman> #reuse the same container without deleting it, you can restarPS D:\Containering\Podman> podman start simpleapicontaine
+Error: no container with name or ID "simpleapicontaine" found: no such container
+PS D:\Containering\Podman> podman ps
+CONTAINER ID  IMAGE                       COMMAND     CREATED       STATUS        PORTS              NAMES
+3884de58dcfe  localhost/simpleapi:latest              10 hours ago  Up 7 seconds  0.0.0.0:80->80/tcp  simpleapicontainer
+PS D:\Containering\Podman> podman stop 3884de58dcfe
+3884de58dcfe
+PS D:\Containering\Podman> podman rm 3884de58dcfe
+3884de58dcfe
+PS D:\Containering\Podman> podman build -t simpleapi:latest .\.
+Error: no Containerfile or Dockerfile specified or found in context directory, D:\Containering\Podman: The system cannot find the file specified.
+PS D:\Containering\Podman> cd .\SimpleApi\
+PS D:\Containering\Podman\SimpleApi> podman build -t simpleapi:latest .
+[1/2] STEP 1/6: FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+[1/2] STEP 2/6: WORKDIR /src
+--> Using cache 1403811838c83925f11988e4c83b91afddc229b3125af4266944f2fd8e8471e9
+--> 1403811838c8
+[1/2] STEP 3/6: COPY SimpleApi.csproj .
+--> Using cache b4c7141f21c4df7296f744c8ca48cf273cc047381ad0656b0e0376e24cce036e
+--> b4c7141f21c4
+[1/2] STEP 4/6: RUN dotnet restore
+--> Using cache 002e5e8314fec2c413ef7e4bd654eb35d5492f04cafbe7485a28f11e22c36b4e
+--> 002e5e8314fe
+[1/2] STEP 5/6: COPY . .
+--> Using cache 6a7013532c2f00c3db9d6131c6db0eced03a52ad54d3d74241f721ea71373747
+--> 6a7013532c2f
+[1/2] STEP 6/6: RUN dotnet publish -c Release -o /app/publish --no-restore
+--> Using cache 239bde6ec370207003758dee4e8eff2f508c8f6ae5d5b5fe6856ceadf7b25bc3
+--> 239bde6ec370
+[2/2] STEP 1/6: FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+[2/2] STEP 2/6: WORKDIR /app
+--> Using cache c76504c65e9f74c05ccdd6c144d7f10cfe46394b97a9a90c701eb06381d30e36
+--> c76504c65e9f
+[2/2] STEP 3/6: ENV ASPNETCORE_HTTP_PORTS=8080
+--> 1daed36e5eee
+[2/2] STEP 4/6: COPY --from=build /app/publish .
+--> Using cache 58ca0cd2f5ea8a07ba72d53946614f72b4a8872556b3c263029433d3caab7ab2
+--> 58ca0cd2f5ea
+[2/2] STEP 5/6: EXPOSE 80
+--> Using cache 91d218c164e33f4bc56d9cb892d6ee670cd03b5b4ed9f76a9edbc39c4615103c
+--> 91d218c164e3
+[2/2] STEP 6/6: ENTRYPOINT ["dotnet", "SimpleApi.dll"]
+[2/2] COMMIT simpleapi:latest
+Successfully tagged localhost/simpleapi:latest
+0f48bc0cf7be2a15679b0bf472be1eb2e4d0db670c51a639c91d65d79f59347b
+PS D:\Containering\Podman\SimpleApi> podman images
+REPOSITORY                       TAG         IMAGE ID      CREATED        SIZE
+<none>                           <none>      239bde6ec370  12 hours ago   900 MB
+mcr.microsoft.com/dotnet/sdk     10.0        2ccbbe6cf279  11 days ago    894 MB
+mcr.microsoft.com/dotnet/aspnet  10.0        0b6ec319bfb2  11 days ago    234 MB
+quay.io/podman/hello             v1.0        5dd467fce50b  21 months ago  787 kB
+quay.io/podman/hello             latest      5dd467fce50b  21 months ago  787 kB
+PS D:\Containering\Podman\SimpleApi> podman run -d -p 8080:80 --name simpleapicontainerlocalhost/simpleapi:latest
+3aaa9a2f2ce6c0c8da9864a94e172d3429246302b80c8fdcca466c9c79db60d8
+PS D:\Containering\Podman\SimpleApi> podman ps
+CONTAINER ID  IMAGE                       COMMAND     CREATED         STATUS         POR3aaa9a2f2ce6  localhost/simpleapi:latest              38 seconds ago  Up 38 seconds  0.0PS D:\Containering\Podman\SimpleApi> curl http://localhost:8080/weatherforecast
+curl : The underlying connection was closed: The connection was closed unexpectedly.
+   est) [Invoke-WebRequest], WebException
+   nds.InvokeWebRequestCommand
+PS D:\Containering\Podman\SimpleApi> #- You set ENV ASPNETCORE_HTTP_PORTS=8080 ␦ ASP.NET Core will listen on port 8080 inside the container
+PS D:\Containering\Podman\SimpleApi> #- ou EXPOSE 80 ␦ This tells Podman/Docker that the container exposes port 80, but your app isn't actually listening there.
+PS D:\Containering\Podman\SimpleApi> #Your app is listening on 8080 inside the container, but you mapped -p 8080:80. That maps host port 8080 ␦ container port 80. Since nothing is listening on port 80 inside the container, the connection closes unexpectedly.
+PS D:\Containering\Podman\SimpleApi> #ENV ASPNETCORE_HTTP_PORTS=80
+PS D:\Containering\Podman\SimpleApi> podman stop 3aaa9a2f2ce6
+3aaa9a2f2ce6
+PS D:\Containering\Podman\SimpleApi> podman rm 3aaa9a2f2ce6
+3aaa9a2f2ce6
+PS D:\Containering\Podman\SimpleApi> podman images
+REPOSITORY                       TAG         IMAGE ID      CREATED        SIZE
+localhost/simpleapi              latest      0f48bc0cf7be  11 hours ago   235 MB
+<none>                           <none>      239bde6ec370  12 hours ago   900 MB
+mcr.microsoft.com/dotnet/sdk     10.0        2ccbbe6cf279  11 days ago    894 MB
+mcr.microsoft.com/dotnet/aspnet  10.0        0b6ec319bfb2  11 days ago    234 MB
+quay.io/podman/hello             v1.0        5dd467fce50b  21 months ago  787 kB
+quay.io/podman/hello             latest      5dd467fce50b  21 months ago  787 kB
+PS D:\Containering\Podman\SimpleApi> podman  rmi localhost/simpleapi
+Untagged: localhost/simpleapi:latest
+Deleted: 0f48bc0cf7be2a15679b0bf472be1eb2e4d0db670c51a639c91d65d79f59347b
+Deleted: 91d218c164e33f4bc56d9cb892d6ee670cd03b5b4ed9f76a9edbc39c4615103c
+Deleted: 58ca0cd2f5ea8a07ba72d53946614f72b4a8872556b3c263029433d3caab7ab2
+Deleted: 1daed36e5eee1114c515dbad616d3ee4c3f782d87bf2e5d36b354619bd3de26a
+Deleted: c76504c65e9f74c05ccdd6c144d7f10cfe46394b97a9a90c701eb06381d30e36
+PS D:\Containering\Podman\SimpleApi> podman build -t simpleapi:latest .
+[1/2] STEP 1/6: FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+[1/2] STEP 2/6: WORKDIR /src
+--> Using cache 1403811838c83925f11988e4c83b91afddc229b3125af4266944f2fd8e8471e9
+--> 1403811838c8
+[1/2] STEP 3/6: COPY SimpleApi.csproj .
+--> Using cache b4c7141f21c4df7296f744c8ca48cf273cc047381ad0656b0e0376e24cce036e
+--> b4c7141f21c4
+[1/2] STEP 4/6: RUN dotnet restore
+--> Using cache 002e5e8314fec2c413ef7e4bd654eb35d5492f04cafbe7485a28f11e22c36b4e
+--> 002e5e8314fe
+[1/2] STEP 5/6: COPY . .
+--> 2e9dce89cfed
+[1/2] STEP 6/6: RUN dotnet publish -c Release -o /app/publish --no-restore
+/usr/share/dotnet/sdk/10.0.103/Current/SolutionFile/ImportAfter/Microsoft.NET.Sdk.Solution.targets(36,5): warning NETSDK1194: The "--output" option isn't supported when building a solution. Specifying a solution-level output path results in all projects copying outputs to the same directory, which can lead to inconsistent builds. [/src/SimpleApi.sln]
+  SimpleApi -> /src/bin/Release/net10.0/SimpleApi.dll
+  SimpleApi -> /app/publish/
+--> 383c084ab381
+[2/2] STEP 1/9: FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+[2/2] STEP 2/9: WORKDIR /app
+--> 488740f602d7
+[2/2] STEP 3/9: ENV ASPNETCORE_HTTP_PORTS=8080
+--> de11c28e195f
+[2/2] STEP 4/9: COPY --from=build /app/publish .
+--> 3540249f49a0
+--> d5cab6250d31
+--> dfd8fb99035c
+[2/2] STEP 7/9: EXPOSE 80
+[2/2] STEP 8/9: EXPOSE 443
+[2/2] COMMIT simpleapi:latest
+Successfully tagged localhost/simpleapi:latest
+53362dc619cc58cd90a525ca2db707c3d82bdd40fecf0a35a5d1098402ba60cd
+PS D:\Containering\Podman\SimpleApi> #ASP.NET Core switched its default container port from 80 to 8080 starting with .NET 8
+ges, apps defaulted to listening on port 80.
+PS D:\Containering\Podman\SimpleApi> #^C
+PS D:\Containering\Podman\SimpleApi> #New behavior (from .NET 8): The default port is now 8080. This was introduced as a breaking change in official .NET container images.
+PS D:\Containering\Podman\SimpleApi> #- Port 80 is a privileged port on Linux (requiresroot to bind). Using 8080 avoids permission issues when running as non-root inside containers.
+PS D:\Containering\Podman\SimpleApi> #It aligns with common container practices where 8080 is widely used for HTTP services.
+PS D:\Containering\Podman\SimpleApi> #Microsoft introduced a new environment variable  (s in container images will listen on 8080 instead of 80.That's why your app was listening on port 8080 inside the container, but your Dockerfile still had . The mismatch causedPS D:\Containering\Podman\SimpleApi> podman run -d -p 8080:80 --name simpleapicontainerlocalhost/simpleapi:latest
+8f712ed0210bca8d7f0a6024b6ac26442888db4207bf943aa6ad8697b284b3a9
+CONTAINER ID  IMAGE       COMMAND     CREATED     STATUS      PORTS       NAMES
+PS D:\Containering\Podman\SimpleApi> podman ps -a
+CONTAINER ID  IMAGE                       COMMAND     CREATED         STATUS           PORTS                          NAMES
+conds ago  0.0.0.0:8080->80/tcp, 443/tcp  simpleapicontainer
+8f712ed0210b
+PS D:\Containering\Podman\SimpleApi> podman run -d -p 8080:80 --name simpleapicontainerlocalhost/simpleapi:latest
+3f2c89c1d8575e324d0a11841115af06e430c1b70e6d743b8c12762c16764ff8
+PS D:\Containering\Podman\SimpleApi> podman ps
+CONTAINER ID  IMAGE       COMMAND     CREATED     STATUS      PORTS       NAMES
+PS D:\Containering\Podman\SimpleApi> podman ps -a
+CONTAINER ID  IMAGE                       COMMAND     CREATED         STATUS3f2c89c1d857  localhost/simpleapi:latest              41 seconds ago  Exited (139) 41 seconds ago  0.0.0.0:8080->80/tcp, 443/tcp  simpleapicontainer
+PS D:\Containering\Podman\SimpleApi> podman rm 3f2c89c1d857
+3f2c89c1d857
+PS D:\Containering\Podman\SimpleApi> podman images
+REPOSITORY                       TAG         IMAGE ID      CREATED         SIZE
+localhost/simpleapi              latest      53362dc619cc  11 minutes ago  235 MB
+<none>                           <none>      383c084ab381  11 minutes ago  900 MB
+<none>                           <none>      239bde6ec370  13 hours ago    900 MB
+mcr.microsoft.com/dotnet/sdk     10.0        2ccbbe6cf279  11 days ago     894 MB
+mcr.microsoft.com/dotnet/aspnet  10.0        0b6ec319bfb2  11 days ago     234 MB
+quay.io/podman/hello             v1.0        5dd467fce50b  21 months ago   787 kB
+quay.io/podman/hello             latest      5dd467fce50b  21 months ago   787 kB
+PS D:\Containering\Podman\SimpleApi> podman rmi localhost/simpleapi
+Untagged: localhost/simpleapi:latest
+Deleted: 53362dc619cc58cd90a525ca2db707c3d82bdd40fecf0a35a5d1098402ba60cd
+Deleted: 60ce341aced8a72b797a3571363c409347c43050efb3c21949ae89d73e9e8bf9
+Deleted: 9d171275eb1b444eb4dbdf5ae42a3f0719fea8a5d0cc16bff4629ca46372d7b3
+Deleted: dfd8fb99035c90936c870e514974085a21858f10feb496622a7a4669e23f38f7
+Deleted: d5cab6250d31d79162faa845b2eadb20a5c2bcd1be53594cb2646f64ae31a497
+Deleted: 3540249f49a0e5f2a27e484fc695a65cf2abf48a2fcdd162fc6fa2e0dc8d454e
+Deleted: de11c28e195f930b7b6af486b0a338fecd104f0fa5ffae111795c13ff2ddeb10
+Deleted: 488740f602d70253c691742d1cb65202b9fc01b784e9a53ecc29514022fb7172
+PS D:\Containering\Podman\SimpleApi> podman build -t simpleapi:latest .
+[1/2] STEP 1/6: FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+[1/2] STEP 2/6: WORKDIR /src
+--> Using cache 1403811838c83925f11988e4c83b91afddc229b3125af4266944f2fd8e8471e9
+--> 1403811838c8
+[1/2] STEP 3/6: COPY SimpleApi.csproj .
+--> Using cache b4c7141f21c4df7296f744c8ca48cf273cc047381ad0656b0e0376e24cce036e
+--> b4c7141f21c4
+[1/2] STEP 4/6: RUN dotnet restore
+--> Using cache 002e5e8314fec2c413ef7e4bd654eb35d5492f04cafbe7485a28f11e22c36b4e
+--> 002e5e8314fe
+[1/2] STEP 5/6: COPY . .
+--> Using cache 2e9dce89cfed432c66ce9fa37bb9cc5a25dba748e4d594bae603643953ff788e
+--> 2e9dce89cfed
+[1/2] STEP 6/6: RUN dotnet publish -c Release -o /app/publish --no-restore
+--> Using cache 383c084ab38161fa85c9ab597d87a7a93417b81320e368f6e7077b6cfdb2e464
+--> 383c084ab381
+[2/2] STEP 1/8: FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+[2/2] STEP 2/8: WORKDIR /app
+--> a469e8e858b9
+[2/2] STEP 3/8: ENV ASPNETCORE_HTTP_PORTS=80
+--> 0c47aae4886b
+--> 0f88ac3fa097
+--> 05d5af0f4de5
+--> 3ec9c28c7492
+[2/2] STEP 7/8: EXPOSE 443
+--> fe30e10208f4
+[2/2] STEP 8/8: ENTRYPOINT ["dotnet", "SimpleApi.dll"]
+--> e372ff4eef22
+e372ff4eef220174d647effa88293299c8bf89bfd3284526bf978eb640f3c33d
+7fbbf6e1d994af839c0aa6c3c953fec5c8c82b403b358ea9cccaf3e9561d668b
+CONTAINER ID  IMAGE       COMMAND     CREATED     STATUS      PORTS       NAMES
+PS D:\Containering\Podman\SimpleApi> podman ps -a
+         PORTS                          NAMES
+PS D:\Containering\Podman\SimpleApi> # Check what architecture your image is
+PS D:\Containering\Podman\SimpleApi> podman inspect localhost/simpleapi:latest --format"{{.Architecture}}"
+amd64
+PS D:\Containering\Podman\SimpleApi>
+PS D:\Containering\Podman\SimpleApi> # Check what your Podman machine is running
+PS D:\Containering\Podman\SimpleApi> podman machine inspect --format "{{.Info.MachineImageLastUp}}"
+Error: template: inspect:1:18: executing "inspect" at <.Info.MachineImageLastUp>: can'tevaluate field Info in type machine.InspectInfo
+PS D:\Containering\Podman\SimpleApi> podman info --format "{{.Host.Arch}}"
+amd64
+PS D:\Containering\Podman\SimpleApi> podman build --platform linux/amd64 -t simpleapi:latest .
+[1/2] STEP 1/6: FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+[1/2] STEP 2/6: WORKDIR /src
+--> Using cache 1403811838c83925f11988e4c83b91afddc229b3125af4266944f2fd8e8471e9
+--> 1403811838c8
+[1/2] STEP 3/6: COPY SimpleApi.csproj .
+--> Using cache b4c7141f21c4df7296f744c8ca48cf273cc047381ad0656b0e0376e24cce036e
+--> b4c7141f21c4
+[1/2] STEP 4/6: RUN dotnet restore
+--> Using cache 002e5e8314fec2c413ef7e4bd654eb35d5492f04cafbe7485a28f11e22c36b4e
+--> 002e5e8314fe
+[1/2] STEP 5/6: COPY . .
+--> Using cache 2e9dce89cfed432c66ce9fa37bb9cc5a25dba748e4d594bae603643953ff788e
+--> 2e9dce89cfed
+[1/2] STEP 6/6: RUN dotnet publish -c Release -o /app/publish --no-restore
+--> Using cache 383c084ab38161fa85c9ab597d87a7a93417b81320e368f6e7077b6cfdb2e464
+--> 383c084ab381
+[2/2] STEP 1/8: FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+[2/2] STEP 2/8: WORKDIR /app
+--> Using cache a469e8e858b91adaad078cc3517f57f856e71ec153b6219566d9ebe61b2576cf
+--> a469e8e858b9
+[2/2] STEP 3/8: ENV ASPNETCORE_HTTP_PORTS=80
+--> Using cache 0c47aae4886b64eeb9e869b7bb6e131ffb7133687b8a9a80294f64db114f44d6
+--> 0c47aae4886b
+[2/2] STEP 4/8: ENV ASPNETCORE_HTTPS_PORTS=443
+--> Using cache 0f88ac3fa097bf3826d6fbfd69597503c1634ab0aec66ffe5d4cbafc77596182
+--> 0f88ac3fa097
+[2/2] STEP 5/8: COPY --from=build /app/publish .
+--> 05d5af0f4de5
+[2/2] STEP 6/8: EXPOSE 80
+--> Using cache 3ec9c28c7492ccd691e78e04f38aff663c508db7126504f40da335e1046a4019
+--> 3ec9c28c7492
+[2/2] STEP 7/8: EXPOSE 443
+--> Using cache fe30e10208f456a576f3c66a26df1d7c43582e8756c458f9ee71c75d873fd3c2
+--> fe30e10208f4
+[2/2] STEP 8/8: ENTRYPOINT ["dotnet", "SimpleApi.dll"]
+--> Using cache e372ff4eef220174d647effa88293299c8bf89bfd3284526bf978eb640f3c33d
+[2/2] COMMIT simpleapi:latest
+--> e372ff4eef22
+Successfully tagged localhost/simpleapi:latest
+e372ff4eef220174d647effa88293299c8bf89bfd3284526bf978eb640f3c33d
+PS D:\Containering\Podman\SimpleApi> podman logs simpleapicontainer
+fail: Microsoft.Extensions.Hosting.Internal.Host[11]
+      Hosting failed to start
+      System.InvalidOperationException: Unable to configure HTTPS endpoint. No server certificate was specified, and the default developer certificate could not be found or isout of date.
+      To generate a developer certificate run 'dotnet dev-certs https'. To trust the certificate (Windows and macOS only) run 'dotnet dev-certs https --trust'.
+      For more information on configuring HTTPS see https://go.microsoft.com/fwlink/?linkid=848054.
+         at Microsoft.AspNetCore.Hosting.ListenOptionsHttpsExtensions.UseHttps(ListenOptions listenOptions, Action`1 configureOptions)
+         at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.AddressBinder.AddressesStrategy.BindAsync(AddressBindContext context, CancellationToken cancellationToken)
+         at Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerImpl.BindAsync(CancellationToken cancellationToken)
+         at Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerImpl.StartAsync[TContext](IHttpApplication`1 application, CancellationToken cancellationToken)
+         at Microsoft.AspNetCore.Hosting.GenericWebHostService.StartAsync(CancellationToken cancellationToken)
+         at Microsoft.Extensions.Hosting.Internal.Host.<StartAsync>b__14_1(IHostedService service, CancellationToken token)
+         at Microsoft.Extensions.Hosting.Internal.Host.ForeachService[T](IEnumerable`1 services, CancellationToken token, Boolean concurrent, Boolean abortOnFirstException, List`1 exceptions, Func`3 operation)
+Unhandled exception. System.InvalidOperationException: Unable to configure HTTPS endpoint. No server certificate was specified, and the default developer certificate could notbe found or is out of date.
+To generate a developer certificate run 'dotnet dev-certs https'. To trust the certificate (Windows and macOS only) run 'dotnet dev-certs https --trust'.
+For more information on configuring HTTPS see https://go.microsoft.com/fwlink/?linkid=848054.
+   at Microsoft.AspNetCore.Hosting.ListenOptionsHttpsExtensions.UseHttps(ListenOptions listenOptions, Action`1 configureOptions)
+   at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.AddressBinder.AddressesStrategy.BindAsync(AddressBindContext context, CancellationToken cancellationToken)
+   at Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerImpl.BindAsync(CancellationToken cancellationToken)
+   at Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerImpl.StartAsync[TContext](IHttpApplication`1 application, CancellationToken cancellationToken)
+   at Microsoft.AspNetCore.Hosting.GenericWebHostService.StartAsync(CancellationToken cancellationToken)
+ice, CancellationToken token)
+s, CancellationToken token, Boolean concurrent, Boolean abortOnFirstException, List`1 ex   at Microsoft.Extensions.Hosting.Internal.Host.StartAsync(CancellationToken cancellationToken)
+, CancellationToken token)
+   at Microsoft.Extensions.Hosting.HostingAbstractionsHostExtensions.RunAsync(IHost host, CancellationToken token)
+   at Microsoft.Extensions.Hosting.HostingAbstractionsHostExtensions.Run(IHost host)
+   at Program.<Main>$(String[] args) in /src/Program.cs:line 49
+PS D:\Containering\Podman\SimpleApi> # Check what architecture your image is -podman inspect localhost/simpleapi:latest --format "{{.Architecture}}"
+info --format "{{.Host.Arch}}"
+build --platform linux/arm64 -t simpleapi:latest .
+PS D:\Containering\Podman\SimpleApi> #HTTPS termination in production should be handledby a reverse proxy (nginx, Traefik, API gateway) sitting in front of the container anyway - not by Kestrel directly. The container just serves plain HTTP internally.
+PS D:\Containering\Podman\SimpleApi> podman ps
+CONTAINER ID  IMAGE       COMMAND     CREATED     STATUS      PORTS       NAMES
+PS D:\Containering\Podman\SimpleApi> podman ps -a
+CONTAINER ID  IMAGE                       COMMAND     CREATED         STATUS           PORTS                          NAMES
+7fbbf6e1d994  localhost/simpleapi:latest              12 minutes ago  Exited (139) 12 minutes ago  0.0.0.0:8080->80/tcp, 443/tcp  simpleapicontainer
+PS D:\Containering\Podman\SimpleApi> podman rm 7fbbf6e1d994
+7fbbf6e1d994
+PS D:\Containering\Podman\SimpleApi> podman image
+Manage images
+
+Description:
+  Manage images
+
+Usage:
+  podman image [command]
+
+Available Commands:
+  build       Build an image using instructions from Containerfiles
+  diff        Inspect changes to the image's file systems
+  exists      Check if an image exists in local storage
+  history     Show history of a specified image
+  import      Import a tarball to create a filesystem image
+  inspect     Display the configuration of an image
+  load        Load image(s) from a tar archive
+  prune       Remove unused images
+  pull        Pull an image from a registry
+  push        Push an image to a specified destination
+  rm          Remove one or more images from local storage
+  save        Save image(s) to an archive
+  scp         Securely copy images
+  search      Search registry for image
+  tree        Print layer hierarchy of an image in a tree format
+  untag       Remove a name from a local image
+
+Error: missing command 'podman image COMMAND'
+PS D:\Containering\Podman\SimpleApi> podman images
+REPOSITORY                       TAG         IMAGE ID      CREATED         SIZE
+localhost/simpleapi              latest      e372ff4eef22  13 minutes ago  235 MB
+<none>                           <none>      383c084ab381  26 minutes ago  900 MB
+<none>                           <none>      239bde6ec370  13 hours ago    900 MB
+mcr.microsoft.com/dotnet/sdk     10.0        2ccbbe6cf279  11 days ago     894 MB
+mcr.microsoft.com/dotnet/aspnet  10.0        0b6ec319bfb2  11 days ago     234 MB
+quay.io/podman/hello             v1.0        5dd467fce50b  21 months ago   787 kB
+quay.io/podman/hello             latest      5dd467fce50b  21 months ago   787 kB
+PS D:\Containering\Podman\SimpleApi> podman rmi localhost/simpleapi
+Untagged: localhost/simpleapi:latest
+Deleted: e372ff4eef220174d647effa88293299c8bf89bfd3284526bf978eb640f3c33d
+Deleted: fe30e10208f456a576f3c66a26df1d7c43582e8756c458f9ee71c75d873fd3c2
+Deleted: 3ec9c28c7492ccd691e78e04f38aff663c508db7126504f40da335e1046a4019
+Deleted: 05d5af0f4de50c15ba398dff33ff1c023e5b837492f737ec4348781ec4dddb76
+Deleted: 0f88ac3fa097bf3826d6fbfd69597503c1634ab0aec66ffe5d4cbafc77596182
+Deleted: 0c47aae4886b64eeb9e869b7bb6e131ffb7133687b8a9a80294f64db114f44d6
+Deleted: a469e8e858b91adaad078cc3517f57f856e71ec153b6219566d9ebe61b2576cf
+PS D:\Containering\Podman\SimpleApi> podman build --platform linux/amd64 -t simpleapi:latest .
+[1/2] STEP 1/6: FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+[1/2] STEP 2/6: WORKDIR /src
+--> Using cache 1403811838c83925f11988e4c83b91afddc229b3125af4266944f2fd8e8471e9
+--> 1403811838c8
+[1/2] STEP 3/6: COPY SimpleApi.csproj .
+--> Using cache b4c7141f21c4df7296f744c8ca48cf273cc047381ad0656b0e0376e24cce036e
+--> b4c7141f21c4
+[1/2] STEP 4/6: RUN dotnet restore
+--> Using cache 002e5e8314fec2c413ef7e4bd654eb35d5492f04cafbe7485a28f11e22c36b4e
+--> 002e5e8314fe
+[1/2] STEP 5/6: COPY . .
+--> Using cache 2e9dce89cfed432c66ce9fa37bb9cc5a25dba748e4d594bae603643953ff788e
+--> 2e9dce89cfed
+[1/2] STEP 6/6: RUN dotnet publish -c Release -o /app/publish --no-restore
+--> Using cache 383c084ab38161fa85c9ab597d87a7a93417b81320e368f6e7077b6cfdb2e464
+--> 383c084ab381
+[2/2] STEP 1/6: FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+[2/2] STEP 2/6: WORKDIR /app
+--> 6d9456861635
+[2/2] STEP 3/6: ENV ASPNETCORE_HTTP_PORTS=80
+--> 82b0169e9d03
+[2/2] STEP 4/6: COPY --from=build /app/publish .
+--> 02a09d9841a7
+[2/2] STEP 5/6: EXPOSE 80
+[2/2] STEP 6/6: ENTRYPOINT ["dotnet", "SimpleApi.dll"]
+[2/2] COMMIT simpleapi:latest
+--> 8a461bbc6654
+Successfully tagged localhost/simpleapi:latest
+8a461bbc66547b99adf13bc1dbf35c334d796e57ebddc2cb2c62ecfc984c3499
+PS D:\Containering\Podman\SimpleApi> podman run -d -p 8080:80 --name simpleapicontainerlocalhost/simpleapi:latest
+8cc4ea5052d5062f5777bed7ddd5c2a88f050b904a651175530fb36211e01e73
+PS D:\Containering\Podman\SimpleApi> podman ps
+CONTAINER ID  IMAGE                       COMMAND     CREATED        STATUS        PORTS                 NAMES
+8cc4ea5052d5  localhost/simpleapi:latest              8 seconds ago  Up 8 seconds  0.0.0.0:8080->80/tcp  simpleapicontainer
+PS D:\Containering\Podman\SimpleApi> curl http://localhost:8080/weatherforecast
+
+
+StatusCode        : 200
+StatusDescription : OK
+Content           : [{"date":"2026-02-23","temperatureC":17,"summary":"Chilly","tempera
+                    tureF":62},{"date":"2026-02-24","temperatureC":30,"summary":"Scorch
+                    ing","temperatureF":85},{"date":"2026-02-25","temperatureC":0,"sum.
+                    ..
+RawContent        : HTTP/1.1 200 OK
+                    Transfer-Encoding: chunked
+                    Content-Type: application/json; charset=utf-8
+                    Date: Sun, 22 Feb 2026 04:46:41 GMT
+                    Server: Kestrel
+
+                    [{"date":"2026-02-23","temperatureC":17,"summary":"C...
+Forms             : {}
+Headers           : {[Transfer-Encoding, chunked], [Content-Type, application/json;
+                    charset=utf-8], [Date, Sun, 22 Feb 2026 04:46:41 GMT], [Server,
+                    Kestrel]}
+Images            : {}
+InputFields       : {}
+Links             : {}
+ParsedHtml        : mshtml.HTMLDocumentClass
+RawContentLength  : 387
+
+
+
+PS D:\Containering\Podman\SimpleApi>

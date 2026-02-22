@@ -1,0 +1,404 @@
+Windows PowerShell
+Copyright (C) Microsoft Corporation. All rights reserved.
+
+Try the new cross-platform PowerShell https://aka.ms/pscore6
+
+PS E:\repos> cd "D:\Containering\Podman\SimpleApi"
+PS D:\Containering\Podman\SimpleApi> # Build Docker image
+PS D:\Containering\Podman\SimpleApi> podman build -t simpleapi:latest .
+[1/2] STEP 1/6: FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+Trying to pull mcr.microsoft.com/dotnet/sdk:10.0...
+Getting image source signatures
+Copying blob sha256:40be876054b9750b84d32b4728d10780c3d5dcb400cd425aead4511e51f4e08b
+Copying blob sha256:01d7766a2e4a62b74e0bebf2cd12c47e675e9221174f6570854203e84ffe68b0
+Copying blob sha256:f5adb485db002b82d36210585da6fd7449bcb4ba207a52f6681fa6b6034e8b12
+Copying blob sha256:dd2509e04e5405d935a8a8a381b42becf6519996090b1916bda154d1fbfe3ecd
+Copying blob sha256:2ec1f654a8d3efb52bf5cf767a80d4229047b87f21026845e603d9604d0675b5
+Copying blob sha256:53857c53a381460669f548fb44fc8e4c9a06391f49ac3982a36139a524a12e33
+Copying blob sha256:49353ec27a3587d0b8f8c46dac1522d5f5a6b535f1a1c044eb244e044f8c58cc
+Copying blob sha256:7d830fe8a4931f40ef64c94497494523fdaa9fb1329598a845d59684c3ba8dd2
+Copying blob sha256:96d68fe10fd2911fcb83cc482620f6b7a1886a770ae0cda60d3680af33f3acb9
+Copying blob sha256:198bb7165c4e9657a95d7948693f18f340510bf40028022ba329058a83fd98ce
+Copying config sha256:2ccbbe6cf279e451b0971bc3ca061cf6d218c5a04864c3ad340c958f570d6a91
+Writing manifest to image destination
+[1/2] STEP 2/6: WORKDIR /src
+--> 1403811838c8
+[1/2] STEP 3/6: COPY SimpleApi.csproj .
+--> b4c7141f21c4
+[1/2] STEP 4/6: RUN dotnet restore
+  Determining projects to restore...
+  Restored /src/SimpleApi.csproj (in 4.51 sec).
+--> 002e5e8314fe
+[1/2] STEP 5/6: COPY . .
+--> 6a7013532c2f
+[1/2] STEP 6/6: RUN dotnet publish -c Release -o /app/publish --no-restore
+  SimpleApi -> /src/bin/Release/net10.0/SimpleApi.dll
+  SimpleApi -> /app/publish/
+--> 239bde6ec370
+[2/2] STEP 1/6: FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+Trying to pull mcr.microsoft.com/dotnet/aspnet:10.0...
+Getting image source signatures
+Copying blob sha256:40be876054b9750b84d32b4728d10780c3d5dcb400cd425aead4511e51f4e08b
+Copying blob sha256:f5adb485db002b82d36210585da6fd7449bcb4ba207a52f6681fa6b6034e8b12
+Copying blob sha256:01d7766a2e4a62b74e0bebf2cd12c47e675e9221174f6570854203e84ffe68b0
+Copying blob sha256:2ec1f654a8d3efb52bf5cf767a80d4229047b87f21026845e603d9604d0675b5
+Copying blob sha256:dd2509e04e5405d935a8a8a381b42becf6519996090b1916bda154d1fbfe3ecd
+Copying blob sha256:53857c53a381460669f548fb44fc8e4c9a06391f49ac3982a36139a524a12e33
+Copying config sha256:0b6ec319bfb2a876cbe65fec1c89d370bc2658814feadda7e3015a0fd36f1dc8
+Writing manifest to image destination
+--> a649f641c9f6
+[2/2] STEP 4/6: COPY --from=build /app/publish .
+--> 1543023697cc
+[2/2] STEP 5/6: EXPOSE 8080
+--> dd617b4e8ea8
+[2/2] STEP 6/6: ENTRYPOINT ["dotnet", "SimpleApi.dll"]
+[2/2] COMMIT simpleapi:latest
+6d8978269bda4ba09e1f9ccdbd98bd951ad9c15ed7567fcd096024307a707b43
+PS D:\Containering\Podman\SimpleApi> # Run container
+PS D:\Containering\Podman\SimpleApi> podman images
+REPOSITORY                       TAG         IMAGE ID      CREATED         SIZE
+localhost/simpleapi              latest      6d8978269bda  27 seconds ago  235 MB
+mcr.microsoft.com/dotnet/sdk     10.0        2ccbbe6cf279  10 days ago     894 MB
+quay.io/podman/hello             v1.0        5dd467fce50b  21 months ago   787 kB
+quay.io/podman/hello             latest      5dd467fce50b  21 months ago   787 kB
+PS D:\Containering\Podman\SimpleApi> podman run -d --name simpleapicontainer localhost/simpleapi:latest -p 8080:80
+0c4d8665498e3f55b0b470d45a27351a051d11ead26dc11209ff02d254a3cb3e
+CONTAINER ID  IMAGE                       COMMAND     CREATED         STATUS         PORTS       NAMES
+0c4d8665498e  localhost/simpleapi:latest  -p 8080:80  11 seconds ago  Up 12 seconds  8080/tcp    simpleapicontainer
+PS D:\Containering\Podman\SimpleApi> # Test the api
+PS D:\Containering\Podman\SimpleApi> #- That means port 80 inside the container is mappedto port 8080 on your host machine.
+PS D:\Containering\Podman\SimpleApi> podman ps
+CONTAINER ID  IMAGE                       COMMAND     CREATED        STATUS        PORTSp    simpleapicontainer
+curl : Unable to connect to the remote server
+At line:1 char:1
++ curl http://localhost:8080/weatherforecast
+    + FullyQualifiedErrorId : WebCmdletWebResponseException,Microsoft.PowerShell.Command
+PS D:\Containering\Podman\SimpleApi> #command parameter order matterns portmapping for the container should happen first
+calhost/simpleapi:latest
+Error: creating container storage: the container name "simpleapicontainer" is already in use by 0c4d8665498e3f55b0b470d45a27351a051d11ead26dc11209ff02d254a3cb3e. You have to remove that container to be able to reuse that name: that name is already in use
+PS D:\Containering\Podman\SimpleApi> # Stop a container
+PS D:\Containering\Podman\SimpleApi> podman stop 0c4d8665498e
+PS D:\Containering\Podman\SimpleApi> # Remove a container
+PS D:\Containering\Podman\SimpleApi> podman ps
+CONTAINER ID  IMAGE       COMMAND     CREATED     STATUS      PORTS       NAMES
+PS D:\Containering\Podman\SimpleApi> podman run -d -p 8080:80 --name simpleapicontainer localhost/simpleapi:latest
+Error: creating container storage: the container name "simpleapicontainer" is already in use by 0c4d8665498e3f55b0b470d45a27351a051d11ead26dc11209ff02d254a3cb3e. You have to remove that container to be able to reuse that name: that name is already in use
+PS D:\Containering\Podman\SimpleApi> podman rm 0c4d8665498e3f55b0b470d45a27351a051d11ead26dc11209ff02d254a3cb3e
+0c4d8665498e3f55b0b470d45a27351a051d11ead26dc11209ff02d254a3cb3e
+calhost/simpleapi:latest
+96cfcafeb1e8bbd5f9f1307682fe9976d97526f3523d734dc646478f765f709a
+PS D:\Containering\Podman\SimpleApi> curl http://localhost:8080/weatherforecast
+curl : The underlying connection was closed: The connection was closed unexpectedly.
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   t) [Invoke-WebRequest], WebException
+    + FullyQualifiedErrorId : WebCmdletWebResponseException,Microsoft.PowerShell.Command
+   s.InvokeWebRequestCommand
+
+PS D:\Containering\Podman\SimpleApi> podman ps
+CONTAINER ID  IMAGE                       COMMAND     CREATED         STATUS         PORTS                           NAMES
+96cfcafeb1e8  localhost/simpleapi:latest              22 seconds ago  Up 22 seconds  0.0.0.0:8080->80/tcp, 8080/tcp  simpleapicontainer
+PS D:\Containering\Podman\SimpleApi> #Quick test: Run for port
+PS D:\Containering\Podman\SimpleApi> podman port simpleapicontainer
+80/tcp -> 0.0.0.0:8080
+PS D:\Containering\Podman\SimpleApi> curl http://localhost:8080/weatherforecast
+curl : The underlying connection was closed: The connection was closed unexpectedly.
+At line:1 char:1
++ curl http://localhost:8080/weatherforecast
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (System.Net.HttpWebRequest:HttpWebReques
+   t) [Invoke-WebRequest], WebException
+    + FullyQualifiedErrorId : WebCmdletWebResponseException,Microsoft.PowerShell.Command
+   s.InvokeWebRequestCommand
+
+PS D:\Containering\Podman\SimpleApi> curl http://localhost:80/weatherforecast
+curl : HTTP Error 404.0 - Not Found
+The resource you are looking for has been removed, had its name changed, or is
+temporarily unavailable.Most likely causes:
+The directory or file specified does not exist on the Web server.
+The URL contains a typographical error.
+A custom filter or module, such as URLScan, restricts access to the file.
+ Things you can try:
+Create the content on the Web server.
+Review the browser URL.
+Create a tracing rule to track failed requests for this HTTP status code and see which
+module is calling SetStatus. For more information about creating a tracing rule for
+failed requests, click here.
+ Detailed Error Information:
+Module   IIS Web Core
+Notification   MapRequestHandler
+Handler   StaticFile
+Error Code   0x80070002
+Requested URL   http://localhost:80/weatherforecast
+Physical Path   C:\inetpub\wwwroot\weatherforecast
+Logon Method   Anonymous
+Logon User   Anonymous
+ More Information:
+This error means that the file or directory does not exist on the server. Create the
+file or directory and try the request again.
+At line:1 char:1
++ curl http://localhost:80/weatherforecast
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   t) [Invoke-WebRequest], WebException
+   s.InvokeWebRequestCommand
+PS D:\Containering\Podman\SimpleApi> podman ps
+                           NAMES
+96cfcafeb1e8  localhost/simpleapi:latest              39 minutes ago  Up 39 minutes  0.0.0.0:8080->80/tcp, 8080/tcp  simpleapicontainer
+PS D:\Containering\Podman\SimpleApi> podman rm 96cfcafeb1e8
+Error: cannot remove container 96cfcafeb1e8bbd5f9f1307682fe9976d97526f3523d734dc646478f765f709a as it is running - running or paused containers cannot be removed without force: container state improper
+PS D:\Containering\Podman\SimpleApi> podman stop 96cfcafeb1e8
+96cfcafeb1e8
+PS D:\Containering\Podman\SimpleApi> podman rm 96cfcafeb1e8
+96cfcafeb1e8
+PS D:\Containering\Podman\SimpleApi> podman run -d -p 8080:8080 --name simpleapicontainerlocalhost/simpleapi:latest
+795b7352bde22e70caafca525ce77c70b88079c7bf89dd8a86994a102e6c6285
+PS D:\Containering\Podman\SimpleApi> curl http://localhost:8080/weatherforecast
+
+
+StatusCode        : 200
+StatusDescription : OK
+Content           : [{"date":"2026-02-22","temperatureC":-14,"summary":"Freezing","temper
+                    atureF":7},{"date":"2026-02-23","temperatureC":-5,"summary":"Bracing"
+                    ,"temperatureF":24},{"date":"2026-02-24","temperatureC":14,"su...
+RawContent        : HTTP/1.1 200 OK
+                    Transfer-Encoding: chunked
+                    Content-Type: application/json; charset=utf-8
+                    Date: Sat, 21 Feb 2026 16:45:53 GMT
+                    Server: Kestrel
+
+                    Kestrel]}
+Images            : {}
+InputFields       : {}
+Links             : {}
+ParsedHtml        : mshtml.HTMLDocumentClass
+
+
+sing port 8080 instead of default http post 80.It's best to set default ports exposed in cly
+PS D:\Containering\Podman\SimpleApi> podman ps
+CONTAINER ID  IMAGE                       COMMAND     CREATED        STATUS        PORTS                 NAMES
+795b7352bde2  localhost/simpleapi:latest              4 minutes ago  Up 4 minutes  0.0.0.0:8080->8080/tcp  simpleapicontainer
+PS D:\Containering\Podman\SimpleApi> podman stop 795b7352bde2
+795b7352bde2
+PS D:\Containering\Podman\SimpleApi> podman ps
+CONTAINER ID  IMAGE       COMMAND     CREATED     STATUS      PORTS       NAMES
+PS D:\Containering\Podman\SimpleApi> podman images
+REPOSITORY                       TAG         IMAGE ID      CREATED         SIZE
+localhost/simpleapi              latest      6d8978269bda  59 minutes ago  235 MB
+mcr.microsoft.com/dotnet/sdk     10.0        2ccbbe6cf279  10 days ago     894 MB
+quay.io/podman/hello             v1.0        5dd467fce50b  21 months ago   787 kB
+quay.io/podman/hello             latest      5dd467fce50b  21 months ago   787 kB
+PS D:\Containering\Podman\SimpleApi> podman rmi 6d8978269bda
+Deleted: 6d8978269bda4ba09e1f9ccdbd98bd951ad9c15ed7567fcd096024307a707b43
+Deleted: dd617b4e8ea8ec657d80145b2e71949b18c2c62d9fe43d8a8565c90ca9cbc5c4
+Deleted: 1543023697ccf7837ccbb88c7a0d2f93dd6ec7a8a07735b553496eef0faaec81
+Deleted: a649f641c9f6b673fd644889628d8ade817372da351f4e1af7d87ab8de29a286
+Deleted: 074a365b1f9f2943fa8b30aff0765f71971ae86d7f07b838ec1b20a112797d57
+PS D:\Containering\Podman\SimpleApi> podman rmi 2ccbbe6cf279
+Untagged: mcr.microsoft.com/dotnet/sdk:10.0
+PS D:\Containering\Podman\SimpleApi> podman rmi 0b6ec319bfb2
+Untagged: mcr.microsoft.com/dotnet/aspnet:10.0
+Deleted: 0b6ec319bfb2a876cbe65fec1c89d370bc2658814feadda7e3015a0fd36f1dc8
+PS D:\Containering\Podman\SimpleApi> podman build -t simpleapi:latest
+Error: no context directory and no Containerfile specified
+PS D:\Containering\Podman\SimpleApi> podman build -t simpleapi:latest .
+[1/2] STEP 1/6: FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+Trying to pull mcr.microsoft.com/dotnet/sdk:10.0...
+Getting image source signatures
+Copying blob sha256:40be876054b9750b84d32b4728d10780c3d5dcb400cd425aead4511e51f4e08b
+Copying blob sha256:f5adb485db002b82d36210585da6fd7449bcb4ba207a52f6681fa6b6034e8b12
+Copying blob sha256:01d7766a2e4a62b74e0bebf2cd12c47e675e9221174f6570854203e84ffe68b0
+Copying blob sha256:2ec1f654a8d3efb52bf5cf767a80d4229047b87f21026845e603d9604d0675b5
+Copying blob sha256:dd2509e04e5405d935a8a8a381b42becf6519996090b1916bda154d1fbfe3ecd
+Copying blob sha256:53857c53a381460669f548fb44fc8e4c9a06391f49ac3982a36139a524a12e33
+Copying blob sha256:49353ec27a3587d0b8f8c46dac1522d5f5a6b535f1a1c044eb244e044f8c58cc
+Copying blob sha256:7d830fe8a4931f40ef64c94497494523fdaa9fb1329598a845d59684c3ba8dd2
+Copying blob sha256:96d68fe10fd2911fcb83cc482620f6b7a1886a770ae0cda60d3680af33f3acb9
+Copying blob sha256:198bb7165c4e9657a95d7948693f18f340510bf40028022ba329058a83fd98ce
+Copying config sha256:2ccbbe6cf279e451b0971bc3ca061cf6d218c5a04864c3ad340c958f570d6a91
+Writing manifest to image destination
+[1/2] STEP 2/6: WORKDIR /src
+--> Using cache 1403811838c83925f11988e4c83b91afddc229b3125af4266944f2fd8e8471e9
+--> 1403811838c8
+[1/2] STEP 3/6: COPY SimpleApi.csproj .
+--> Using cache b4c7141f21c4df7296f744c8ca48cf273cc047381ad0656b0e0376e24cce036e
+--> b4c7141f21c4
+[1/2] STEP 4/6: RUN dotnet restore
+--> Using cache 002e5e8314fec2c413ef7e4bd654eb35d5492f04cafbe7485a28f11e22c36b4e
+--> 002e5e8314fe
+[1/2] STEP 5/6: COPY . .
+--> Using cache 6a7013532c2f00c3db9d6131c6db0eced03a52ad54d3d74241f721ea71373747
+--> 6a7013532c2f
+[1/2] STEP 6/6: RUN dotnet publish -c Release -o /app/publish --no-restore
+--> Using cache 239bde6ec370207003758dee4e8eff2f508c8f6ae5d5b5fe6856ceadf7b25bc3
+--> 239bde6ec370
+[2/2] STEP 1/6: FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+Trying to pull mcr.microsoft.com/dotnet/aspnet:10.0...
+Getting image source signatures
+Copying blob sha256:40be876054b9750b84d32b4728d10780c3d5dcb400cd425aead4511e51f4e08b
+Copying blob sha256:01d7766a2e4a62b74e0bebf2cd12c47e675e9221174f6570854203e84ffe68b0
+Copying blob sha256:f5adb485db002b82d36210585da6fd7449bcb4ba207a52f6681fa6b6034e8b12
+Copying blob sha256:dd2509e04e5405d935a8a8a381b42becf6519996090b1916bda154d1fbfe3ecd
+Copying blob sha256:2ec1f654a8d3efb52bf5cf767a80d4229047b87f21026845e603d9604d0675b5
+Copying blob sha256:53857c53a381460669f548fb44fc8e4c9a06391f49ac3982a36139a524a12e33
+Copying config sha256:0b6ec319bfb2a876cbe65fec1c89d370bc2658814feadda7e3015a0fd36f1dc8
+Writing manifest to image destination
+--> c76504c65e9f
+[2/2] STEP 3/6: ENV ASPNETCORE_HTTP_PORTS=8080
+--> 1daed36e5eee
+[2/2] STEP 4/6: COPY --from=build /app/publish .
+--> 58ca0cd2f5ea
+[2/2] STEP 5/6: EXPOSE 80
+--> 91d218c164e3
+Successfully tagged localhost/simpleapi:latest
+PS D:\Containering\Podman\SimpleApi> podman images
+REPOSITORY                       TAG         IMAGE ID      CREATED            SIZE
+localhost/simpleapi              latest      0f48bc0cf7be  9 seconds ago      235 MB
+<none>                           <none>      239bde6ec370  About an hour ago  900 MB
+mcr.microsoft.com/dotnet/sdk     10.0        2ccbbe6cf279  10 days ago        894 MB
+mcr.microsoft.com/dotnet/aspnet  10.0        0b6ec319bfb2  10 days ago        234 MB
+quay.io/podman/hello             v1.0        5dd467fce50b  21 months ago      787 kB
+quay.io/podman/hello             latest      5dd467fce50b  21 months ago      787 kB
+PS D:\Containering\Podman\SimpleApi> # Run a container
+PS D:\Containering\Podman\SimpleApi> podman run -d --name simpleapicontainer localhost/simpleapi:latest -p 90:80
+e44da57745e4e7fd1fb598fa4a83ef58e10c3bede8a3755f8a713d5038df01da
+PS D:\Containering\Podman\SimpleApi> podman ps
+CONTAINER ID  IMAGE                       COMMAND     CREATED        STATUS        PORTS     NAMES
+e44da57745e4  localhost/simpleapi:latest  -p 90:80    8 seconds ago  Up 7 seconds  80/tcp     simpleapicontainer
+PS D:\Containering\Podman\SimpleApi> curl http://localhost:80/weatherforecast
+curl : HTTP Error 404.0 - Not Found
+The resource you are looking for has been removed, had its name changed, or is
+temporarily unavailable.Most likely causes:
+The directory or file specified does not exist on the Web server.
+The URL contains a typographical error.
+A custom filter or module, such as URLScan, restricts access to the file.
+ Things you can try:
+Create the content on the Web server.
+Review the browser URL.
+Create a tracing rule to track failed requests for this HTTP status code and see which
+module is calling SetStatus. For more information about creating a tracing rule for
+failed requests, click here.
+ Detailed Error Information:
+Module   IIS Web Core
+Notification   MapRequestHandler
+Handler   StaticFile
+Error Code   0x80070002
+Requested URL   http://localhost:80/weatherforecast
+Physical Path   C:\inetpub\wwwroot\weatherforecast
+Logon Method   Anonymous
+ More Information:
+This error means that the file or directory does not exist on the server. Create the
+file or directory and try the request again.
+View more information »
+At line:1 char:1
++ curl http://localhost:80/weatherforecast
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (System.Net.HttpWebRequest:HttpWebReques
+    + FullyQualifiedErrorId : WebCmdletWebResponseException,Microsoft.PowerShell.Command
+PS D:\Containering\Podman\SimpleApi> podman run -d --name simpleapicontainer localhost/simpleapi:latest -p 80:80
+se by e44da57745e4e7fd1fb598fa4a83ef58e10c3bede8a3755f8a713d5038df01da. You have to remove that container to be able to reuse that name: that name is already in use
+PS D:\Containering\Podman\SimpleApi> podman ps
+CONTAINER ID  IMAGE                       COMMAND     CREATED             STATUS   PORTS       NAMES
+e44da57745e4  localhost/simpleapi:latest  -p 90:80    About a minute ago  Up About a minute  80/tcp      simpleapicontainer
+PS D:\Containering\Podman\SimpleApi> podman stop e44da57745e4
+e44da57745e4
+PS D:\Containering\Podman\SimpleApi> podman rm e44da57745e4
+e44da57745e4
+PS D:\Containering\Podman\SimpleApi> podman run -d --name simpleapicontainer localhost/simpleapi:latest -p 80:80
+78539c51783e150fc5a673bae1248b8b42a7c97f6466776e961f88e77c3311ab
+PS D:\Containering\Podman\SimpleApi> curl http://localhost:80/weatherforecast
+curl : HTTP Error 404.0 - Not Found
+The resource you are looking for has been removed, had its name changed, or is
+temporarily unavailable.Most likely causes:
+The directory or file specified does not exist on the Web server.
+The URL contains a typographical error.
+A custom filter or module, such as URLScan, restricts access to the file.
+ Things you can try:
+Create the content on the Web server.
+Review the browser URL.
+Create a tracing rule to track failed requests for this HTTP status code and see which
+module is calling SetStatus. For more information about creating a tracing rule for
+failed requests, click here.
+ Detailed Error Information:
+Module   IIS Web Core
+Notification   MapRequestHandler
+Handler   StaticFile
+Error Code   0x80070002
+Requested URL   http://localhost:80/weatherforecast
+Physical Path   C:\inetpub\wwwroot\weatherforecast
+Logon Method   Anonymous
+Logon User   Anonymous
+ More Information:
+file or directory and try the request again.
+View more information »
+At line:1 char:1
++ curl http://localhost:80/weatherforecast
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   t) [Invoke-WebRequest], WebException
+   s.InvokeWebRequestCommand
+PS D:\Containering\Podman\SimpleApi> #The -p flag was placed after the image name, so Podman treated -p 90:80 as a command argument to your container, not as a port mapping. That's why podman ps only showed 80/tcp (internal port) without the host mapping, and your curlhit IIS on Windows instead of your API.
+PS D:\Containering\Podman\SimpleApi> podman ps
+CONTAINER ID  IMAGE                       COMMAND     CREATED         STATUS         PORTS       NAMES
+78539c51783e  localhost/simpleapi:latest  -p 80:80    55 seconds ago  Up 55 seconds  80/tcp      simpleapicontainer
+PS D:\Containering\Podman\SimpleApi> podman stop 78539c51783
+78539c51783
+PS D:\Containering\Podman\SimpleApi> podman rm 78539c51783
+78539c51783
+PS D:\Containering\Podman\SimpleApi> podman run -d -p 80:80 --name simpleapicontainer localhost/simpleapi:latest
+3884de58dcfe77747af0aa3bb37f05bcb1c0707cf62f1908ac8016437107d86c
+PS D:\Containering\Podman\SimpleApi> curl http://localhost:80/weatherforecast
+curl : HTTP Error 404.0 - Not Found
+The resource you are looking for has been removed, had its name changed, or is
+temporarily unavailable.Most likely causes:
+The directory or file specified does not exist on the Web server.
+The URL contains a typographical error.
+A custom filter or module, such as URLScan, restricts access to the file.
+ Things you can try:
+Create the content on the Web server.
+Review the browser URL.
+Create a tracing rule to track failed requests for this HTTP status code and see which
+module is calling SetStatus. For more information about creating a tracing rule for
+failed requests, click here.
+ Detailed Error Information:
+Module   IIS Web Core
+Notification   MapRequestHandler
+Handler   StaticFile
+Error Code   0x80070002
+Requested URL   http://localhost:80/weatherforecast
+Physical Path   C:\inetpub\wwwroot\weatherforecast
+Logon User   Anonymous
+ More Information:
+This error means that the file or directory does not exist on the server. Create the
+file or directory and try the request again.
+View more information »
+At line:1 char:1
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (System.Net.HttpWebRequest:HttpWebReques
+   t) [Invoke-WebRequest], WebException
+CONTAINER ID  IMAGE                       COMMAND     CREATED         STATUS         PORTS               NAMES
+3884de58dcfe  localhost/simpleapi:latest              39 seconds ago  Up 39 seconds  0.0.0.0:80->80/tcp  simpleapicontainer
+PS D:\Containering\Podman\SimpleApi> #When you curled http://localhost:80/weatherforecast, you weren't hitting your container at all - you hit the Windows IIS service listening onport 80. That's why you got the IIS
+PS D:\Containering\Podman\SimpleApi> #the container is running, but your request is beingintercepted by Windows IIS on port 80. That happens because you mapped host port 80 ␦ conthttp://localhost:80/..., you're hitting IIS, not Podman.
+PS D:\Containering\Podman\SimpleApi>
+PS D:\Containering\Podman\SimpleApi> How to fix this cleanly
+How : The term 'How' is not recognized as the name of a cmdlet, function, script file,
+or operable program. Check the spelling of the name, or if a path was included, verify
+that the path is correct and try again.
+At line:1 char:1
++ How to fix this cleanly
++ ~~~
+    + CategoryInfo          : ObjectNotFound: (How:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+
+PS D:\Containering\Podman\SimpleApi> - Avoid host port 80
+At line:1 char:2
++ - Avoid host port 80
++  ~
+Missing expression after unary operator '-'.
+At line:1 char:3
++ - Avoid host port 80
++   ~~~~~
+Unexpected token 'Avoid' in expression or statement.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : MissingExpressionAfterOperator
+
+PS D:\Containering\Podman\SimpleApi> #Don't map your container to host port 80 if IIS is running. Instead, use a different host port (e.g., 8080):
+PS D:\Containering\Podman\SimpleApi>

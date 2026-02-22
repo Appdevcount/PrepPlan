@@ -1,0 +1,115 @@
+
+di?-ioc container lifetime
+	Transient: A new instance is created every time it is requested from the service container.
+	Scoped: A new instance is created once per client request and is reused within that request.
+	Singleton: Only one instance is created and is reused across the application’s lifetime.
+
+how to create middleware in .net core
+
+Authentication and Auth mechanism used in last project
+
+
+Handling routing
+
+Tracking issue/Logging mechanism
+
+OOPS Concepts explain 1 
+interface vs abstract 
+runtime and compiletime polymorphism
+can class have private constructor
+
+Unit testing methodology or library 
+GIT
+APIM
+CI/CD Pipeline 
+
+sproc vs func 
+out parameter in sproc 
+indexing - balance tree 
+clustered vs non clustered index 
+temptable vs tablevariable - scope of these ----++ return multiple results and consolidate, do we need to manually delete
+
+Knowledge on Document database
+
+Knowledge on Microservice architecture
+
+Docker/Kubernetes
+
+
+====Sgr
+using abstract in static 
+DP for microservices
+Event sourcing
+CQRS
+SUBCLASS TEST METHOD DERIVED CLASS
+DI is Solid PRICIPLES
+DP used in the project
+Azure services used in the project
+
+state mangement in client apps
+APIM
+css - Zindex , absolute , relative
+new keyword in methodology
+xunit how to test mutiple test sxenarios
+
+API versioning
+How to configure swagger for API
+async programming vs multi threading
+How do you configure CORS for the api
+
+
+increase performance in kafka
+npm prod build
+what is year
+create mock in xunit
+
+
+which package manager have you used in Angular/react
+
+What is CI/CD
+Different pipelines/templates in CI/CD
+How do you deploy the code
+
+Are you aware of strategy pattern
+
+
+Different design patterns available and worked in microservices not bookish knowledge
+
+Singleton vs static class
+
+Can we implement interface in static class
+
+what is early instantiation of singleton
+
+what is private constructor and what is staic constructor
+
+As a Lead - you have to do the analysis
+
+===============
+xunit - no TDD
+How do you manage states in api
+Different compilers in angular
+.net core api
+di
+doc db
+event driven
+DP - singleton
+no azure expereince
+
+======
+
+microservice - from monolithic
+DP[Singleton]
+auth - indentity server
+jwt - expiry date
+Singleton vs static class
+
+Can we implement interface in static class
+
+what is early instantiation of singleton
+
+what is private constructor and what is staic constructor
+
+Azure services - pipelines 
+
+

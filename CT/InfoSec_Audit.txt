@@ -1,0 +1,18 @@
+Overview of project
+Project details in QMS
+PM Plan
+Type of product
+Type of Data handled- PHI
+Tools involved and access
+Cloud OR not - what actions done in cloud
+Project management plan
+risk management
+	add releveant new risk to project
+BCP Done
+exception taken from infosec team
+Infosec awareness training course should e completed for all members
+
+if PHI enabled project then have phi based controls
+PHI declaration form signed by members
+CT network access
+screenshot enabled

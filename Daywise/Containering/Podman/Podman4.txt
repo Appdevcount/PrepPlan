@@ -1,0 +1,90 @@
+Windows PowerShell
+Copyright (C) Microsoft Corporation. All rights reserved.
+
+Try the new cross-platform PowerShell https://aka.ms/pscore6
+
+PS E:\repos> # Tag an image - docker tag myapp:v1.0.0 myregistry.com/myteam/myapp:v1.0.0  docker push myregistry.com/myteam/myapp:v1.0.0    In short: docker tag is like givingPS E:\repos> docker ps
+docker : The term 'docker' is not recognized as the name of a cmdlet, function, script
+file, or operable program. Check the spelling of the name, or if a path was included,
+verify that the path is correct and try again.
+At line:1 char:1
++ docker ps
++ ~~~~~~
+    + CategoryInfo          : ObjectNotFound: (docker:String) [], CommandNotFoundExcep
+   tion
+    + FullyQualifiedErrorId : CommandNotFoundException
+file, or operable program. Check the spelling of the name, or if a path was included,
+verify that the path is correct and try again.
+At line:1 char:1
++ docker ps -a
+    + CategoryInfo          : ObjectNotFound: (docker:String) [], CommandNotFoundExcep
+    + FullyQualifiedErrorId : CommandNotFoundException
+
+PS E:\repos> # Remove a container - docker rm myapp
+PS E:\repos> # View container logs - docker logs myapp
+PS E:\repos> # Execute command in running container - docker exec -it myapp /bin/bash
+PS E:\repos>
+PS E:\repos> podman ps
+CONTAINER ID  IMAGE                       COMMAND     CREATED        STATUS        PORTS                 NAMES
+8cc4ea5052d5  localhost/simpleapi:latest              5 minutes ago  Up 5 minutes  0.0.0.0:8080->80/tcp  simpleapicontainer
+PS E:\repos> podman exec -it 8cc4ea5052d5
+Error: must provide a non-empty command to start an exec session: invalid argument
+Microsoft.AspNetCore.OpenApi.dll  SimpleApi.runtimeconfig.json
+SimpleApi.dll                     web.config
+PS E:\repos> #you're telling Podman to start an interactive process inside the container using the pr#you're telling Podman to start an interactive process inside the containercontainer.
+PS E:\repos> #Volumes - Persistent data storage outside container filesystem.Survives container restarts and deletions
+PS E:\repos> # Create a volume
+PS E:\repos> podman volume create mydata
+mydata
+PS E:\repos>
+PS E:\repos> # List volumes
+PS E:\repos> podman volume ls
+DRIVER      VOLUME NAME
+local       mydata
+PS E:\repos>
+PS E:\repos> # Inspect volume
+PS E:\repos> podman volume inspect mydata
+[
+          "Mountpoint": "/var/lib/containers/storage/volumes/mydata/_data",
+          "CreatedAt": "2026-02-22T10:28:24.137326684+05:30",
+          "MountCount": 0,
+     }
+]
+PS E:\repos>
+PS E:\repos> #Networks - Enable container communication. Types: bridge, host, overlay, mmynetwork
+PS E:\repos>
+PS E:\repos> # List networks
+PS E:\repos> podman network ls
+NETWORK ID    NAME        DRIVER
+986067b0de5b  mynetwork   bridge
+2f259bab93aa  podman      bridge
+PS E:\repos>
+PS E:\repos> # Connect container to network
+PS E:\repos> podman network connect mynetwork myapp
+Error: no container with name or ID "myapp" found: no such container
+PS E:\repos>
+PS E:\repos> # Inspect network
+PS E:\repos> podman network inspect mynetwork
+[
+     {
+          "name": "mynetwork",
+          "id": "986067b0de5bcc7fab66baa050000a08f677b8a5e0a3da262763acae07c350c1",
+          "driver": "bridge",
+          "network_interface": "podman1",
+          "created": "2026-02-22T10:32:40.470508782+05:30",
+          "subnets": [
+                    "subnet": "10.89.0.0/24",
+               }
+          ],
+          "ipv6_enabled": false,
+          "internal": false,
+          "dns_enabled": true,
+          "ipam_options": {
+               "driver": "host-local"
+          },
+          "containers": {}
+     }
+]
+PS E:\repos>
+PS E:\repos> #Containers - Isolated processes/Running instances of images with their own filesystem, network, and process tree
+PS E:\repos>

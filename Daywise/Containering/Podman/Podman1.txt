@@ -1,0 +1,34 @@
+Windows PowerShell
+Copyright (C) Microsoft Corporation. All rights reserved.
+
+Try the new cross-platform PowerShell https://aka.ms/pscore6
+
+PS E:\repos> # List images
+PS E:\repos> podman images
+REPOSITORY            TAG         IMAGE ID      CREATED        SIZE
+quay.io/podman/hello  latest      5dd467fce50b  21 months ago  787 kB
+PS E:\repos> podman pull mcr.microsoft.com/dotnet/aspnet:8.0
+Getting image source signatures
+Copying blob sha256:16a4ae3c252c395cc687beda642ff037708c4f6c9cb1bc867a51013d543d1d76
+Copying blob sha256:dc989867784ead8b4cca8ae65779cea285c9082efb12bba858be89c6e6da57bc
+Copying blob sha256:0d87adf8cbf99c86eb8603fd4f627087392e9e34b9dd7758a65dd7997f06340c
+Copying blob sha256:4831516dd0cb86845f5f902cb9b9d25b5c853152c337eb57e4737a9b7e2a2eb9
+Writing manifest to image destination
+f2d3263032886bb7e11fded4a98d9738c65630f1435fdedc73f7a9db4cab7895
+REPOSITORY                       TAG         IMAGE ID      CREATED        SIZE
+mcr.microsoft.com/dotnet/aspnet  8.0         f2d326303288  11 days ago    221 MB
+quay.io/podman/hello             latest      5dd467fce50b  21 months ago  787 kB
+PS E:\repos> # Remove an image
+PS E:\repos> podman rmi f2d326303288
+Untagged: mcr.microsoft.com/dotnet/aspnet:8.0
+Deleted: f2d3263032886bb7e11fded4a98d9738c65630f1435fdedc73f7a9db4cab7895
+PS E:\repos> podman images
+REPOSITORY            TAG         IMAGE ID      CREATED        SIZE
+quay.io/podman/hello  latest      5dd467fce50b  21 months ago  787 kB
+PS E:\repos> # Tag an image
+PS E:\repos> podman tag quay.io/podman/hello:latest quay.io/podman/hello:v1.0
+PS E:\repos> podman images
+REPOSITORY            TAG         IMAGE ID      CREATED        SIZE
+quay.io/podman/hello  v1.0        5dd467fce50b  21 months ago  787 kB
+quay.io/podman/hello  latest      5dd467fce50b  21 months ago  787 kB
+PS E:\repos>

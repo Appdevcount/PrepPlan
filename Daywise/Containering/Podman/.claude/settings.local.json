@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell.exe -Command \"Get-ChildItem -Path ''C:\\\\Program Files'' -Filter ''jq.exe'' -Recurse -ErrorAction SilentlyContinue | Format-List FullName\")"
+    ]
+  }
+}

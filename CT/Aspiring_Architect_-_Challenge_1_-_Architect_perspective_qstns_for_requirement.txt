@@ -1,0 +1,40 @@
+@siraj, Good attempt. As an aspiring application architect, you must ask the below questions,
+
+1.What are the main business goals and objectives that the application is intended to support?
+
+2.What are the key business processes that the application will need to enable or support?
+
+3.What are the key functional requirements for the application, in terms of features, functionality, and performance?
+
+4.What are the key non-functional requirements for the application, such as security, scalability, reliability, and maintainability?
+
+5.Who are the primary users of the application, and what are their needs and requirements in terms of user experience and usability?
+
+6.What are the key data entities and relationships that the application will need to support, and how will data be stored, managed, and accessed?
+
+7.What are the key integration points with other systems and applications, and what are the protocols and standards that will be used for integration?
+
+8.What are the key constraints and limitations that need to be taken into account, such as budget, timeline, and technology stack?
+
+=========
+
+How do you Handle concurrency in Config Promoton Utility 
+
+How do you handle rollback in Config Promoton Utility 
+
+Azure well architected Review in Azure portal
+
+In a distributed data environment- What are the 3 tenants to achieve.. out of which only 2 can be achievable
+
+
+====
+
+Problem statement
+Solution approach
+Business value - --release notes
+Increamental steps - definition of done
+Acceptance criteria
+
+=====
+
+Mindfull approach - Go ahead with broad mind, 

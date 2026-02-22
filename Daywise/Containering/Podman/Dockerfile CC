@@ -1,0 +1,60 @@
+#See https://aka.ms/customizecontainer to learn how to customize your debug container and how Visual Studio uses this Dockerfile to build your images for faster debugging.
+
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+WORKDIR /app
+EXPOSE 80
+EXPOSE 443
+
+#OpenSSL config file for in Docker container - must run as root before switching to app user
+RUN sed -i 's/\[openssl_init\]/[openssl_init]/' /etc/ssl/openssl.cnf
+RUN printf "\n\n[openssl_init]\nssl_conf = ssl_sect" >> /etc/ssl/openssl.cnf
+RUN printf "\n\n[ssl_sect]\nsystem_default = ssl_default_sect" >> /etc/ssl/openssl.cnf
+RUN printf "\n\n[ssl_default_sect]\nMinProtocol = TLSv1\nCipherString = DEFAULT@SECLEVEL=0\n" >> /etc/ssl/openssl.cnf
+
+ENV DOTNET_SYSTEM_NET_HTTP_SOCKETSHTTPHANDLER_SSLPROTOCOLS Tls,Tls11,Tls12
+
+
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+ARG BUILD_CONFIGURATION=Release
+WORKDIR /src
+
+# Copy project files first for better layer caching
+COPY ["src/CareCoordinationClientAPI/CareCoordinationClientAPI.csproj", "./src/CareCoordinationClientAPI/"]
+COPY ["src/CareCoordinationClientAPI.Application/CareCoordinationClientAPI.Application.csproj", "./src/CareCoordinationClientAPI.Application/"]
+COPY ["src/CareCoordinationClientAPI.Domain/CareCoordinationClientAPI.Domain.csproj", "./src/CareCoordinationClientAPI.Domain/"]
+
+# Copy NuGet config
+COPY ["src/CareCoordinationClientAPI/NuGet.Config", "./src/CareCoordinationClientAPI/"]
+
+RUN ls -F
+RUN ls -F src/CareCoordinationClientAPI/
+RUN ls -F src/CareCoordinationClientAPI.Application/
+RUN ls -F src/CareCoordinationClientAPI.Domain/
+
+# Restore packages
+RUN dotnet restore "src/CareCoordinationClientAPI/CareCoordinationClientAPI.csproj" --configfile "src/CareCoordinationClientAPI/NuGet.Config"
+RUN dotnet restore "src/CareCoordinationClientAPI.Application/CareCoordinationClientAPI.Application.csproj" --configfile "src/CareCoordinationClientAPI/NuGet.Config"
+RUN dotnet restore "src/CareCoordinationClientAPI.Domain/CareCoordinationClientAPI.Domain.csproj" --configfile "src/CareCoordinationClientAPI/NuGet.Config"
+
+# Copy source code (more specific than COPY . .)
+COPY ["src/", "./src/"]
+
+RUN ls -F
+RUN ls -F src/
+WORKDIR "/src/src/CareCoordinationClientAPI"
+
+RUN ls -F
+
+RUN dotnet build "CareCoordinationClientAPI.csproj" -c $BUILD_CONFIGURATION -o /app/build
+
+FROM build AS publish
+ARG BUILD_CONFIGURATION=Release
+RUN dotnet publish "CareCoordinationClientAPI.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+
+FROM base AS final
+WORKDIR /app
+
+COPY --from=publish /app/publish .
+
+
+ENTRYPOINT ["dotnet", "CareCoordinationClientAPI.dll"]
