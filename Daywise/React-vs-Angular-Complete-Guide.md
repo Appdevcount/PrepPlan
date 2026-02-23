@@ -12,6 +12,7 @@
 4. [Angular 17+ New Control Flow Syntax](#25-angular-17-new-control-flow-syntax-latest-features)
 5. [State Management: Redux vs NgRx](#3-state-management-redux-vs-ngrx)
 6. [Cross-Cutting Concerns](#4-cross-cutting-concerns)
+6.5. [React Context API & Hooks — Deep Dive](#45-react-context-api--hooks--deep-dive)
 7. [JWT Authentication](#5-jwt-authentication)
 8. [Performance Optimization](#6-performance-optimization)
 9. [Routing](#7-routing)
@@ -1847,6 +1848,1294 @@ const routes: Routes = [
   }
 ];
 ```
+
+---
+
+## 4.5 React Context API & Hooks — Deep Dive
+
+> **Why this section exists**: Context API and Hooks are the two most transformative features in modern React. They replace class components, eliminate prop drilling, and allow shared logic to be extracted into composable functions. Angular achieves similar goals via Services + Dependency Injection — understanding both reveals the fundamental design philosophies of each framework.
+
+---
+
+### Mental Model: What problem does each solve?
+
+| Problem | React Solution | Angular Solution |
+|---------|---------------|-----------------|
+| Share state across components without prop drilling | **Context API** | **Services + DI** |
+| Reuse stateful logic between components | **Custom Hooks** | **Services / Mixins** |
+| Manage local state in functional components | **useState** | **Component properties / Signals** |
+| Handle side effects (API calls, subscriptions) | **useEffect** | **ngOnInit / ngOnDestroy / RxJS** |
+| Expensive computations | **useMemo** | **Pure Pipes / Getters** |
+| Stable callback references | **useCallback** | **Methods (auto-stable)** |
+| Direct DOM/child access | **useRef** | **@ViewChild** |
+| Complex state with actions | **useReducer** | **NgRx / BehaviorSubject** |
+
+---
+
+### Part 1: Core Hooks — Detailed Explanation
+
+#### 1.1 `useState` — Local Component State
+
+```tsx
+// ─────────────────────────────────────────────────────────────────────────────
+// useState: The most fundamental hook. Adds reactive state to a function
+// component. When the setter is called, React schedules a re-render.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import React, { useState } from 'react';
+
+// ── BASIC USAGE ──────────────────────────────────────────────────────────────
+const Counter = () => {
+  // useState returns a TUPLE: [currentValue, setterFunction]
+  // TypeScript infers <number> from the initial value (0)
+  const [count, setCount] = useState(0);
+
+  // ❌ WRONG: Mutating state directly — React won't detect this change
+  // count = count + 1;
+
+  // ✅ CORRECT: Call the setter. React diffs and re-renders only what changed.
+  return (
+    <div>
+      <p>Count: {count}</p>
+      {/* Functional update form: use when new value depends on old value */}
+      {/* This is safe even in async/batched updates */}
+      <button onClick={() => setCount(prev => prev + 1)}>Increment</button>
+      <button onClick={() => setCount(prev => prev - 1)}>Decrement</button>
+      <button onClick={() => setCount(0)}>Reset</button>
+    </div>
+  );
+};
+
+// ── OBJECT STATE ──────────────────────────────────────────────────────────────
+interface UserForm {
+  name: string;
+  email: string;
+  age: number;
+}
+
+const UserFormComponent = () => {
+  // When state is an object, useState does NOT deep-merge — you must spread manually
+  const [form, setForm] = useState<UserForm>({ name: '', email: '', age: 0 });
+
+  const handleChange = (field: keyof UserForm, value: string | number) => {
+    // Spread the existing state, then override only the changed field
+    // Without spread: setForm({ name: value }) would ERASE email and age!
+    setForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  return (
+    <form>
+      <input
+        value={form.name}
+        onChange={e => handleChange('name', e.target.value)}
+      />
+      <input
+        value={form.email}
+        onChange={e => handleChange('email', e.target.value)}
+      />
+    </form>
+  );
+};
+
+// ── LAZY INITIALIZATION ───────────────────────────────────────────────────────
+// Pass a function instead of a value when the initial state is expensive to compute.
+// React calls this function ONLY on the first render (not every re-render).
+const ExpensiveComponent = () => {
+  const [data, setData] = useState<number[]>(() => {
+    // This runs once. If you wrote `useState(computeExpensiveData())`,
+    // computeExpensiveData() would run on EVERY render even though its
+    // result is discarded after the first render.
+    console.log('Computing initial data — only runs once!');
+    return [1, 2, 3].map(n => n * 100);
+  });
+
+  return <div>{data.join(', ')}</div>;
+};
+```
+
+**Angular Equivalent:**
+```typescript
+// Angular: State is just a class property. No special syntax needed.
+// Change detection reads properties during its check cycle.
+@Component({ selector: 'app-counter', template: `
+  <p>Count: {{ count }}</p>
+  <button (click)="increment()">+</button>
+  <button (click)="decrement()">-</button>
+` })
+export class CounterComponent {
+  count = 0;  // ← Plain property; Angular's CD detects mutations automatically
+
+  increment() { this.count++; }     // Angular: mutate directly — CD picks it up
+  decrement() { this.count--; }
+
+  // Angular 17+ Signals alternative (closer to useState mental model):
+  // count = signal(0);
+  // increment() { this.count.update(v => v + 1); }
+}
+```
+
+---
+
+#### 1.2 `useEffect` — Side Effects & Lifecycle
+
+```tsx
+// ─────────────────────────────────────────────────────────────────────────────
+// useEffect: Run side effects (API calls, subscriptions, DOM manipulation)
+// after the browser has painted. The dependency array controls WHEN it runs.
+//
+// Lifecycle mapping:
+//   []           → componentDidMount    (run once on mount)
+//   [dep1, dep2] → componentDidUpdate   (run when deps change)
+//   no array     → runs after EVERY render
+//   return fn    → componentWillUnmount (cleanup)
+// ─────────────────────────────────────────────────────────────────────────────
+
+import React, { useState, useEffect } from 'react';
+
+interface Post { id: number; title: string; body: string; }
+
+const PostViewer = ({ postId }: { postId: number }) => {
+  const [post, setPost] = useState<Post | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // ── EFFECT 1: Fetch data when postId changes ──────────────────────────────
+  useEffect(() => {
+    // Reset state whenever postId changes (avoids showing stale data)
+    setLoading(true);
+    setError(null);
+
+    // AbortController lets us cancel the fetch if postId changes
+    // before the previous fetch completes (race condition prevention)
+    const controller = new AbortController();
+
+    const fetchPost = async () => {
+      try {
+        const response = await fetch(
+          `https://jsonplaceholder.typicode.com/posts/${postId}`,
+          { signal: controller.signal }  // ← Pass abort signal to fetch
+        );
+
+        if (!response.ok) throw new Error('Failed to fetch');
+
+        const data: Post = await response.json();
+        setPost(data);
+      } catch (err) {
+        // Ignore AbortError — it's expected when we cancel
+        if ((err as Error).name !== 'AbortError') {
+          setError((err as Error).message);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPost();
+
+    // ── CLEANUP FUNCTION ──────────────────────────────────────────────────
+    // React calls this before:
+    //   1. The effect runs again (when postId changes)
+    //   2. The component unmounts
+    // Without this cleanup, if postId changes quickly, you'd get race conditions
+    // where an old response overwrites a newer one.
+    return () => controller.abort();
+
+  }, [postId]); // ← Dependency array: re-run when postId changes
+
+  // ── EFFECT 2: Document title (runs on every post change) ─────────────────
+  useEffect(() => {
+    if (post) {
+      document.title = `Post: ${post.title}`;  // Side effect: DOM mutation
+    }
+    // Cleanup: restore title when component unmounts
+    return () => { document.title = 'My App'; };
+  }, [post]); // Only re-run when post changes, not on every render
+
+  // ── EFFECT 3: Event listener (runs once on mount) ────────────────────────
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') console.log('Escape pressed!');
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+
+    // CRITICAL: Remove the listener on unmount to prevent memory leaks
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, []); // ← Empty array = "run once when component mounts"
+
+  if (loading) return <div>Loading...</div>;
+  if (error) return <div>Error: {error}</div>;
+  if (!post) return null;
+
+  return <article><h1>{post.title}</h1><p>{post.body}</p></article>;
+};
+```
+
+**Angular Equivalent:**
+```typescript
+@Component({
+  selector: 'app-post-viewer',
+  template: `
+    <div *ngIf="loading">Loading...</div>
+    <div *ngIf="error">Error: {{ error }}</div>
+    <article *ngIf="post">
+      <h1>{{ post.title }}</h1>
+      <p>{{ post.body }}</p>
+    </article>
+  `
+})
+export class PostViewerComponent implements OnInit, OnChanges, OnDestroy {
+  @Input() postId!: number;
+
+  post: Post | null = null;
+  loading = true;
+  error: string | null = null;
+
+  // RxJS Subject used for cleanup — equivalent to AbortController
+  private destroy$ = new Subject<void>();
+
+  constructor(private http: HttpClient) {}
+
+  // ← Equivalent to useEffect([], []) — runs once on mount
+  ngOnInit(): void {
+    this.fetchPost();
+  }
+
+  // ← Equivalent to useEffect([postId]) — runs when @Input changes
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['postId'] && !changes['postId'].firstChange) {
+      this.fetchPost();
+    }
+  }
+
+  // ← Equivalent to the useEffect cleanup return function
+  ngOnDestroy(): void {
+    this.destroy$.next();    // Signal all subscriptions to complete
+    this.destroy$.complete();
+  }
+
+  private fetchPost(): void {
+    this.loading = true;
+    this.error = null;
+
+    this.http.get<Post>(`/api/posts/${this.postId}`)
+      .pipe(takeUntil(this.destroy$))  // ← Auto-unsubscribe on destroy
+      .subscribe({
+        next: post => { this.post = post; this.loading = false; },
+        error: err => { this.error = err.message; this.loading = false; }
+      });
+  }
+}
+```
+
+---
+
+#### 1.3 `useMemo` & `useCallback` — Memoization
+
+```tsx
+// ─────────────────────────────────────────────────────────────────────────────
+// React re-renders components on every state change.
+// useMemo: Cache an expensive computed VALUE.
+// useCallback: Cache a FUNCTION reference (prevents child re-renders).
+//
+// Rule of thumb: Only memoize when you can measure a performance problem.
+// Premature memoization adds complexity for no gain.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import React, { useState, useMemo, useCallback, memo } from 'react';
+
+interface Product { id: number; name: string; price: number; category: string; }
+
+// ── React.memo: Only re-render if props actually changed ───────────────────
+// Without memo, ProductItem re-renders every time parent renders,
+// even if its props didn't change.
+const ProductItem = memo(({ product, onSelect }: {
+  product: Product;
+  onSelect: (id: number) => void;
+}) => {
+  console.log(`Rendering product: ${product.name}`); // Shows memoization working
+  return (
+    <div onClick={() => onSelect(product.id)}>
+      <h3>{product.name}</h3>
+      <p>${product.price}</p>
+    </div>
+  );
+});
+
+const ProductList = ({ products }: { products: Product[] }) => {
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+
+  // ── useMemo: Expensive filter+sort computation ────────────────────────────
+  // Without useMemo, this runs on EVERY render (including unrelated state changes)
+  // With useMemo, it only re-runs when products, selectedCategory, or sortOrder changes
+  const filteredProducts = useMemo(() => {
+    console.log('Computing filtered products...'); // You'd see this less often with useMemo
+    const filtered = selectedCategory === 'all'
+      ? products
+      : products.filter(p => p.category === selectedCategory);
+
+    return [...filtered].sort((a, b) =>
+      sortOrder === 'asc' ? a.price - b.price : b.price - a.price
+    );
+  }, [products, selectedCategory, sortOrder]); // ← Recompute when these change
+
+  // ── useMemo: Derived statistics ───────────────────────────────────────────
+  const stats = useMemo(() => ({
+    total: filteredProducts.length,
+    avgPrice: filteredProducts.reduce((sum, p) => sum + p.price, 0) / filteredProducts.length || 0,
+    categories: [...new Set(products.map(p => p.category))]
+  }), [filteredProducts, products]);
+
+  // ── useCallback: Stable function reference for child components ──────────
+  // Without useCallback, handleSelect is a NEW function on every render.
+  // Since ProductItem uses React.memo and receives onSelect as a prop,
+  // a new function reference would cause ProductItem to re-render anyway.
+  // useCallback returns the SAME function reference as long as deps don't change.
+  const handleSelect = useCallback((id: number) => {
+    setSelectedId(id);
+    console.log(`Selected product: ${id}`);
+    // If you need to track analytics, call it here
+  }, []); // ← No deps: function never changes (uses only stable setters)
+
+  return (
+    <div>
+      <p>Showing {stats.total} products, avg price: ${stats.avgPrice.toFixed(2)}</p>
+
+      <select onChange={e => setSelectedCategory(e.target.value)}>
+        <option value="all">All</option>
+        {stats.categories.map(cat => (
+          <option key={cat} value={cat}>{cat}</option>
+        ))}
+      </select>
+
+      <button onClick={() => setSortOrder(o => o === 'asc' ? 'desc' : 'asc')}>
+        Sort {sortOrder === 'asc' ? '↑' : '↓'}
+      </button>
+
+      {filteredProducts.map(product => (
+        // handleSelect is stable (useCallback), so ProductItem.memo works correctly
+        <ProductItem key={product.id} product={product} onSelect={handleSelect} />
+      ))}
+    </div>
+  );
+};
+```
+
+**Angular Equivalent:**
+```typescript
+// Angular uses Pure Pipes for computed values (equivalent to useMemo)
+// and OnPush change detection to prevent unnecessary renders (equivalent to React.memo)
+
+@Pipe({ name: 'filterProducts', pure: true }) // pure: true = only recalculates when inputs change
+export class FilterProductsPipe implements PipeTransform {
+  transform(products: Product[], category: string, sort: 'asc' | 'desc'): Product[] {
+    const filtered = category === 'all' ? products : products.filter(p => p.category === category);
+    return [...filtered].sort((a, b) => sort === 'asc' ? a.price - b.price : b.price - a.price);
+  }
+}
+
+@Component({
+  // OnPush: Only re-render when @Input reference changes or event fires
+  // Equivalent to React.memo wrapping every child
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <!-- Pure pipe = memoized — only recalculates when products/category/sort change -->
+    <div *ngFor="let product of products | filterProducts:category:sort">
+      {{ product.name }}
+    </div>
+  `
+})
+export class ProductListComponent {
+  @Input() products: Product[] = [];
+  category = 'all';
+  sort: 'asc' | 'desc' = 'asc';
+  // Angular methods are already stable references — no useCallback needed
+}
+```
+
+---
+
+#### 1.4 `useRef` — Mutable Refs & DOM Access
+
+```tsx
+// ─────────────────────────────────────────────────────────────────────────────
+// useRef has TWO use cases:
+//   1. DOM access: get a direct reference to a DOM element
+//   2. Mutable instance variable: store a value that persists across renders
+//      WITHOUT triggering a re-render when changed (unlike useState)
+// ─────────────────────────────────────────────────────────────────────────────
+
+import React, { useState, useEffect, useRef } from 'react';
+
+// ── USE CASE 1: DOM Access ────────────────────────────────────────────────
+const AutoFocusInput = () => {
+  // Ref starts as null; React assigns the DOM element after mount
+  // TypeScript: HTMLInputElement is the element type for <input>
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    // After component mounts, programmatically focus the input
+    // inputRef.current is null until after first render
+    inputRef.current?.focus();
+  }, []); // Only on mount
+
+  return <input ref={inputRef} placeholder="I auto-focus on mount!" />;
+};
+
+// ── USE CASE 2: Previous Value Tracker (no re-render side effect) ─────────
+function usePrevious<T>(value: T): T | undefined {
+  // useRef stores the previous value WITHOUT causing a re-render
+  // If you used useState here, updating previous would cause infinite loops
+  const ref = useRef<T>();
+
+  useEffect(() => {
+    // After render completes, save current value for next render's comparison
+    ref.current = value;
+  }); // No dependency array: runs after every render
+
+  return ref.current; // Returns the value from BEFORE this render
+}
+
+const PriceTracker = ({ price }: { price: number }) => {
+  const prevPrice = usePrevious(price);
+
+  return (
+    <div>
+      <span>Current: ${price}</span>
+      {prevPrice !== undefined && (
+        <span style={{ color: price > prevPrice ? 'green' : 'red' }}>
+          {price > prevPrice ? '▲' : '▼'} was ${prevPrice}
+        </span>
+      )}
+    </div>
+  );
+};
+
+// ── USE CASE 3: Timer/Interval without stale closure ─────────────────────
+const Stopwatch = () => {
+  const [elapsed, setElapsed] = useState(0);
+  const [running, setRunning] = useState(false);
+
+  // Store interval ID in a ref so it persists across renders
+  // and doesn't trigger re-renders when changed
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const start = () => {
+    if (running) return;
+    setRunning(true);
+    intervalRef.current = setInterval(() => {
+      // Functional update: reads current state, never stale
+      setElapsed(prev => prev + 1);
+    }, 1000);
+  };
+
+  const stop = () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current); // Clear using the stored ID
+      intervalRef.current = null;
+    }
+    setRunning(false);
+  };
+
+  // Cleanup on unmount — critical to avoid memory leaks
+  useEffect(() => () => stop(), []);
+
+  return (
+    <div>
+      <p>{elapsed}s</p>
+      <button onClick={start} disabled={running}>Start</button>
+      <button onClick={stop} disabled={!running}>Stop</button>
+    </div>
+  );
+};
+```
+
+**Angular Equivalent:**
+```typescript
+// Angular equivalent of useRef for DOM access
+@Component({ template: `<input #myInput placeholder="Auto focus">` })
+export class AutoFocusComponent implements AfterViewInit {
+  // @ViewChild equivalent to useRef<HTMLInputElement>
+  @ViewChild('myInput') inputRef!: ElementRef<HTMLInputElement>;
+
+  ngAfterViewInit(): void {
+    // Equivalent to useEffect([], []) + ref.current?.focus()
+    this.inputRef.nativeElement.focus();
+  }
+}
+```
+
+---
+
+#### 1.5 `useReducer` — Complex State Management
+
+```tsx
+// ─────────────────────────────────────────────────────────────────────────────
+// useReducer is useState for complex state.
+// Use it when:
+//   • State has multiple sub-values that change together
+//   • Next state depends on previous state in non-trivial ways
+//   • You want to centralize state transition logic (like a mini Redux)
+// ─────────────────────────────────────────────────────────────────────────────
+
+import React, { useReducer } from 'react';
+
+// ── Define the shape of your state ────────────────────────────────────────
+interface CartState {
+  items: Array<{ id: number; name: string; price: number; quantity: number }>;
+  total: number;
+  discount: number;
+  couponCode: string | null;
+}
+
+// ── Define all possible actions with discriminated unions ─────────────────
+// Discriminated union: TypeScript narrows the type based on the `type` field
+type CartAction =
+  | { type: 'ADD_ITEM'; payload: { id: number; name: string; price: number } }
+  | { type: 'REMOVE_ITEM'; payload: { id: number } }
+  | { type: 'UPDATE_QUANTITY'; payload: { id: number; quantity: number } }
+  | { type: 'APPLY_COUPON'; payload: { code: string; discount: number } }
+  | { type: 'CLEAR_CART' };
+
+// ── Reducer: pure function (state, action) → new state ───────────────────
+// PURE: no side effects, no mutations, same input always gives same output
+// This makes it testable and predictable
+function cartReducer(state: CartState, action: CartAction): CartState {
+  switch (action.type) {
+    case 'ADD_ITEM': {
+      const existingItem = state.items.find(i => i.id === action.payload.id);
+
+      const updatedItems = existingItem
+        // Item already in cart: increment quantity
+        ? state.items.map(i =>
+            i.id === action.payload.id ? { ...i, quantity: i.quantity + 1 } : i
+          )
+        // New item: append with quantity 1
+        : [...state.items, { ...action.payload, quantity: 1 }];
+
+      return {
+        ...state,
+        items: updatedItems,
+        // Recalculate total when items change
+        total: updatedItems.reduce((sum, i) => sum + i.price * i.quantity, 0)
+      };
+    }
+
+    case 'REMOVE_ITEM': {
+      const updatedItems = state.items.filter(i => i.id !== action.payload.id);
+      return {
+        ...state,
+        items: updatedItems,
+        total: updatedItems.reduce((sum, i) => sum + i.price * i.quantity, 0)
+      };
+    }
+
+    case 'UPDATE_QUANTITY': {
+      const updatedItems = state.items.map(i =>
+        i.id === action.payload.id
+          ? { ...i, quantity: Math.max(0, action.payload.quantity) }
+          : i
+      ).filter(i => i.quantity > 0); // Remove items with quantity 0
+
+      return {
+        ...state,
+        items: updatedItems,
+        total: updatedItems.reduce((sum, i) => sum + i.price * i.quantity, 0)
+      };
+    }
+
+    case 'APPLY_COUPON':
+      return { ...state, couponCode: action.payload.code, discount: action.payload.discount };
+
+    case 'CLEAR_CART':
+      return { items: [], total: 0, discount: 0, couponCode: null };
+
+    default:
+      return state; // Always return state for unknown actions
+  }
+}
+
+const initialCartState: CartState = { items: [], total: 0, discount: 0, couponCode: null };
+
+const ShoppingCart = () => {
+  // useReducer returns [state, dispatch]
+  // dispatch(action) → calls reducer → returns new state → triggers re-render
+  const [cart, dispatch] = useReducer(cartReducer, initialCartState);
+
+  const finalTotal = cart.total * (1 - cart.discount / 100);
+
+  return (
+    <div>
+      <button onClick={() => dispatch({
+        type: 'ADD_ITEM',
+        payload: { id: 1, name: 'Widget', price: 29.99 }
+      })}>
+        Add Widget
+      </button>
+
+      {cart.items.map(item => (
+        <div key={item.id}>
+          <span>{item.name} × {item.quantity}</span>
+          <button onClick={() => dispatch({
+            type: 'UPDATE_QUANTITY',
+            payload: { id: item.id, quantity: item.quantity + 1 }
+          })}>+</button>
+          <button onClick={() => dispatch({
+            type: 'REMOVE_ITEM',
+            payload: { id: item.id }
+          })}>Remove</button>
+        </div>
+      ))}
+
+      <p>Total: ${finalTotal.toFixed(2)}</p>
+      <button onClick={() => dispatch({ type: 'CLEAR_CART' })}>Clear Cart</button>
+    </div>
+  );
+};
+```
+
+**Angular Equivalent:**
+```typescript
+// Angular: Use a Service with BehaviorSubject (or NgRx for larger scale)
+@Injectable({ providedIn: 'root' })
+export class CartService {
+  // BehaviorSubject = reactive state container, similar to useReducer state
+  private cartState = new BehaviorSubject<CartState>({ items: [], total: 0, discount: 0, couponCode: null });
+
+  // Public observable — components subscribe to this (not the Subject directly)
+  cart$ = this.cartState.asObservable();
+
+  // Methods = dispatch functions
+  addItem(product: { id: number; name: string; price: number }): void {
+    const current = this.cartState.getValue();
+    // ... same logic as reducer ...
+    this.cartState.next(updatedState);
+  }
+
+  removeItem(id: number): void { /* ... */ }
+  clearCart(): void { this.cartState.next({ items: [], total: 0, discount: 0, couponCode: null }); }
+}
+
+@Component({ template: `<div *ngFor="let item of (cart$ | async)?.items">{{ item.name }}</div>` })
+export class CartComponent {
+  cart$ = this.cartService.cart$; // Subscribe via async pipe (auto-unsubscribes)
+  constructor(private cartService: CartService) {}
+  add(product: Product) { this.cartService.addItem(product); }
+}
+```
+
+---
+
+### Part 2: Context API — Deep Dive
+
+#### 2.1 How Context Works Internally
+
+```
+Before Context (Prop Drilling):
+  App (has user)
+    └── Layout
+          └── Sidebar
+                └── UserAvatar ← needs user (passed through Layout & Sidebar!)
+
+With Context:
+  App
+    └── UserContext.Provider (value={user})
+          └── Layout             ← doesn't need user
+                └── Sidebar      ← doesn't need user
+                      └── UserAvatar ← reads from context directly!
+```
+
+Context creates a **vertical channel** through the component tree. Any component inside the Provider can read the value without intermediate components needing to know about it.
+
+#### 2.2 Building a Complete Context System
+
+```tsx
+// ─────────────────────────────────────────────────────────────────────────────
+// FILE: context/ThemeContext.tsx
+//
+// Pattern: Create context → Create Provider component → Create custom hook
+// This is the standard, production-grade way to use Context in React.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+
+// ── Step 1: Define the shape of your context value ────────────────────────
+type Theme = 'light' | 'dark' | 'system';
+
+interface ThemeContextValue {
+  theme: Theme;              // Current theme value
+  setTheme: (theme: Theme) => void;  // Setter
+  isDark: boolean;           // Derived value (computed from theme)
+  toggleTheme: () => void;  // Convenience method
+}
+
+// ── Step 2: Create the context with a default value ───────────────────────
+// The default value is used ONLY when a component reads context
+// without being wrapped in a Provider. In practice, you should
+// throw an error instead of silently returning a default (see hook below).
+// Using `undefined` as default forces us to handle the "no provider" case.
+const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
+
+// ── Step 3: Create the Provider component ────────────────────────────────
+// This wraps part (or all) of your app and provides the context value.
+// Children don't care where the value comes from — they just consume it.
+export const ThemeProvider = ({ children }: { children: ReactNode }) => {
+  const [theme, setThemeState] = useState<Theme>(() => {
+    // Lazy init: read from localStorage on first render only
+    return (localStorage.getItem('theme') as Theme) || 'system';
+  });
+
+  // Determine if we're in dark mode
+  // (system preference detection via matchMedia)
+  const isDark = theme === 'dark' ||
+    (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+  // Wrap setTheme to also persist to localStorage
+  const setTheme = useCallback((newTheme: Theme) => {
+    setThemeState(newTheme);
+    localStorage.setItem('theme', newTheme); // Side effect: persist preference
+    document.documentElement.setAttribute('data-theme', newTheme); // Apply to DOM
+  }, []);
+
+  const toggleTheme = useCallback(() => {
+    setTheme(isDark ? 'light' : 'dark');
+  }, [isDark, setTheme]);
+
+  // The value prop is what all consumers receive
+  // Tip: Memoize this object if the Provider is high in the tree and
+  // context value changes often — prevents unnecessary consumer re-renders
+  const value: ThemeContextValue = { theme, setTheme, isDark, toggleTheme };
+
+  return (
+    <ThemeContext.Provider value={value}>
+      {/* Apply theme class to a wrapper so CSS can respond */}
+      <div className={isDark ? 'dark-theme' : 'light-theme'}>
+        {children}
+      </div>
+    </ThemeContext.Provider>
+  );
+};
+
+// ── Step 4: Create a custom hook for safe consumption ─────────────────────
+// This is the ONLY way components should access this context.
+// Benefits:
+//   1. Throws a descriptive error if used outside the provider
+//   2. Hides implementation detail (consumers don't import ThemeContext directly)
+//   3. Easy to refactor later (change context to Redux without touching consumers)
+export const useTheme = (): ThemeContextValue => {
+  const context = useContext(ThemeContext);
+
+  if (context === undefined) {
+    // This error tells developers exactly what went wrong and how to fix it
+    throw new Error('useTheme must be used within a <ThemeProvider>. ' +
+      'Wrap your component tree with <ThemeProvider> in App.tsx');
+  }
+
+  return context;
+};
+```
+
+```tsx
+// ─────────────────────────────────────────────────────────────────────────────
+// FILE: App.tsx — Provider Setup
+// ─────────────────────────────────────────────────────────────────────────────
+
+import { ThemeProvider } from './context/ThemeContext';
+import { AuthProvider } from './context/AuthContext';
+import { NotificationProvider } from './context/NotificationContext';
+
+// Providers nest like Russian dolls. Order matters when one Provider
+// depends on another (e.g., NotificationProvider might use AuthContext).
+const App = () => (
+  <AuthProvider>          {/* Outermost: Auth needed by everything */}
+    <ThemeProvider>       {/* Theme needed by UI */}
+      <NotificationProvider>  {/* Notifications need Auth */}
+        <Router>
+          <AppRoutes />
+        </Router>
+      </NotificationProvider>
+    </ThemeProvider>
+  </AuthProvider>
+);
+```
+
+```tsx
+// ─────────────────────────────────────────────────────────────────────────────
+// FILE: components/Header.tsx — Consuming Context
+// Note: This component doesn't receive theme as a prop.
+// It reads it directly from context via the custom hook.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import { useTheme } from '../context/ThemeContext';
+
+const Header = () => {
+  // Single line to access all theme values and methods
+  const { theme, isDark, toggleTheme } = useTheme();
+
+  return (
+    <header className="header">
+      <nav>...</nav>
+      <button
+        onClick={toggleTheme}
+        aria-label={`Switch to ${isDark ? 'light' : 'dark'} mode`}
+      >
+        {isDark ? '☀️ Light' : '🌙 Dark'}
+      </button>
+      <span>Current: {theme}</span>
+    </header>
+  );
+};
+
+// DeepNested can use theme without Header or anything in between knowing about it
+const DeepNested = () => {
+  const { isDark } = useTheme(); // Works anywhere inside <ThemeProvider>
+  return <div style={{ background: isDark ? '#333' : '#fff' }}>Deep component</div>;
+};
+```
+
+---
+
+#### 2.3 Context + useReducer = Mini Redux
+
+```tsx
+// ─────────────────────────────────────────────────────────────────────────────
+// FILE: context/GlobalStateContext.tsx
+//
+// Combining Context + useReducer gives you a lightweight global state solution
+// that looks and feels like a mini Redux — without any library.
+// Use this for small-medium apps before reaching for Redux or Zustand.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import React, { createContext, useContext, useReducer, ReactNode } from 'react';
+
+// ── Global State Shape ────────────────────────────────────────────────────
+interface GlobalState {
+  user: { id: string; name: string; role: string } | null;
+  notifications: Array<{ id: string; message: string; type: 'info' | 'error' | 'success' }>;
+  sidebarOpen: boolean;
+  isLoading: boolean;
+}
+
+// ── All possible global actions ───────────────────────────────────────────
+type GlobalAction =
+  | { type: 'SET_USER'; payload: GlobalState['user'] }
+  | { type: 'LOGOUT' }
+  | { type: 'ADD_NOTIFICATION'; payload: Omit<GlobalState['notifications'][0], 'id'> }
+  | { type: 'DISMISS_NOTIFICATION'; payload: string }
+  | { type: 'TOGGLE_SIDEBAR' }
+  | { type: 'SET_LOADING'; payload: boolean };
+
+// ── Reducer (pure function — easy to test in isolation) ───────────────────
+function globalReducer(state: GlobalState, action: GlobalAction): GlobalState {
+  switch (action.type) {
+    case 'SET_USER':
+      return { ...state, user: action.payload };
+
+    case 'LOGOUT':
+      return { ...state, user: null, sidebarOpen: false };
+
+    case 'ADD_NOTIFICATION':
+      return {
+        ...state,
+        notifications: [
+          ...state.notifications,
+          { ...action.payload, id: crypto.randomUUID() } // Generate ID here
+        ]
+      };
+
+    case 'DISMISS_NOTIFICATION':
+      return {
+        ...state,
+        notifications: state.notifications.filter(n => n.id !== action.payload)
+      };
+
+    case 'TOGGLE_SIDEBAR':
+      return { ...state, sidebarOpen: !state.sidebarOpen };
+
+    case 'SET_LOADING':
+      return { ...state, isLoading: action.payload };
+
+    default:
+      return state;
+  }
+}
+
+// ── Separate state and dispatch into two contexts ─────────────────────────
+// Why two contexts? Components that only dispatch actions (buttons, forms)
+// don't need to re-render when state changes. Splitting prevents unnecessary
+// re-renders in dispatch-only components.
+const GlobalStateContext = createContext<GlobalState | undefined>(undefined);
+const GlobalDispatchContext = createContext<React.Dispatch<GlobalAction> | undefined>(undefined);
+
+const initialState: GlobalState = {
+  user: null,
+  notifications: [],
+  sidebarOpen: false,
+  isLoading: false
+};
+
+export const GlobalStateProvider = ({ children }: { children: ReactNode }) => {
+  const [state, dispatch] = useReducer(globalReducer, initialState);
+
+  return (
+    // Two providers: state consumers re-render on state change,
+    // dispatch consumers NEVER re-render (dispatch is always the same reference)
+    <GlobalStateContext.Provider value={state}>
+      <GlobalDispatchContext.Provider value={dispatch}>
+        {children}
+      </GlobalDispatchContext.Provider>
+    </GlobalStateContext.Provider>
+  );
+};
+
+// ── Custom hooks — one for state, one for dispatch ────────────────────────
+export const useGlobalState = () => {
+  const context = useContext(GlobalStateContext);
+  if (!context) throw new Error('useGlobalState must be within GlobalStateProvider');
+  return context;
+};
+
+export const useGlobalDispatch = () => {
+  const context = useContext(GlobalDispatchContext);
+  if (!context) throw new Error('useGlobalDispatch must be within GlobalStateProvider');
+  return context;
+};
+
+// ── Action creator hooks (optional but recommended for complex apps) ───────
+// Encapsulate dispatch logic behind meaningful function names
+export const useGlobalActions = () => {
+  const dispatch = useGlobalDispatch();
+
+  return {
+    setUser: (user: GlobalState['user']) =>
+      dispatch({ type: 'SET_USER', payload: user }),
+
+    logout: () =>
+      dispatch({ type: 'LOGOUT' }),
+
+    notify: (message: string, type: 'info' | 'error' | 'success' = 'info') =>
+      dispatch({ type: 'ADD_NOTIFICATION', payload: { message, type } }),
+
+    dismissNotification: (id: string) =>
+      dispatch({ type: 'DISMISS_NOTIFICATION', payload: id }),
+
+    toggleSidebar: () =>
+      dispatch({ type: 'TOGGLE_SIDEBAR' }),
+  };
+};
+
+// ── Usage in components ───────────────────────────────────────────────────
+const UserProfile = () => {
+  const { user } = useGlobalState();    // Re-renders when state changes
+  const { logout } = useGlobalActions(); // Stable — won't cause re-renders
+
+  if (!user) return <div>Not logged in</div>;
+  return (
+    <div>
+      <p>Hello, {user.name} ({user.role})</p>
+      <button onClick={logout}>Log out</button>
+    </div>
+  );
+};
+
+const SomeButton = () => {
+  const { toggleSidebar } = useGlobalActions(); // Dispatch-only: never re-renders from state changes
+  return <button onClick={toggleSidebar}>Menu</button>;
+};
+```
+
+---
+
+### Part 3: Custom Hooks — Patterns & Best Practices
+
+```tsx
+// ─────────────────────────────────────────────────────────────────────────────
+// Custom hooks = extract and reuse stateful logic between components.
+//
+// Rules:
+//   1. Name must start with "use" (allows React linting to enforce hook rules)
+//   2. Can call other hooks (useState, useEffect, useContext, etc.)
+//   3. Each component that calls a hook gets its OWN isolated state
+//      (hooks don't share state — they share LOGIC)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── PATTERN 1: Data fetching hook ─────────────────────────────────────────
+// Replaces repeated loading/error/data boilerplate in every component
+
+interface FetchState<T> {
+  data: T | null;
+  loading: boolean;
+  error: Error | null;
+}
+
+function useFetch<T>(url: string): FetchState<T> & { refetch: () => void } {
+  const [state, setState] = useState<FetchState<T>>({
+    data: null,
+    loading: true,
+    error: null
+  });
+  // useRef to trigger manual refetch without changing url
+  const refetchRef = useRef(0);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    setState(prev => ({ ...prev, loading: true, error: null }));
+
+    fetch(url, { signal: controller.signal })
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then(data => setState({ data, loading: false, error: null }))
+      .catch(err => {
+        if (err.name !== 'AbortError') {
+          setState(prev => ({ ...prev, loading: false, error: err }));
+        }
+      });
+
+    return () => controller.abort();
+  }, [url, refetchRef.current]); // Re-run when url changes OR refetch is triggered
+
+  const refetch = useCallback(() => { refetchRef.current += 1; }, []);
+
+  return { ...state, refetch };
+}
+
+// Usage — clean component, zero boilerplate
+const UserProfile = ({ userId }: { userId: string }) => {
+  const { data: user, loading, error, refetch } = useFetch<User>(`/api/users/${userId}`);
+
+  if (loading) return <Spinner />;
+  if (error) return <Error message={error.message} onRetry={refetch} />;
+  return <div>{user?.name}</div>;
+};
+
+// ── PATTERN 2: Form hook ──────────────────────────────────────────────────
+function useForm<T extends Record<string, unknown>>(initialValues: T) {
+  const [values, setValues] = useState<T>(initialValues);
+  const [errors, setErrors] = useState<Partial<Record<keyof T, string>>>({});
+  const [touched, setTouched] = useState<Partial<Record<keyof T, boolean>>>({});
+
+  // Generic field change handler — works for any field
+  const handleChange = useCallback((field: keyof T, value: unknown) => {
+    setValues(prev => ({ ...prev, [field]: value }));
+    // Clear error when user starts typing
+    setErrors(prev => ({ ...prev, [field]: undefined }));
+  }, []);
+
+  const handleBlur = useCallback((field: keyof T) => {
+    setTouched(prev => ({ ...prev, [field]: true }));
+  }, []);
+
+  const reset = useCallback(() => {
+    setValues(initialValues);
+    setErrors({});
+    setTouched({});
+  }, [initialValues]);
+
+  // Computed: form is valid when no errors exist
+  const isValid = Object.keys(errors).length === 0;
+
+  return { values, errors, touched, isValid, handleChange, handleBlur, reset, setErrors };
+}
+
+// Usage
+const LoginForm = () => {
+  const { values, errors, touched, handleChange, handleBlur, setErrors } = useForm({
+    email: '',
+    password: ''
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const newErrors: typeof errors = {};
+    if (!values.email.includes('@')) newErrors.email = 'Invalid email';
+    if (values.password.length < 8) newErrors.password = 'Min 8 characters';
+    if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return; }
+    await login(values);
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input
+        value={values.email}
+        onChange={e => handleChange('email', e.target.value)}
+        onBlur={() => handleBlur('email')}
+      />
+      {touched.email && errors.email && <span>{errors.email}</span>}
+      {/* ... password field ... */}
+    </form>
+  );
+};
+
+// ── PATTERN 3: Browser API hooks ──────────────────────────────────────────
+
+// useLocalStorage: Persist state to localStorage automatically
+function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T) => void] {
+  const [stored, setStored] = useState<T>(() => {
+    try {
+      const item = localStorage.getItem(key);
+      return item ? JSON.parse(item) : initialValue;
+    } catch {
+      return initialValue; // Graceful fallback if JSON parse fails
+    }
+  });
+
+  const setValue = useCallback((value: T) => {
+    setStored(value);
+    localStorage.setItem(key, JSON.stringify(value));
+  }, [key]);
+
+  return [stored, setValue];
+}
+
+// useMediaQuery: Respond to CSS breakpoints in JS
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(
+    () => window.matchMedia(query).matches // Lazy init from current state
+  );
+
+  useEffect(() => {
+    const media = window.matchMedia(query);
+    const handler = (e: MediaQueryListEvent) => setMatches(e.matches);
+    media.addEventListener('change', handler);
+    return () => media.removeEventListener('change', handler); // Cleanup
+  }, [query]);
+
+  return matches;
+}
+
+// useDebounce: Delay state updates (search inputs, resize handlers)
+function useDebounce<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timer); // Cancel timer if value changes before delay
+  }, [value, delay]);
+
+  return debounced;
+}
+
+// Compose hooks naturally
+const SmartSearch = () => {
+  const isMobile = useMediaQuery('(max-width: 768px)');
+  const [query, setQuery] = useLocalStorage('lastSearch', '');
+  const debouncedQuery = useDebounce(query, isMobile ? 500 : 300); // Slower debounce on mobile
+
+  useEffect(() => {
+    if (debouncedQuery) {
+      searchApi(debouncedQuery); // Only fires after user stops typing
+    }
+  }, [debouncedQuery]);
+
+  return <input value={query} onChange={e => setQuery(e.target.value)} />;
+};
+```
+
+**Angular equivalent of custom hooks — Services:**
+```typescript
+// Angular: Logic reuse = Services. Unlike hooks, services are singletons
+// by default (shared state across ALL consumers unless scoped to a component).
+
+@Injectable({ providedIn: 'root' }) // Singleton: shared across entire app
+export class UserDataService {
+  private userSubject = new BehaviorSubject<User | null>(null);
+  user$ = this.userSubject.asObservable();
+
+  constructor(private http: HttpClient) {}
+
+  loadUser(id: string): Observable<User> {
+    return this.http.get<User>(`/api/users/${id}`).pipe(
+      tap(user => this.userSubject.next(user)), // Update shared state as side effect
+      catchError(err => { console.error(err); return EMPTY; })
+    );
+  }
+}
+
+// Key difference from hooks:
+// Hook: Each component gets its OWN isolated state copy
+// Service: All components share the SAME service instance and state
+```
+
+---
+
+### Part 4: Context API Performance Pitfalls & Solutions
+
+```tsx
+// ─────────────────────────────────────────────────────────────────────────────
+// PITFALL: Every consumer re-renders when context value changes,
+// even if the specific value they use didn't change.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ❌ BAD: Creating context value object inline causes all consumers to re-render
+// on every Provider render (new object reference = React thinks value changed)
+const BadProvider = ({ children }: { children: ReactNode }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [theme, setTheme] = useState('light');
+
+  // This object is RECREATED on every render, triggering all consumers
+  return (
+    <AppContext.Provider value={{ user, theme, setUser, setTheme }}>
+      {children}
+    </AppContext.Provider>
+  );
+};
+
+// ✅ GOOD SOLUTION 1: useMemo to stabilize the context value object
+const GoodProvider1 = ({ children }: { children: ReactNode }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [theme, setTheme] = useState('light');
+
+  // Only creates a new object when user or theme actually changes
+  const value = useMemo(
+    () => ({ user, theme, setUser, setTheme }),
+    [user, theme] // setUser and setTheme from useState are always stable references
+  );
+
+  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+};
+
+// ✅ GOOD SOLUTION 2: Split contexts by update frequency
+// Components that only need user don't re-render when theme changes
+const UserContext = createContext<User | null>(null);
+const ThemeContext = createContext<string>('light');
+
+const SplitProvider = ({ children }: { children: ReactNode }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [theme, setTheme] = useState('light');
+
+  return (
+    <UserContext.Provider value={user}>
+      <ThemeContext.Provider value={theme}>
+        {children}
+      </ThemeContext.Provider>
+    </UserContext.Provider>
+  );
+};
+
+// ✅ GOOD SOLUTION 3: Separate state and dispatch (as shown in Context+useReducer above)
+// Dispatch consumers (buttons) never re-render when state changes
+```
+
+---
+
+### Summary: When to Use What
+
+| Scenario | React Tool | Angular Tool |
+|----------|-----------|-------------|
+| Simple toggle / counter | `useState` | Component property / Signal |
+| API call on mount | `useEffect([], [])` | `ngOnInit` + HttpClient |
+| React to prop change | `useEffect([prop])` | `ngOnChanges` |
+| Expensive computation | `useMemo` | Pure Pipe / Getter |
+| Prevent child re-render | `React.memo` + `useCallback` | `OnPush` CD |
+| DOM reference | `useRef` | `@ViewChild` |
+| Complex state transitions | `useReducer` | Service + BehaviorSubject / NgRx |
+| Share state without props | **Context API** | **Services + DI** |
+| Reuse stateful logic | **Custom Hooks** | **Services** |
+| Global app state | Context + useReducer / Zustand / Redux | NgRx / Signals |
+
+> **Key Insight**: React's hooks + Context give you maximum flexibility with minimal abstractions. Angular's services + DI give you structure and testability by convention. Neither is objectively better — they reflect different design philosophies: React is a library, Angular is a framework.
 
 ---
 

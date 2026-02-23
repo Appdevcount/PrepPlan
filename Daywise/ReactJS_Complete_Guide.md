@@ -1908,6 +1908,499 @@ function useWindowSize() {
 
 ---
 
+### useContext Hook — Deep Dive
+
+`useContext` is the hook that lets you **read** a value from a React Context without needing a Consumer wrapper.
+It is the consumer-side of the Context API (see Section 9 for the full Context API guide).
+
+```jsx
+import { createContext, useContext, useState } from 'react';
+
+// ─────────────────────────────────────────────────────────────────
+// STEP 1: Create a context object
+// createContext(defaultValue) — defaultValue is only used when there
+// is NO matching Provider above the component in the tree.
+// ─────────────────────────────────────────────────────────────────
+const UserContext = createContext(null); // null = no default, must have Provider
+
+// ─────────────────────────────────────────────────────────────────
+// STEP 2: Create a Provider — wraps the component tree
+// Any component inside this Provider can read the context value.
+// ─────────────────────────────────────────────────────────────────
+function UserProvider({ children }) {
+  const [user, setUser] = useState({ name: 'Alice', role: 'admin' });
+
+  return (
+    // value prop is what consumers will receive via useContext
+    <UserContext.Provider value={{ user, setUser }}>
+      {children}  {/* ← All children can access the context */}
+    </UserContext.Provider>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+// STEP 3: Create a custom hook — always wrap useContext in a hook
+// This pattern: (1) provides a friendly API, (2) adds error checking,
+// (3) prevents misuse outside the Provider
+// ─────────────────────────────────────────────────────────────────
+function useUser() {
+  // useContext reads the nearest Provider's value above this component
+  const context = useContext(UserContext);
+
+  // Guard: if someone uses useUser() outside <UserProvider>, catch it immediately
+  if (context === null) {
+    throw new Error('useUser must be used within a <UserProvider>');
+    // Without this check, you'd get confusing null-pointer errors deep in code
+  }
+
+  return context; // Returns { user, setUser }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// STEP 4: Consume the context — any component, anywhere in the tree
+// No prop drilling needed — UserHeader doesn't need to receive user
+// as a prop even if it's nested 5 levels deep
+// ─────────────────────────────────────────────────────────────────
+function UserHeader() {
+  const { user } = useUser(); // ← reads from nearest UserProvider above it
+
+  // Component automatically re-renders when context value changes
+  return <h1>Welcome, {user.name}! Role: {user.role}</h1>;
+}
+
+function UserSettings() {
+  const { user, setUser } = useUser();
+
+  const handleNameChange = (e) => {
+    // Updating context state → triggers re-render in ALL consumers
+    setUser(prev => ({ ...prev, name: e.target.value }));
+  };
+
+  return (
+    <input
+      value={user.name}
+      onChange={handleNameChange}
+      placeholder="Change name"
+    />
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+// STEP 5: Wrap the app (or subtree) with the Provider
+// Provider must be an ANCESTOR — not a sibling or child
+// ─────────────────────────────────────────────────────────────────
+function App() {
+  return (
+    <UserProvider>          {/* ← UserHeader and UserSettings can now read context */}
+      <div className="app">
+        <UserHeader />        {/* ← Works — inside UserProvider */}
+        <main>
+          <UserSettings />    {/* ← Works — inside UserProvider */}
+        </main>
+      </div>
+    </UserProvider>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+// HOW IT WORKS INTERNALLY (mental model):
+//
+// When React renders a component calling useContext(UserContext):
+// 1. React walks UP the component tree
+// 2. Finds the nearest <UserContext.Provider>
+// 3. Returns that Provider's current `value` prop
+// 4. Subscribes the component to future value changes
+// 5. When value changes → component re-renders automatically
+//
+// Tree visualization:
+//   <App>
+//     <UserProvider value={{user, setUser}}>   ← React finds THIS
+//       <Layout>
+//         <Sidebar>
+//           <UserHeader>
+//             useContext(UserContext) ← starts walking UP here
+//           </UserHeader>
+//         </Sidebar>
+//       </Layout>
+//     </UserProvider>
+//   </App>
+// ─────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────
+// COMMON MISTAKE: Calling useContext outside a Provider
+// ─────────────────────────────────────────────────────────────────
+function StandaloneComponent() {
+  // ❌ If this renders outside UserProvider, context = null
+  // useUser() throws our error: "useUser must be used within UserProvider"
+  const { user } = useUser();
+  return <div>{user.name}</div>;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// PERFORMANCE NOTE: Every context value change re-renders ALL consumers
+// Optimization: memoize the value object to prevent unnecessary renders
+// ─────────────────────────────────────────────────────────────────
+function OptimizedUserProvider({ children }) {
+  const [user, setUser] = useState({ name: 'Alice', role: 'admin' });
+
+  // useMemo ensures the value object reference only changes when user changes
+  // Without this, a new object is created every render → all consumers re-render
+  const value = useMemo(() => ({ user, setUser }), [user]);
+
+  return (
+    <UserContext.Provider value={value}>
+      {children}
+    </UserContext.Provider>
+  );
+}
+```
+
+---
+
+### useLayoutEffect — Synchronous DOM Measurements
+
+`useLayoutEffect` is identical to `useEffect` BUT fires **synchronously** after all DOM mutations, before the browser paints. Use it when you need to read the DOM and re-render before the user sees the intermediate state.
+
+```jsx
+import { useLayoutEffect, useEffect, useRef, useState } from 'react';
+
+// ─────────────────────────────────────────────────────────────────
+// useEffect vs useLayoutEffect TIMING:
+//
+// Render cycle:
+// 1. React updates the DOM
+// 2. useLayoutEffect fires ← synchronous, blocks paint
+// 3. Browser paints (user sees the UI)
+// 4. useEffect fires ← asynchronous, after paint
+//
+// Use useLayoutEffect when:
+//   - You need to measure DOM size/position BEFORE paint
+//   - You need to prevent visual flickering from DOM changes
+//   - Migrating class component componentDidMount/Update that reads DOM
+//
+// Use useEffect (default) for:
+//   - Data fetching
+//   - Event listeners
+//   - Subscriptions
+//   - Anything that doesn't need to block painting
+// ─────────────────────────────────────────────────────────────────
+
+// Example 1: Measuring element size before paint (no flicker)
+function Tooltip({ children, tooltipText }) {
+  const tooltipRef = useRef(null);
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+
+  // ✅ useLayoutEffect: measure BEFORE user sees anything
+  // If we used useEffect, the tooltip would flash in wrong position, then jump
+  useLayoutEffect(() => {
+    if (tooltipRef.current) {
+      const rect = tooltipRef.current.getBoundingClientRect();
+      // Calculate where tooltip should appear based on actual rendered size
+      setPosition({
+        top: rect.top - rect.height - 8,  // above the element
+        left: rect.left + rect.width / 2  // centered
+      });
+    }
+    // Runs synchronously after DOM update, before browser paints
+    // User never sees the wrong position
+  }, []); // runs after initial render
+
+  return (
+    <div>
+      {children}
+      <div
+        ref={tooltipRef}
+        style={{ position: 'absolute', top: position.top, left: position.left }}
+      >
+        {tooltipText}
+      </div>
+    </div>
+  );
+}
+
+// Example 2: Scroll to top synchronously (no flicker)
+function PageContent({ pageId }) {
+  // ❌ useEffect would cause a flash: user briefly sees old scroll position
+  // useEffect(() => { window.scrollTo(0, 0); }, [pageId]);
+
+  // ✅ useLayoutEffect fires before paint: user never sees the wrong scroll
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0); // Reset scroll position synchronously
+  }, [pageId]); // Runs every time pageId changes
+
+  return <div>Page {pageId} content...</div>;
+}
+
+// Example 3: Read and write DOM in same effect (animated transition)
+function AnimatedBox({ isExpanded }) {
+  const boxRef = useRef(null);
+
+  useLayoutEffect(() => {
+    const box = boxRef.current;
+    if (!box) return;
+
+    if (isExpanded) {
+      // Read current height
+      const currentHeight = box.scrollHeight;
+      // Set it before paint (prevents flash of wrong height)
+      box.style.height = `${currentHeight}px`;
+    } else {
+      box.style.height = '0px';
+    }
+    // All of this happens before the browser repaints → smooth animation
+  }, [isExpanded]);
+
+  return (
+    <div
+      ref={boxRef}
+      style={{ overflow: 'hidden', transition: 'height 0.3s ease' }}
+    >
+      <p>Expandable content here</p>
+    </div>
+  );
+}
+```
+
+---
+
+### React 18 Hooks — useTransition, useDeferredValue, useId
+
+React 18 introduced **Concurrent Mode hooks** that let you separate urgent updates from non-urgent (deferred) ones, preventing UI blocking.
+
+```jsx
+import {
+  useTransition,
+  useDeferredValue,
+  useId,
+  useState,
+  useMemo
+} from 'react';
+
+// ═══════════════════════════════════════════════════════════════
+// useTransition — Mark state updates as non-urgent
+//
+// Problem: User types in a search box. Filtering 10,000 items
+// is slow → typing feels laggy (input state update is blocked
+// by the slow filtering render).
+//
+// Solution: Tell React "the filter update is low priority"
+// → React updates the input FIRST (urgent), filter later (non-urgent)
+// ═══════════════════════════════════════════════════════════════
+function SearchWithTransition() {
+  const [query, setQuery] = useState('');          // Input state — urgent
+  const [results, setResults] = useState([]);      // Search results — non-urgent
+  const [isPending, startTransition] = useTransition();
+  //    ↑ isPending: true while the transition is running (show spinner)
+  //                          ↑ startTransition: wrap non-urgent updates
+
+  const handleSearch = (e) => {
+    const value = e.target.value;
+
+    // URGENT: update input immediately so typing feels instant
+    setQuery(value);
+
+    // NON-URGENT: heavy computation deferred — React can interrupt this
+    // if user types again before this finishes
+    startTransition(() => {
+      // This state update is "interruptible" — React may pause it
+      // to handle more urgent updates (like another keystroke)
+      const filtered = hugeDataset.filter(item =>
+        item.name.toLowerCase().includes(value.toLowerCase())
+      );
+      setResults(filtered);
+    });
+  };
+
+  return (
+    <div>
+      <input
+        value={query}
+        onChange={handleSearch}
+        placeholder="Search..."
+      />
+
+      {/* isPending: show loading indicator while transition is processing */}
+      {isPending ? (
+        <p style={{ opacity: 0.5 }}>Searching...</p>  // ← non-blocking spinner
+      ) : (
+        <ul>
+          {results.map(item => (
+            <li key={item.id}>{item.name}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// useDeferredValue — Defer re-rendering of a value
+//
+// Similar to useTransition but for VALUES (not update functions)
+// Use when you don't control the state update (e.g., it comes from props)
+//
+// How it works:
+// - Returns a "deferred" copy of the value
+// - On first render: deferred === current (no delay)
+// - On fast updates: deferred lags behind current (shows stale value
+//   while React works on expensive re-render with new value)
+// ═══════════════════════════════════════════════════════════════
+function SearchWithDeferredValue({ query }) {
+  // query: updates immediately (urgent — user typed it)
+  // deferredQuery: React can "delay" this for expensive renders
+  const deferredQuery = useDeferredValue(query);
+  //    ↑ This lags behind `query` during fast updates
+
+  // Only re-computes when deferredQuery changes (deferred, so batched)
+  // Without this, EVERY KEYSTROKE triggers an expensive filter
+  const filteredResults = useMemo(() =>
+    hugeDataset.filter(item =>
+      item.name.toLowerCase().includes(deferredQuery.toLowerCase())
+    ),
+    [deferredQuery]  // ← uses deferred value, not live query
+  );
+
+  // Visual indicator: if deferred hasn't caught up yet, fade the results
+  const isStale = deferredQuery !== query;
+
+  return (
+    <div style={{ opacity: isStale ? 0.5 : 1 }}>
+      {/* Results appear slightly faded while updating — better than blank screen */}
+      {filteredResults.map(item => (
+        <div key={item.id}>{item.name}</div>
+      ))}
+    </div>
+  );
+}
+
+// useTransition vs useDeferredValue — When to use which:
+//
+// useTransition: You control the state setter
+//   → startTransition(() => setState(newValue))
+//
+// useDeferredValue: You receive a value from props or context
+//   → const deferred = useDeferredValue(propValue)
+
+// ═══════════════════════════════════════════════════════════════
+// useId — Generate stable, unique IDs for accessibility
+//
+// Problem: HTML accessibility requires form inputs to be connected
+// to labels via matching id/htmlFor. Hard-coding IDs breaks with
+// SSR (server-rendered IDs don't match client) and multiple instances.
+//
+// Solution: useId generates a unique, stable ID per component instance
+// that works correctly with SSR.
+// ═══════════════════════════════════════════════════════════════
+function FormField({ label, type = 'text' }) {
+  // useId generates a unique ID like ":r1:" for each component instance
+  // Stable across SSR and client hydration
+  const id = useId();
+  //    ↑ guaranteed unique even if component renders multiple times
+
+  // You can derive multiple IDs from one base ID
+  const inputId = `${id}-input`;       // e.g. ":r1:-input"
+  const descriptionId = `${id}-desc`;  // e.g. ":r1:-desc"
+
+  return (
+    <div>
+      {/* htmlFor must match the input's id — useId makes this automatic */}
+      <label htmlFor={inputId}>{label}</label>
+
+      <input
+        id={inputId}                    // ← matches label's htmlFor
+        type={type}
+        aria-describedby={descriptionId} // ← accessibility: links to description
+      />
+
+      <p id={descriptionId}>
+        Enter your {label.toLowerCase()} above.
+      </p>
+    </div>
+  );
+}
+
+// Usage: Multiple instances on same page — each gets unique IDs automatically
+function SignupForm() {
+  return (
+    <form>
+      {/* Each FormField gets its own unique IDs — no collision! */}
+      <FormField label="Email" type="email" />
+      <FormField label="Password" type="password" />
+      <FormField label="Username" type="text" />
+    </form>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+// DON'T use useId for list keys — it's for accessibility attributes only
+// ❌ items.map(() => <li key={useId()}>...</li>)  WRONG — hooks in loops
+// ✅ items.map(item => <li key={item.id}>...</li>)
+// ─────────────────────────────────────────────────────────────────
+```
+
+---
+
+### Rules of Hooks — Why They Exist
+
+```jsx
+// ─────────────────────────────────────────────────────────────────
+// RULE 1: Only call Hooks at the TOP LEVEL
+// Never inside loops, conditions, or nested functions
+// ─────────────────────────────────────────────────────────────────
+
+// ❌ WRONG — conditional hook call breaks the order
+function BadComponent({ userId }) {
+  if (userId) {
+    const [user, setUser] = useState(null); // ← conditional useState
+  }
+  // React tracks hooks by ORDER of calls per render.
+  // If this condition changes, hook order breaks → React crashes.
+}
+
+// ✅ CORRECT — always call the hook, condition goes inside
+function GoodComponent({ userId }) {
+  const [user, setUser] = useState(null); // ← always called
+
+  useEffect(() => {
+    if (userId) { // ← condition inside the hook
+      fetchUser(userId).then(setUser);
+    }
+  }, [userId]);
+
+  return user ? <div>{user.name}</div> : null;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// RULE 2: Only call Hooks from React functions
+// Not from regular JavaScript functions, class components, or event handlers
+// ─────────────────────────────────────────────────────────────────
+
+// ❌ WRONG — hook in a regular function
+function regularFunction() {
+  const [count, setCount] = useState(0); // ← Not a React function!
+}
+
+// ✅ CORRECT — hook in a React component function
+function Counter() {
+  const [count, setCount] = useState(0); // ← Valid: component function
+  return <button onClick={() => setCount(c => c + 1)}>{count}</button>;
+}
+
+// ✅ CORRECT — hook in a custom hook (starts with 'use')
+function useCounter(initial = 0) {
+  const [count, setCount] = useState(initial); // ← Valid: custom hook
+  return { count, increment: () => setCount(c => c + 1) };
+}
+
+// WHY THESE RULES?
+// React identifies hook calls by their ORDER in each render.
+// It doesn't use names or identifiers — just "1st hook, 2nd hook, 3rd hook..."
+// If order changes (due to conditions/loops), React can't match calls
+// to their stored state → bug or crash.
+```
+
+---
+
 ## 6. Component Lifecycle
 
 ### Lifecycle with Hooks
@@ -2919,6 +3412,298 @@ const UserProfile = React.memo(function UserProfile() {
   const { user } = useContext(UserContext);
   return <div>{user.name}</div>;
 });
+```
+
+---
+
+### How Context API Works — The Mental Model
+
+Understanding the internals helps you avoid bugs and performance pitfalls.
+
+```jsx
+// ─────────────────────────────────────────────────────────────────
+// THE PROBLEM CONTEXT SOLVES: Prop Drilling
+//
+// Without Context — you must pass data through EVERY level even if
+// middle components don't need it:
+//
+// App (has user data)
+//  └── Layout (passes user down, doesn't use it)
+//       └── Sidebar (passes user down, doesn't use it)
+//            └── UserMenu (passes user down, doesn't use it)
+//                 └── UserAvatar ← ACTUALLY NEEDS user
+//
+// Each layer must accept and pass `user` as a prop = prop drilling
+// ─────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────
+// WITH CONTEXT: UserAvatar reads directly from the provider
+//
+// App → <UserProvider value={user}>  (stores user in Context)
+//  └── Layout (no user prop needed)
+//       └── Sidebar (no user prop needed)
+//            └── UserMenu (no user prop needed)
+//                 └── UserAvatar → useContext(UserContext) ← gets user directly
+// ─────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────
+// COMPLETE WORKING EXAMPLE: Shopping Cart Context
+// Shows all patterns together with detailed inline comments
+// ─────────────────────────────────────────────────────────────────
+
+// 1. Define types for what the context will hold
+// (Using JSDoc for plain JS — use TypeScript interfaces in TS projects)
+
+/**
+ * @typedef {Object} CartItem
+ * @property {string} id
+ * @property {string} name
+ * @property {number} price
+ * @property {number} quantity
+ */
+
+/**
+ * @typedef {Object} CartContextValue
+ * @property {CartItem[]} items - Items in the cart
+ * @property {number} totalPrice - Computed total
+ * @property {Function} addItem - Add or increment item
+ * @property {Function} removeItem - Remove item completely
+ * @property {Function} updateQuantity - Change item quantity
+ * @property {Function} clearCart - Empty the cart
+ */
+
+// 2. Create the Context
+// Pass null as default — we'll validate usage in the custom hook
+const CartContext = createContext(null);
+
+// 3. The Reducer — centralize all cart state logic
+// Separate from the Provider so it's testable independently
+function cartReducer(state, action) {
+  switch (action.type) {
+    case 'ADD_ITEM': {
+      const existing = state.items.find(item => item.id === action.payload.id);
+
+      if (existing) {
+        // Item exists → increment quantity (immutable update with map)
+        return {
+          ...state,
+          items: state.items.map(item =>
+            item.id === action.payload.id
+              ? { ...item, quantity: item.quantity + 1 }  // new object!
+              : item
+          )
+        };
+      }
+
+      // New item → add to array (spread creates new array)
+      return {
+        ...state,
+        items: [...state.items, { ...action.payload, quantity: 1 }]
+      };
+    }
+
+    case 'REMOVE_ITEM':
+      // Filter creates a new array without the removed item
+      return {
+        ...state,
+        items: state.items.filter(item => item.id !== action.payload)
+      };
+
+    case 'UPDATE_QUANTITY':
+      if (action.payload.quantity <= 0) {
+        // Quantity 0 or less → remove item
+        return {
+          ...state,
+          items: state.items.filter(item => item.id !== action.payload.id)
+        };
+      }
+      return {
+        ...state,
+        items: state.items.map(item =>
+          item.id === action.payload.id
+            ? { ...item, quantity: action.payload.quantity }
+            : item
+        )
+      };
+
+    case 'CLEAR_CART':
+      return { ...state, items: [] };
+
+    default:
+      return state; // unknown action → return current state unchanged
+  }
+}
+
+// 4. The Provider Component — owns the state and exposes actions
+function CartProvider({ children }) {
+  const [state, dispatch] = useReducer(cartReducer, { items: [] });
+
+  // Derived state: compute total price from items
+  // useMemo prevents recomputing on every render — only when items change
+  const totalPrice = useMemo(
+    () => state.items.reduce((sum, item) => sum + item.price * item.quantity, 0),
+    [state.items]  // ← only recompute when items array changes
+  );
+
+  // Action creators: useCallback ensures stable function references
+  // Without useCallback, these functions are recreated each render
+  // → context value changes → ALL consumers re-render (performance issue)
+  const addItem = useCallback((item) => {
+    dispatch({ type: 'ADD_ITEM', payload: item });
+  }, []); // no dependencies — dispatch is stable from useReducer
+
+  const removeItem = useCallback((itemId) => {
+    dispatch({ type: 'REMOVE_ITEM', payload: itemId });
+  }, []);
+
+  const updateQuantity = useCallback((itemId, quantity) => {
+    dispatch({ type: 'UPDATE_QUANTITY', payload: { id: itemId, quantity } });
+  }, []);
+
+  const clearCart = useCallback(() => {
+    dispatch({ type: 'CLEAR_CART' });
+  }, []);
+
+  // Build the context value — memoized to prevent unnecessary re-renders
+  // Only changes when items or totalPrice actually change
+  const contextValue = useMemo(() => ({
+    items: state.items,
+    totalPrice,
+    addItem,
+    removeItem,
+    updateQuantity,
+    clearCart
+  }), [state.items, totalPrice, addItem, removeItem, updateQuantity, clearCart]);
+
+  return (
+    // Provide the memoized value to all children
+    <CartContext.Provider value={contextValue}>
+      {children}
+    </CartContext.Provider>
+  );
+}
+
+// 5. Custom Hook — the public API for consumers
+// Always create a custom hook instead of exposing useContext directly
+function useCart() {
+  const context = useContext(CartContext);
+
+  // This guard catches: components used outside CartProvider
+  // React's error message without this would be: "Cannot read property
+  // 'items' of null" — confusing! Our error message is clear.
+  if (context === null) {
+    throw new Error('useCart must be used within a <CartProvider>');
+  }
+
+  return context;
+}
+
+// 6. Consumer Components — use the hook, don't pass props down
+
+// Product page — adds to cart
+function ProductCard({ product }) {
+  const { addItem } = useCart(); // ← reads only what it needs from context
+
+  return (
+    <div className="product-card">
+      <h3>{product.name}</h3>
+      <p>${product.price}</p>
+      {/* When user clicks, dispatches ADD_ITEM action via context */}
+      <button onClick={() => addItem(product)}>Add to Cart</button>
+    </div>
+  );
+}
+
+// Cart icon in header — shows count
+function CartIcon() {
+  const { items } = useCart();
+
+  // Derived from context state — no props needed from parent
+  const itemCount = items.reduce((total, item) => total + item.quantity, 0);
+
+  return (
+    <div className="cart-icon">
+      🛒 {itemCount > 0 && <span className="badge">{itemCount}</span>}
+    </div>
+  );
+}
+
+// Cart drawer — shows all items
+function CartDrawer() {
+  const { items, totalPrice, removeItem, updateQuantity, clearCart } = useCart();
+
+  if (items.length === 0) {
+    return <div className="cart-empty">Your cart is empty</div>;
+  }
+
+  return (
+    <div className="cart-drawer">
+      {items.map(item => (
+        <div key={item.id} className="cart-item">
+          <span>{item.name}</span>
+
+          {/* Update quantity — dispatches UPDATE_QUANTITY via context */}
+          <input
+            type="number"
+            value={item.quantity}
+            onChange={(e) => updateQuantity(item.id, parseInt(e.target.value))}
+            min="0"
+          />
+
+          <span>${(item.price * item.quantity).toFixed(2)}</span>
+
+          {/* Remove — dispatches REMOVE_ITEM via context */}
+          <button onClick={() => removeItem(item.id)}>Remove</button>
+        </div>
+      ))}
+
+      {/* Total price — computed via useMemo in Provider */}
+      <div className="cart-total">Total: ${totalPrice.toFixed(2)}</div>
+
+      <button onClick={clearCart}>Clear Cart</button>
+    </div>
+  );
+}
+
+// 7. Wire everything together at the app root
+function App() {
+  return (
+    // CartProvider wraps entire app — both ProductCard and CartIcon
+    // can communicate through context without direct connection
+    <CartProvider>
+      <header>
+        <CartIcon />       {/* reads items count from context */}
+      </header>
+
+      <main>
+        <ProductGrid />    {/* contains ProductCards that addItem to context */}
+      </main>
+
+      <aside>
+        <CartDrawer />     {/* reads full cart from context */}
+      </aside>
+    </CartProvider>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+// WHEN TO USE CONTEXT vs OTHER STATE SOLUTIONS:
+//
+// USE CONTEXT when:
+//   ✅ Data is needed by many components at different nesting levels
+//   ✅ Data changes infrequently (theme, user auth, locale)
+//   ✅ You want to avoid prop drilling through 3+ levels
+//
+// CONSIDER REDUX/ZUSTAND when:
+//   ⚠️  Very frequent updates affecting many components
+//   ⚠️  Complex state with many actions
+//   ⚠️  Need time-travel debugging or middleware
+//   ⚠️  Team already uses Redux
+//
+// KEEP AS LOCAL STATE when:
+//   ✅ State belongs to one component or its direct children
+//   ✅ No other component outside this subtree cares about it
+// ─────────────────────────────────────────────────────────────────
 ```
 
 ---
