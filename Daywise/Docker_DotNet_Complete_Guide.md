@@ -936,11 +936,55 @@ Think of it as a RECIPE FILE that says:
 │  and can call each other by SERVICE NAME        │
 └─────────────────────────────────────────────────┘
 
+── Service definition sections ──────────────────────
+
+  gateway:                      ← service name (DNS hostname on the network)
+    build:
+      context: ./src/Gateway    ← where to find source files (build root)
+      dockerfile: Dockerfile    ← which Dockerfile to use
+    ports:
+      - "5000:80"               ← HOST:CONTAINER  (expose port 80 inside as 5000 outside)
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development   ← env vars injected at runtime
+    depends_on:
+      - auth-api                ← don't start gateway until these services are up
+      - product-api
+      - order-api
+    networks:
+      - frontend                ← joins BOTH networks = acts as bridge/router
+      - backend                   frontend = public-facing, backend = internal only
+
+  Rule of thumb:
+    build      → how to create the image
+    ports      → what host machine can reach  (omit for internal-only services)
+    environment→ runtime config (use .env file or secrets for sensitive values)
+    depends_on → startup ORDER (does NOT wait for health — use healthcheck for that)
+    networks   → which private LANs to join (service on 2 networks = gateway role)
+    volumes    → mount host path or named volume into container path
+
+── Network isolation pattern ────────────────────────
+
+  [Browser / External]
+        │
+     5000:80
+        │
+   ┌────▼──────────────────────────────────┐
+   │  gateway  (frontend + backend)        │  ← only service with ports exposed
+   └────┬──────────────────────────────────┘
+        │  backend network (no external access)
+   ┌────┼────────────────┐
+   ▼    ▼                ▼
+ auth  product         order
+  api    api             api
+        │
+       db / redis / rabbitmq   ← deepest tier, backend only, NO ports exposed
+
 Key mental shortcuts:
   • services   = containers to run
   • networks   = private LAN between containers
   • volumes    = persistent disks (survive restarts)
-  • depends_on = startup ordering
+  • depends_on = startup ordering (not health readiness)
+  • ports      = only expose what external callers need
   • .env file  = inject secrets without hardcoding
 
 When to use:
