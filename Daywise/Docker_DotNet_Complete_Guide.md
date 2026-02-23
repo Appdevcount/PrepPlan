@@ -913,6 +913,44 @@ ENTRYPOINT [\"dotnet\", \"MyApi.dll\"]
 
 ## Docker Compose
 
+### Mental Model
+
+```
+Docker Compose = "Local orchestra conductor"
+
+Think of it as a RECIPE FILE that says:
+  "Start these containers, in this order,
+   connected on this private network,
+   with these volumes and env vars."
+
+┌─────────────────────────────────────────────────┐
+│              docker-compose.yml                 │
+│                                                 │
+│  services:                                      │
+│    api      ──► your .NET app container         │
+│    db       ──► SQL Server / Postgres           │
+│    cache    ──► Redis                           │
+│    queue    ──► RabbitMQ                        │
+│                                                 │
+│  All services share one private network         │
+│  and can call each other by SERVICE NAME        │
+└─────────────────────────────────────────────────┘
+
+Key mental shortcuts:
+  • services   = containers to run
+  • networks   = private LAN between containers
+  • volumes    = persistent disks (survive restarts)
+  • depends_on = startup ordering
+  • .env file  = inject secrets without hardcoding
+
+When to use:
+  ✅ Local dev / integration testing
+  ✅ Spinning up the full stack with one command
+  ❌ Production at scale (use Kubernetes instead)
+```
+
+---
+
 ### Basic Docker Compose for .NET API
 
 ```yaml
@@ -1198,6 +1236,50 @@ services:
 
 ## Container Orchestration
 
+### Mental Model
+
+```
+Kubernetes = "Production orchestra conductor (self-healing)"
+
+Think of it as a DESIRED STATE ENGINE:
+  You say WHAT you want → K8s figures out HOW to make it happen
+  and KEEPS it that way even if containers crash.
+
+┌──────────────────────────────────────────────────────┐
+│                    Kubernetes Cluster                │
+│                                                      │
+│  ┌─────────────┐   ┌─────────────┐   ┌────────────┐ │
+│  │    Node 1   │   │    Node 2   │   │   Node 3   │ │
+│  │  [Pod][Pod] │   │  [Pod][Pod] │   │  [Pod]     │ │
+│  └─────────────┘   └─────────────┘   └────────────┘ │
+│                                                      │
+│  Control Plane watches: "I want 3 replicas of api"   │
+│  → crashes one Pod → spins up a new one instantly    │
+└──────────────────────────────────────────────────────┘
+
+Core object cheat sheet:
+  Pod         = smallest unit; one or more containers
+  Deployment  = "keep N replicas running, roll updates safely"
+  Service     = stable DNS name + load balancer for Pods
+  Ingress     = external HTTP router → routes /api → Service
+  ConfigMap   = non-secret env vars / config files
+  Secret      = base64-encoded sensitive values
+  HPA         = auto-scale Pods based on CPU/memory
+
+Analogy stack:
+  docker run       →  Pod
+  docker-compose   →  Deployment + Service
+  nginx proxy      →  Ingress
+  .env file        →  ConfigMap / Secret
+
+When to use:
+  ✅ Production workloads needing HA, auto-scaling, rolling deploys
+  ✅ Microservices with independent scaling needs
+  ❌ Simple local dev (use Docker Compose instead)
+```
+
+---
+
 ### Kubernetes Basics for .NET
 
 #### 1. **Deployment Configuration**
@@ -1475,6 +1557,118 @@ kubectl rollout status deployment/myapi-deployment -n production
 
 # View rollout history
 kubectl rollout history deployment/myapi-deployment -n production
+```
+
+---
+
+## Helm
+
+### Mental Model
+
+```
+Helm = "Package manager for Kubernetes"
+       (think: apt/npm/nuget, but for K8s YAML)
+
+Problem Helm solves:
+  K8s needs many YAML files (Deployment, Service, Ingress,
+  ConfigMap, Secret...). Copying and tweaking them for each
+  environment (dev/staging/prod) is error-prone.
+
+Helm wraps all those YAMLs into a versioned, parameterised PACKAGE called a CHART.
+
+┌──────────────────────────────────────────────────────────┐
+│                      Helm Chart                          │
+│                                                          │
+│  mychart/                                                │
+│    Chart.yaml        ← chart name, version, description  │
+│    values.yaml       ← DEFAULT config values             │
+│    templates/        ← K8s YAML with {{ .Values.xxx }}   │
+│      deployment.yaml                                     │
+│      service.yaml                                        │
+│      ingress.yaml                                        │
+│      configmap.yaml                                      │
+└──────────────────────────────────────────────────────────┘
+
+How it works:
+  1. You write templates once with {{ placeholders }}
+  2. values.yaml holds defaults
+  3. Override per-environment:
+       helm install myapi ./mychart -f values.prod.yaml
+
+Key concepts:
+  Chart    = the package (template + default values)
+  Release  = a deployed instance of a chart ("myapi-prod")
+  Values   = the config injected at deploy time
+  Repo     = registry of charts (like npm registry)
+
+Common commands cheat sheet:
+  helm install   <release> <chart>          # first deploy
+  helm upgrade   <release> <chart>          # update / redeploy
+  helm rollback  <release> <revision>       # undo a bad deploy
+  helm uninstall <release>                  # tear down
+  helm list                                 # see all releases
+  helm template  <chart> -f values.yaml     # preview rendered YAML
+
+Analogy:
+  values.yaml      →  appsettings.json  (defaults)
+  -f values.prod   →  appsettings.Production.json (overrides)
+  helm install     →  dotnet publish + deploy
+  helm rollback    →  git revert + redeploy
+
+When to use:
+  ✅ Deploying the same app to multiple environments
+  ✅ Distributing reusable infrastructure components
+  ✅ Versioning K8s deployments with rollback capability
+  ❌ Simple one-off deployments (plain kubectl apply is fine)
+```
+
+### Minimal Chart Structure Example
+
+```yaml
+# values.yaml — defaults, override per environment
+replicaCount: 2
+image:
+  repository: myacr.azurecr.io/myapi
+  tag: "latest"
+service:
+  port: 80
+ingress:
+  host: api.myapp.com
+resources:
+  limits:
+    cpu: 500m
+    memory: 256Mi
+```
+
+```yaml
+# templates/deployment.yaml — parameterised template
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-api
+spec:
+  replicas: {{ .Values.replicaCount }}
+  template:
+    spec:
+      containers:
+        - name: api
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          resources:
+            limits:
+              cpu: {{ .Values.resources.limits.cpu }}
+              memory: {{ .Values.resources.limits.memory }}
+```
+
+```bash
+# Deploy to staging with override
+helm upgrade --install myapi-staging ./mychart \
+  -f values.staging.yaml \
+  --set image.tag=build-123
+
+# Deploy to prod
+helm upgrade --install myapi-prod ./mychart \
+  -f values.prod.yaml \
+  --set image.tag=build-123
 ```
 
 ---
