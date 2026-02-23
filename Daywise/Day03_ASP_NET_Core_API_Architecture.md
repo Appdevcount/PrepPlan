@@ -1010,6 +1010,328 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 
 ---
 
+## 12. Dependency Injection Lifetimes
+
+### Quick Reference
+
+| Lifetime | Created | Destroyed | Use When |
+|----------|---------|-----------|----------|
+| **Singleton** | Once per app start | App shutdown | Shared state, expensive init, thread-safe stateless |
+| **Scoped** | Once per HTTP request | Request ends | DB context, unit of work, per-request data |
+| **Transient** | Every time resolved | Goes out of scope | Lightweight, stateless, no shared state |
+
+---
+
+### Singleton — One instance for the entire application lifetime
+
+**Use when:** The service is thread-safe, expensive to create, or intentionally holds shared state.
+
+```csharp
+// ✅ GOOD Singleton Scenarios
+
+// 1. Configuration / settings wrapper (read-only, thread-safe)
+public class AppSettings
+{
+    public string ExternalApiUrl { get; init; }
+    public int MaxRetries { get; init; }
+}
+builder.Services.AddSingleton(builder.Configuration.GetSection("App").Get<AppSettings>());
+
+// 2. In-memory cache (intentionally shared across requests)
+public class ProductCache
+{
+    private readonly ConcurrentDictionary<int, Product> _cache = new();
+
+    public Product? Get(int id) => _cache.TryGetValue(id, out var p) ? p : null;
+    public void Set(int id, Product product) => _cache[id] = product;
+}
+builder.Services.AddSingleton<ProductCache>();
+
+// 3. HttpClient factory wrapper (manages connection pooling internally)
+builder.Services.AddHttpClient<IPaymentGatewayClient, PaymentGatewayClient>(client =>
+{
+    client.BaseAddress = new Uri("https://payment-gateway.com");
+});
+// HttpClientFactory itself is Singleton
+
+// 4. Feature flags / toggles (read-once at startup, cached)
+public class FeatureFlags
+{
+    public bool IsNewCheckoutEnabled { get; init; }
+    public bool IsRecommendationsEnabled { get; init; }
+}
+builder.Services.AddSingleton<FeatureFlags>();
+
+// 5. Background job scheduler (single coordinator across app)
+builder.Services.AddSingleton<IJobScheduler, HangfireJobScheduler>();
+
+// 6. Metrics / counters (thread-safe, app-wide aggregation)
+public class RequestMetrics
+{
+    private long _totalRequests;
+    public void Increment() => Interlocked.Increment(ref _totalRequests);
+    public long Total => Interlocked.Read(ref _totalRequests);
+}
+builder.Services.AddSingleton<RequestMetrics>();
+```
+
+**Singleton Anti-Pattern — Captive Dependency:**
+```csharp
+// ❌ WRONG: Singleton consuming a Scoped service
+// Scoped service gets "captured" and reused across requests — causes stale data / bugs
+public class OrderCache
+{
+    private readonly AppDbContext _dbContext; // Scoped! Will never refresh
+
+    public OrderCache(AppDbContext dbContext) // This throws at runtime or causes bugs
+    {
+        _dbContext = dbContext;
+    }
+}
+builder.Services.AddSingleton<OrderCache>(); // BAD
+
+// ✅ FIX: Inject IServiceProvider and create a scope explicitly
+public class OrderCache
+{
+    private readonly IServiceScopeFactory _scopeFactory;
+
+    public OrderCache(IServiceScopeFactory scopeFactory)
+    {
+        _scopeFactory = scopeFactory;
+    }
+
+    public async Task<Order?> GetOrderAsync(int id)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await db.Orders.FindAsync(id);
+    }
+}
+builder.Services.AddSingleton<OrderCache>(); // Now safe
+```
+
+---
+
+### Scoped — One instance per HTTP request (most common for data access)
+
+**Use when:** The service must be consistent within a single request but fresh for each new request.
+
+```csharp
+// ✅ GOOD Scoped Scenarios
+
+// 1. EF Core DbContext — ALWAYS scoped (tracks entities per request)
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlServer(connectionString));
+// AddDbContext registers as Scoped by default
+
+// 2. Unit of Work — wraps a transaction spanning a full request
+public interface IUnitOfWork
+{
+    Task<int> CommitAsync();
+}
+public class UnitOfWork : IUnitOfWork
+{
+    private readonly AppDbContext _context;
+    public UnitOfWork(AppDbContext context) => _context = context;
+    public Task<int> CommitAsync() => _context.SaveChangesAsync();
+}
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+// 3. Repository — shares the same DbContext as handler within a request
+public class OrderRepository : IOrderRepository
+{
+    private readonly AppDbContext _context;
+    public OrderRepository(AppDbContext context) => _context = context;
+    public Task<Order?> GetByIdAsync(int id) => _context.Orders.FindAsync(id).AsTask();
+}
+builder.Services.AddScoped<IOrderRepository, OrderRepository>();
+
+// 4. Current user context — populated once per request from JWT/session
+public class CurrentUserContext
+{
+    public int UserId { get; set; }
+    public string Email { get; set; } = string.Empty;
+    public IReadOnlyList<string> Roles { get; set; } = [];
+}
+builder.Services.AddScoped<CurrentUserContext>();
+
+// Middleware populates it once per request
+public class UserContextMiddleware
+{
+    private readonly RequestDelegate _next;
+
+    public UserContextMiddleware(RequestDelegate next) => _next = next;
+
+    public async Task InvokeAsync(HttpContext context, CurrentUserContext userContext)
+    {
+        if (context.User.Identity?.IsAuthenticated == true)
+        {
+            userContext.UserId = int.Parse(context.User.FindFirst("sub")!.Value);
+            userContext.Email = context.User.FindFirst("email")!.Value;
+        }
+        await _next(context);
+    }
+}
+
+// 5. Application service that coordinates multiple repos (same DB transaction)
+public class OrderApplicationService : IOrderApplicationService
+{
+    private readonly IOrderRepository _orderRepo;
+    private readonly IProductRepository _productRepo;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public OrderApplicationService(
+        IOrderRepository orderRepo,
+        IProductRepository productRepo,
+        IUnitOfWork unitOfWork)
+    {
+        _orderRepo = orderRepo;
+        _productRepo = productRepo;
+        _unitOfWork = unitOfWork;
+    }
+}
+builder.Services.AddScoped<IOrderApplicationService, OrderApplicationService>();
+```
+
+---
+
+### Transient — New instance every time it is resolved
+
+**Use when:** The service is lightweight, stateless, and safe to create frequently.
+
+```csharp
+// ✅ GOOD Transient Scenarios
+
+// 1. Validators — stateless, no shared data needed
+public class CreateOrderValidator : AbstractValidator<CreateOrderDto>
+{
+    public CreateOrderValidator()
+    {
+        RuleFor(x => x.CustomerId).GreaterThan(0);
+        RuleFor(x => x.Items).NotEmpty();
+    }
+}
+builder.Services.AddTransient<IValidator<CreateOrderDto>, CreateOrderValidator>();
+
+// 2. Mapping profiles / object mappers (stateless transformation)
+public class OrderMapper : IOrderMapper
+{
+    public OrderDto ToDto(Order order) => new()
+    {
+        Id = order.Id,
+        Total = order.Total,
+        Status = order.Status.ToString()
+    };
+}
+builder.Services.AddTransient<IOrderMapper, OrderMapper>();
+
+// 3. Command/Query handlers in CQRS (each request gets a fresh handler)
+public class GetOrderHandler : IRequestHandler<GetOrderQuery, OrderDto>
+{
+    private readonly IOrderRepository _repo;
+    private readonly IOrderMapper _mapper;
+
+    public GetOrderHandler(IOrderRepository repo, IOrderMapper mapper)
+    {
+        _repo = repo;
+        _mapper = mapper;
+    }
+
+    public async Task<OrderDto> Handle(GetOrderQuery query, CancellationToken ct)
+    {
+        var order = await _repo.GetByIdAsync(query.OrderId);
+        return _mapper.ToDto(order!);
+    }
+}
+builder.Services.AddTransient<IRequestHandler<GetOrderQuery, OrderDto>, GetOrderHandler>();
+
+// 4. Email / notification builder (builds per-message content, no state retained)
+public class EmailMessageBuilder : IEmailMessageBuilder
+{
+    private string _to = string.Empty;
+    private string _subject = string.Empty;
+
+    public IEmailMessageBuilder To(string email) { _to = email; return this; }
+    public IEmailMessageBuilder Subject(string subject) { _subject = subject; return this; }
+    public EmailMessage Build() => new(_to, _subject);
+}
+builder.Services.AddTransient<IEmailMessageBuilder, EmailMessageBuilder>();
+
+// 5. Retry policies / decorators that wrap another service (no state between calls)
+public class RetryingOrderRepository : IOrderRepository
+{
+    private readonly IOrderRepository _inner;
+    private readonly ILogger<RetryingOrderRepository> _logger;
+
+    public RetryingOrderRepository(IOrderRepository inner, ILogger<RetryingOrderRepository> logger)
+    {
+        _inner = inner;
+        _logger = logger;
+    }
+
+    public async Task<Order?> GetByIdAsync(int id)
+    {
+        for (int attempt = 1; attempt <= 3; attempt++)
+        {
+            try { return await _inner.GetByIdAsync(id); }
+            catch when (attempt < 3)
+            {
+                _logger.LogWarning("Retry attempt {Attempt} for order {Id}", attempt, id);
+                await Task.Delay(TimeSpan.FromMilliseconds(100 * attempt));
+            }
+        }
+        return null;
+    }
+}
+builder.Services.AddTransient<IOrderRepository, RetryingOrderRepository>();
+```
+
+---
+
+### Decision Flowchart
+
+```
+Is the service shared app-wide AND thread-safe?
+    YES → Singleton
+    NO  ↓
+Is it tied to a single DB transaction / HTTP request?
+    YES → Scoped
+    NO  ↓
+Is it lightweight and stateless?
+    YES → Transient
+```
+
+### Common Real-World Registration Block
+
+```csharp
+// Program.cs / Startup.cs — typical registration pattern
+var builder = WebApplication.CreateBuilder(args);
+
+// Infrastructure - Singleton (app-wide, thread-safe)
+builder.Services.AddSingleton<AppSettings>(
+    builder.Configuration.GetSection("App").Get<AppSettings>()!);
+builder.Services.AddSingleton<IMemoryCache, MemoryCache>();
+builder.Services.AddSingleton<RequestMetrics>();
+
+// Data Access - Scoped (per-request DB transaction)
+builder.Services.AddDbContext<AppDbContext>(opts =>
+    opts.UseSqlServer(builder.Configuration.GetConnectionString("Default")));
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+builder.Services.AddScoped<IOrderRepository, OrderRepository>();
+builder.Services.AddScoped<IProductRepository, ProductRepository>();
+
+// Application Services - Scoped (coordinate repos within same request)
+builder.Services.AddScoped<IOrderApplicationService, OrderApplicationService>();
+builder.Services.AddScoped<CurrentUserContext>();
+
+// Utilities - Transient (stateless, cheap to create)
+builder.Services.AddTransient<IOrderMapper, OrderMapper>();
+builder.Services.AddTransient<IValidator<CreateOrderDto>, CreateOrderValidator>();
+builder.Services.AddTransient<IEmailMessageBuilder, EmailMessageBuilder>();
+```
+
+---
+
 ## Interview Questions
 
 ### Q: Explain the complete request flow in ASP.NET Core
