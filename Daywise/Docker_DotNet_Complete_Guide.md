@@ -1322,6 +1322,71 @@ When to use:
   ❌ Simple local dev (use Docker Compose instead)
 ```
 
+### K8s YAML File Anatomy — Mental Model
+
+```
+Every K8s YAML file = IDENTITY + DESIRED STATE
+
+┌─────────────────────────────────────────────────────────────┐
+│  apiVersion: apps/v1       WHO handles this?                │
+│  kind: Deployment          WHAT object am I?                │
+│  metadata:                 IDENTITY (name, labels, ns)      │
+│    name: myapi             → unique name in namespace       │
+│    namespace: production   → logical folder/isolation       │
+│    labels:                 → sticky tags for filtering      │
+│      app: myapi            → ← THIS is the glue             │
+│  spec:                     DESIRED STATE (what I want)      │
+│    ...                                                      │
+└─────────────────────────────────────────────────────────────┘
+
+── How each object uses its sections ────────────────────────
+
+  Deployment spec:
+    replicas      → how many Pods to keep alive
+    selector      → which Pods do I own?  (must match template labels)
+    strategy      → how to roll out changes (RollingUpdate / Recreate)
+    template      → blueprint for each Pod
+      └─ spec.containers
+           image         → what to run
+           env/envFrom   → config from ConfigMap or Secret
+           resources     → requests (scheduling) vs limits (hard cap)
+           livenessProbe → restart if dead
+           readinessProbe→ pull from LB if not ready
+
+  Service spec:
+    type       → ClusterIP (internal) | LoadBalancer (external)
+    selector   → which Pods to route to  (matches Deployment labels)
+    ports      → port (Service listens) → targetPort (Pod port)
+
+  Ingress spec:
+    rules      → host + path → which Service to forward to
+    tls        → cert Secret reference for HTTPS
+
+  ConfigMap / Secret data:
+    key: value → injected as env vars or mounted as files in Pods
+
+  HPA spec:
+    scaleTargetRef → points to the Deployment by name
+    minReplicas / maxReplicas → scale boundaries
+    metrics        → CPU % threshold that triggers scaling
+
+── Label = the glue between all objects ─────────────────────
+
+  Deployment  selector.matchLabels: app=myapi  ──┐
+  Pod         template.labels:      app=myapi  ──┤ must ALL match
+  Service     spec.selector:        app=myapi  ──┘
+
+  If any label is wrong → Service routes to 0 Pods → 503
+
+── apiVersion quick reference ───────────────────────────────
+
+  Deployment, ReplicaSet          → apps/v1
+  Service, ConfigMap, Secret, Pod → v1
+  Ingress                         → networking.k8s.io/v1
+  HPA                             → autoscaling/v2
+  CronJob                         → batch/v1
+```
+
 ### YAML File Sections — What Each Block Means
 
 Every Kubernetes YAML file shares the same 4 top-level fields:
@@ -1874,6 +1939,82 @@ When to use:
   ✅ Distributing reusable infrastructure components
   ✅ Versioning K8s deployments with rollback capability
   ❌ Simple one-off deployments (plain kubectl apply is fine)
+```
+
+### Helm File Anatomy — Mental Model
+
+```
+A Helm chart = a FOLDER that produces K8s YAML on demand.
+
+myapi-chart/
+│
+├── Chart.yaml          WHO am I?  (chart identity & version)
+├── values.yaml         WHAT are the defaults?  (your knobs)
+├── values.prod.yaml    WHAT changes in prod?   (overrides only)
+│
+└── templates/          HOW do I look?  (K8s YAML with {{ }} holes)
+    ├── _helpers.tpl    shared named blocks (NOT rendered as K8s objects)
+    ├── deployment.yaml
+    ├── service.yaml
+    ├── ingress.yaml    wrapped in {{- if .Values.ingress.enabled }}
+    ├── configmap.yaml
+    ├── secret.yaml
+    └── hpa.yaml        wrapped in {{- if .Values.autoscaling.enabled }}
+
+── File responsibilities ────────────────────────────────────
+
+  Chart.yaml      name / version / appVersion / description
+                  version   → chart version (bump when template changes)
+                  appVersion→ app version   (informational only)
+
+  values.yaml     ALL configurable knobs with safe defaults
+                  Organised by concern:
+                    image:       repository + tag + pullPolicy
+                    service:     type + port
+                    ingress:     enabled + host + tls
+                    env:         non-secret env vars (→ ConfigMap)
+                    secrets:     sensitive values (always empty here!)
+                    resources:   requests + limits
+                    probes:      liveness + readiness paths
+                    autoscaling: enabled + min/max + CPU target
+
+  values.prod.yaml  ONLY what differs from defaults
+                    Never a full copy — just the overrides
+
+  _helpers.tpl    Named template functions, e.g.:
+                    "myapi-chart.fullname"      → release + chart name
+                    "myapi-chart.labels"        → standard K8s labels block
+                    "myapi-chart.selectorLabels"→ subset used by selector
+                  Called with: {{ include "myapi-chart.fullname" . }}
+
+── Template syntax at a glance ─────────────────────────────
+
+  {{ .Values.x }}           → read from values.yaml
+  {{ .Release.Name }}       → name given at helm install
+  {{ .Release.Namespace }}  → -n flag value
+  {{ .Chart.Name }}         → Chart.yaml → name
+  {{- include "tpl" . | nindent 4 }}  → call helper, indent 4sp
+  | b64enc                  → base64 encode  (Secrets)
+  | quote                   → wrap in quotes
+  | default "x"             → fallback if empty
+  {{- if .Values.x }} ... {{- end }}   → conditional block
+  {{- range $k,$v := .Values.env }}    → loop over map
+
+── How values layer together ───────────────────────────────
+
+  values.yaml          ← base (lowest priority)
+       +
+  values.prod.yaml     ← environment override (-f flag)
+       +
+  --set image.tag=123  ← CLI override (highest priority)
+       =
+  Final rendered YAML sent to K8s
+
+── The 3-command workflow ───────────────────────────────────
+
+  1. helm template  → preview rendered YAML (no cluster needed)
+  2. helm upgrade --install --dry-run → validate against cluster
+  3. helm upgrade --install          → deploy for real
 ```
 
 ### Full Chart — File-by-File with Explanation
