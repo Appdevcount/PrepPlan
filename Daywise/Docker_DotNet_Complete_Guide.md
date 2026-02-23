@@ -1876,53 +1876,482 @@ When to use:
   ❌ Simple one-off deployments (plain kubectl apply is fine)
 ```
 
-### Minimal Chart Structure Example
+### Full Chart — File-by-File with Explanation
 
-```yaml
-# values.yaml — defaults, override per environment
-replicaCount: 2
-image:
-  repository: myacr.azurecr.io/myapi
-  tag: "latest"
-service:
-  port: 80
-ingress:
-  host: api.myapp.com
-resources:
-  limits:
-    cpu: 500m
-    memory: 256Mi
+#### Chart folder structure
+
+```
+myapi-chart/
+├── Chart.yaml                 ← chart identity & metadata
+├── values.yaml                ← default values (override per environment)
+├── values.staging.yaml        ← staging overrides
+├── values.prod.yaml           ← production overrides
+└── templates/
+    ├── _helpers.tpl           ← reusable named templates (like helper functions)
+    ├── deployment.yaml        ← Deployment object
+    ├── service.yaml           ← Service object
+    ├── ingress.yaml           ← Ingress object
+    ├── configmap.yaml         ← ConfigMap object
+    ├── secret.yaml            ← Secret object
+    └── hpa.yaml               ← HorizontalPodAutoscaler
 ```
 
+---
+
+#### `Chart.yaml` — Chart identity
+
 ```yaml
-# templates/deployment.yaml — parameterised template
+apiVersion: v2                  # Helm 3 uses v2
+name: myapi-chart               # Chart name (used in helm install/upgrade)
+description: ASP.NET Core API Helm chart
+type: application               # "application" = deployable app | "library" = shared helpers only
+version: 1.3.0                  # Chart version — bump when you change the chart itself
+appVersion: "2.1.0"             # App version — informational, reflects the app being packaged
+```
+
+---
+
+#### `values.yaml` — Defaults (the single source of truth)
+
+```yaml
+# ── Replica & image ─────────────────────────────────
+replicaCount: 2
+
+image:
+  repository: myacr.azurecr.io/myapi   # ACR / Docker Hub image path
+  tag: "latest"                         # overridden per deploy via --set image.tag=build-123
+  pullPolicy: IfNotPresent              # Always | IfNotPresent | Never
+
+# ── Service ─────────────────────────────────────────
+service:
+  type: ClusterIP    # ClusterIP | NodePort | LoadBalancer
+  port: 80
+  targetPort: 80
+
+# ── Ingress ──────────────────────────────────────────
+ingress:
+  enabled: true
+  host: api.myapp.com
+  path: /
+  tls:
+    enabled: false
+    secretName: myapp-tls-secret
+
+# ── Environment variables ────────────────────────────
+env:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  FeatureFlags__NewCheckout: "false"
+
+# ── Secrets (actual values set via --set or CI pipeline) ──
+secrets:
+  connectionString: ""           # Never commit real values here
+  jwtSecret: ""
+
+# ── Resource limits ──────────────────────────────────
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "256Mi"
+
+# ── Health probes ────────────────────────────────────
+probes:
+  liveness:
+    path: /health/live
+    initialDelaySeconds: 10
+    periodSeconds: 30
+  readiness:
+    path: /health/ready
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+# ── Autoscaling ──────────────────────────────────────
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+```
+
+---
+
+#### `values.staging.yaml` — Staging overrides only
+
+```yaml
+# Only declare what's DIFFERENT from values.yaml
+replicaCount: 1
+
+image:
+  tag: "staging-latest"
+
+ingress:
+  host: api.staging.myapp.com
+
+env:
+  ASPNETCORE_ENVIRONMENT: "Staging"
+  FeatureFlags__NewCheckout: "true"   # test new feature in staging
+
+resources:
+  requests:
+    cpu: "50m"
+    memory: "64Mi"
+  limits:
+    cpu: "200m"
+    memory: "128Mi"
+```
+
+---
+
+#### `values.prod.yaml` — Production overrides only
+
+```yaml
+replicaCount: 3
+
+image:
+  tag: "1.5.2"           # pinned version in prod, never "latest"
+  pullPolicy: Always
+
+ingress:
+  host: api.myapp.com
+  tls:
+    enabled: true
+    secretName: myapp-tls-secret
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 60
+
+resources:
+  requests:
+    cpu: "250m"
+    memory: "256Mi"
+  limits:
+    cpu: "1000m"
+    memory: "512Mi"
+```
+
+---
+
+#### `templates/_helpers.tpl` — Reusable named templates
+
+```yaml
+{{/*
+  Expand the name of the chart.
+  Usage: {{ include "myapi-chart.name" . }}
+*/}}
+{{- define "myapi-chart.name" -}}
+{{- .Chart.Name | trunc 63 | trimSuffix "-" }}   {{/* K8s names max 63 chars */}}
+{{- end }}
+
+{{/*
+  Full release name: "myapi-prod-myapi-chart"
+  Truncated to 63 chars to satisfy K8s constraints.
+*/}}
+{{- define "myapi-chart.fullname" -}}
+{{- printf "%s-%s" .Release.Name .Chart.Name | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/*
+  Common labels applied to every object — used for kubectl filtering
+*/}}
+{{- define "myapi-chart.labels" -}}
+helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+app.kubernetes.io/name: {{ include "myapi-chart.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}
+
+{{/*
+  Selector labels — subset used by Service/Deployment selector
+*/}}
+{{- define "myapi-chart.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "myapi-chart.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+```
+
+**Why `_helpers.tpl` matters:**
+- The `_` prefix means Helm does NOT render it as a K8s object
+- `include "myapi-chart.labels" .` injects the block anywhere, keeping all objects consistently labelled
+- Avoids copy-pasting the same labels into every template file
+
+---
+
+#### `templates/deployment.yaml`
+
+```yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}-api
+  name: {{ include "myapi-chart.fullname" . }}         {{/* e.g. "myapi-prod-myapi-chart" */}}
+  namespace: {{ .Release.Namespace }}                  {{/* set via helm install -n <ns> */}}
+  labels:
+    {{- include "myapi-chart.labels" . | nindent 4 }}  {{/* inject common labels, indent 4 spaces */}}
 spec:
+  {{- if not .Values.autoscaling.enabled }}            {{/* if HPA manages replicas, don't set here */}}
   replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "myapi-chart.selectorLabels" . | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   template:
+    metadata:
+      labels:
+        {{- include "myapi-chart.selectorLabels" . | nindent 8 }}
     spec:
       containers:
-        - name: api
+        - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+
+          # ── Env vars from ConfigMap ──────────────────
+          envFrom:
+            - configMapRef:
+                name: {{ include "myapi-chart.fullname" . }}-config
+
+          # ── Sensitive env vars from Secret ───────────
+          env:
+            - name: ConnectionStrings__Default
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "myapi-chart.fullname" . }}-secret
+                  key: connectionString
+            - name: Jwt__Secret
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "myapi-chart.fullname" . }}-secret
+                  key: jwtSecret
+
+          # ── Resource limits ──────────────────────────
           resources:
+            requests:
+              cpu: {{ .Values.resources.requests.cpu }}
+              memory: {{ .Values.resources.requests.memory }}
             limits:
               cpu: {{ .Values.resources.limits.cpu }}
               memory: {{ .Values.resources.limits.memory }}
+
+          # ── Health probes ────────────────────────────
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probes.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probes.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
 ```
 
-```bash
-# Deploy to staging with override
-helm upgrade --install myapi-staging ./mychart \
-  -f values.staging.yaml \
-  --set image.tag=build-123
+---
 
-# Deploy to prod
-helm upgrade --install myapi-prod ./mychart \
+#### `templates/service.yaml`
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "myapi-chart.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "myapi-chart.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "myapi-chart.selectorLabels" . | nindent 4 }}   {{/* targets the Pods from Deployment */}}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.targetPort }}
+      protocol: TCP
+      name: http
+```
+
+---
+
+#### `templates/ingress.yaml`
+
+```yaml
+{{- if .Values.ingress.enabled }}    {{/* only render if ingress.enabled: true in values */}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "myapi-chart.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "myapi-chart.labels" . | nindent 4 }}
+spec:
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host }}
+      secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: {{ .Values.ingress.path }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "myapi-chart.fullname" . }}
+                port:
+                  number: {{ .Values.service.port }}
+{{- end }}
+```
+
+---
+
+#### `templates/configmap.yaml`
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "myapi-chart.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "myapi-chart.labels" . | nindent 4 }}
+data:
+  {{- range $key, $value := .Values.env }}   {{/* loop over all key-value pairs in .Values.env */}}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+```
+
+**What `range` does:** iterates every entry in `values.yaml → env:` block and writes it as a ConfigMap key. Adding a new env var to `values.yaml` automatically appears in the ConfigMap — no template change needed.
+
+---
+
+#### `templates/secret.yaml`
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "myapi-chart.fullname" . }}-secret
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "myapi-chart.labels" . | nindent 4 }}
+type: Opaque
+data:
+  # b64enc encodes the value — K8s Secrets store base64
+  connectionString: {{ .Values.secrets.connectionString | b64enc | quote }}
+  jwtSecret: {{ .Values.secrets.jwtSecret | b64enc | quote }}
+```
+
+**In CI/CD, never put real secrets in values files. Pass them at deploy time:**
+```bash
+helm upgrade --install myapi-prod ./myapi-chart \
   -f values.prod.yaml \
-  --set image.tag=build-123
+  --set secrets.connectionString="Server=prod-db;..." \
+  --set secrets.jwtSecret="$JWT_SECRET" \
+  --set image.tag="$BUILD_TAG"
+```
+
+---
+
+#### `templates/hpa.yaml`
+
+```yaml
+{{- if .Values.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "myapi-chart.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "myapi-chart.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "myapi-chart.fullname" . }}   {{/* must match the Deployment name exactly */}}
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}
+```
+
+---
+
+#### Template syntax cheat sheet
+
+```
+{{ .Values.x }}             read a value from values.yaml
+{{ .Release.Name }}         the release name given at helm install
+{{ .Release.Namespace }}    namespace the chart is installed into
+{{ .Chart.Name }}           chart name from Chart.yaml
+{{ .Chart.Version }}        chart version from Chart.yaml
+
+{{- ... -}}                 strip whitespace before/after (avoid blank lines in output)
+{{ include "tpl" . }}       call a named template from _helpers.tpl
+| nindent 4                 indent the output 4 spaces (needed after labels: block)
+| quote                     wrap value in quotes
+| b64enc                    base64-encode a string (for Secrets)
+| default "fallback"        use fallback if value is empty
+{{- if .Values.x }} ... {{- end }}    conditional block
+{{- range $k, $v := .Values.env }}   loop over a map
+```
+
+---
+
+#### Full deploy workflow
+
+```bash
+# 1. Preview what YAML Helm will generate (no cluster needed)
+helm template myapi-prod ./myapi-chart -f values.prod.yaml
+
+# 2. Validate against a live cluster
+helm install myapi-prod ./myapi-chart -f values.prod.yaml --dry-run
+
+# 3. First deploy
+helm install myapi-prod ./myapi-chart \
+  -f values.prod.yaml \
+  --set image.tag="1.5.2" \
+  --set secrets.connectionString="$DB_CONN" \
+  -n production --create-namespace
+
+# 4. Subsequent deploys (upgrade; install if not exists)
+helm upgrade --install myapi-prod ./myapi-chart \
+  -f values.prod.yaml \
+  --set image.tag="$BUILD_TAG" \
+  --set secrets.connectionString="$DB_CONN" \
+  -n production
+
+# 5. See all releases
+helm list -n production
+
+# 6. See history for a release
+helm history myapi-prod -n production
+
+# 7. Rollback to previous revision
+helm rollback myapi-prod 2 -n production
+
+# 8. Tear down
+helm uninstall myapi-prod -n production
 ```
 
 ---
