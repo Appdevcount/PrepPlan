@@ -1322,6 +1322,216 @@ When to use:
   ❌ Simple local dev (use Docker Compose instead)
 ```
 
+### YAML File Sections — What Each Block Means
+
+Every Kubernetes YAML file shares the same 4 top-level fields:
+
+```
+apiVersion  ← which API group handles this object
+kind        ← WHAT object you are describing
+metadata    ← identity (name, namespace, labels)
+spec        ← WHAT you want (the desired state)
+```
+
+---
+
+#### Deployment YAML — annotated
+
+```yaml
+apiVersion: apps/v1          # API group: "apps", version "v1"
+kind: Deployment             # Object type → tells K8s "manage replicated Pods"
+metadata:
+  name: myapi-deployment     # Unique name inside the namespace
+  namespace: production      # Logical isolation (like a folder for K8s objects)
+  labels:
+    app: myapi               # Key-value tags — used for filtering/selecting
+    version: v1
+
+spec:                        # ── DESIRED STATE starts here ──────────────────
+  replicas: 3                # "I want 3 Pods running at all times"
+  strategy:
+    type: RollingUpdate      # How to deploy a new version
+    rollingUpdate:
+      maxSurge: 1            # Allow 1 EXTRA Pod during rollout (so 4 briefly)
+      maxUnavailable: 0      # Never take a Pod down before a new one is ready
+
+  selector:                  # Which Pods does THIS Deployment own?
+    matchLabels:
+      app: myapi             # Owns any Pod with label app=myapi
+
+  template:                  # Blueprint for every Pod this Deployment creates
+    metadata:
+      labels:
+        app: myapi           # MUST match selector.matchLabels above
+    spec:
+      containers:
+      - name: myapi
+        image: myacr.io/myapi:v1   # Docker image to run
+        imagePullPolicy: Always    # Always pull (use IfNotPresent for speed)
+        ports:
+        - containerPort: 80        # Informational — what port the app listens on
+
+        env:                       # Env vars injected into the container
+        - name: ASPNETCORE_ENVIRONMENT
+          value: "Production"
+        - name: ConnectionStrings__DefaultConnection
+          valueFrom:
+            secretKeyRef:          # Pull value from a Secret (not hardcoded!)
+              name: database-secret
+              key: connection-string
+
+        resources:
+          requests:                # Minimum guaranteed resources (used for scheduling)
+            cpu: "100m"            # 100 millicores = 0.1 CPU
+            memory: "128Mi"
+          limits:                  # Hard cap — container killed if exceeded
+            cpu: "500m"
+            memory: "256Mi"
+
+        livenessProbe:             # "Is the container alive?" — restart if fails
+          httpGet:
+            path: /health/live
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 30
+
+        readinessProbe:            # "Is the container ready for traffic?" — remove from LB if fails
+          httpGet:
+            path: /health/ready
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 10
+```
+
+**Key distinction — liveness vs readiness:**
+```
+livenessProbe  → RESTART the container if it fails
+                 (app is deadlocked / crashed)
+
+readinessProbe → REMOVE from load balancer if it fails
+                 (app is starting up / temporarily busy)
+                 Pod stays alive, just gets no traffic
+```
+
+---
+
+#### Service YAML — annotated
+
+```yaml
+apiVersion: v1
+kind: Service                # Gives Pods a stable DNS name + load balances traffic
+metadata:
+  name: myapi-service        # DNS name: myapi-service.production.svc.cluster.local
+  namespace: production
+spec:
+  type: ClusterIP            # ClusterIP   = internal only (default)
+                             # NodePort    = exposes on every node's IP:port
+                             # LoadBalancer= creates a cloud LB (external IP)
+  selector:
+    app: myapi               # Forward traffic to any Pod with this label
+  ports:
+  - port: 80                 # Port THIS service listens on (inside cluster)
+    targetPort: 80           # Port on the Pod to forward to
+    protocol: TCP
+```
+
+**Service types in one line:**
+```
+ClusterIP     → internal cluster traffic only        (api → db)
+NodePort      → opens a port on every node           (testing)
+LoadBalancer  → cloud provider creates external LB   (production ingress)
+```
+
+---
+
+#### Ingress YAML — annotated
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress                # Layer 7 HTTP router (like nginx/APIM in front of services)
+metadata:
+  name: myapi-ingress
+  namespace: production
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /   # Ingress-controller-specific config
+spec:
+  rules:
+  - host: api.myapp.com      # Match on hostname
+    http:
+      paths:
+      - path: /orders        # Match on URL path
+        pathType: Prefix
+        backend:
+          service:
+            name: order-service    # Forward to this Service
+            port:
+              number: 80
+      - path: /products
+        pathType: Prefix
+        backend:
+          service:
+            name: product-service
+            port:
+              number: 80
+  tls:
+  - hosts:
+    - api.myapp.com
+    secretName: myapp-tls-secret   # TLS cert stored in a Secret
+```
+
+---
+
+#### ConfigMap & Secret — annotated
+
+```yaml
+# ConfigMap — non-sensitive config (plain text, visible in kubectl)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: myapi-config
+  namespace: production
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  FeatureFlags__NewCheckout: "true"
+  # Can also mount as a file:
+  appsettings.json: |
+    { "Logging": { "LogLevel": { "Default": "Warning" } } }
+
+---
+# Secret — sensitive values (base64-encoded, access-controlled)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: database-secret
+  namespace: production
+type: Opaque
+data:
+  connection-string: U2VydmVyPW15c3FsOy4uLg==   # base64("Server=mysql;...")
+```
+
+**ConfigMap vs Secret rule:**
+```
+ConfigMap  → anything you'd put in appsettings.json
+Secret     → passwords, connection strings, API keys, certs
+```
+
+---
+
+#### How objects connect to each other
+
+```
+Deployment ──(selector: app=myapi)──► Pods
+                                        │
+Service    ──(selector: app=myapi)──────┘ (routes traffic to same Pods)
+                                        │
+Ingress    ──(backend: myapi-service)───► Service
+
+ConfigMap / Secret ──(envFrom / valueFrom)──► Pod containers
+HPA        ──(scaleTargetRef: myapi-deployment)──► Deployment
+```
+
+The **label** `app: myapi` is the glue — it's how Service and Deployment both know which Pods to talk to. If they don't match, traffic goes nowhere.
+
 ---
 
 ### Kubernetes Basics for .NET
