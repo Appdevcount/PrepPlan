@@ -1,0 +1,9 @@
+services:
+  simpleapi:
+    build: .
+    container_name: simpleapi
+    ports:
+      - "5080:80"        # host:container — visit http://localhost:5080 (app listens on 80 via ASPNETCORE_HTTP_PORTS)
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+    restart: unless-stopped

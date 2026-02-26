@@ -1,0 +1,26 @@
+Preaparea a very comprehensive md file to study abut <azure container apps> end to end covering all aspects including commands, results ,code implementations, detailed explanations, inline comments and the mental model to remember key concepts.these shlould be based on 2 simple dotnet api as in this folder
+
+add a new section for real world ACA specific challenges of 10 and how to address it in detail with detailed code implemntation , explanation and inline comments
+-----------
+
+Preaparea a very comprehensive md file to study abut <azure cosmos db> end to end covering all aspects including commands if any, results if any ,code implementations, detailed explanations, inline comments and the mental model to remember key concepts.
+
+add a new section for real world cosmos db specific challenges of 10 and how to address it in detail with detailed code implemntation , explanation and inline comments
+
+-------
+Preaparea a new very comprehensive md file named "Azure Kubernetes Service Complete Guide.md" to study abut <azure AKS> end to end covering all aspects including commands if any, results if any ,code implementations, detailed explanations, inline comments and the mental model to remember key concepts.these shlould be based on 2 simple dotnet api as in this folder. it should be single source to gain expertise to work on aks based app
+
+add a new section for real world AKS specific challenges of 10 and how to address it in detail with detailed code implemntation , explanation and inline comments
+add interview specific questions for donet developer from real interviews
+refer only azure functions md file for reference on how the content is generated. but in this case topic is different.dont refer other files
+
+ADD sample output for each of the commands you mentioned to have a idea on the output.
+add detailed answers for all the questions in the md file to explain at expert level. and help to remember with a mental model.
+add terraform scrips where were n required and cicd deployment for azure devops.
+VERY IMPORTANTLY I SEE THAT THE MD file has many code and commands only but detailed explaianation on prpose of it and attribute usage are missing, address it.
+is is end to end guide to start from scratch and implement all features of aks and service to service communication,volume concepts, if not think about it and enrich it better, add if any missing
+
+installation of kubectl not explained, kubelet ,kubeconfig and other fundamentals not explained. a diagramativ view will help as a mental model for these. address it if any missed. if you didnt add different yaml files and explanation and then address it covering all aspects in aks
+
+
+
