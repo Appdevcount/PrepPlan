@@ -24,6 +24,11 @@ This comprehensive guide covers React from fundamentals to advanced patterns, wi
 16. [Server-Side Rendering](#16-server-side-rendering)
 17. [Real-World Scenarios](#17-real-world-scenarios)
 18. [Interview Questions & Answers](#18-interview-questions--answers)
+19. [Formik - Complete Form Management](#19-formik---complete-form-management)
+20. [Yup - Schema Validation](#20-yup---schema-validation)
+21. [React-Bootstrap - UI Component Library](#21-react-bootstrap---ui-component-library)
+22. [Common Useful Libraries](#22-common-useful-libraries)
+23. [Jest Unit Testing - Mental Model & Samples](#23-jest-unit-testing---mental-model--samples)
 
 ---
 
@@ -6304,3 +6309,2726 @@ This guide covered React comprehensively:
 - Show real-world experience
 - Know when NOT to use certain patterns
 - Performance: always measure first
+
+9. **Formik**: Full form lifecycle, field-level validation, async submission
+10. **Yup**: Declarative schema validation, cross-field rules, custom validators
+11. **React-Bootstrap**: Grid, Form, Modal, Toast, Table — production-ready UI
+12. **Common Libraries**: React Query, Axios, React Hook Form, React Select, React Table, date-fns, Lodash, React Toastify
+13. **Jest Mental Model**: Arrange-Act-Assert, mocking patterns, async tests, coverage
+
+---
+
+## 19. Formik - Complete Form Management
+
+> **Mental Model**: Formik is a "form state machine" — it tracks every field's value, touched state, and error simultaneously, so you never manually wire up `onChange`/`onBlur`/error display again.
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                    Formik Data Flow                               │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  User Types       Formik State         Validation (Yup / fn)     │
+│  ─────────        ───────────          ──────────────────────     │
+│  onChange  ──▶   values { }    ──▶    errors { }                 │
+│  onBlur    ──▶   touched { }   ──▶    isValid (bool)             │
+│  onSubmit  ──▶   isSubmitting  ──▶    handleSubmit()             │
+│                                                                   │
+│  Formik wraps all this — your JSX just reads formik.values etc.  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### Installation
+
+```bash
+npm install formik yup
+# yup is optional but works perfectly with formik
+```
+
+### Basic Formik Usage (useFormik hook)
+
+```jsx
+import { useFormik } from 'formik';
+
+function LoginForm() {
+  // useFormik returns the full "formik bag" — all state + helpers
+  const formik = useFormik({
+    initialValues: {
+      email: '',       // every field needs an initial value
+      password: '',
+    },
+
+    // validate is called on every change/blur — return errors object
+    validate: (values) => {
+      const errors = {};
+
+      if (!values.email) {
+        errors.email = 'Email is required';
+      } else if (!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(values.email)) {
+        errors.email = 'Invalid email address';
+      }
+
+      if (!values.password) {
+        errors.password = 'Password is required';
+      } else if (values.password.length < 6) {
+        errors.password = 'Minimum 6 characters';
+      }
+
+      return errors; // empty object = valid
+    },
+
+    // onSubmit only fires when validation passes
+    onSubmit: async (values, { setSubmitting, resetForm, setErrors }) => {
+      try {
+        await loginApi(values);  // your API call
+        resetForm();             // clear form on success
+      } catch (err) {
+        // Set server-side errors back into formik
+        setErrors({ email: 'Server: ' + err.message });
+      } finally {
+        setSubmitting(false);    // re-enable submit button
+      }
+    },
+  });
+
+  return (
+    <form onSubmit={formik.handleSubmit}>   {/* handleSubmit prevents default */}
+
+      <div>
+        <label htmlFor="email">Email</label>
+        <input
+          id="email"
+          name="email"                        // must match initialValues key
+          type="email"
+          onChange={formik.handleChange}      // updates formik.values.email
+          onBlur={formik.handleBlur}          // marks field as touched
+          value={formik.values.email}
+        />
+        {/* Only show error AFTER the field was touched (user left it) */}
+        {formik.touched.email && formik.errors.email && (
+          <span className="error">{formik.errors.email}</span>
+        )}
+      </div>
+
+      <div>
+        <label htmlFor="password">Password</label>
+        <input
+          id="password"
+          name="password"
+          type="password"
+          onChange={formik.handleChange}
+          onBlur={formik.handleBlur}
+          value={formik.values.password}
+        />
+        {formik.touched.password && formik.errors.password && (
+          <span className="error">{formik.errors.password}</span>
+        )}
+      </div>
+
+      {/* Disable button while submitting to prevent double-submit */}
+      <button type="submit" disabled={formik.isSubmitting}>
+        {formik.isSubmitting ? 'Logging in...' : 'Login'}
+      </button>
+    </form>
+  );
+}
+```
+
+### Formik with Yup Validation (validationSchema — preferred pattern)
+
+```jsx
+import { useFormik } from 'formik';
+import * as Yup from 'yup';
+
+// Define the schema OUTSIDE the component to prevent recreation on every render
+const registrationSchema = Yup.object({
+  firstName: Yup.string()
+    .min(2, 'Too short')
+    .max(50, 'Too long')
+    .required('Required'),
+  lastName: Yup.string()
+    .min(2, 'Too short')
+    .required('Required'),
+  email: Yup.string()
+    .email('Invalid email')     // built-in email format check
+    .required('Required'),
+  age: Yup.number()
+    .min(18, 'Must be at least 18')
+    .max(120, 'Must be realistic')
+    .required('Required'),
+  password: Yup.string()
+    .min(8, 'Minimum 8 characters')
+    .matches(/[A-Z]/, 'Must contain uppercase')
+    .matches(/[0-9]/, 'Must contain a number')
+    .required('Required'),
+  confirmPassword: Yup.string()
+    .oneOf([Yup.ref('password')], 'Passwords must match')  // cross-field validation
+    .required('Required'),
+  role: Yup.string()
+    .oneOf(['admin', 'user', 'guest'], 'Invalid role')
+    .required('Required'),
+});
+
+function RegistrationForm() {
+  const formik = useFormik({
+    initialValues: {
+      firstName: '',
+      lastName: '',
+      email: '',
+      age: '',
+      password: '',
+      confirmPassword: '',
+      role: 'user',
+    },
+    validationSchema: registrationSchema,  // pass Yup schema here
+    onSubmit: async (values) => {
+      await registerApi(values);
+    },
+  });
+
+  return (
+    <form onSubmit={formik.handleSubmit}>
+      <input
+        name="firstName"
+        placeholder="First Name"
+        {...formik.getFieldProps('firstName')}  // shorthand: spreads value/onChange/onBlur
+      />
+      {formik.touched.firstName && formik.errors.firstName && (
+        <div>{formik.errors.firstName}</div>
+      )}
+
+      <input name="email" {...formik.getFieldProps('email')} />
+      {formik.touched.email && formik.errors.email && (
+        <div>{formik.errors.email}</div>
+      )}
+
+      <input name="password" type="password" {...formik.getFieldProps('password')} />
+      {formik.touched.password && formik.errors.password && (
+        <div>{formik.errors.password}</div>
+      )}
+
+      <input name="confirmPassword" type="password" {...formik.getFieldProps('confirmPassword')} />
+      {formik.touched.confirmPassword && formik.errors.confirmPassword && (
+        <div>{formik.errors.confirmPassword}</div>
+      )}
+
+      <select name="role" {...formik.getFieldProps('role')}>
+        <option value="user">User</option>
+        <option value="admin">Admin</option>
+        <option value="guest">Guest</option>
+      </select>
+
+      <button type="submit" disabled={formik.isSubmitting || !formik.isValid}>
+        Register
+      </button>
+    </form>
+  );
+}
+```
+
+### Formik Component API (<Formik>, <Form>, <Field>, <ErrorMessage>)
+
+```jsx
+// The component-based API is more declarative — preferred for complex forms
+import { Formik, Form, Field, ErrorMessage, FieldArray } from 'formik';
+import * as Yup from 'yup';
+
+const schema = Yup.object({
+  username: Yup.string().required('Username required'),
+  subscribe: Yup.boolean(),
+  hobbies: Yup.array().of(Yup.string().required('Hobby cannot be empty')),
+});
+
+function ProfileForm() {
+  return (
+    // <Formik> is the context provider — replaces useFormik
+    <Formik
+      initialValues={{ username: '', subscribe: false, hobbies: [''] }}
+      validationSchema={schema}
+      onSubmit={(values, actions) => {
+        console.log(values);
+        actions.setSubmitting(false);
+      }}
+    >
+      {/* Render prop pattern — formik bag is passed as argument */}
+      {(formik) => (
+        // <Form> auto-wires onSubmit and noValidate
+        <Form>
+          <div>
+            {/* <Field> auto-wires name, value, onChange, onBlur */}
+            <Field name="username" placeholder="Username" />
+            {/* <ErrorMessage> renders error only when field is touched+invalid */}
+            <ErrorMessage name="username" component="span" className="error" />
+          </div>
+
+          <div>
+            {/* Checkbox: Field with type="checkbox" reads boolean */}
+            <label>
+              <Field type="checkbox" name="subscribe" />
+              Subscribe to newsletter
+            </label>
+          </div>
+
+          {/* FieldArray: manages dynamic lists of fields */}
+          <FieldArray name="hobbies">
+            {({ push, remove, form }) => (
+              <div>
+                {form.values.hobbies.map((hobby, index) => (
+                  <div key={index}>
+                    <Field name={`hobbies[${index}]`} placeholder="Hobby" />
+                    <ErrorMessage name={`hobbies[${index}]`} component="span" />
+                    <button type="button" onClick={() => remove(index)}>
+                      Remove
+                    </button>
+                  </div>
+                ))}
+                <button type="button" onClick={() => push('')}>
+                  Add Hobby
+                </button>
+              </div>
+            )}
+          </FieldArray>
+
+          {/* Custom render inside Field using children render prop */}
+          <Field name="username">
+            {({ field, meta }) => (
+              <div>
+                <input
+                  {...field}                    // spreads value/onChange/onBlur/name
+                  className={meta.error && meta.touched ? 'input-error' : ''}
+                />
+                {meta.touched && meta.error && <span>{meta.error}</span>}
+              </div>
+            )}
+          </Field>
+
+          <button type="submit" disabled={formik.isSubmitting}>
+            Save Profile
+          </button>
+        </Form>
+      )}
+    </Formik>
+  );
+}
+```
+
+### Formik with Custom Components (useField hook)
+
+```jsx
+import { useField } from 'formik';
+
+// Build a reusable input that is Formik-aware
+function TextInput({ label, ...props }) {
+  // useField reads from formik context by name
+  const [field, meta] = useField(props);  // field = {name, value, onChange, onBlur}
+                                           // meta  = {touched, error, initialValue}
+  return (
+    <div className="form-group">
+      <label htmlFor={props.id || props.name}>{label}</label>
+      <input
+        className={`form-control ${meta.touched && meta.error ? 'is-invalid' : ''}`}
+        {...field}   // spreads name, value, onChange, onBlur
+        {...props}   // spreads id, type, placeholder, etc.
+      />
+      {meta.touched && meta.error && (
+        <div className="invalid-feedback">{meta.error}</div>
+      )}
+    </div>
+  );
+}
+
+// Reusable select component
+function SelectInput({ label, children, ...props }) {
+  const [field, meta] = useField(props);
+  return (
+    <div className="form-group">
+      <label>{label}</label>
+      <select {...field} {...props}>
+        {children}
+      </select>
+      {meta.touched && meta.error && <div className="error">{meta.error}</div>}
+    </div>
+  );
+}
+
+// Checkbox component using useField
+function Checkbox({ children, ...props }) {
+  const [field, meta] = useField({ ...props, type: 'checkbox' });
+  return (
+    <label>
+      <input type="checkbox" {...field} {...props} />
+      {children}
+      {meta.touched && meta.error && <div className="error">{meta.error}</div>}
+    </label>
+  );
+}
+
+// Usage — clean JSX, no wiring
+function SignupForm() {
+  return (
+    <Formik
+      initialValues={{ name: '', country: '', terms: false }}
+      validationSchema={Yup.object({
+        name: Yup.string().required(),
+        country: Yup.string().oneOf(['us', 'ca']).required(),
+        terms: Yup.boolean().isTrue('You must accept terms'),
+      })}
+      onSubmit={(v) => console.log(v)}
+    >
+      <Form>
+        <TextInput label="Name" name="name" type="text" placeholder="John" />
+        <SelectInput label="Country" name="country">
+          <option value="">Select...</option>
+          <option value="us">United States</option>
+          <option value="ca">Canada</option>
+        </SelectInput>
+        <Checkbox name="terms">I accept the Terms and Conditions</Checkbox>
+        <button type="submit">Sign Up</button>
+      </Form>
+    </Formik>
+  );
+}
+```
+
+### Formik Helpers & Imperative API
+
+```jsx
+// Accessing all formik helpers imperatively
+const formik = useFormik({ ... });
+
+// Programmatic value updates
+formik.setFieldValue('email', 'new@email.com');        // set one field
+formik.setValues({ email: 'a@b.com', name: 'John' }); // replace all values
+
+// Programmatic touched / errors
+formik.setFieldTouched('email', true);                 // mark as touched
+formik.setFieldError('email', 'Custom error message'); // set error manually
+formik.setErrors({ email: 'Bad', password: 'Short' }); // set many errors
+
+// Trigger validation manually
+const errors = await formik.validateForm();            // validate all
+const err    = await formik.validateField('email');    // validate one
+
+// Reset
+formik.resetForm();                                    // back to initialValues
+formik.resetForm({ values: { email: 'a@b.com' } });   // reset to specific values
+
+// Useful state flags
+formik.isSubmitting   // true while onSubmit promise is pending
+formik.isValidating   // true while validation is running
+formik.isValid        // true when errors is empty (only reliable after first submit)
+formik.dirty          // true when any value differs from initialValues
+formik.submitCount    // how many times submit was attempted
+```
+
+### Formik Patterns & Best Practices
+
+```jsx
+// ─── Pattern 1: Validate on Submit Only (better UX for long forms) ───
+const formik = useFormik({
+  validateOnChange: false,   // don't validate while typing
+  validateOnBlur: true,      // validate when leaving field
+  ...
+});
+
+// ─── Pattern 2: Async validation (server-side uniqueness check) ───
+validate: async (values) => {
+  const errors = {};
+  if (values.username) {
+    const taken = await checkUsernameApi(values.username);
+    if (taken) errors.username = 'Username already taken';
+  }
+  return errors;
+},
+
+// ─── Pattern 3: Dependent / conditional fields ───
+const formik = useFormik({
+  initialValues: { paymentMethod: 'card', cardNumber: '', bankAccount: '' },
+  validate: (values) => {
+    const errors = {};
+    if (values.paymentMethod === 'card' && !values.cardNumber) {
+      errors.cardNumber = 'Card number required';
+    }
+    if (values.paymentMethod === 'bank' && !values.bankAccount) {
+      errors.bankAccount = 'Account number required';
+    }
+    return errors;
+  },
+  onSubmit: (v) => console.log(v),
+});
+
+// ─── Pattern 4: Multi-step form (wizard) ───
+const [step, setStep] = useState(0);
+const steps = [Step1Schema, Step2Schema, Step3Schema];
+
+<Formik
+  initialValues={allInitialValues}
+  validationSchema={steps[step]}      // only validate current step schema
+  onSubmit={(values, actions) => {
+    if (step < steps.length - 1) {
+      setStep(s => s + 1);            // advance to next step
+      actions.setSubmitting(false);
+    } else {
+      finalSubmitApi(values);         // last step: real submit
+    }
+  }}
+>
+
+// ─── Pattern 5: Debounced async validation ───
+import { debounce } from 'lodash';
+
+const debouncedValidate = useCallback(
+  debounce(async (values) => {
+    // expensive validation (API call)
+  }, 500),
+  []
+);
+```
+
+| Formik State Property | Type | Meaning |
+|---|---|---|
+| `values` | object | Current field values |
+| `errors` | object | Current validation errors |
+| `touched` | object | Fields user has visited |
+| `isSubmitting` | boolean | onSubmit promise is pending |
+| `isValid` | boolean | No errors present |
+| `dirty` | boolean | Values differ from initialValues |
+| `submitCount` | number | Times form was submitted |
+
+---
+
+## 20. Yup - Schema Validation
+
+> **Mental Model**: Yup schemas are like TypeScript types at runtime — they describe the shape AND constraints of valid data, and produce user-friendly error messages automatically.
+
+### Installation
+
+```bash
+npm install yup
+```
+
+### Primitive Types
+
+```js
+import * as Yup from 'yup';
+
+// ─── String ───
+Yup.string()
+  .required('Field is required')          // fails on '', null, undefined
+  .min(3, 'Min 3 chars')
+  .max(100, 'Max 100 chars')
+  .email('Must be a valid email')
+  .url('Must be a valid URL')
+  .uuid('Must be a valid UUID')
+  .matches(/^[a-z]+$/, 'Only lowercase letters')   // custom regex
+  .trim()                                 // trims whitespace before validation
+  .lowercase()                            // coerces to lowercase
+  .uppercase()
+  .oneOf(['admin', 'user'], 'Invalid role')        // allowlist
+  .notOneOf(['banned'], 'This value is not allowed') // denylist
+  .nullable()                             // allows null (but not undefined)
+  .optional();                            // allows undefined
+
+// ─── Number ───
+Yup.number()
+  .required()
+  .integer('Must be a whole number')
+  .min(0, 'Must be positive')
+  .max(100, 'Cannot exceed 100')
+  .positive('Must be positive')
+  .negative('Must be negative')
+  .moreThan(5, 'Must be more than 5')
+  .lessThan(10, 'Must be less than 10')
+  .truncate()                             // truncates decimal before validation
+
+// ─── Boolean ───
+Yup.boolean()
+  .required()
+  .isTrue('You must agree')              // must be exactly true
+  .isFalse('Must be unchecked');
+
+// ─── Date ───
+Yup.date()
+  .required()
+  .min(new Date(), 'Must be in the future')
+  .max(new Date('2030-01-01'), 'Too far in the future')
+  .typeError('Invalid date');            // custom message when cast fails
+
+// ─── Mixed (any type) ───
+Yup.mixed()
+  .required()
+  .oneOf([1, 'one', true])              // accepts multiple types
+  .test('is-file', 'Must be a file', (value) => value instanceof File);
+```
+
+### Object Schema
+
+```js
+// Yup.object() validates the shape of a plain object
+const addressSchema = Yup.object({
+  street:  Yup.string().required(),
+  city:    Yup.string().required(),
+  zip:     Yup.string().matches(/^\d{5}$/, 'Must be 5 digits').required(),
+  country: Yup.string().default('US'),   // default value applied during cast
+});
+
+// Nested objects
+const userSchema = Yup.object({
+  name:    Yup.string().required(),
+  address: addressSchema,               // nest another schema
+  contact: Yup.object({
+    phone: Yup.string(),
+    email: Yup.string().email(),
+  }),
+});
+
+// .shape() adds/overrides fields after creation
+const extendedSchema = userSchema.shape({
+  role: Yup.string().required(),
+});
+```
+
+### Array Schema
+
+```js
+// Yup.array() validates arrays of items
+const tagsSchema = Yup.array()
+  .of(Yup.string().min(2))             // each element must be string >= 2 chars
+  .min(1, 'At least one tag required')
+  .max(10, 'Maximum 10 tags')
+  .required();
+
+// Array of objects
+const ordersSchema = Yup.array().of(
+  Yup.object({
+    productId: Yup.string().required(),
+    quantity:  Yup.number().min(1).required(),
+    price:     Yup.number().positive().required(),
+  })
+).min(1, 'Order must have at least one item');
+
+// Unique items — custom test
+const uniqueEmailsSchema = Yup.array()
+  .of(Yup.string().email())
+  .test('unique', 'Emails must be unique', (values) => {
+    return values ? new Set(values).size === values.length : true;
+  });
+```
+
+### Cross-Field Validation (Yup.ref)
+
+```js
+const passwordSchema = Yup.object({
+  password: Yup.string()
+    .min(8)
+    .required(),
+
+  confirmPassword: Yup.string()
+    // Yup.ref('password') references the sibling field's value
+    .oneOf([Yup.ref('password')], 'Passwords do not match')
+    .required('Please confirm your password'),
+
+  minAge: Yup.number().required(),
+
+  maxAge: Yup.number()
+    // this() refers to the current field, parent() refers to the parent object
+    .min(Yup.ref('minAge'), 'Max age must be ≥ Min age')
+    .required(),
+});
+
+// Date range: end must be after start
+const dateRangeSchema = Yup.object({
+  startDate: Yup.date().required(),
+  endDate:   Yup.date()
+    .min(Yup.ref('startDate'), 'End date must be after start date')
+    .required(),
+});
+```
+
+### Custom Validators (.test())
+
+```js
+// .test(name, message, testFn) — most flexible option
+const customSchema = Yup.object({
+
+  // Sync custom validator
+  username: Yup.string().test(
+    'no-spaces',                         // test name (internal, for debugging)
+    'Username cannot contain spaces',    // error message
+    (value) => !value || !value.includes(' ')  // return true = valid
+  ),
+
+  // Async validator (server check)
+  email: Yup.string().email().test(
+    'unique-email',
+    'Email already registered',
+    async (value) => {
+      if (!value) return true;           // skip if empty (required handles that)
+      const isTaken = await checkEmailApi(value);
+      return !isTaken;                   // true = valid (email NOT taken)
+    }
+  ),
+
+  // Access sibling fields in test via this.parent
+  endDate: Yup.date().test(
+    'after-start',
+    'End must be after start',
+    function(value) {
+      // NOTE: must use function() not arrow fn to access this.parent
+      const { startDate } = this.parent;
+      return !startDate || !value || value > startDate;
+    }
+  ),
+
+  // Custom error message with dynamic value
+  score: Yup.number().test(
+    'max-score',
+    ({ value }) => `Score ${value} exceeds maximum of 100`,  // message as function
+    (value) => !value || value <= 100
+  ),
+});
+```
+
+### Conditional Validation (.when())
+
+```js
+const conditionalSchema = Yup.object({
+  // Simple condition: isEmployed controls employerName requirement
+  isEmployed: Yup.boolean(),
+  employerName: Yup.string().when('isEmployed', {
+    is: true,                            // when isEmployed === true
+    then: (schema) => schema.required('Employer name required'),
+    otherwise: (schema) => schema.optional(),
+  }),
+
+  // Condition on multiple fields (pass array)
+  discount: Yup.number().when(['isStudent', 'isEmployed'], {
+    is: (isStudent, isEmployed) => isStudent && !isEmployed,  // condition function
+    then: (schema) => schema.max(50, 'Student discount max 50%'),
+    otherwise: (schema) => schema.max(20, 'Standard discount max 20%'),
+  }),
+
+  // Nested when
+  paymentType: Yup.string().oneOf(['card', 'bank']),
+  cardNumber: Yup.string().when('paymentType', {
+    is: 'card',
+    then: (schema) => schema
+      .matches(/^\d{16}$/, 'Must be 16 digits')
+      .required(),
+  }),
+  bankAccount: Yup.string().when('paymentType', {
+    is: 'bank',
+    then: (schema) => schema.required('Bank account required'),
+  }),
+});
+```
+
+### Using Yup Outside Formik
+
+```js
+// Validate manually (returns the cast/coerced value)
+try {
+  const validData = await userSchema.validate(rawData, {
+    abortEarly: false,   // collect ALL errors, not just the first
+    stripUnknown: true,  // remove fields not in schema
+  });
+  console.log(validData); // clean, validated data
+} catch (err) {
+  // err is a Yup.ValidationError
+  // err.inner is an array of all individual field errors
+  const fieldErrors = err.inner.reduce((acc, e) => {
+    acc[e.path] = e.message;  // e.path = 'email', 'address.zip', etc.
+    return acc;
+  }, {});
+  console.log(fieldErrors);  // { email: 'Required', 'address.zip': 'Must be 5 digits' }
+}
+
+// Synchronous validation (throws if schema has async tests)
+const isValid = userSchema.isValidSync(data);              // boolean
+const errors  = userSchema.validateSync(data, { abortEarly: false }); // throws
+
+// Just check if valid without throwing
+const valid = await userSchema.isValid(data);              // boolean, no throw
+```
+
+### Yup Schema Composition & Reuse
+
+```js
+// Build shared base schemas and extend them
+const baseStringField = Yup.string().trim().max(255);
+
+const emailField = baseStringField.email('Invalid email').required('Email required');
+const nameField  = baseStringField.min(2, 'Too short').required('Name required');
+
+// Compose schemas
+const loginSchema     = Yup.object({ email: emailField, password: Yup.string().required() });
+const registerSchema  = Yup.object({ email: emailField, name: nameField, password: Yup.string().min(8).required() });
+
+// Extend an existing schema
+const adminSchema = registerSchema.shape({
+  adminCode: Yup.string().required('Admin code required'),
+});
+
+// Lazy evaluation (schema depends on runtime value)
+const dynamicSchema = Yup.lazy((value) => {
+  if (typeof value === 'string') return Yup.string().email();
+  if (typeof value === 'number') return Yup.number().positive();
+  return Yup.mixed();
+});
+```
+
+| Yup Method | Purpose |
+|---|---|
+| `.required()` | Fails on `''`, `null`, `undefined` |
+| `.nullable()` | Allows `null` through |
+| `.optional()` | Allows `undefined` through |
+| `.default(val)` | Provides default during cast |
+| `.strip()` | Removes this field from output |
+| `.label('Name')` | Custom label in error messages |
+| `.typeError('msg')` | Message when type cast fails |
+| `abortEarly: false` | Collect all errors, not just first |
+
+---
+
+## 21. React-Bootstrap - UI Component Library
+
+> **Mental Model**: React-Bootstrap replaces raw HTML with pre-styled, accessible React components. Think of it as Bootstrap CSS grid + components but wired directly into React props instead of class names.
+
+### Installation & Setup
+
+```bash
+npm install react-bootstrap bootstrap
+```
+
+```jsx
+// main.jsx or index.js — import Bootstrap CSS ONCE at the root
+import 'bootstrap/dist/css/bootstrap.min.css';
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+```
+
+### Grid System (Container / Row / Col)
+
+```jsx
+import { Container, Row, Col } from 'react-bootstrap';
+
+// 12-column grid — Col xs/sm/md/lg/xl control breakpoint widths
+function GridDemo() {
+  return (
+    // Container centers content and adds horizontal padding
+    <Container>
+      <Row>
+        {/* Full width on xs, half on md, one-third on lg */}
+        <Col xs={12} md={6} lg={4}>
+          <div className="p-3 bg-light border">Column 1</div>
+        </Col>
+        <Col xs={12} md={6} lg={4}>
+          <div className="p-3 bg-light border">Column 2</div>
+        </Col>
+        <Col xs={12} md={12} lg={4}>
+          <div className="p-3 bg-light border">Column 3</div>
+        </Col>
+      </Row>
+
+      {/* Auto-sizing: all cols get equal width */}
+      <Row className="mt-3">
+        <Col><div className="p-3 bg-info text-white">Auto</div></Col>
+        <Col><div className="p-3 bg-info text-white">Auto</div></Col>
+        <Col><div className="p-3 bg-info text-white">Auto</div></Col>
+      </Row>
+
+      {/* Offset columns */}
+      <Row className="mt-3">
+        <Col md={{ span: 6, offset: 3 }}>  {/* centered column */}
+          <div className="p-3 bg-warning">Centered</div>
+        </Col>
+      </Row>
+    </Container>
+  );
+}
+```
+
+### Forms with React-Bootstrap
+
+```jsx
+import { Form, Button, FloatingLabel, InputGroup } from 'react-bootstrap';
+import { useFormik } from 'formik';
+import * as Yup from 'yup';
+
+const schema = Yup.object({
+  email:    Yup.string().email().required(),
+  password: Yup.string().min(8).required(),
+  role:     Yup.string().required(),
+  agree:    Yup.boolean().isTrue('You must agree'),
+});
+
+function BootstrapForm() {
+  const formik = useFormik({
+    initialValues: { email: '', password: '', role: '', agree: false },
+    validationSchema: schema,
+    onSubmit: (v) => console.log(v),
+  });
+
+  return (
+    <Form noValidate onSubmit={formik.handleSubmit}>  {/* noValidate disables browser validation */}
+
+      {/* Floating label input */}
+      <FloatingLabel label="Email address" className="mb-3">
+        <Form.Control
+          type="email"
+          name="email"
+          placeholder="name@example.com"      // required for FloatingLabel
+          value={formik.values.email}
+          onChange={formik.handleChange}
+          onBlur={formik.handleBlur}
+          isValid={formik.touched.email && !formik.errors.email}    // green border
+          isInvalid={formik.touched.email && !!formik.errors.email} // red border
+        />
+        {/* Form.Control.Feedback renders Bootstrap's invalid text */}
+        <Form.Control.Feedback type="invalid">
+          {formik.errors.email}
+        </Form.Control.Feedback>
+      </FloatingLabel>
+
+      {/* Regular labeled input */}
+      <Form.Group className="mb-3" controlId="password">
+        <Form.Label>Password</Form.Label>
+        <Form.Control
+          type="password"
+          name="password"
+          {...formik.getFieldProps('password')}
+          isInvalid={formik.touched.password && !!formik.errors.password}
+        />
+        <Form.Control.Feedback type="invalid">
+          {formik.errors.password}
+        </Form.Control.Feedback>
+        <Form.Text className="text-muted">Minimum 8 characters</Form.Text>
+      </Form.Group>
+
+      {/* Select dropdown */}
+      <Form.Group className="mb-3" controlId="role">
+        <Form.Label>Role</Form.Label>
+        <Form.Select
+          name="role"
+          {...formik.getFieldProps('role')}
+          isInvalid={formik.touched.role && !!formik.errors.role}
+        >
+          <option value="">Choose role...</option>
+          <option value="user">User</option>
+          <option value="admin">Admin</option>
+        </Form.Select>
+        <Form.Control.Feedback type="invalid">
+          {formik.errors.role}
+        </Form.Control.Feedback>
+      </Form.Group>
+
+      {/* Checkbox */}
+      <Form.Group className="mb-3">
+        <Form.Check
+          type="checkbox"
+          id="agree"
+          name="agree"
+          label="I agree to the terms"
+          checked={formik.values.agree}
+          onChange={formik.handleChange}
+          isInvalid={formik.touched.agree && !!formik.errors.agree}
+          feedback={formik.errors.agree}
+          feedbackType="invalid"
+        />
+      </Form.Group>
+
+      {/* Input with addon (prefix/suffix) */}
+      <InputGroup className="mb-3">
+        <InputGroup.Text>@</InputGroup.Text>   {/* prefix addon */}
+        <Form.Control name="username" placeholder="Username" />
+        <InputGroup.Text>.com</InputGroup.Text>  {/* suffix addon */}
+      </InputGroup>
+
+      <Button
+        type="submit"
+        variant="primary"
+        disabled={formik.isSubmitting}
+      >
+        {formik.isSubmitting ? 'Submitting...' : 'Submit'}
+      </Button>
+    </Form>
+  );
+}
+```
+
+### Buttons & Variants
+
+```jsx
+import { Button, ButtonGroup, ButtonToolbar } from 'react-bootstrap';
+
+function ButtonDemo() {
+  return (
+    <>
+      {/* variant controls color */}
+      <Button variant="primary">Primary</Button>
+      <Button variant="secondary">Secondary</Button>
+      <Button variant="success">Success</Button>
+      <Button variant="danger">Danger</Button>
+      <Button variant="warning">Warning</Button>
+      <Button variant="info">Info</Button>
+      <Button variant="light">Light</Button>
+      <Button variant="dark">Dark</Button>
+      <Button variant="link">Link</Button>
+
+      {/* Outline variants */}
+      <Button variant="outline-primary">Outline Primary</Button>
+
+      {/* Sizes */}
+      <Button size="lg">Large</Button>
+      <Button size="sm">Small</Button>
+
+      {/* Full width */}
+      <Button className="w-100">Full Width</Button>
+
+      {/* Loading state pattern */}
+      <Button disabled={isLoading}>
+        {isLoading ? 'Loading...' : 'Submit'}
+      </Button>
+
+      {/* Button group */}
+      <ButtonGroup>
+        <Button variant="outline-primary">Left</Button>
+        <Button variant="outline-primary">Middle</Button>
+        <Button variant="outline-primary">Right</Button>
+      </ButtonGroup>
+    </>
+  );
+}
+```
+
+### Modal Dialog
+
+```jsx
+import { useState } from 'react';
+import { Modal, Button, Form } from 'react-bootstrap';
+
+function ConfirmDeleteModal({ onConfirm }) {
+  const [show, setShow] = useState(false);
+
+  const handleClose = () => setShow(false);
+  const handleShow  = () => setShow(true);
+
+  const handleConfirm = () => {
+    onConfirm();       // execute the dangerous action
+    handleClose();     // close the modal
+  };
+
+  return (
+    <>
+      <Button variant="danger" onClick={handleShow}>Delete Item</Button>
+
+      <Modal
+        show={show}
+        onHide={handleClose}
+        backdrop="static"      // prevent closing by clicking outside
+        keyboard={false}       // prevent Esc key close
+        centered               // vertically center the modal
+        size="lg"              // sm | lg | xl | undefined (default md)
+      >
+        <Modal.Header closeButton>  {/* closeButton adds X button */}
+          <Modal.Title>Confirm Delete</Modal.Title>
+        </Modal.Header>
+
+        <Modal.Body>
+          Are you sure you want to delete this item? This action cannot be undone.
+        </Modal.Body>
+
+        <Modal.Footer>
+          <Button variant="secondary" onClick={handleClose}>Cancel</Button>
+          <Button variant="danger" onClick={handleConfirm}>Delete</Button>
+        </Modal.Footer>
+      </Modal>
+    </>
+  );
+}
+```
+
+### Alerts & Toasts
+
+```jsx
+import { Alert, Toast, ToastContainer } from 'react-bootstrap';
+import { useState } from 'react';
+
+function AlertDemo() {
+  const [show, setShow] = useState(true);
+
+  return (
+    <>
+      {/* Static alert */}
+      <Alert variant="success">
+        <Alert.Heading>Success!</Alert.Heading>
+        <p>Your form was submitted successfully.</p>
+      </Alert>
+
+      {/* Dismissible alert */}
+      <Alert variant="warning" dismissible onClose={() => setShow(false)} show={show}>
+        This is a warning message.
+      </Alert>
+    </>
+  );
+}
+
+function ToastDemo() {
+  const [show, setShow] = useState(false);
+
+  return (
+    <>
+      <Button onClick={() => setShow(true)}>Show Toast</Button>
+
+      {/* ToastContainer positions toasts — position prop controls corner */}
+      <ToastContainer position="top-end" className="p-3">
+        <Toast
+          show={show}
+          onClose={() => setShow(false)}
+          delay={3000}          // auto-hide after 3 seconds
+          autohide             // enable auto-hide
+          bg="success"         // background color
+        >
+          <Toast.Header>
+            <strong className="me-auto">Notification</strong>
+            <small>Just now</small>
+          </Toast.Header>
+          <Toast.Body className="text-white">Item saved successfully!</Toast.Body>
+        </Toast>
+      </ToastContainer>
+    </>
+  );
+}
+```
+
+### Table
+
+```jsx
+import { Table, Spinner } from 'react-bootstrap';
+
+function DataTable({ data, isLoading }) {
+  if (isLoading) return <Spinner animation="border" role="status" />;
+
+  return (
+    <Table
+      striped        // alternating row colors
+      bordered       // borders on all cells
+      hover          // highlight row on hover
+      responsive     // horizontal scroll on small screens
+      size="sm"      // compact padding
+    >
+      <thead className="table-dark">
+        <tr>
+          <th>#</th>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {data.map((row, idx) => (
+          <tr key={row.id}>
+            <td>{idx + 1}</td>
+            <td>{row.name}</td>
+            <td>{row.email}</td>
+            <td>
+              <Button size="sm" variant="outline-primary" className="me-1">Edit</Button>
+              <Button size="sm" variant="outline-danger">Delete</Button>
+            </td>
+          </tr>
+        ))}
+        {data.length === 0 && (
+          <tr>
+            <td colSpan={4} className="text-center text-muted">No data found</td>
+          </tr>
+        )}
+      </tbody>
+    </Table>
+  );
+}
+```
+
+### Navbar & Navigation
+
+```jsx
+import { Navbar, Nav, NavDropdown, Container } from 'react-bootstrap';
+import { LinkContainer } from 'react-router-bootstrap'; // bridges RRD and RB
+
+function AppNavbar() {
+  return (
+    <Navbar bg="dark" variant="dark" expand="lg" sticky="top">
+      <Container>
+        <Navbar.Brand href="/">MyApp</Navbar.Brand>
+
+        {/* Hamburger toggle for mobile */}
+        <Navbar.Toggle aria-controls="main-nav" />
+
+        {/* Collapsible nav links */}
+        <Navbar.Collapse id="main-nav">
+          <Nav className="me-auto">
+            <LinkContainer to="/dashboard">
+              <Nav.Link>Dashboard</Nav.Link>
+            </LinkContainer>
+            <LinkContainer to="/users">
+              <Nav.Link>Users</Nav.Link>
+            </LinkContainer>
+
+            {/* Dropdown */}
+            <NavDropdown title="Settings" id="settings-dropdown">
+              <LinkContainer to="/settings/profile">
+                <NavDropdown.Item>Profile</NavDropdown.Item>
+              </LinkContainer>
+              <NavDropdown.Divider />
+              <NavDropdown.Item onClick={handleLogout}>Logout</NavDropdown.Item>
+            </NavDropdown>
+          </Nav>
+
+          {/* Right-aligned items */}
+          <Nav>
+            <Nav.Link href="/login">Login</Nav.Link>
+          </Nav>
+        </Navbar.Collapse>
+      </Container>
+    </Navbar>
+  );
+}
+```
+
+### Cards & Layout Components
+
+```jsx
+import { Card, Badge, ListGroup, Accordion, Tabs, Tab } from 'react-bootstrap';
+
+// Card
+function ProductCard({ product }) {
+  return (
+    <Card style={{ width: '18rem' }}>
+      <Card.Img variant="top" src={product.imageUrl} />
+      <Card.Body>
+        <Card.Title>
+          {product.name}
+          <Badge bg="success" className="ms-2">{product.category}</Badge>
+        </Card.Title>
+        <Card.Text>{product.description}</Card.Text>
+        <Button variant="primary">Add to Cart</Button>
+      </Card.Body>
+      <Card.Footer className="text-muted">${product.price}</Card.Footer>
+    </Card>
+  );
+}
+
+// Accordion (collapsible sections)
+function FAQ() {
+  return (
+    <Accordion defaultActiveKey="0">  {/* "0" = first item open by default */}
+      <Accordion.Item eventKey="0">
+        <Accordion.Header>What is React?</Accordion.Header>
+        <Accordion.Body>
+          React is a JavaScript library for building user interfaces.
+        </Accordion.Body>
+      </Accordion.Item>
+      <Accordion.Item eventKey="1">
+        <Accordion.Header>What is Formik?</Accordion.Header>
+        <Accordion.Body>
+          Formik is a form library for React that simplifies form state management.
+        </Accordion.Body>
+      </Accordion.Item>
+    </Accordion>
+  );
+}
+
+// Tabs
+function TabbedContent() {
+  return (
+    <Tabs defaultActiveKey="profile" id="content-tabs" className="mb-3">
+      <Tab eventKey="profile" title="Profile">
+        <p>Profile content here</p>
+      </Tab>
+      <Tab eventKey="settings" title="Settings">
+        <p>Settings content here</p>
+      </Tab>
+      <Tab eventKey="billing" title="Billing" disabled>
+        <p>Billing (disabled)</p>
+      </Tab>
+    </Tabs>
+  );
+}
+```
+
+---
+
+## 22. Common Useful Libraries
+
+> **Key Insight**: Master the ecosystem, not just React core. These libraries solve real-world problems so you don't reinvent the wheel.
+
+### React Query (TanStack Query) — Server State Management
+
+```bash
+npm install @tanstack/react-query
+```
+
+```jsx
+import { QueryClient, QueryClientProvider, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
+// Create client ONCE outside components
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000,    // data fresh for 5 min (no refetch)
+      retry: 2,                      // retry failed requests twice
+      refetchOnWindowFocus: false,   // don't refetch when tab regains focus
+    },
+  },
+});
+
+// Wrap app with provider
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <UserList />
+    </QueryClientProvider>
+  );
+}
+
+// ─── useQuery: fetch & cache server data ───
+function UserList() {
+  const {
+    data,          // fetched data (undefined while loading)
+    isLoading,     // true on first fetch (no cached data)
+    isFetching,    // true on any fetch (including background refetch)
+    isError,
+    error,
+    refetch,       // manually trigger refetch
+  } = useQuery({
+    queryKey: ['users'],            // cache key — must be unique
+    queryFn: () => fetch('/api/users').then(r => r.json()),
+  });
+
+  if (isLoading) return <Spinner />;
+  if (isError) return <Alert variant="danger">{error.message}</Alert>;
+
+  return <UserTable data={data} />;
+}
+
+// useQuery with parameters — queryKey changes trigger new fetch
+function UserDetail({ userId }) {
+  const { data: user } = useQuery({
+    queryKey: ['users', userId],    // new key = new query for each userId
+    queryFn: () => fetch(`/api/users/${userId}`).then(r => r.json()),
+    enabled: !!userId,              // only fetch when userId is truthy
+  });
+  return <div>{user?.name}</div>;
+}
+
+// ─── useMutation: POST/PUT/DELETE operations ───
+function CreateUserForm() {
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: (newUser) => fetch('/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newUser),
+    }).then(r => r.json()),
+
+    onSuccess: () => {
+      // Invalidate 'users' query → triggers background refetch
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+    onError: (error) => {
+      console.error('Failed to create user:', error);
+    },
+  });
+
+  return (
+    <button
+      onClick={() => mutation.mutate({ name: 'John', email: 'john@example.com' })}
+      disabled={mutation.isPending}
+    >
+      {mutation.isPending ? 'Creating...' : 'Create User'}
+    </button>
+  );
+}
+```
+
+### Axios — HTTP Client
+
+```bash
+npm install axios
+```
+
+```jsx
+import axios from 'axios';
+
+// ─── Axios Instance (configure once, use everywhere) ───
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api',
+  timeout: 10000,                      // fail requests after 10s
+  headers: { 'Content-Type': 'application/json' },
+});
+
+// Request interceptor — add auth token to every request
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Response interceptor — handle 401 globally
+api.interceptors.response.use(
+  (response) => response.data,        // unwrap .data automatically
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      window.location.href = '/login'; // redirect to login
+    }
+    return Promise.reject(error);
+  }
+);
+
+// ─── CRUD operations ───
+const userService = {
+  getAll:   ()       => api.get('/users'),
+  getById:  (id)     => api.get(`/users/${id}`),
+  create:   (data)   => api.post('/users', data),
+  update:   (id, data) => api.put(`/users/${id}`, data),
+  patch:    (id, data) => api.patch(`/users/${id}`, data),
+  delete:   (id)     => api.delete(`/users/${id}`),
+};
+
+// ─── File upload with progress ───
+async function uploadFile(file, onProgress) {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  return api.post('/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    onUploadProgress: (e) => {
+      const pct = Math.round((e.loaded / e.total) * 100);
+      onProgress(pct);               // update progress bar
+    },
+  });
+}
+
+// ─── Cancel request (cleanup on unmount) ───
+function UserDetail({ id }) {
+  useEffect(() => {
+    const controller = new AbortController();
+
+    api.get(`/users/${id}`, { signal: controller.signal })
+      .then(setUser)
+      .catch((err) => {
+        if (!axios.isCancel(err)) console.error(err);
+      });
+
+    return () => controller.abort();  // cancel on unmount / id change
+  }, [id]);
+}
+```
+
+### React Hook Form — Lightweight Form Library
+
+```bash
+npm install react-hook-form @hookform/resolvers
+```
+
+```jsx
+// React Hook Form (RHF) — uncontrolled inputs, minimal re-renders
+import { useForm, Controller } from 'react-hook-form';
+import { yupResolver } from '@hookform/resolvers/yup';
+import * as Yup from 'yup';
+
+const schema = Yup.object({
+  email:    Yup.string().email().required(),
+  password: Yup.string().min(8).required(),
+});
+
+function LoginFormRHF() {
+  const {
+    register,      // connects input to RHF (uncontrolled)
+    handleSubmit,  // wraps your submit, only calls if valid
+    formState: { errors, isSubmitting, isDirty, isValid },
+    reset,         // reset to defaultValues
+    setValue,      // programmatically set a value
+    watch,         // watch field values reactively
+    control,       // for Controller (third-party components)
+  } = useForm({
+    defaultValues: { email: '', password: '' },
+    resolver: yupResolver(schema),   // plug in Yup validation
+    mode: 'onBlur',                  // validate on blur (onSubmit | onChange | all)
+  });
+
+  const emailValue = watch('email'); // live value without extra state
+
+  const onSubmit = async (data) => {  // data = validated form values
+    await loginApi(data);
+    reset();
+  };
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)}>
+      <input
+        type="email"
+        // register() returns ref, name, onChange, onBlur — spread them
+        {...register('email')}
+        placeholder="Email"
+      />
+      {errors.email && <span>{errors.email.message}</span>}
+
+      <input type="password" {...register('password')} />
+      {errors.password && <span>{errors.password.message}</span>}
+
+      {/* Controller wraps third-party controlled inputs (e.g. React Select) */}
+      <Controller
+        name="country"
+        control={control}
+        render={({ field }) => (
+          <ReactSelect
+            {...field}              // passes value, onChange, onBlur
+            options={countryOptions}
+          />
+        )}
+      />
+
+      <button type="submit" disabled={isSubmitting || !isValid}>
+        Login
+      </button>
+    </form>
+  );
+}
+
+// RHF vs Formik comparison
+// RHF: uncontrolled (refs) — fewer re-renders, better performance at scale
+// Formik: controlled — simpler mental model, better ecosystem integration
+```
+
+### React Select — Searchable Dropdown
+
+```bash
+npm install react-select
+```
+
+```jsx
+import Select from 'react-select';
+import CreatableSelect from 'react-select/creatable';
+import AsyncSelect from 'react-select/async';
+
+// Options format: { value, label }
+const countryOptions = [
+  { value: 'us', label: 'United States' },
+  { value: 'ca', label: 'Canada' },
+  { value: 'gb', label: 'United Kingdom' },
+];
+
+function SelectDemo() {
+  const [selected, setSelected] = useState(null);
+  const [multi, setMulti]       = useState([]);
+
+  return (
+    <>
+      {/* Basic searchable select */}
+      <Select
+        options={countryOptions}
+        value={selected}
+        onChange={setSelected}           // receives { value, label } object
+        placeholder="Select country..."
+        isClearable                      // show X to clear
+        isSearchable                     // search/filter options (default true)
+        isLoading={false}               // show spinner
+        isDisabled={false}
+        noOptionsMessage={() => 'No countries found'}
+      />
+
+      {/* Multi-select */}
+      <Select
+        isMulti
+        options={countryOptions}
+        value={multi}
+        onChange={setMulti}             // array of { value, label }
+        closeMenuOnSelect={false}       // keep open after selection
+      />
+
+      {/* Async options from API */}
+      <AsyncSelect
+        loadOptions={async (inputValue) => {
+          const res = await searchUsersApi(inputValue);
+          return res.map(u => ({ value: u.id, label: u.name }));
+        }}
+        defaultOptions                  // load options on mount
+        placeholder="Search users..."
+      />
+
+      {/* Creatable: user can type new options */}
+      <CreatableSelect
+        options={countryOptions}
+        onChange={setSelected}
+        onCreateOption={(label) => {    // called when user types new value
+          const newOption = { value: label.toLowerCase(), label };
+          setSelected(newOption);
+        }}
+      />
+    </>
+  );
+}
+
+// With Formik + Controller (React Hook Form)
+<Controller
+  name="country"
+  control={control}
+  render={({ field }) => (
+    <Select
+      {...field}
+      options={countryOptions}
+      value={countryOptions.find(o => o.value === field.value)}
+      onChange={(opt) => field.onChange(opt?.value)}  // store just the value string
+    />
+  )}
+/>
+```
+
+### React Table (TanStack Table) — Headless Table
+
+```bash
+npm install @tanstack/react-table
+```
+
+```jsx
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  flexRender,
+} from '@tanstack/react-table';
+import { useState, useMemo } from 'react';
+
+const columns = [
+  // columnHelper.accessor or plain column def objects
+  {
+    accessorKey: 'name',              // maps to data.name
+    header: 'Name',
+    cell: ({ getValue }) => <strong>{getValue()}</strong>,  // custom cell renderer
+  },
+  {
+    accessorKey: 'email',
+    header: 'Email',
+    enableSorting: false,             // disable sort on this column
+  },
+  {
+    accessorKey: 'role',
+    header: 'Role',
+    cell: ({ getValue }) => (
+      <Badge bg={getValue() === 'admin' ? 'danger' : 'secondary'}>
+        {getValue()}
+      </Badge>
+    ),
+  },
+  {
+    id: 'actions',                    // id required when no accessorKey
+    header: 'Actions',
+    cell: ({ row }) => (
+      <Button size="sm" onClick={() => handleEdit(row.original)}>
+        Edit
+      </Button>
+    ),
+  },
+];
+
+function DataGrid({ data }) {
+  const [sorting, setSorting]       = useState([]);
+  const [globalFilter, setGlobalFilter] = useState('');
+
+  const table = useReactTable({
+    data,
+    columns,
+    state: { sorting, globalFilter },
+    onSortingChange:       setSorting,
+    onGlobalFilterChange:  setGlobalFilter,
+    getCoreRowModel:       getCoreRowModel(),       // required
+    getSortedRowModel:     getSortedRowModel(),     // enables sorting
+    getFilteredRowModel:   getFilteredRowModel(),   // enables filtering
+    getPaginationRowModel: getPaginationRowModel(), // enables pagination
+    initialState: { pagination: { pageSize: 10 } },
+  });
+
+  return (
+    <div>
+      <input
+        value={globalFilter}
+        onChange={(e) => setGlobalFilter(e.target.value)}
+        placeholder="Search all columns..."
+      />
+
+      <table>
+        <thead>
+          {table.getHeaderGroups().map(headerGroup => (
+            <tr key={headerGroup.id}>
+              {headerGroup.headers.map(header => (
+                <th
+                  key={header.id}
+                  onClick={header.column.getToggleSortingHandler()}
+                  style={{ cursor: header.column.getCanSort() ? 'pointer' : 'default' }}
+                >
+                  {flexRender(header.column.columnDef.header, header.getContext())}
+                  {/* Sort indicator */}
+                  {{ asc: ' ↑', desc: ' ↓' }[header.column.getIsSorted()] ?? ''}
+                </th>
+              ))}
+            </tr>
+          ))}
+        </thead>
+        <tbody>
+          {table.getRowModel().rows.map(row => (
+            <tr key={row.id}>
+              {row.getVisibleCells().map(cell => (
+                <td key={cell.id}>
+                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* Pagination controls */}
+      <div>
+        <button onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
+          Previous
+        </button>
+        <span>Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}</span>
+        <button onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
+          Next
+        </button>
+        <select
+          value={table.getState().pagination.pageSize}
+          onChange={(e) => table.setPageSize(Number(e.target.value))}
+        >
+          {[10, 25, 50].map(size => <option key={size} value={size}>Show {size}</option>)}
+        </select>
+      </div>
+    </div>
+  );
+}
+```
+
+### React Toastify — Notifications
+
+```bash
+npm install react-toastify
+```
+
+```jsx
+// App.jsx — add ToastContainer once at root
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+
+function App() {
+  return (
+    <>
+      <YourRoutes />
+      <ToastContainer
+        position="top-right"     // top-left | top-center | bottom-right | etc.
+        autoClose={3000}         // ms before auto-close
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        pauseOnHover
+      />
+    </>
+  );
+}
+
+// Anywhere in your app — no props needed
+import { toast } from 'react-toastify';
+
+function UserActions() {
+  const handleSave = async () => {
+    try {
+      await saveApi();
+      toast.success('Saved successfully!');            // green
+    } catch (e) {
+      toast.error(`Error: ${e.message}`);              // red
+    }
+  };
+
+  return (
+    <>
+      <button onClick={handleSave}>Save</button>
+      <button onClick={() => toast.info('Info message')}>Info</button>    {/* blue */}
+      <button onClick={() => toast.warning('Warning!')}>Warn</button>     {/* orange */}
+
+      {/* Promise toast — shows loading → success/error automatically */}
+      <button onClick={() =>
+        toast.promise(
+          saveApi(),                    // the promise
+          {
+            pending: 'Saving...',
+            success: 'Saved!',
+            error:   'Save failed',
+          }
+        )
+      }>
+        Save with Promise
+      </button>
+
+      {/* Custom toast with dismiss */}
+      <button onClick={() => {
+        const id = toast.loading('Processing...');
+        doHeavyWork().then(() => {
+          toast.update(id, { render: 'Done!', type: 'success', isLoading: false, autoClose: 2000 });
+        });
+      }}>
+        Heavy Work
+      </button>
+    </>
+  );
+}
+```
+
+### date-fns — Date Utilities
+
+```bash
+npm install date-fns
+```
+
+```jsx
+import {
+  format, parseISO, formatDistanceToNow, addDays, subMonths,
+  isAfter, isBefore, differenceInDays, startOfMonth, endOfMonth,
+  isValid, parse,
+} from 'date-fns';
+
+// Format dates
+format(new Date(), 'yyyy-MM-dd');            // '2024-03-15'
+format(new Date(), 'MMM d, yyyy');           // 'Mar 15, 2024'
+format(new Date(), 'h:mm a');               // '2:30 PM'
+format(new Date(), "EEEE, MMMM do, yyyy");  // 'Friday, March 15th, 2024'
+
+// Parse ISO string from API
+const date = parseISO('2024-03-15T10:30:00Z');
+
+// Relative time
+formatDistanceToNow(new Date('2024-03-01'), { addSuffix: true }); // '14 days ago'
+
+// Date math
+const tomorrow  = addDays(new Date(), 1);
+const lastMonth = subMonths(new Date(), 1);
+
+// Comparisons
+isAfter(new Date('2024-12-31'), new Date());   // true
+isBefore(new Date('2024-01-01'), new Date());  // true
+differenceInDays(new Date('2024-12-31'), new Date()); // days until end of year
+
+// Validation
+isValid(new Date('2024-13-01'));  // false (month 13 doesn't exist)
+
+// React usage
+function TimeAgo({ isoString }) {
+  const date = parseISO(isoString);
+  return (
+    <time dateTime={isoString} title={format(date, 'PPpp')}>
+      {formatDistanceToNow(date, { addSuffix: true })}
+    </time>
+  );
+}
+```
+
+### Lodash — Utility Functions
+
+```bash
+npm install lodash-es    # tree-shakeable ES module version
+```
+
+```jsx
+import debounce from 'lodash-es/debounce';
+import throttle from 'lodash-es/throttle';
+import groupBy  from 'lodash-es/groupBy';
+import orderBy  from 'lodash-es/orderBy';
+import pick     from 'lodash-es/pick';
+import omit     from 'lodash-es/omit';
+import cloneDeep from 'lodash-es/cloneDeep';
+import uniqBy   from 'lodash-es/uniqBy';
+
+// ─── debounce: delay execution until user stops typing ───
+const searchHandler = useCallback(
+  debounce((query) => {
+    searchApi(query);          // only called 500ms after last keystroke
+  }, 500),
+  []
+);
+<input onChange={(e) => searchHandler(e.target.value)} />
+
+// ─── throttle: limit to once per 200ms ───
+const onScroll = throttle(() => {
+  console.log('scrolled');     // fires at most once per 200ms regardless of scroll speed
+}, 200);
+
+// ─── groupBy: transform flat array to grouped object ───
+const users = [
+  { name: 'Alice', role: 'admin' },
+  { name: 'Bob',   role: 'user' },
+  { name: 'Carol', role: 'admin' },
+];
+groupBy(users, 'role');
+// { admin: [Alice, Carol], user: [Bob] }
+
+// ─── orderBy: sort by multiple keys ───
+orderBy(users, ['role', 'name'], ['asc', 'desc']);
+
+// ─── pick / omit: select or exclude object keys ───
+pick(user, ['name', 'email']);         // { name, email }
+omit(user, ['password', 'ssn']);       // everything except sensitive fields
+
+// ─── cloneDeep: avoid mutating nested state ───
+const newState = cloneDeep(state);
+newState.user.address.zip = '12345';  // safe: original state untouched
+
+// ─── uniqBy: deduplicate array of objects ───
+uniqBy([...existingUsers, ...newUsers], 'id'); // remove duplicates by id
+```
+
+### React Error Boundary (react-error-boundary)
+
+```bash
+npm install react-error-boundary
+```
+
+```jsx
+import { ErrorBoundary, useErrorBoundary } from 'react-error-boundary';
+
+// Fallback UI component
+function ErrorFallback({ error, resetErrorBoundary }) {
+  return (
+    <div role="alert" className="p-4 border border-danger rounded">
+      <h4>Something went wrong:</h4>
+      <pre className="text-danger">{error.message}</pre>
+      <Button onClick={resetErrorBoundary}>Try Again</Button>
+    </div>
+  );
+}
+
+// Wrap components that might throw
+function App() {
+  return (
+    <ErrorBoundary
+      FallbackComponent={ErrorFallback}
+      onError={(error, info) => {
+        logErrorToService(error, info.componentStack); // send to Sentry etc.
+      }}
+      onReset={() => {
+        // optional: reset app state when user clicks "Try Again"
+        queryClient.clear();
+      }}
+    >
+      <Dashboard />
+    </ErrorBoundary>
+  );
+}
+
+// Throw from inside a component to trigger nearest boundary
+function RiskyComponent() {
+  const { showBoundary } = useErrorBoundary();
+
+  const handleFetch = async () => {
+    try {
+      await fetchData();
+    } catch (e) {
+      showBoundary(e);  // programmatically trigger error boundary
+    }
+  };
+}
+```
+
+---
+
+## 23. Jest Unit Testing - Mental Model & Samples
+
+> **Mental Model**: Every test follows **AAA** — **Arrange** (set up data & mocks), **Act** (call the thing under test), **Assert** (verify the outcome). If you can't write AAA clearly, the code may be too coupled.
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│              Jest Testing Mental Model                            │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  UNIT TEST PYRAMID                                               │
+│                                                                   │
+│         /\          ← E2E (Playwright/Cypress) — few, slow       │
+│        /  \                                                       │
+│       /────\        ← Integration (RTL + MSW) — moderate         │
+│      /      \                                                     │
+│     /────────\      ← Unit (Jest) — many, fast, isolated         │
+│    /──────────\                                                   │
+│                                                                   │
+│  What to unit test:                                              │
+│  ✓ Pure functions (utils, transformers, validators)              │
+│  ✓ Hooks (renderHook)                                            │
+│  ✓ Redux reducers / Zustand stores                               │
+│  ✓ Service/API layer functions                                   │
+│  ✓ Component rendering + interactions (via RTL)                  │
+│                                                                   │
+│  What NOT to unit test:                                          │
+│  ✗ Implementation details (internal state, method names)         │
+│  ✗ Third-party library behavior                                  │
+│  ✗ CSS/visual appearance                                         │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### Installation & Configuration
+
+```bash
+# For Create React App — Jest is pre-configured
+npm test
+
+# For Vite — add Jest manually
+npm install --save-dev jest @types/jest jest-environment-jsdom
+npm install --save-dev @testing-library/react @testing-library/jest-dom @testing-library/user-event
+npm install --save-dev babel-jest @babel/preset-env @babel/preset-react
+```
+
+```js
+// jest.config.js
+export default {
+  testEnvironment: 'jsdom',           // simulates browser DOM
+  setupFilesAfterFramework: ['./src/setupTests.js'],
+  moduleNameMapper: {
+    '\\.(css|scss)$': 'identity-obj-proxy',  // mock CSS imports
+    '^@/(.*)$': '<rootDir>/src/$1',           // resolve path aliases
+  },
+  collectCoverageFrom: [
+    'src/**/*.{js,jsx,ts,tsx}',
+    '!src/**/*.d.ts',
+    '!src/index.jsx',
+  ],
+};
+
+// src/setupTests.js
+import '@testing-library/jest-dom'; // adds custom matchers: toBeInTheDocument, etc.
+```
+
+### Core Jest API
+
+```js
+// ─── Test structure ───
+describe('Calculator', () => {           // groups related tests
+  describe('add()', () => {
+    test('adds two positive numbers', () => { /* ... */ });  // test == it
+    it('returns 0 when adding negative and positive', () => { /* ... */ });
+  });
+
+  // skip a test temporarily
+  test.skip('failing test I will fix later', () => { /* ... */ });
+
+  // only run this test (useful while debugging)
+  test.only('focused test', () => { /* ... */ });
+});
+
+// ─── Setup & teardown ───
+beforeAll(() => { /* runs once before all tests in this describe */ });
+afterAll(() => {  /* runs once after all tests in this describe */ });
+beforeEach(() => { /* runs before EACH test — reset state here */ });
+afterEach(() => {  /* runs after EACH test — cleanup here */ });
+```
+
+### Matchers — The Complete List
+
+```js
+// ─── Equality ───
+expect(2 + 2).toBe(4);                // strict equality (===), use for primitives
+expect({ a: 1 }).toEqual({ a: 1 });   // deep equality, use for objects/arrays
+expect({ a: 1, b: 2 }).toMatchObject({ a: 1 }); // partial match — extra keys ok
+
+// ─── Truthiness ───
+expect(true).toBeTruthy();
+expect(null).toBeFalsy();
+expect(undefined).toBeUndefined();
+expect('value').toBeDefined();
+expect(null).toBeNull();
+
+// ─── Numbers ───
+expect(4.5).toBeCloseTo(4.499, 1);    // floating point comparison with precision
+expect(10).toBeGreaterThan(9);
+expect(10).toBeGreaterThanOrEqual(10);
+expect(5).toBeLessThan(6);
+
+// ─── Strings ───
+expect('hello world').toContain('world');
+expect('hello world').toMatch(/world/);
+expect('hello world').toMatch('world');  // substring
+
+// ─── Arrays ───
+expect([1, 2, 3]).toContain(2);
+expect([1, 2, 3]).toHaveLength(3);
+expect([{ id: 1 }, { id: 2 }]).toContainEqual({ id: 1 }); // deep equality in array
+
+// ─── Objects ───
+expect({ a: 1, b: 2 }).toHaveProperty('a');
+expect({ a: 1, b: 2 }).toHaveProperty('a', 1);
+
+// ─── Errors ───
+expect(() => divide(1, 0)).toThrow();
+expect(() => divide(1, 0)).toThrow('Division by zero');
+expect(() => divide(1, 0)).toThrow(Error);
+
+// ─── Mocks ───
+expect(mockFn).toHaveBeenCalled();
+expect(mockFn).toHaveBeenCalledTimes(2);
+expect(mockFn).toHaveBeenCalledWith('arg1', 'arg2');
+expect(mockFn).toHaveBeenLastCalledWith('last-arg');
+expect(mockFn).toHaveReturnedWith('return-value');
+
+// ─── DOM (from @testing-library/jest-dom) ───
+expect(element).toBeInTheDocument();
+expect(element).toBeVisible();
+expect(element).toBeEnabled();
+expect(element).toBeDisabled();
+expect(element).toHaveTextContent('Hello');
+expect(element).toHaveValue('input value');
+expect(element).toHaveClass('active');
+expect(element).toHaveAttribute('href', '/home');
+expect(element).toHaveFocus();
+expect(element).toBeChecked();
+```
+
+### Mocking — The Key Skill
+
+```js
+// ─── Mock a function ───
+const mockAdd = jest.fn();                    // empty mock — returns undefined
+const mockAdd = jest.fn().mockReturnValue(42); // always returns 42
+const mockAdd = jest.fn()
+  .mockReturnValueOnce(1)                    // first call returns 1
+  .mockReturnValueOnce(2)                    // second call returns 2
+  .mockReturnValue(3);                       // subsequent calls return 3
+
+// Async mock
+const mockFetch = jest.fn().mockResolvedValue({ data: 'result' });      // resolved promise
+const mockFetch = jest.fn().mockRejectedValue(new Error('Network error')); // rejected promise
+
+// Mock implementation
+const mockTransform = jest.fn().mockImplementation((x) => x * 2);
+
+// ─── Mock an entire module ───
+jest.mock('./userService');                   // auto-mock: all exports become jest.fn()
+
+// Selective mock — keep some real, mock others
+jest.mock('./utils', () => ({
+  ...jest.requireActual('./utils'),           // use real implementations
+  formatDate: jest.fn().mockReturnValue('Jan 1, 2024'), // override this one
+}));
+
+// ─── Mock module with factory ───
+jest.mock('axios', () => ({
+  default: {
+    get:    jest.fn(),
+    post:   jest.fn(),
+    create: jest.fn().mockReturnThis(),      // chainable
+    interceptors: {
+      request:  { use: jest.fn() },
+      response: { use: jest.fn() },
+    },
+  },
+}));
+
+// ─── Spy on existing function (don't replace, just observe) ───
+const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {}); // silence console.error
+const mathSpy    = jest.spyOn(Math, 'random').mockReturnValue(0.5);
+
+afterEach(() => {
+  consoleSpy.mockRestore();                  // restore original implementation
+  jest.clearAllMocks();                      // clear call history (not implementation)
+  jest.resetAllMocks();                      // clear + reset implementations
+  jest.restoreAllMocks();                    // restore all spies
+});
+```
+
+### Testing Pure Functions (Unit)
+
+```js
+// ─── utils/calculate.js ───
+export function calculateTax(amount, rate) {
+  if (amount < 0) throw new Error('Amount cannot be negative');
+  return Math.round(amount * rate * 100) / 100;
+}
+
+export function formatCurrency(amount, currency = 'USD') {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
+}
+
+// ─── utils/calculate.test.js ───
+import { calculateTax, formatCurrency } from './calculate';
+
+describe('calculateTax', () => {
+  // AAA structure on every test
+  test('calculates correct tax for positive amount', () => {
+    // Arrange
+    const amount = 100;
+    const rate   = 0.08;
+
+    // Act
+    const result = calculateTax(amount, rate);
+
+    // Assert
+    expect(result).toBe(8.00);
+  });
+
+  test('rounds to 2 decimal places', () => {
+    expect(calculateTax(100, 0.0825)).toBe(8.25);
+  });
+
+  test('returns 0 for 0 amount', () => {
+    expect(calculateTax(0, 0.08)).toBe(0);
+  });
+
+  test('throws for negative amount', () => {
+    expect(() => calculateTax(-100, 0.08)).toThrow('Amount cannot be negative');
+  });
+
+  // Parameterized tests — avoid repetition
+  test.each([
+    [100,  0.05, 5.00],
+    [200,  0.10, 20.00],
+    [99.9, 0.08, 7.99],
+  ])('calculateTax(%s, %s) = %s', (amount, rate, expected) => {
+    expect(calculateTax(amount, rate)).toBe(expected);
+  });
+});
+```
+
+### Testing React Components (with RTL)
+
+```jsx
+// ─── components/Counter.jsx ───
+import { useState } from 'react';
+
+export function Counter({ initialCount = 0, max = 10 }) {
+  const [count, setCount] = useState(initialCount);
+  const atMax = count >= max;
+
+  return (
+    <div>
+      <output aria-live="polite" data-testid="count">{count}</output>
+      <button onClick={() => setCount(c => c + 1)} disabled={atMax}>
+        Increment
+      </button>
+      <button onClick={() => setCount(c => c - 1)} disabled={count <= 0}>
+        Decrement
+      </button>
+      {atMax && <p role="alert">Maximum reached!</p>}
+    </div>
+  );
+}
+
+// ─── components/Counter.test.jsx ───
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { Counter } from './Counter';
+
+// Query priority: getByRole > getByLabelText > getByPlaceholderText > getByText > getByTestId
+// get* throws if not found; query* returns null; find* is async (returns promise)
+
+describe('Counter', () => {
+  test('renders with initial count of 0 by default', () => {
+    render(<Counter />);
+    expect(screen.getByTestId('count')).toHaveTextContent('0');
+  });
+
+  test('renders with custom initial count', () => {
+    render(<Counter initialCount={5} />);
+    expect(screen.getByTestId('count')).toHaveTextContent('5');
+  });
+
+  test('increments count when Increment button is clicked', async () => {
+    const user = userEvent.setup();     // creates a user-event instance
+    render(<Counter />);
+
+    await user.click(screen.getByRole('button', { name: /increment/i }));
+
+    expect(screen.getByTestId('count')).toHaveTextContent('1');
+  });
+
+  test('does not go below 0', async () => {
+    const user = userEvent.setup();
+    render(<Counter initialCount={0} />);
+
+    // Decrement button should be disabled at 0
+    expect(screen.getByRole('button', { name: /decrement/i })).toBeDisabled();
+  });
+
+  test('shows max alert and disables Increment when max is reached', async () => {
+    const user = userEvent.setup();
+    render(<Counter initialCount={9} max={10} />);
+
+    await user.click(screen.getByRole('button', { name: /increment/i }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/maximum reached/i);
+    expect(screen.getByRole('button', { name: /increment/i })).toBeDisabled();
+  });
+});
+```
+
+### Testing Async Components & API Calls
+
+```jsx
+// ─── components/UserList.jsx ───
+import { useEffect, useState } from 'react';
+
+export function UserList() {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetch('/api/users')
+      .then(r => { if (!r.ok) throw new Error('Failed to load'); return r.json(); })
+      .then(data => { setUsers(data); setLoading(false); })
+      .catch(e => { setError(e.message); setLoading(false); });
+  }, []);
+
+  if (loading) return <p>Loading users...</p>;
+  if (error)   return <p role="alert">Error: {error}</p>;
+  return (
+    <ul>
+      {users.map(u => <li key={u.id}>{u.name}</li>)}
+    </ul>
+  );
+}
+
+// ─── components/UserList.test.jsx ───
+import { render, screen, waitFor } from '@testing-library/react';
+import { UserList } from './UserList';
+
+// Mock global fetch
+global.fetch = jest.fn();
+
+describe('UserList', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();                // reset mock between tests
+  });
+
+  test('shows loading state initially', () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => new Promise(() => {}), // never resolves — keeps in loading state
+    });
+    render(<UserList />);
+    expect(screen.getByText(/loading users/i)).toBeInTheDocument();
+  });
+
+  test('renders users after successful fetch', async () => {
+    // Arrange: mock fetch to return user data
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => [
+        { id: 1, name: 'Alice' },
+        { id: 2, name: 'Bob' },
+      ],
+    });
+
+    // Act
+    render(<UserList />);
+
+    // Assert: wait for async state update to complete
+    await waitFor(() => {
+      expect(screen.getByText('Alice')).toBeInTheDocument();
+      expect(screen.getByText('Bob')).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/loading/i)).not.toBeInTheDocument();
+  });
+
+  test('shows error when fetch fails', async () => {
+    fetch.mockResolvedValueOnce({ ok: false });
+    render(<UserList />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(/error/i);
+    });
+  });
+});
+```
+
+### Testing Custom Hooks (renderHook)
+
+```jsx
+// ─── hooks/useCounter.js ───
+import { useState, useCallback } from 'react';
+
+export function useCounter(initialValue = 0, step = 1) {
+  const [count, setCount] = useState(initialValue);
+  const increment = useCallback(() => setCount(c => c + step), [step]);
+  const decrement = useCallback(() => setCount(c => c - step), [step]);
+  const reset     = useCallback(() => setCount(initialValue),  [initialValue]);
+  return { count, increment, decrement, reset };
+}
+
+// ─── hooks/useCounter.test.js ───
+import { renderHook, act } from '@testing-library/react';
+import { useCounter } from './useCounter';
+
+describe('useCounter', () => {
+  test('initializes with 0 by default', () => {
+    const { result } = renderHook(() => useCounter());
+    expect(result.current.count).toBe(0);
+  });
+
+  test('initializes with custom value', () => {
+    const { result } = renderHook(() => useCounter(10));
+    expect(result.current.count).toBe(10);
+  });
+
+  test('increments by step amount', () => {
+    const { result } = renderHook(() => useCounter(0, 5));
+
+    // State updates inside hooks MUST be wrapped in act()
+    act(() => {
+      result.current.increment();
+    });
+
+    expect(result.current.count).toBe(5);
+  });
+
+  test('resets to initial value', () => {
+    const { result } = renderHook(() => useCounter(10));
+
+    act(() => {
+      result.current.increment();
+      result.current.increment();
+      result.current.reset();
+    });
+
+    expect(result.current.count).toBe(10);
+  });
+
+  test('reacts to prop changes (rerender)', () => {
+    const { result, rerender } = renderHook(
+      ({ step }) => useCounter(0, step),
+      { initialProps: { step: 1 } }
+    );
+
+    act(() => result.current.increment());
+    expect(result.current.count).toBe(1);
+
+    // Change step and increment again
+    rerender({ step: 10 });
+    act(() => result.current.increment());
+    expect(result.current.count).toBe(11);
+  });
+});
+```
+
+### Testing with Providers (Context / React Query)
+
+```jsx
+// ─── test-utils/render.jsx ───
+// Custom render that wraps all providers — import this instead of RTL's render
+import { render } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { BrowserRouter } from 'react-router-dom';
+import { AuthContext } from '../contexts/AuthContext';
+
+function createTestQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },  // don't retry in tests — faster failures
+    },
+    logger: { error: () => {} },  // silence error logs in tests
+  });
+}
+
+export function renderWithProviders(
+  ui,
+  {
+    authValue = { user: null, login: jest.fn(), logout: jest.fn() },
+    ...renderOptions
+  } = {}
+) {
+  const queryClient = createTestQueryClient();
+
+  function Wrapper({ children }) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <AuthContext.Provider value={authValue}>
+            {children}
+          </AuthContext.Provider>
+        </BrowserRouter>
+      </QueryClientProvider>
+    );
+  }
+
+  return render(ui, { wrapper: Wrapper, ...renderOptions });
+}
+
+// ─── Usage in tests ───
+import { renderWithProviders } from '../test-utils/render';
+
+test('shows user name when logged in', () => {
+  renderWithProviders(<Navbar />, {
+    authValue: { user: { name: 'Alice', role: 'admin' }, login: jest.fn(), logout: jest.fn() },
+  });
+  expect(screen.getByText('Alice')).toBeInTheDocument();
+});
+
+test('shows login link when logged out', () => {
+  renderWithProviders(<Navbar />);  // authValue defaults to { user: null }
+  expect(screen.getByRole('link', { name: /login/i })).toBeInTheDocument();
+});
+```
+
+### Testing Forms (Formik + RTL)
+
+```jsx
+// ─── LoginForm.test.jsx ───
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { LoginForm } from './LoginForm';
+
+describe('LoginForm', () => {
+  const mockLogin = jest.fn();
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test('renders all form fields', () => {
+    render(<LoginForm onSubmit={mockLogin} />);
+    expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /login/i })).toBeInTheDocument();
+  });
+
+  test('shows validation errors on empty submit', async () => {
+    const user = userEvent.setup();
+    render(<LoginForm onSubmit={mockLogin} />);
+
+    // Submit without filling anything
+    await user.click(screen.getByRole('button', { name: /login/i }));
+
+    // Wait for Formik to run validation
+    await waitFor(() => {
+      expect(screen.getByText(/email is required/i)).toBeInTheDocument();
+      expect(screen.getByText(/password is required/i)).toBeInTheDocument();
+    });
+
+    expect(mockLogin).not.toHaveBeenCalled();
+  });
+
+  test('shows email format error for invalid email', async () => {
+    const user = userEvent.setup();
+    render(<LoginForm onSubmit={mockLogin} />);
+
+    await user.type(screen.getByLabelText(/email/i), 'not-an-email');
+    await user.tab();   // trigger onBlur
+
+    await waitFor(() => {
+      expect(screen.getByText(/invalid email/i)).toBeInTheDocument();
+    });
+  });
+
+  test('calls onSubmit with form values when valid', async () => {
+    const user = userEvent.setup();
+    mockLogin.mockResolvedValueOnce({ token: 'abc' });
+    render(<LoginForm onSubmit={mockLogin} />);
+
+    await user.type(screen.getByLabelText(/email/i), 'test@example.com');
+    await user.type(screen.getByLabelText(/password/i), 'Password1!');
+    await user.click(screen.getByRole('button', { name: /login/i }));
+
+    await waitFor(() => {
+      expect(mockLogin).toHaveBeenCalledWith({
+        email: 'test@example.com',
+        password: 'Password1!',
+      });
+    });
+  });
+
+  test('disables button and shows loading while submitting', async () => {
+    const user = userEvent.setup();
+    // mockLogin returns a promise that never resolves — keeps form in submitting state
+    mockLogin.mockReturnValue(new Promise(() => {}));
+    render(<LoginForm onSubmit={mockLogin} />);
+
+    await user.type(screen.getByLabelText(/email/i), 'test@example.com');
+    await user.type(screen.getByLabelText(/password/i), 'Password1!');
+    await user.click(screen.getByRole('button', { name: /login/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /logging in/i })).toBeDisabled();
+    });
+  });
+});
+```
+
+### Snapshot Testing
+
+```jsx
+// Snapshot tests — catch unintended UI changes
+import { render } from '@testing-library/react';
+import { Badge } from './Badge';
+
+test('renders primary badge correctly', () => {
+  const { container } = render(<Badge variant="primary">New</Badge>);
+  expect(container).toMatchSnapshot();
+  // First run: creates __snapshots__/Badge.test.jsx.snap
+  // Subsequent runs: compares to saved snapshot — fails on any change
+});
+
+// Update snapshots when intentional change is made:
+// jest --updateSnapshot   (or press 'u' in watch mode)
+
+// Inline snapshot — snapshot stored in the test file itself
+test('renders badge inline snapshot', () => {
+  const { container } = render(<Badge variant="success">Active</Badge>);
+  expect(container).toMatchInlineSnapshot(`
+    <div>
+      <span class="badge badge-success">
+        Active
+      </span>
+    </div>
+  `);
+});
+
+// ⚠️ Warning: Don't over-use snapshots — they break on any change
+// Best used for: stable leaf components, configuration objects, error messages
+// Avoid for: pages, layouts, anything that changes frequently
+```
+
+### MSW (Mock Service Worker) — API Mocking
+
+```bash
+npm install msw --save-dev
+```
+
+```jsx
+// ─── mocks/handlers.js — define API mock handlers ───
+import { http, HttpResponse } from 'msw';
+
+export const handlers = [
+  // GET /api/users — returns user list
+  http.get('/api/users', () => {
+    return HttpResponse.json([
+      { id: 1, name: 'Alice', email: 'alice@example.com' },
+      { id: 2, name: 'Bob',   email: 'bob@example.com' },
+    ]);
+  }),
+
+  // POST /api/users — create user
+  http.post('/api/users', async ({ request }) => {
+    const body = await request.json();
+    return HttpResponse.json({ id: 3, ...body }, { status: 201 });
+  }),
+
+  // Error scenario
+  http.get('/api/users/:id', ({ params }) => {
+    if (params.id === '999') {
+      return HttpResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+    return HttpResponse.json({ id: params.id, name: 'Test User' });
+  }),
+];
+
+// ─── mocks/server.js ───
+import { setupServer } from 'msw/node';
+import { handlers } from './handlers';
+
+export const server = setupServer(...handlers);
+
+// ─── setupTests.js ───
+import { server } from './mocks/server';
+beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
+afterEach(() => server.resetHandlers());   // reset overrides between tests
+afterAll(() => server.close());
+
+// ─── In tests — override handlers for specific scenarios ───
+import { server } from '../mocks/server';
+import { http, HttpResponse } from 'msw';
+
+test('shows error when API fails', async () => {
+  // Override the handler just for this test
+  server.use(
+    http.get('/api/users', () => {
+      return HttpResponse.json({ error: 'Server error' }, { status: 500 });
+    })
+  );
+
+  render(<UserList />);
+  await waitFor(() => {
+    expect(screen.getByRole('alert')).toHaveTextContent(/error/i);
+  });
+});
+```
+
+### Coverage & Quality
+
+```bash
+# Run tests with coverage report
+npm test -- --coverage
+
+# Coverage thresholds in jest.config.js
+coverageThreshold: {
+  global: {
+    branches:   80,    // % of if/else branches executed
+    functions:  80,    // % of functions called
+    lines:      80,    // % of lines executed
+    statements: 80,    // % of statements executed
+  },
+},
+```
+
+```
+Coverage Report Example:
+─────────────────────────────────────────────────────────
+File               | Stmts | Branch | Funcs | Lines
+─────────────────────────────────────────────────────────
+calculate.js       |   100 |    100 |   100 |   100   ✓
+UserList.jsx       |    95 |     80 |   100 |    95   ✓
+LoginForm.jsx      |    60 |     50 |    75 |    60   ✗ (needs more tests)
+─────────────────────────────────────────────────────────
+```
+
+### Jest + TypeScript
+
+```bash
+npm install --save-dev ts-jest @types/jest
+```
+
+```ts
+// jest.config.ts
+export default {
+  preset: 'ts-jest',
+  testEnvironment: 'jsdom',
+  transform: {
+    '^.+\\.tsx?$': ['ts-jest', { tsconfig: './tsconfig.json' }],
+  },
+};
+
+// Typed mock
+const mockFn = jest.fn<Promise<User>, [string]>(); // fn(id: string) => Promise<User>
+mockFn.mockResolvedValue({ id: '1', name: 'Alice' } as User);
+
+// jest.mocked() preserves types
+import { getUser } from './userService';
+jest.mock('./userService');
+const mockGetUser = jest.mocked(getUser);           // typed as jest.MockedFunction<typeof getUser>
+mockGetUser.mockResolvedValue({ id: '1', name: 'Alice' });
+```
+
+### Testing Anti-Patterns to Avoid
+
+| Anti-Pattern | Problem | Better Approach |
+|---|---|---|
+| Testing implementation details | Tests break on refactor | Test behavior/output |
+| `getByTestId` overuse | Fragile, not user-facing | Prefer `getByRole`, `getByLabelText` |
+| No `beforeEach` cleanup | Tests leak state into each other | `jest.clearAllMocks()` in `beforeEach` |
+| Mocking everything | Tests don't reflect reality | Mock only boundaries (network, time) |
+| `waitFor` with `fireEvent` | Race conditions | Use `userEvent` + `await` |
+| Snapshot everything | False security, noisy diffs | Snapshot only stable leaf components |
+| Testing third-party libs | Not your code | Trust the library, test your integration |
+| `act()` warnings ignored | Hidden async bugs | Fix by awaiting state updates properly |
