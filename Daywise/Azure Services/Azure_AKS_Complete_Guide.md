@@ -92,6 +92,97 @@
 - [Section 49 — Production Readiness Checklist](#section-49--production-readiness-checklist)
 - [Section 50 — Quick Reference Card](#section-50--quick-reference-card)
 
+### PART 15 — kubectl, kubeconfig & kubelet — Fundamentals Deep Dive
+- [15.1 — The Kubernetes Client-Server Architecture](#151--the-kubernetes-client-server-architecture)
+- [15.2 — Installing kubectl](#152--installing-kubectl)
+- [15.3 — kubeconfig Deep Dive](#153--kubeconfig-deep-dive)
+- [15.4 — kubelet: The Node Agent](#154--kubelet-the-node-agent)
+- [15.5 — kubectl Commands with Sample Outputs](#155--kubectl-commands-with-sample-outputs)
+- [15.6 — kubectl Output Formats](#156--kubectl-output-formats)
+
+### PART 16 — Service-to-Service Communication Deep Dive
+- [16.1 — Kubernetes DNS: The Full Name Format](#161--kubernetes-dns-the-full-name-format)
+- [16.2 — Two-Service YAML Setup (SimpleApi1 → SimpleApi2)](#162--kubernetes-yaml-two-service-setup-simpleapi1--simpleapi2)
+- [16.3 — .NET HttpClientFactory Pattern for Service Calls](#163--net-10-code-httpclient-factory-pattern-for-service-calls)
+- [16.4 — Communication Patterns Diagram](#164--communication-patterns-diagram)
+- [16.5 — Cross-Namespace Communication](#165--cross-namespace-communication)
+- [16.6 — Service Mesh for Advanced Communication (Istio)](#166--service-mesh-for-advanced-communication-istio)
+- [16.7 — Verifying Service-to-Service Connectivity](#167--verifying-service-to-service-connectivity)
+
+### PART 17 — Volume Types — Complete Deep Dive
+- [17.1 — Volume Types Overview](#171--volume-types-overview)
+- [17.2 — emptyDir](#172--emptydir)
+- [17.3 — hostPath](#173--hostpath)
+- [17.4 — configMap Volume Mount](#174--configmap-volume-mount)
+- [17.5 — Secret Volume Mount](#175--secret-volume-mount)
+- [17.6 — Projected Volumes](#176--projected-volumes-combining-multiple-sources)
+- [17.7 — Azure Disk (ReadWriteOnce)](#177--azure-disk-persistentvolume--readwriteonce)
+- [17.8 — Azure Files (ReadWriteMany)](#178--azure-files-readwritemany--shared-storage)
+- [17.9 — StatefulSet with VolumeClaimTemplates](#179--statefulset-with-volumeclaimtemplates)
+- [17.10 — Volume Snapshots](#1710--volume-snapshots)
+
+### PART 18 — 10 Real-World AKS Challenges & Solutions
+- [Challenge 1: CrashLoopBackOff](#challenge-1-crashloopbackoff)
+- [Challenge 2: OOMKilled](#challenge-2-oomkilled)
+- [Challenge 3: Pod Stuck in Pending](#challenge-3-pod-stuck-in-pending)
+- [Challenge 4: ImagePullBackOff](#challenge-4-imagepullbackoff)
+- [Challenge 5: Service Not Reachable (502/503)](#challenge-5-service-not-reachable-502503)
+- [Challenge 6: Rolling Update Causes Downtime](#challenge-6-rolling-update-causes-downtime)
+- [Challenge 7: DNS Resolution Failures](#challenge-7-dns-resolution-failures)
+- [Challenge 8: HPA Not Scaling](#challenge-8-hpa-not-scaling)
+- [Challenge 9: Azure Disk Not Mounting](#challenge-9-azure-disk-not-mounting)
+- [Challenge 10: Workload Identity 401 Errors](#challenge-10-workload-identity-401-errors)
+
+### PART 19 — Interview Q&A for .NET Developers
+- [19.1 — Conceptual Questions](#191--conceptual-questions)
+- [19.2 — .NET-Specific Scenarios](#192--net-specific-scenarios)
+- [19.3 — Architecture & Design Questions](#193--architecture--design-questions)
+- [19.4 — Operational Questions](#194--operational-questions)
+
+### PART 20 — AKS Development & Deployment — End-to-End Walkthrough
+- [20.1 — The Full Development Workflow](#201--the-full-development-workflow)
+- [20.2 — Step 1: Containerize the .NET App](#202--step-1-containerize-the-net-app)
+- [20.3 — Step 2: Push to Azure Container Registry](#203--step-2-push-to-azure-container-registry)
+- [20.4 — Step 3: Provision AKS Cluster](#204--step-3-provision-aks-cluster)
+- [20.5 — Step 4: Deploy Applications](#205--step-4-deploy-applications)
+- [20.6 — Step 5: Configure Autoscaling](#206--step-5-configure-autoscaling)
+- [20.7 — Step 6: CI/CD Pipeline (Azure DevOps)](#207--step-6-cicd-pipeline-azure-devops)
+- [20.8 — Step 7: Monitor in Production](#208--step-7-monitor-in-production)
+
+### PART 21 — [Offline-Laptop] Practice AKS & Helm End-to-End Without Cloud
+- [21.1 — Tool Choices: Which Local Kubernetes to Use?](#211--tool-choices-which-local-kubernetes-to-use)
+- [21.2 — Prerequisites Installation (Windows)](#212--prerequisites-installation-windows)
+- [21.3 — Start minikube with Production-Like Settings](#213--start-minikube-with-production-like-settings)
+- [21.4 — Build the .NET Apps for Local Kubernetes](#214--build-the-net-apps-for-local-kubernetes)
+- [21.5 — Build & Load Images into minikube](#215--build--load-images-into-minikube)
+- [21.6 — Namespace & Core Kubernetes Objects](#216--namespace--core-kubernetes-objects)
+- [21.7 — ConfigMap & Secret](#217--configmap--secret)
+- [21.8 — Ingress (NGINX)](#218--ingress-nginx--replaces-app-gatewayagic-locally)
+- [21.9 — Persistent Volumes (Local Storage)](#219--persistent-volumes-local-storage)
+- [21.10 — HPA with Load Test](#2110--hpa-horizontal-pod-autoscaler--load-test)
+- [21.11 — KEDA (Event-Driven Autoscaling) Locally](#2111--keda-event-driven-autoscaling-locally)
+- [21.12 — Helm: Package Manager End-to-End](#2112--helm-package-manager-end-to-end)
+- [21.13 — Prometheus & Grafana via Helm](#2113--prometheus--grafana-via-helm-local-monitoring)
+- [21.14 — ArgoCD (GitOps) Locally](#2114--argocd-gitops-locally)
+- [21.15 — Network Policies Locally (Calico)](#2115--network-policies-locally-calico)
+- [21.16 — StatefulSet with Local Storage](#2116--statefulset-with-local-storage)
+- [21.17 — DaemonSet (Runs on Every Node)](#2117--daemonset-runs-on-every-node)
+- [21.18 — RBAC: Local Practice](#2118--rbac-local-practice)
+- [21.19 — Full Cleanup & Restart Script](#2119--full-cleanup--restart-script)
+- [21.20 — Feature Coverage Map: Local vs Cloud](#2120--feature-coverage-map-local-vs-cloud)
+- [21.21 — Quick Reference: All Local Commands in Order](#2121--quick-reference-all-local-commands-in-order)
+
+### PART 22 — Merged Insights: Unique Content from Reference Guide
+- [22.1 — YAML Files Quick Index](#221--yaml-files-quick-index-orientation-map)
+- [22.2 — .NET API-Level Auth with Entra ID (JWT Bearer)](#222--net-api-level-authentication-with-entra-id-jwt-bearer)
+- [22.3 — Application Insights Full Integration for .NET on AKS](#223--application-insights-full-integration-for-net-on-aks)
+- [22.4 — Structured Logging with ILogger in .NET Minimal API](#224--structured-logging-with-ilogger-in-net-minimal-api)
+- [22.5 — AGIC + Azure DNS Complete Setup](#225--agic-application-gateway-ingress-controller--azure-dns)
+- [22.6 — Helm Go Template Functions Deep Dive](#226--helm-go-template-functions-deep-dive)
+- [22.7 — Sequential Troubleshooting Playbook](#227--sequential-troubleshooting-playbook)
+- [22.8 — Architect-Level Reference: AKS Platform Patterns](#228--architect-level-reference-aks-platform-patterns)
+- [22.9 — Command Output Interpretation Reference](#229--command-output-interpretation-reference)
+
 ---
 
 # PART 1 — FOUNDATIONS
@@ -2294,6 +2385,81 @@ spec:
 # After applying: kubectl get svc simpleapi1-lb -n production
 # EXTERNAL-IP column shows the Azure Public/Private IP (takes ~1-2 minutes to provision)
 ```
+
+### Why Azure Load Balancer and Not Application Gateway?
+
+> **Short Answer:** Azure Load Balancer (L4) and Application Gateway (L7) solve **different problems** and are often used **together** — not as alternatives. Understanding the OSI layer distinction is the key.
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│         AZURE LOAD BALANCER  vs  APPLICATION GATEWAY IN AKS              │
+│                                                                          │
+│  OSI Model Layer                                                         │
+│  ┌──────────────────────────────────────────────────────────────────┐   │
+│  │ Layer 7 (HTTP/S)  │  Application Gateway / NGINX Ingress         │   │
+│  │                   │  • Host-based routing (api.contoso.com)      │   │
+│  │                   │  • Path-based routing (/api/v1, /api/v2)     │   │
+│  │                   │  • SSL termination (TLS 1.3)                 │   │
+│  │                   │  • WAF (Web Application Firewall)            │   │
+│  │                   │  • Cookie-based session affinity             │   │
+│  │                   │  • URL rewriting / redirects                 │   │
+│  │                   │  • Health probes at HTTP level               │   │
+│  ├──────────────────────────────────────────────────────────────────┤   │
+│  │ Layer 4 (TCP/UDP) │  Azure Load Balancer (Service: LoadBalancer) │   │
+│  │                   │  • Forwards TCP/UDP packets by port          │   │
+│  │                   │  • Cannot read HTTP headers or paths         │   │
+│  │                   │  • Ultra-low latency (hardware-level)        │   │
+│  │                   │  • Auto-provisioned by AKS Cloud Controller  │   │
+│  │                   │  • Handles ALL protocols (not just HTTP)     │   │
+│  │                   │  • Scales to millions of connections         │   │
+│  └──────────────────────────────────────────────────────────────────┘   │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+**Why `Service: LoadBalancer` uses Azure Load Balancer (L4), not App Gateway:**
+
+| Reason | Explanation |
+|--------|-------------|
+| **Automatic provisioning** | AKS Cloud Controller Manager creates the Azure LB automatically when you declare `type: LoadBalancer`. App Gateway requires manual setup + AGIC add-on. |
+| **Protocol agnostic** | gRPC, TCP sockets, UDP, databases — App Gateway only handles HTTP/HTTPS. LB handles everything. |
+| **Per-Service granularity** | Each `LoadBalancer` Service gets its own external IP. App Gateway is a single entry point for all HTTP traffic. |
+| **Performance** | LB operates at hardware level — microsecond overhead. App Gateway is a software proxy — adds ~10-50ms. |
+| **Simpler for non-HTTP** | Service Bus, Redis, SQL, gRPC — none work with App Gateway. All work with LB. |
+
+**When to use Application Gateway (or NGINX Ingress) INSTEAD:**
+
+| Use Case | Use App Gateway / NGINX Ingress |
+|----------|---------------------------------|
+| Multiple services on one IP via URL paths | `api.contoso.com/orders` → orders-svc, `/payments` → payments-svc |
+| SSL termination (manage certs in one place) | TLS cert on App Gateway, plain HTTP to pods |
+| WAF (block SQL injection, XSS) | App Gateway WAF v2 |
+| Host-based routing (multiple subdomains) | `orders.contoso.com` vs `payments.contoso.com` |
+| WebSocket or HTTP/2 | NGINX Ingress supports both |
+| Cost (one IP for all services) | One App Gateway instead of 10 Load Balancers |
+
+**The typical production pattern — use BOTH:**
+```
+Internet
+   │
+   ▼
+Azure Application Gateway (L7)      ← handles: SSL, WAF, path routing, host routing
+   │
+   ▼
+NGINX Ingress Controller            ← handles: fine-grained Kubernetes Ingress rules
+   │
+   ▼                      ▼
+simpleapi1-svc          simpleapi2-svc    ← ClusterIP Services
+   │                      │
+   ▼                      ▼
+Pods                     Pods
+
+Azure Load Balancer is used internally by AKS node pools
+(e.g., for internal services, non-HTTP traffic, health probes to nodes)
+```
+
+> **Key Insight:** Use `Service: LoadBalancer` for **non-HTTP protocols or quick external access during development**. Use **Ingress** (backed by NGINX or App Gateway) for **all production HTTP/HTTPS traffic** — better cost, SSL centralization, and routing flexibility.
+
+---
 
 ### ExternalName — DNS Alias to External Service
 
@@ -6651,7 +6817,5730 @@ az aks get-credentials -g myRG -n test
 
 ---
 
+---
+
+## PART 15: kubectl, kubeconfig & kubelet — Fundamentals Deep Dive
+
+> **Mental Model:** Think of kubectl as your TV remote, kubeconfig as the remote's channel list (which TV/cluster to control), and kubelet as the smart TV's built-in firmware that carries out what the remote commands.
+
+---
+
+### 15.1 — The Kubernetes Client-Server Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    HOW kubectl TALKS TO AKS                         │
+│                                                                     │
+│  Your Laptop                                                        │
+│  ┌──────────────────────┐                                           │
+│  │  kubectl             │   HTTPS REST API call                    │
+│  │  (CLI client)        │ ─────────────────────────────────►       │
+│  │                      │   e.g. GET /api/v1/namespaces/           │
+│  │  reads ~/.kube/config│        default/pods                      │
+│  └──────────────────────┘                                           │
+│           │                      AKS Control Plane (Azure-managed)  │
+│           │ reads          ┌─────────────────────────────────────┐  │
+│           ▼                │   kube-apiserver                    │  │
+│  ┌─────────────────┐       │   (validates, authenticates,        │  │
+│  │  kubeconfig     │       │    persists to etcd, notifies       │  │
+│  │  ~/.kube/config │       │    controllers)                     │  │
+│  │                 │       └──────────────┬──────────────────────┘  │
+│  │  clusters:      │                      │                          │
+│  │  - name: myAKS  │              schedules pods                    │
+│  │  users:         │                      ▼                          │
+│  │  - name: myUser │       Worker Node (VM in node pool)            │
+│  │  contexts:      │       ┌─────────────────────────────────────┐  │
+│  │  - context:     │       │  kubelet                            │  │
+│  │    cluster:myAKS│       │  (watches API server for pods       │  │
+│  │    user: myUser │       │   assigned to this node,            │  │
+│  └─────────────────┘       │   creates containers via containerd)│  │
+│                            └─────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 15.2 — Installing kubectl
+
+#### On Windows (via winget)
+```powershell
+# Install kubectl using winget
+winget install -e --id Kubernetes.kubectl
+
+# Verify installation
+kubectl version --client
+
+# Sample Output:
+# Client Version: v1.31.0
+# Kustomize Version: v5.4.2
+```
+
+#### On Windows (via curl)
+```powershell
+# Download latest stable kubectl
+$version = (Invoke-WebRequest "https://dl.k8s.io/release/stable.txt").Content.Trim()
+Invoke-WebRequest "https://dl.k8s.io/release/$version/bin/windows/amd64/kubectl.exe" -OutFile kubectl.exe
+
+# Move to a directory in PATH
+Move-Item .\kubectl.exe C:\Windows\System32\kubectl.exe
+```
+
+#### On Linux / WSL / Azure Cloud Shell
+```bash
+# Using apt (Debian/Ubuntu)
+sudo apt-get update
+sudo apt-get install -y apt-transport-https ca-certificates curl gnupg
+
+curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key | \
+  sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] \
+  https://pkgs.k8s.io/core:/stable:/v1.31/deb/ /' | \
+  sudo tee /etc/apt/sources.list.d/kubernetes.list
+
+sudo apt-get update
+sudo apt-get install -y kubectl
+
+# Verify
+kubectl version --client --output=yaml
+# Output:
+# clientVersion:
+#   major: "1"
+#   minor: "31"
+#   gitVersion: v1.31.0
+#   platform: linux/amd64
+```
+
+#### Via Azure CLI (auto-installs matching version)
+```bash
+# This downloads the kubectl version that matches your AKS cluster
+az aks install-cli
+
+# Sample Output:
+# Downloading client to "/usr/local/bin/kubectl" from "https://storage.googleapis.com/..."
+# Please ensure that /usr/local/bin is in your search PATH...
+# Downloading client to "/usr/local/bin/kubelogin" from "https://github.com/..."
+```
+
+#### Enable kubectl Shell Completion (Bash)
+```bash
+# Add to ~/.bashrc for persistent auto-completion
+echo 'source <(kubectl completion bash)' >> ~/.bashrc
+echo 'alias k=kubectl' >> ~/.bashrc
+echo 'complete -o default -F __start_kubectl k' >> ~/.bashrc
+source ~/.bashrc
+
+# Now you can type: k get po<TAB>  →  k get pods
+```
+
+---
+
+### 15.3 — kubeconfig Deep Dive
+
+> **Mental Model:** kubeconfig is your "credentials wallet" for multiple Kubernetes clusters. Each entry is a card telling kubectl: where the cluster lives, what certificate to trust, and what identity to use.
+
+#### The kubeconfig File Structure
+
+```yaml
+# ~/.kube/config — Annotated anatomy of a kubeconfig file
+# ─────────────────────────────────────────────────────────
+
+apiVersion: v1          # Always v1 for kubeconfig
+kind: Config            # Always Config
+
+# ── PREFERENCES ──────────────────────────────────────────
+preferences: {}         # Optional: colors, editor preferences
+
+# ── CLUSTERS ─────────────────────────────────────────────
+# Each entry = one Kubernetes cluster (API server endpoint + CA cert)
+clusters:
+- name: myAKS-dev       # Friendly name you give this cluster entry
+  cluster:
+    # The HTTPS endpoint of the kube-apiserver
+    server: https://myaks-dev-abc123.hcp.eastus.azmk8s.io:443
+
+    # Base64-encoded PEM certificate of the cluster's Certificate Authority
+    # kubectl uses this to verify the server's TLS cert (prevents MITM attacks)
+    certificate-authority-data: LS0tLS1CRUdJTi...
+
+    # Alternative: point to a file instead of inline data
+    # certificate-authority: /path/to/ca.crt
+
+- name: myAKS-prod
+  cluster:
+    server: https://myaks-prod-xyz789.hcp.eastus.azmk8s.io:443
+    certificate-authority-data: LS0tLS1CRUdJTi...
+
+# ── USERS ────────────────────────────────────────────────
+# Each entry = one identity (how to authenticate to a cluster)
+users:
+- name: myAKS-dev-admin
+  user:
+    # For AKS with Azure AD, kubelogin handles token acquisition
+    # This exec block calls kubelogin to get a bearer token
+    exec:
+      apiVersion: client.authentication.k8s.io/v1beta1
+      command: kubelogin          # Azure-specific kubectl credential plugin
+      args:
+      - get-token
+      - --environment
+      - AzurePublicCloud
+      - --server-id             # Azure AD app ID of the AKS server
+      - 6dae42f8-4368-4678-94ff-3960e28e3630
+      - --client-id             # Your service principal or managed identity
+      - 80faf920-1908-4b52-b5ef-a8e912690b2e
+      - --tenant-id
+      - 72f988bf-86f1-41af-91ab-2d7cd011db47
+      env: null
+      provideClusterInfo: false
+
+- name: myAKS-prod-admin
+  user:
+    # Alternative: static client certificate auth (less common in AKS)
+    client-certificate-data: LS0tLS1CRUdJTi...
+    client-key-data: LS0tLS1CRUdJTi...
+
+# ── CONTEXTS ─────────────────────────────────────────────
+# A context = a named pairing of (cluster + user + optional namespace)
+# This is what you switch between with: kubectl config use-context
+contexts:
+- name: myAKS-dev             # The context name you use in kubectl
+  context:
+    cluster: myAKS-dev        # References the cluster entry above
+    user: myAKS-dev-admin     # References the user entry above
+    namespace: default        # Optional: default namespace for this context
+
+- name: myAKS-prod
+  context:
+    cluster: myAKS-prod
+    user: myAKS-prod-admin
+    namespace: production     # All kubectl commands default to this namespace
+
+# ── CURRENT CONTEXT ──────────────────────────────────────
+# The active context — which cluster/user kubectl uses right now
+current-context: myAKS-dev
+```
+
+#### kubeconfig Diagram: Multi-Context Flow
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│                   kubeconfig CONTEXT SWITCHING                     │
+│                                                                    │
+│  ~/.kube/config                                                    │
+│  ┌─────────────────────────────────────────────────────────────┐  │
+│  │  contexts:                                                  │  │
+│  │   ┌──────────────┐   ┌──────────────┐   ┌──────────────┐   │  │
+│  │   │ myAKS-dev    │   │ myAKS-staging│   │ myAKS-prod   │   │  │
+│  │   │ cluster: dev │   │ cluster: stg │   │ cluster: prd │   │  │
+│  │   │ user: dev-sp │   │ user: stg-sp │   │ user: prd-sp │   │  │
+│  │   │ ns: default  │   │ ns: staging  │   │ ns: production│  │  │
+│  │   └──────┬───────┘   └──────┬───────┘   └──────┬───────┘   │  │
+│  └──────────┼───────────────────┼───────────────────┼──────────┘  │
+│             │                   │                   │              │
+│    current-context ─────────────►                                  │
+│    = myAKS-dev                  ↑                                  │
+│                    kubectl config use-context myAKS-staging        │
+│                                                                    │
+│  Commands:                                                         │
+│  kubectl config get-contexts          # list all contexts          │
+│  kubectl config current-context       # show active context        │
+│  kubectl config use-context myAKS-prod # switch context           │
+│  kubectl config set-context --current --namespace=kube-system      │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+#### Getting AKS Credentials (Adds Entry to kubeconfig)
+```bash
+# Merge AKS credentials into ~/.kube/config
+# This adds a new cluster + user + context entry
+az aks get-credentials \
+  --resource-group myResourceGroup \
+  --name myAKSCluster
+
+# Sample Output:
+# Merged "myAKSCluster" as current context in /home/user/.kube/config
+
+# Get credentials as admin (bypasses Azure AD — for break-glass access)
+az aks get-credentials \
+  --resource-group myResourceGroup \
+  --name myAKSCluster \
+  --admin
+
+# Overwrite existing entry if cluster was recreated
+az aks get-credentials \
+  --resource-group myResourceGroup \
+  --name myAKSCluster \
+  --overwrite-existing
+
+# Save to a specific file instead of ~/.kube/config
+az aks get-credentials \
+  --resource-group myResourceGroup \
+  --name myAKSCluster \
+  --file ./myaks-kubeconfig.yaml
+
+# Use a non-default kubeconfig file for one command
+KUBECONFIG=./myaks-kubeconfig.yaml kubectl get nodes
+```
+
+#### Managing Multiple Clusters
+```bash
+# View all contexts
+kubectl config get-contexts
+
+# Sample Output:
+# CURRENT   NAME              CLUSTER           AUTHINFO              NAMESPACE
+# *         myAKS-dev         myAKS-dev         clusterUser_myRG_dev  default
+#           myAKS-prod        myAKS-prod        clusterUser_myRG_prd  production
+#           minikube          minikube          minikube              default
+
+# Switch to prod context
+kubectl config use-context myAKS-prod
+# Output: Switched to context "myAKS-prod".
+
+# View the current context
+kubectl config current-context
+# Output: myAKS-prod
+
+# Set default namespace for current context (avoid typing -n every time)
+kubectl config set-context --current --namespace=my-team
+
+# Merge two kubeconfig files into one
+KUBECONFIG=~/.kube/config:./new-cluster.yaml kubectl config view --flatten > ~/.kube/merged-config
+mv ~/.kube/merged-config ~/.kube/config
+
+# Delete a context (e.g., decommissioned cluster)
+kubectl config delete-context myAKS-old
+kubectl config delete-cluster myAKS-old
+kubectl config delete-user clusterUser_myRG_old
+```
+
+---
+
+### 15.4 — kubelet: The Node Agent
+
+> **Mental Model:** If the API server is the brain sending orders ("Run this pod!"), kubelet is the hands on each node that actually carry out those orders — pulling images, creating containers, mounting volumes, running health checks, and reporting status back.
+
+#### What kubelet Does
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│                    KUBELET RESPONSIBILITIES                        │
+│                                                                    │
+│  AKS Worker Node (VM)                                              │
+│  ┌──────────────────────────────────────────────────────────────┐ │
+│  │  kubelet (system process, runs as root)                      │ │
+│  │                                                              │ │
+│  │  1. WATCH API SERVER                                         │ │
+│  │     Polls for PodSpecs assigned to this node                 │ │
+│  │     (via node name field in pod spec)                        │ │
+│  │                                                              │ │
+│  │  2. PULL IMAGES                                              │ │
+│  │     Calls containerd CRI to pull container images            │ │
+│  │     from ACR / Docker Hub                                    │ │
+│  │                                                              │ │
+│  │  3. CREATE CONTAINERS                                        │ │
+│  │     Calls containerd to start containers in pod              │ │
+│  │     Sets up namespaces: network, PID, IPC, UTS               │ │
+│  │                                                              │ │
+│  │  4. MOUNT VOLUMES                                            │ │
+│  │     Calls CSI drivers to attach Azure Disk/Files             │ │
+│  │     Mounts ConfigMaps and Secrets as files                   │ │
+│  │                                                              │ │
+│  │  5. RUN HEALTH PROBES                                        │ │
+│  │     Liveness: restart container if unhealthy                 │ │
+│  │     Readiness: remove from Service endpoints if not ready    │ │
+│  │     Startup: give slow-starting containers extra time        │ │
+│  │                                                              │ │
+│  │  6. REPORT STATUS BACK                                       │ │
+│  │     Updates Pod status in API server every ~10 seconds       │ │
+│  │     Reports node conditions (Ready, MemoryPressure, etc.)    │ │
+│  │                                                              │ │
+│  │  ┌─────────────┐    ┌──────────────┐    ┌─────────────────┐ │ │
+│  │  │  containerd │    │  CSI drivers │    │  CNI plugins    │ │ │
+│  │  │  (container │    │  (Azure Disk │    │  (Azure CNI /   │ │ │
+│  │  │   runtime)  │    │   Azure Files│    │   Cilium)       │ │ │
+│  │  └─────────────┘    └──────────────┘    └─────────────────┘ │ │
+│  └──────────────────────────────────────────────────────────────┘ │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+#### kubelet in AKS — What Azure Manages vs What You Configure
+
+| Aspect | Azure Manages | You Configure |
+|--------|--------------|---------------|
+| kubelet binary | Auto-updated during node upgrades | Not directly |
+| kubelet config | Sensible defaults | `--kubelet-config` via node pool |
+| Container runtime | containerd (AKS 1.19+) | Not changeable |
+| Node registration | Auto-registers with API server | Node labels/taints |
+| Log rotation | Managed | Log analytics integration |
+| Image GC | Automatic (disk pressure) | GC thresholds via kubelet config |
+
+#### Inspecting kubelet on an AKS Node
+```bash
+# SSH into a node (AKS uses ephemeral OS disks — use debug pod instead)
+kubectl debug node/aks-nodepool1-12345678-vmss000000 -it --image=mcr.microsoft.com/cbl-mariner/busybox:2.0
+
+# Inside the debug pod (chroot to host)
+chroot /host
+
+# Check kubelet process
+systemctl status kubelet
+# Output:
+# ● kubelet.service - kubelet: The Kubernetes Node Agent
+#    Loaded: loaded (/etc/systemd/system/kubelet.service; enabled)
+#    Active: active (running) since Mon 2026-02-23 09:15:32 UTC; 3 days ago
+#  Main PID: 1234 (kubelet)
+
+# View kubelet flags and configuration
+ps aux | grep kubelet
+# Output snippet:
+# /usr/local/bin/kubelet
+#   --cloud-provider=external
+#   --container-runtime-endpoint=unix:///run/containerd/containerd.sock
+#   --node-labels=agentpool=nodepool1,kubernetes.azure.com/agentpool=nodepool1
+#   --pod-infra-container-image=mcr.microsoft.com/oss/kubernetes/pause:3.6
+
+# View kubelet logs
+journalctl -u kubelet -n 100 --no-pager
+```
+
+#### Node Conditions Reported by kubelet
+```bash
+kubectl describe node aks-nodepool1-12345678-vmss000000
+
+# Sample Output (Conditions section):
+# Conditions:
+#   Type                 Status  Reason                       Message
+#   ─────────────────── ──────  ──────                       ───────
+#   NetworkUnavailable   False   RouteCreated                 RouteController created...
+#   MemoryPressure       False   KubeletHasSufficientMemory   kubelet has sufficient memory
+#   DiskPressure         False   KubeletHasNoDiskPressure     kubelet has no disk pressure
+#   PIDPressure          False   KubeletHasSufficientPIDs     kubelet has sufficient PIDs
+#   Ready                True    KubeletReady                 kubelet is posting ready status
+#
+# Capacity:
+#   cpu:                4        ← Total CPUs on VM
+#   memory:             16Gi     ← Total RAM
+#   pods:               110      ← Max pods (default kubelet limit)
+#   ephemeral-storage:  128Gi
+#
+# Allocatable:          ← What's available AFTER system/kubelet reservations
+#   cpu:                3800m    ← 200m reserved for kubelet/OS
+#   memory:             13Gi     ← ~3Gi reserved for system
+#   pods:               110
+```
+
+---
+
+### 15.5 — kubectl Commands with Sample Outputs
+
+#### Cluster Information
+```bash
+# Display API server endpoint and cluster info
+kubectl cluster-info
+
+# Sample Output:
+# Kubernetes control plane is running at https://myaks-abc123.hcp.eastus.azmk8s.io:443
+# CoreDNS is running at https://myaks-abc123.hcp.eastus.azmk8s.io:443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
+
+# List all nodes with status, roles, age, and K8s version
+kubectl get nodes
+
+# Sample Output:
+# NAME                                STATUS   ROLES   AGE   VERSION
+# aks-nodepool1-12345678-vmss000000   Ready    agent   5d    v1.31.2
+# aks-nodepool1-12345678-vmss000001   Ready    agent   5d    v1.31.2
+# aks-nodepool1-12345678-vmss000002   Ready    agent   5d    v1.31.2
+
+# Wide output — shows internal IP, OS image, kernel
+kubectl get nodes -o wide
+
+# Sample Output:
+# NAME                               STATUS  ROLES  AGE  VERSION   INTERNAL-IP   OS-IMAGE
+# aks-nodepool1-12345678-vmss000000  Ready   agent  5d   v1.31.2   10.240.0.4    Ubuntu 22.04.3
+# aks-nodepool1-12345678-vmss000001  Ready   agent  5d   v1.31.2   10.240.0.5    Ubuntu 22.04.3
+
+# Show node resource usage (requires metrics-server)
+kubectl top nodes
+
+# Sample Output:
+# NAME                                CPU(cores)   CPU%   MEMORY(bytes)   MEMORY%
+# aks-nodepool1-12345678-vmss000000   312m         8%     2847Mi          21%
+# aks-nodepool1-12345678-vmss000001   248m         6%     3102Mi          23%
+```
+
+#### Working with Pods
+```bash
+# List pods in current namespace
+kubectl get pods
+
+# Sample Output:
+# NAME                          READY   STATUS    RESTARTS   AGE
+# simpleapi1-7d4b8c9f6-2xkpq   1/1     Running   0          2h
+# simpleapi1-7d4b8c9f6-8mnlr   1/1     Running   0          2h
+# simpleapi2-6c5d7b8e9-4vwxy   1/1     Running   0          2h
+
+# List pods in ALL namespaces
+kubectl get pods --all-namespaces
+# or shorthand:
+kubectl get pods -A
+
+# Sample Output:
+# NAMESPACE     NAME                              READY   STATUS    RESTARTS
+# kube-system   coredns-789d4b5c76-abc12          1/1     Running   0
+# kube-system   coredns-789d4b5c76-def34          1/1     Running   0
+# kube-system   azure-ip-masq-agent-xxxx          1/1     Running   0
+# kube-system   kube-proxy-xxxx                   1/1     Running   0
+# simple-apis   simpleapi1-7d4b8c9f6-2xkpq        1/1     Running   0
+
+# Show pod details (events, volumes, probes, node placement)
+kubectl describe pod simpleapi1-7d4b8c9f6-2xkpq -n simple-apis
+
+# Sample Output (abbreviated):
+# Name:             simpleapi1-7d4b8c9f6-2xkpq
+# Namespace:        simple-apis
+# Node:             aks-nodepool1-12345678-vmss000000/10.240.0.4
+# Status:           Running
+# IP:               10.244.1.15
+# Controlled By:    ReplicaSet/simpleapi1-7d4b8c9f6
+# Containers:
+#   simpleapi1:
+#     Image:          acrdemo.azurecr.io/simpleapi1:v1
+#     Limits:         cpu: 500m, memory: 512Mi
+#     Requests:       cpu: 100m, memory: 128Mi
+#     Liveness:       http-get http://:80/health delay=15s timeout=5s
+#     Readiness:      http-get http://:80/health delay=5s timeout=3s
+# Events:
+#   Normal  Scheduled  2h    Successfully assigned simple-apis/simpleapi1-... to node
+#   Normal  Pulled     2h    Successfully pulled image "acrdemo.azurecr.io/simpleapi1:v1"
+#   Normal  Created    2h    Created container simpleapi1
+#   Normal  Started    2h    Started container simpleapi1
+
+# Show pod resource usage
+kubectl top pod -n simple-apis
+
+# Sample Output:
+# NAME                          CPU(cores)   MEMORY(bytes)
+# simpleapi1-7d4b8c9f6-2xkpq   5m           28Mi
+# simpleapi1-7d4b8c9f6-8mnlr   4m           26Mi
+# simpleapi2-6c5d7b8e9-4vwxy   6m           31Mi
+```
+
+#### Logs
+```bash
+# Stream logs from a pod
+kubectl logs simpleapi1-7d4b8c9f6-2xkpq -n simple-apis
+
+# Follow (tail -f equivalent)
+kubectl logs -f simpleapi1-7d4b8c9f6-2xkpq -n simple-apis
+
+# Last 50 lines only
+kubectl logs --tail=50 simpleapi1-7d4b8c9f6-2xkpq -n simple-apis
+
+# Logs from previous container instance (useful after crash)
+kubectl logs simpleapi1-7d4b8c9f6-2xkpq -n simple-apis --previous
+
+# Logs from all pods matching a label selector
+kubectl logs -l app=simpleapi1 -n simple-apis --all-containers=true
+
+# Sample Output:
+# info: Microsoft.Hosting.Lifetime[14]
+#       Now listening on: http://[::]:80
+# info: Microsoft.Hosting.Lifetime[0]
+#       Application started. Press Ctrl+C to shut down.
+# info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+#       Request starting HTTP/1.1 GET http://10.244.1.1/health - null 0
+# info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+#       Executing endpoint 'HTTP: GET /health'
+```
+
+#### Exec Into a Container
+```bash
+# Open interactive bash shell in a running container
+kubectl exec -it simpleapi1-7d4b8c9f6-2xkpq -n simple-apis -- /bin/bash
+
+# Run a single command without interactive shell
+kubectl exec simpleapi1-7d4b8c9f6-2xkpq -n simple-apis -- env
+
+# Sample Output:
+# PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# ASPNETCORE_HTTP_PORTS=80
+# SIMPLEAPI2_SVC_SERVICE_HOST=10.0.15.42
+# SIMPLEAPI2_SVC_SERVICE_PORT=80
+# KUBERNETES_SERVICE_HOST=10.0.0.1
+# KUBERNETES_SERVICE_PORT=443
+
+# Test DNS resolution from inside pod
+kubectl exec simpleapi1-7d4b8c9f6-2xkpq -n simple-apis -- \
+  nslookup simpleapi2-svc.simple-apis.svc.cluster.local
+
+# Sample Output:
+# Server:    10.0.0.10
+# Address 1: 10.0.0.10 kube-dns.kube-system.svc.cluster.local
+# Name:      simpleapi2-svc.simple-apis.svc.cluster.local
+# Address 1: 10.0.15.42 simpleapi2-svc.simple-apis.svc.cluster.local
+```
+
+#### Deployments & Rollouts
+```bash
+# List deployments
+kubectl get deployments -n simple-apis
+
+# Sample Output:
+# NAME         READY   UP-TO-DATE   AVAILABLE   AGE
+# simpleapi1   3/3     3            3           2d
+# simpleapi2   3/3     3            3           2d
+
+# Check rollout status
+kubectl rollout status deployment/simpleapi1 -n simple-apis
+
+# Sample Output (in-progress):
+# Waiting for deployment "simpleapi1" rollout to finish: 1 out of 3 new replicas updated...
+# Waiting for deployment "simpleapi1" rollout to finish: 2 out of 3 new replicas updated...
+# Waiting for deployment "simpleapi1" rollout to finish: 1 old replicas are pending termination...
+# deployment "simpleapi1" successfully rolled out
+
+# View rollout history
+kubectl rollout history deployment/simpleapi1 -n simple-apis
+
+# Sample Output:
+# REVISION  CHANGE-CAUSE
+# 1         Initial deployment v1
+# 2         Update to v2 — add /metrics endpoint
+# 3         Hotfix: fix null reference in /weatherforecast
+
+# Rollback to previous version
+kubectl rollout undo deployment/simpleapi1 -n simple-apis
+# Output: deployment.apps/simpleapi1 rolled back
+
+# Rollback to specific revision
+kubectl rollout undo deployment/simpleapi1 --to-revision=2 -n simple-apis
+```
+
+#### Services & Endpoints
+```bash
+# List services
+kubectl get services -n simple-apis
+
+# Sample Output:
+# NAME             TYPE           CLUSTER-IP    EXTERNAL-IP      PORT(S)        AGE
+# simpleapi1-svc   ClusterIP      10.0.42.18    <none>           80/TCP         2d
+# simpleapi2-svc   ClusterIP      10.0.15.42    <none>           80/TCP         2d
+# api-lb           LoadBalancer   10.0.200.5    52.186.142.10    80:31204/TCP   2d
+
+# Get the endpoints backing a service (actual pod IPs)
+kubectl get endpoints simpleapi1-svc -n simple-apis
+
+# Sample Output:
+# NAME             ENDPOINTS                                     AGE
+# simpleapi1-svc   10.244.1.15:80,10.244.2.8:80,10.244.3.4:80   2d
+
+# Port-forward service to local machine (for testing without Ingress)
+kubectl port-forward svc/simpleapi1-svc 8080:80 -n simple-apis
+
+# Sample Output:
+# Forwarding from 127.0.0.1:8080 -> 80
+# Forwarding from [::1]:8080 -> 80
+# Now open: http://localhost:8080/health
+```
+
+#### Events (crucial for debugging)
+```bash
+# Show recent events in namespace (sorted by time)
+kubectl get events -n simple-apis --sort-by='.lastTimestamp'
+
+# Sample Output:
+# LAST SEEN   TYPE      REASON              OBJECT                          MESSAGE
+# 5m          Normal    Scheduled           Pod/simpleapi1-7d4b8...        Assigned to node
+# 5m          Normal    Pulling             Pod/simpleapi1-7d4b8...        Pulling image "acrdemo..."
+# 4m          Normal    Pulled              Pod/simpleapi1-7d4b8...        Successfully pulled image
+# 4m          Normal    Created             Pod/simpleapi1-7d4b8...        Created container
+# 4m          Normal    Started             Pod/simpleapi1-7d4b8...        Started container
+# 2m          Warning   BackOff             Pod/simpleapi1-crash...        Back-off restarting failed container
+
+# Show events for a specific object
+kubectl describe deployment simpleapi1 -n simple-apis | grep -A 20 Events
+```
+
+---
+
+### 15.6 — kubectl Output Formats
+
+```bash
+# Default table output
+kubectl get pods -n simple-apis
+
+# YAML output (shows full object spec + status)
+kubectl get pod simpleapi1-7d4b8c9f6-2xkpq -n simple-apis -o yaml
+
+# JSON output
+kubectl get pod simpleapi1-7d4b8c9f6-2xkpq -n simple-apis -o json
+
+# JSONPath — extract specific field
+kubectl get pod simpleapi1-7d4b8c9f6-2xkpq -n simple-apis \
+  -o jsonpath='{.status.podIP}'
+# Output: 10.244.1.15
+
+# Get all pod IPs in a namespace
+kubectl get pods -n simple-apis \
+  -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.podIP}{"\n"}{end}'
+# Output:
+# simpleapi1-7d4b8c9f6-2xkpq   10.244.1.15
+# simpleapi1-7d4b8c9f6-8mnlr   10.244.2.8
+# simpleapi2-6c5d7b8e9-4vwxy   10.244.3.4
+
+# Custom columns
+kubectl get pods -n simple-apis \
+  -o custom-columns=NAME:.metadata.name,STATUS:.status.phase,NODE:.spec.nodeName
+# Output:
+# NAME                          STATUS    NODE
+# simpleapi1-7d4b8c9f6-2xkpq   Running   aks-nodepool1-12345678-vmss000000
+# simpleapi2-6c5d7b8e9-4vwxy   Running   aks-nodepool1-12345678-vmss000001
+```
+
+---
+
+## PART 16: Service-to-Service Communication Deep Dive
+
+> **Mental Model:** Every service in Kubernetes gets a stable "internal phone number" (DNS name). Pod IPs change constantly, but DNS names never do. When SimpleApi1 calls SimpleApi2, it uses the DNS name — Kubernetes' internal DNS (CoreDNS) resolves it to the correct pod IPs and load-balances.
+
+---
+
+### 16.1 — Kubernetes DNS: The Full Name Format
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│              KUBERNETES SERVICE DNS RESOLUTION                     │
+│                                                                    │
+│  Full DNS Name Format:                                             │
+│  <service-name>.<namespace>.svc.cluster.local                     │
+│                                                                    │
+│  Example:                                                          │
+│  simpleapi2-svc.simple-apis.svc.cluster.local                     │
+│       │            │          │       │                            │
+│       │            │          │       └── Zone root (fixed)        │
+│       │            │          └────────── "svc" subdomain (fixed)  │
+│       │            └───────────────────── namespace name           │
+│       └────────────────────────────────── Service name            │
+│                                                                    │
+│  Short forms (work within same namespace):                         │
+│  simpleapi2-svc              ← same namespace only                 │
+│  simpleapi2-svc.simple-apis  ← cross-namespace short              │
+│                                                                    │
+│  ┌─────────────────────────────────────────────────────────────┐  │
+│  │  CoreDNS (kube-system)                                      │  │
+│  │                                                             │  │
+│  │  When a pod looks up "simpleapi2-svc.simple-apis":          │  │
+│  │  1. Pod sends DNS query to nameserver 10.0.0.10             │  │
+│  │     (injected into /etc/resolv.conf by kubelet)             │  │
+│  │  2. CoreDNS receives query                                  │  │
+│  │  3. CoreDNS looks up Service in API server                  │  │
+│  │  4. Returns ClusterIP: 10.0.15.42                           │  │
+│  │  5. kube-proxy routes TCP to one of the pod IPs             │  │
+│  └─────────────────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+#### /etc/resolv.conf Inside Every Pod
+```bash
+kubectl exec simpleapi1-7d4b8c9f6-2xkpq -n simple-apis -- cat /etc/resolv.conf
+
+# Output:
+# search simple-apis.svc.cluster.local svc.cluster.local cluster.local
+# nameserver 10.0.0.10    ← CoreDNS ClusterIP
+# options ndots:5
+#
+# The "search" domains mean: when you use short name "simpleapi2-svc",
+# DNS resolver appends these suffixes in order until it gets an answer:
+#  1. simpleapi2-svc.simple-apis.svc.cluster.local ← FOUND → returns IP
+```
+
+---
+
+### 16.2 — Kubernetes YAML: Two-Service Setup (SimpleApi1 → SimpleApi2)
+
+#### SimpleApi2 Deployment & Service
+```yaml
+# simpleapi2-deployment.yaml
+# ─────────────────────────────────────────────────────────────────────
+# SimpleApi2: the "backend" service that SimpleApi1 calls internally
+# ─────────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simpleapi2                    # Name of the Deployment object
+  namespace: simple-apis              # Must exist: kubectl create ns simple-apis
+  labels:
+    app: simpleapi2
+    tier: backend
+spec:
+  replicas: 2                         # 2 pods for HA
+  selector:
+    matchLabels:
+      app: simpleapi2                 # Selects pods with this label
+  template:
+    metadata:
+      labels:
+        app: simpleapi2
+        tier: backend
+    spec:
+      containers:
+      - name: simpleapi2
+        image: acrdemo.azurecr.io/simpleapi2:v1
+        ports:
+        - containerPort: 80           # Port the app listens on inside container
+        resources:
+          requests:
+            cpu: "100m"               # Guaranteed CPU (0.1 vCPU)
+            memory: "128Mi"           # Guaranteed memory
+          limits:
+            cpu: "500m"               # Max CPU before throttling
+            memory: "512Mi"           # Max memory before OOMKill
+        env:
+        - name: ASPNETCORE_HTTP_PORTS
+          value: "80"
+        readinessProbe:               # Pod added to Service endpoints only when ready
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 5      # Wait 5s before first probe
+          periodSeconds: 10           # Probe every 10s
+        livenessProbe:                # Restart container if unhealthy
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 15
+          periodSeconds: 20
+
+---
+# simpleapi2-service.yaml
+# ClusterIP Service — only reachable from inside the cluster
+# This is the "stable phone number" SimpleApi1 will call
+apiVersion: v1
+kind: Service
+metadata:
+  name: simpleapi2-svc                # DNS name: simpleapi2-svc.simple-apis.svc.cluster.local
+  namespace: simple-apis
+  labels:
+    app: simpleapi2
+spec:
+  type: ClusterIP                     # Internal-only (no external IP)
+  selector:
+    app: simpleapi2                   # Routes to all pods with label app=simpleapi2
+  ports:
+  - name: http
+    protocol: TCP
+    port: 80                          # Port exposed by this Service
+    targetPort: 80                    # Port on the pod (container port)
+```
+
+#### SimpleApi1 Deployment — Calling SimpleApi2
+```yaml
+# simpleapi1-deployment.yaml
+# SimpleApi1: the "frontend API" that receives external traffic
+# and calls SimpleApi2 internally
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simpleapi1
+  namespace: simple-apis
+  labels:
+    app: simpleapi1
+    tier: frontend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: simpleapi1
+  template:
+    metadata:
+      labels:
+        app: simpleapi1
+        tier: frontend
+    spec:
+      containers:
+      - name: simpleapi1
+        image: acrdemo.azurecr.io/simpleapi1:v1
+        ports:
+        - containerPort: 80
+        env:
+        - name: ASPNETCORE_HTTP_PORTS
+          value: "80"
+        - name: SIMPLEAPI2_BASE_URL
+          # ← Use Kubernetes DNS name — works cross-namespace too
+          # Format: http://<service>.<namespace>.svc.cluster.local
+          value: "http://simpleapi2-svc.simple-apis.svc.cluster.local"
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 15
+          periodSeconds: 20
+```
+
+---
+
+### 16.3 — .NET 10 Code: HttpClient Factory Pattern for Service Calls
+
+#### Program.cs — SimpleApi1 Calling SimpleApi2
+```csharp
+// Program.cs — SimpleApi1
+// Uses IHttpClientFactory (recommended over new HttpClient())
+// IHttpClientFactory:
+//   - Manages HttpClient lifecycle (avoids socket exhaustion)
+//   - Supports named clients with preset base addresses
+//   - Integrates with Polly for retry/circuit breaker
+//   - Built-in connection pooling
+
+var builder = WebApplication.CreateBuilder(args);
+
+// ── Register named HttpClient for SimpleApi2 ──────────────────────
+// Named client approach: pre-configured base URL + timeout
+builder.Services.AddHttpClient("SimpleApi2", client =>
+{
+    // Read base URL from environment variable (injected by Kubernetes)
+    // Falls back to localhost for local development
+    var baseUrl = builder.Configuration["SIMPLEAPI2_BASE_URL"]
+                  ?? "http://localhost:5002";
+    client.BaseAddress = new Uri(baseUrl);
+
+    // Timeout applies per request
+    client.Timeout = TimeSpan.FromSeconds(30);
+
+    // Default headers sent with every request
+    client.DefaultRequestHeaders.Add("X-Source-Service", "simpleapi1");
+})
+// ── Polly: Retry policy ───────────────────────────────────────────
+// Retry 3 times with exponential backoff on transient HTTP failures
+.AddTransientHttpErrorPolicy(policy =>
+    policy.WaitAndRetryAsync(
+        retryCount: 3,
+        // Exponential backoff: 2s, 4s, 8s
+        sleepDurationProvider: attempt => TimeSpan.FromSeconds(Math.Pow(2, attempt)),
+        onRetry: (outcome, timespan, attempt, context) =>
+        {
+            // Log the retry attempt (use ILogger in production)
+            Console.WriteLine($"[Retry {attempt}] waiting {timespan} before retrying. " +
+                              $"Reason: {outcome.Exception?.Message ?? outcome.Result?.StatusCode.ToString()}");
+        }
+    )
+)
+// ── Polly: Circuit Breaker ────────────────────────────────────────
+// Open circuit after 5 failures in 30s — stop hammering the failing service
+.AddTransientHttpErrorPolicy(policy =>
+    policy.CircuitBreakerAsync(
+        handledEventsAllowedBeforeBreaking: 5,  // failures before opening
+        durationOfBreak: TimeSpan.FromSeconds(30) // how long circuit stays open
+    )
+);
+
+// ── Register services ─────────────────────────────────────────────
+builder.Services.AddScoped<ISimpleApi2Client, SimpleApi2Client>();
+
+var app = builder.Build();
+
+// ── Health endpoint ───────────────────────────────────────────────
+app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "simpleapi1" }));
+
+// ── Endpoint that calls SimpleApi2 ───────────────────────────────
+app.MapGet("/combined-data", async (ISimpleApi2Client api2Client) =>
+{
+    try
+    {
+        var api2Data = await api2Client.GetDataAsync();
+        return Results.Ok(new
+        {
+            from_api1 = "SimpleApi1 response",
+            from_api2 = api2Data,
+            timestamp = DateTime.UtcNow
+        });
+    }
+    catch (HttpRequestException ex)
+    {
+        // Circuit open or all retries exhausted
+        return Results.Problem(
+            detail: $"SimpleApi2 is unavailable: {ex.Message}",
+            statusCode: 503
+        );
+    }
+});
+
+app.Run();
+```
+
+#### SimpleApi2Client.cs — Typed Client Wrapper
+```csharp
+// ISimpleApi2Client.cs
+public interface ISimpleApi2Client
+{
+    Task<SimpleApi2Response?> GetDataAsync(CancellationToken ct = default);
+}
+
+// SimpleApi2Client.cs
+public class SimpleApi2Client : ISimpleApi2Client
+{
+    private readonly HttpClient _httpClient;
+    private readonly ILogger<SimpleApi2Client> _logger;
+
+    // IHttpClientFactory injects the pre-configured named client
+    public SimpleApi2Client(IHttpClientFactory factory, ILogger<SimpleApi2Client> logger)
+    {
+        // Creates an HttpClient with the "SimpleApi2" configuration
+        _httpClient = factory.CreateClient("SimpleApi2");
+        _logger = logger;
+    }
+
+    public async Task<SimpleApi2Response?> GetDataAsync(CancellationToken ct = default)
+    {
+        _logger.LogInformation("Calling SimpleApi2 at {BaseAddress}", _httpClient.BaseAddress);
+
+        // GET http://simpleapi2-svc.simple-apis.svc.cluster.local/info
+        var response = await _httpClient.GetAsync("/info", ct);
+
+        // Throws HttpRequestException for 4xx/5xx — triggers Polly retry
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<SimpleApi2Response>(ct);
+    }
+}
+
+// Response model
+public record SimpleApi2Response(string Service, string Version, DateTime Timestamp);
+```
+
+---
+
+### 16.4 — Communication Patterns Diagram
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│              SERVICE-TO-SERVICE COMMUNICATION PATTERNS                 │
+│                                                                        │
+│  PATTERN 1: Direct HTTP (ClusterIP)                                    │
+│  ─────────────────────────────────────────────────                     │
+│  [SimpleApi1 Pod] ──HTTP GET──► [simpleapi2-svc ClusterIP]             │
+│                                         │                              │
+│                              kube-proxy (iptables/IPVS)                │
+│                                    ┌────┴────┐                         │
+│                                    ▼         ▼                         │
+│                             [Pod: api2-a] [Pod: api2-b]                │
+│                                                                        │
+│  PATTERN 2: Headless Service (StatefulSet pods addressed directly)     │
+│  ──────────────────────────────────────────────────────                │
+│  [Client] ──DNS──► simpledb-0.simpledb.namespace.svc.cluster.local     │
+│                    (resolves directly to pod IP, bypasses ClusterIP)   │
+│                                                                        │
+│  PATTERN 3: gRPC (HTTP/2 + Protobuf)                                   │
+│  ─────────────────────────────────                                     │
+│  [SimpleApi1] ──gRPC──► simpleapi2-grpc-svc:50051                     │
+│  (requires: service port name must start with "grpc" or "h2c")        │
+│                                                                        │
+│  PATTERN 4: Async via Azure Service Bus (decoupled)                    │
+│  ────────────────────────────────────────────────                      │
+│  [SimpleApi1] ──Send Msg──► [Service Bus Queue]                        │
+│                                     │                                  │
+│                              KEDA ScaledObject                         │
+│                                     ▼                                  │
+│                             [SimpleApi2 pods scale up]                 │
+│                             [SimpleApi2 processes message]             │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 16.5 — Cross-Namespace Communication
+
+```yaml
+# NetworkPolicy: Allow SimpleApi1 in namespace "simple-apis"
+# to call SimpleApi2 in namespace "backend-apis"
+# ─────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-simpleapi1-to-api2
+  namespace: backend-apis              # Policy applies to pods IN this namespace
+spec:
+  podSelector:
+    matchLabels:
+      app: simpleapi2                  # This policy governs ingress TO simpleapi2 pods
+  policyTypes:
+  - Ingress                           # Controlling inbound connections
+  ingress:
+  - from:
+    - namespaceSelector:              # Allow traffic from this namespace
+        matchLabels:
+          kubernetes.io/metadata.name: simple-apis
+      podSelector:                    # And only from pods with this label
+        matchLabels:
+          app: simpleapi1
+    ports:
+    - protocol: TCP
+      port: 80                        # Only allow port 80
+```
+
+---
+
+### 16.6 — Service Mesh for Advanced Communication (Istio)
+
+```yaml
+# VirtualService: Traffic splitting — send 90% to v1, 10% to v2 (canary)
+# Use case: gradually roll out SimpleApi2 v2 without risk
+# ─────────────────────────────────────────────────────────────────────
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: simpleapi2-vs
+  namespace: simple-apis
+spec:
+  hosts:
+  - simpleapi2-svc                    # Intercepts calls to this service
+  http:
+  - route:
+    - destination:
+        host: simpleapi2-svc
+        subset: v1                    # 90% to stable v1
+      weight: 90
+    - destination:
+        host: simpleapi2-svc
+        subset: v2                    # 10% to new v2 (canary)
+      weight: 10
+    retries:                          # Istio handles retries at mesh level
+      attempts: 3
+      perTryTimeout: 5s
+      retryOn: "5xx,reset,connect-failure"
+
+---
+# DestinationRule: defines subsets (v1/v2) by pod label
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: simpleapi2-dr
+  namespace: simple-apis
+spec:
+  host: simpleapi2-svc
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+      http:
+        http2MaxRequests: 1000
+    outlierDetection:                 # Circuit breaker at mesh level
+      consecutiveErrors: 5
+      interval: 30s
+      baseEjectionTime: 30s
+  subsets:
+  - name: v1
+    labels:
+      version: v1                     # Pods with label version=v1
+  - name: v2
+    labels:
+      version: v2                     # Pods with label version=v2
+```
+
+---
+
+### 16.7 — Verifying Service-to-Service Connectivity
+
+```bash
+# Deploy a temporary debug pod to test connectivity
+kubectl run debug-pod --image=curlimages/curl:latest \
+  --restart=Never -n simple-apis \
+  --command -- sleep 3600
+
+# Test that SimpleApi1 can reach SimpleApi2
+kubectl exec debug-pod -n simple-apis -- \
+  curl -s http://simpleapi2-svc.simple-apis.svc.cluster.local/health
+
+# Expected Output:
+# {"status":"healthy","service":"simpleapi2"}
+
+# Test cross-namespace
+kubectl exec debug-pod -n simple-apis -- \
+  curl -s http://simpleapi2-svc.backend-apis.svc.cluster.local/health
+
+# Test with verbose headers (to verify mTLS, load balancing)
+kubectl exec debug-pod -n simple-apis -- \
+  curl -sv http://simpleapi2-svc/info 2>&1 | head -30
+
+# Clean up debug pod
+kubectl delete pod debug-pod -n simple-apis
+```
+
+---
+
+## PART 17: Volume Types — Complete Deep Dive
+
+> **Mental Model:** Volumes are like USB drives you plug into your container. Some are temporary (emptyDir = RAM disk that disappears when pod dies), some are persistent (Azure Disk = external hard drive that survives pod restarts), and some mount configuration (ConfigMap volume = read-only config file cabinet).
+
+---
+
+### 17.1 — Volume Types Overview
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                    KUBERNETES VOLUME TAXONOMY                          │
+│                                                                        │
+│  EPHEMERAL (live and die with the Pod)                                 │
+│  ┌─────────────┐  ┌──────────────┐  ┌─────────────────┐              │
+│  │  emptyDir   │  │  configMap   │  │     secret      │              │
+│  │  (temp dir) │  │  (config     │  │  (secret files) │              │
+│  │             │  │   files)     │  │                 │              │
+│  └─────────────┘  └──────────────┘  └─────────────────┘              │
+│  ┌─────────────────┐  ┌───────────────────┐                           │
+│  │    projected    │  │    downwardAPI     │                           │
+│  │ (combine multi  │  │ (expose pod/node   │                           │
+│  │  volume sources)│  │  metadata as files)│                           │
+│  └─────────────────┘  └───────────────────┘                           │
+│                                                                        │
+│  NODE-LOCAL (tied to a specific node)                                  │
+│  ┌─────────────┐  ┌──────────────────────┐                            │
+│  │  hostPath   │  │  local (StorageClass) │                            │
+│  │ (node dir)  │  │  (node local disk)    │                            │
+│  └─────────────┘  └──────────────────────┘                            │
+│                                                                        │
+│  PERSISTENT (survive pod/node restarts — via PVC)                      │
+│  ┌───────────────────────────────────────────────────────────────────┐│
+│  │  Azure Disk (CSI)    │  Azure Files (CSI)  │  Azure NetApp Files  ││
+│  │  ReadWriteOnce       │  ReadWriteMany       │  ReadWriteMany       ││
+│  │  (block storage)     │  (SMB/NFS share)     │  (enterprise NFS)    ││
+│  └───────────────────────────────────────────────────────────────────┘│
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 17.2 — emptyDir
+
+**What it is:** A temporary directory created when a pod starts, shared between all containers in the pod. Deleted when pod is removed.
+
+**Use cases:** Temporary scratch space, sharing files between containers in a pod (sidecar pattern), caching.
+
+```yaml
+# emptyDir example: web server + sidecar log processor sharing a volume
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-with-sidecar
+  namespace: simple-apis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api-with-sidecar
+  template:
+    metadata:
+      labels:
+        app: api-with-sidecar
+    spec:
+      volumes:
+      - name: shared-logs              # Volume definition at pod level
+        emptyDir: {}                   # {} = use node disk; {medium: Memory} = RAM-backed (tmpfs)
+
+      - name: fast-cache               # RAM-backed emptyDir — fast but limited
+        emptyDir:
+          medium: Memory               # Stored in RAM — survives container restarts but NOT pod restarts
+          sizeLimit: 256Mi             # Cap so one pod can't exhaust all node RAM
+
+      containers:
+      # Container 1: The main API — writes logs to shared volume
+      - name: simpleapi1
+        image: acrdemo.azurecr.io/simpleapi1:v1
+        volumeMounts:
+        - name: shared-logs
+          mountPath: /app/logs         # API writes logs here
+        - name: fast-cache
+          mountPath: /app/cache        # Cache mounted in RAM
+
+      # Container 2: Log forwarder sidecar — reads logs from shared volume
+      - name: log-forwarder
+        image: fluent/fluent-bit:latest
+        volumeMounts:
+        - name: shared-logs
+          mountPath: /var/log/app      # Reads logs written by container 1
+          readOnly: true               # Sidecar only reads; main app writes
+```
+
+---
+
+### 17.3 — hostPath
+
+**What it is:** Mounts a directory from the worker node's filesystem into the pod.
+
+**Use cases:** DaemonSets reading node logs (`/var/log`), node-level monitoring agents, Docker socket access.
+
+**Warning:** Avoid for application workloads — creates node affinity and security risks.
+
+```yaml
+# hostPath example: DaemonSet log collector reading node logs
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-log-collector
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app: node-log-collector
+  template:
+    metadata:
+      labels:
+        app: node-log-collector
+    spec:
+      volumes:
+      - name: node-logs
+        hostPath:
+          path: /var/log/containers    # Actual path on the worker node
+          type: Directory              # Must exist; options: Directory, File,
+                                       # DirectoryOrCreate, FileOrCreate,
+                                       # Socket, CharDevice, BlockDevice
+
+      - name: docker-sock
+        hostPath:
+          path: /var/run/docker.sock   # For tools that need container runtime access
+          type: Socket
+
+      containers:
+      - name: log-collector
+        image: fluent/fluent-bit:latest
+        volumeMounts:
+        - name: node-logs
+          mountPath: /host/var/log/containers
+          readOnly: true               # Read-only — never write to node filesystem
+      tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule             # Allow scheduling on control plane nodes too
+```
+
+---
+
+### 17.4 — configMap Volume Mount
+
+**What it is:** Mounts ConfigMap keys as files in the container filesystem.
+
+**Use cases:** App configuration files (appsettings.json), Nginx config, SSL certs.
+
+```yaml
+# Step 1: Create ConfigMap with appsettings content
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: simpleapi1-config
+  namespace: simple-apis
+data:
+  # Each key becomes a file in the mounted directory
+  appsettings.Production.json: |
+    {
+      "Logging": {
+        "LogLevel": {
+          "Default": "Information",
+          "Microsoft.AspNetCore": "Warning"
+        }
+      },
+      "ConnectionStrings": {
+        "Redis": "myredis.redis.cache.windows.net:6380,ssl=true"
+      },
+      "FeatureFlags": {
+        "EnableNewCheckout": true
+      }
+    }
+  nginx.conf: |
+    server {
+        listen 80;
+        location /health { return 200 'OK'; }
+        location / { proxy_pass http://localhost:5000; }
+    }
+
+---
+# Step 2: Mount ConfigMap as volume in Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simpleapi1
+  namespace: simple-apis
+spec:
+  template:
+    spec:
+      volumes:
+      - name: app-config
+        configMap:
+          name: simpleapi1-config      # Reference the ConfigMap
+          # Optional: only mount specific keys
+          items:
+          - key: appsettings.Production.json   # ConfigMap key
+            path: appsettings.Production.json  # Filename inside mountPath
+            mode: 0444                         # File permissions (octal): read-only
+          - key: nginx.conf
+            path: nginx.conf
+            mode: 0444
+
+      containers:
+      - name: simpleapi1
+        image: acrdemo.azurecr.io/simpleapi1:v1
+        volumeMounts:
+        - name: app-config
+          mountPath: /app/config       # ConfigMap keys become files here
+          readOnly: true               # Best practice: config should be read-only
+        # File will be at: /app/config/appsettings.Production.json
+        # .NET reads this automatically if ASPNETCORE_ENVIRONMENT=Production
+```
+
+---
+
+### 17.5 — Secret Volume Mount
+
+**What it is:** Same as ConfigMap volume but for Secrets. Values are base64-decoded at mount time.
+
+```yaml
+# Mount TLS certificate from Secret as files
+apiVersion: v1
+kind: Secret
+metadata:
+  name: simpleapi1-tls
+  namespace: simple-apis
+type: kubernetes.io/tls               # TLS secret type
+data:
+  tls.crt: LS0tLS1CRUdJTi...         # Base64-encoded certificate
+  tls.key: LS0tLS1CRUdJTi...         # Base64-encoded private key
+
+---
+apiVersion: apps/v1
+kind: Deployment
+spec:
+  template:
+    spec:
+      volumes:
+      - name: tls-certs
+        secret:
+          secretName: simpleapi1-tls   # Reference Secret
+          defaultMode: 0400            # Very restrictive: owner read-only
+                                       # Private key should not be world-readable
+
+      containers:
+      - name: simpleapi1
+        volumeMounts:
+        - name: tls-certs
+          mountPath: /etc/ssl/certs    # Files: /etc/ssl/certs/tls.crt and tls.key
+          readOnly: true
+```
+
+---
+
+### 17.6 — Projected Volumes (Combining Multiple Sources)
+
+**What it is:** Merges multiple volume sources (ConfigMap, Secret, ServiceAccount token, downwardAPI) into a single directory.
+
+```yaml
+# Combine config + secret + pod info into /etc/pod-config
+spec:
+  volumes:
+  - name: combined-config
+    projected:
+      sources:
+      - configMap:
+          name: simpleapi1-config      # /etc/pod-config/appsettings.Production.json
+      - secret:
+          name: simpleapi1-tls         # /etc/pod-config/tls.crt, tls.key
+      - serviceAccountToken:           # Automatic SA token (OIDC) for workload identity
+          path: token
+          audience: api://AzureADTokenExchange   # Azure Workload Identity audience
+          expirationSeconds: 3600      # Token refreshed before expiry
+      - downwardAPI:                   # Expose pod metadata as files
+          items:
+          - path: "pod-name"
+            fieldRef:
+              fieldPath: metadata.name          # /etc/pod-config/pod-name = pod name
+          - path: "pod-namespace"
+            fieldRef:
+              fieldPath: metadata.namespace
+          - path: "cpu-limit"
+            resourceFieldRef:
+              containerName: simpleapi1
+              resource: limits.cpu     # /etc/pod-config/cpu-limit = "500m"
+  containers:
+  - name: simpleapi1
+    volumeMounts:
+    - name: combined-config
+      mountPath: /etc/pod-config
+      readOnly: true
+```
+
+---
+
+### 17.7 — Azure Disk (PersistentVolume — ReadWriteOnce)
+
+**What it is:** Azure Managed Disk attached to one node. Best for databases, stateful apps needing high IOPS.
+
+**Limitation:** `ReadWriteOnce` — only ONE pod/node can mount at a time (use Azure Files for shared access).
+
+```yaml
+# Dynamic provisioning with StorageClass (recommended approach)
+
+# Step 1: PersistentVolumeClaim — request storage
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: simpleapi-data-pvc
+  namespace: simple-apis
+spec:
+  accessModes:
+  - ReadWriteOnce                      # Only one pod can mount (Azure Disk limitation)
+  storageClassName: managed-csi        # AKS built-in StorageClass for Azure Disk CSI
+                                       # Other options: managed-premium-csi (SSD),
+                                       #               azuredisk-csi-zrs (zone-redundant)
+  resources:
+    requests:
+      storage: 32Gi                    # Requested disk size — Azure rounds to next tier
+
+---
+# Step 2: Use PVC in a Pod
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-with-disk
+  namespace: simple-apis
+spec:
+  replicas: 1                          # MUST be 1 for ReadWriteOnce (only one pod can attach)
+  selector:
+    matchLabels:
+      app: api-with-disk
+  template:
+    metadata:
+      labels:
+        app: api-with-disk
+    spec:
+      volumes:
+      - name: data-volume
+        persistentVolumeClaim:
+          claimName: simpleapi-data-pvc  # Reference PVC by name
+          readOnly: false
+
+      containers:
+      - name: app
+        image: acrdemo.azurecr.io/simpleapi1:v1
+        volumeMounts:
+        - name: data-volume
+          mountPath: /app/data           # Persistent data stored here
+```
+
+```bash
+# Check PVC status
+kubectl get pvc -n simple-apis
+
+# Sample Output:
+# NAME                   STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+# simpleapi-data-pvc     Bound    pvc-abc123de-1234-5678-abcd-ef0123456789   32Gi       RWO            managed-csi    5m
+
+# STATUS meanings:
+# Pending → PVC created but no PV bound yet (Azure Disk not provisioned)
+# Bound   → PV created and attached; pod can mount
+# Lost    → Bound PV was deleted (data may be lost)
+
+# Describe PVC for details (provisioning errors show here)
+kubectl describe pvc simpleapi-data-pvc -n simple-apis
+```
+
+---
+
+### 17.8 — Azure Files (ReadWriteMany — Shared Storage)
+
+**What it is:** Azure Files SMB/NFS share — multiple pods on multiple nodes can read/write simultaneously.
+
+**Use cases:** Shared config, upload directories, legacy apps requiring shared filesystem.
+
+```yaml
+# StorageClass for Azure Files with NFS protocol (better than SMB for Linux)
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: azurefile-csi-nfs              # Custom StorageClass name
+provisioner: file.csi.azure.com        # Azure Files CSI driver
+parameters:
+  skuName: Standard_LRS                # Storage tier: Standard_LRS, Premium_LRS
+  protocol: nfs                        # nfs (Linux) or smb (Windows)
+  networkEndpointType: privateEndpoint # Use private endpoint for security
+reclaimPolicy: Retain                  # Retain: keep Azure Files share when PVC deleted
+                                       # Delete: delete share (DEFAULT — be careful!)
+volumeBindingMode: Immediate           # Provision Azure Files share immediately
+allowVolumeExpansion: true             # Allow PVC size increase without downtime
+
+---
+# PVC using Azure Files
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: shared-uploads-pvc
+  namespace: simple-apis
+spec:
+  accessModes:
+  - ReadWriteMany                      # Multiple pods on multiple nodes can mount
+  storageClassName: azurefile-csi-nfs
+  resources:
+    requests:
+      storage: 100Gi
+
+---
+# Use PVC in Deployment — all replicas share the same files!
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: upload-service
+  namespace: simple-apis
+spec:
+  replicas: 3                          # All 3 pods share /app/uploads
+  selector:
+    matchLabels:
+      app: upload-service
+  template:
+    metadata:
+      labels:
+        app: upload-service
+    spec:
+      volumes:
+      - name: shared-uploads
+        persistentVolumeClaim:
+          claimName: shared-uploads-pvc
+      containers:
+      - name: app
+        image: acrdemo.azurecr.io/simpleapi1:v1
+        volumeMounts:
+        - name: shared-uploads
+          mountPath: /app/uploads      # All pods see same files via Azure Files NFS
+```
+
+---
+
+### 17.9 — StatefulSet with VolumeClaimTemplates
+
+**What it is:** Each pod in a StatefulSet gets its own dedicated PVC automatically. Named `<template-name>-<pod-name>`.
+
+```yaml
+# StatefulSet: each replica gets its own Azure Disk
+# Pod simpledb-0 → PVC data-simpledb-0
+# Pod simpledb-1 → PVC data-simpledb-1
+# Pod simpledb-2 → PVC data-simpledb-2
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: simpledb
+  namespace: simple-apis
+spec:
+  serviceName: simpledb-headless       # Must match headless service name
+  replicas: 3
+  selector:
+    matchLabels:
+      app: simpledb
+  template:
+    metadata:
+      labels:
+        app: simpledb
+    spec:
+      containers:
+      - name: db
+        image: postgres:16
+        env:
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: password
+        volumeMounts:
+        - name: data                   # References the volumeClaimTemplate name
+          mountPath: /var/lib/postgresql/data
+
+  # VolumeClaimTemplates: creates a PVC for EACH pod automatically
+  volumeClaimTemplates:
+  - metadata:
+      name: data                       # This becomes the volume name in volumeMounts
+    spec:
+      accessModes:
+      - ReadWriteOnce                  # Each pod gets its own dedicated disk
+      storageClassName: managed-premium-csi  # SSD for database performance
+      resources:
+        requests:
+          storage: 50Gi               # Each pod gets 50Gi dedicated disk
+```
+
+---
+
+### 17.10 — Volume Snapshots
+
+```bash
+# Install VolumeSnapshot CRDs (already installed in AKS 1.19+)
+kubectl get volumesnapshotclasses
+
+# Sample Output:
+# NAME                    DRIVER                DELETIONPOLICY   AGE
+# csi-azuredisk-vsc       disk.csi.azure.com    Delete           5d
+# csi-azurefile-vsc       file.csi.azure.com    Delete           5d
+```
+
+```yaml
+# Create a point-in-time snapshot of a PVC
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: simpleapi-data-snapshot-20260226
+  namespace: simple-apis
+spec:
+  volumeSnapshotClassName: csi-azuredisk-vsc  # Use Azure Disk snapshot driver
+  source:
+    persistentVolumeClaimName: simpleapi-data-pvc  # Which PVC to snapshot
+
+---
+# Restore: Create new PVC from snapshot
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: simpleapi-data-restored
+  namespace: simple-apis
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: managed-csi
+  resources:
+    requests:
+      storage: 32Gi                    # Must be >= snapshot size
+  dataSource:                          # Restore from snapshot
+    name: simpleapi-data-snapshot-20260226
+    kind: VolumeSnapshot
+    apiGroup: snapshot.storage.k8s.io
+```
+
+---
+
+## PART 18: 10 Real-World AKS Challenges & Solutions
+
+> These are the issues engineers actually hit in production. Each challenge includes: root cause diagnosis, fix, and prevention.
+
+---
+
+### Challenge 1: CrashLoopBackOff — Pod Keeps Restarting
+
+**Symptom:**
+```bash
+kubectl get pods -n simple-apis
+# NAME                          READY   STATUS             RESTARTS   AGE
+# simpleapi1-7d4b8c9f6-2xkpq   0/1     CrashLoopBackOff   8          15m
+```
+
+**Diagnosis:**
+```bash
+# Step 1: Check the logs from the CURRENT crashed container
+kubectl logs simpleapi1-7d4b8c9f6-2xkpq -n simple-apis
+
+# Step 2: Check logs from the PREVIOUS container (before restart)
+kubectl logs simpleapi1-7d4b8c9f6-2xkpq -n simple-apis --previous
+
+# Sample Output (DB connection failure):
+# Unhandled exception. Microsoft.Data.SqlClient.SqlException:
+#   Cannot open server 'myserver' requested by the login. Client with IP address '10.244.1.15' is not allowed to access the server.
+
+# Step 3: Describe pod — check Events and Exit Codes
+kubectl describe pod simpleapi1-7d4b8c9f6-2xkpq -n simple-apis
+
+# Sample Events output:
+# Warning  BackOff  2m  kubelet  Back-off restarting failed container simpleapi1
+# Exit Code: 1  (app crashed) or  139 (segfault) or  137 (OOMKilled)
+```
+
+**Common Causes & Fixes:**
+
+| Exit Code | Cause | Fix |
+|-----------|-------|-----|
+| 1 | App threw unhandled exception | Fix the code; check env vars/secrets |
+| 137 | OOMKilled (out of memory) | Increase memory limit |
+| 139 | Segfault | Usually native code bug |
+| 143 | SIGTERM not handled | Implement graceful shutdown |
+
+```yaml
+# Fix 1: Missing environment variable causing null reference
+# Add required env vars to deployment:
+env:
+- name: ConnectionStrings__DefaultConnection
+  valueFrom:
+    secretKeyRef:
+      name: db-secret
+      key: connection-string
+      optional: false              # If secret missing, pod won't even start (better than crash)
+
+# Fix 2: Startup takes longer than liveness probe allows — increase initialDelaySeconds
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 80
+  initialDelaySeconds: 60         # Was 15 — increase for slow-starting apps
+  periodSeconds: 20
+  failureThreshold: 3             # Allow 3 failures before restart
+
+# Fix 3: Use startupProbe for slow-starting containers (prevents liveness killing them)
+startupProbe:
+  httpGet:
+    path: /health
+    port: 80
+  failureThreshold: 30            # 30 × 10s = 300s (5 min) for app to start
+  periodSeconds: 10
+```
+
+---
+
+### Challenge 2: OOMKilled — Pod Running Out of Memory
+
+**Symptom:**
+```bash
+kubectl describe pod simpleapi1-7d4b8c9f6-2xkpq -n simple-apis | grep -A5 "OOM"
+
+# Output:
+# Last State: Terminated
+#   Reason: OOMKilled
+#   Exit Code: 137
+#   Started: Mon, 24 Feb 2026 10:15:00 +0000
+#   Finished: Mon, 24 Feb 2026 10:16:30 +0000
+```
+
+**Diagnosis:**
+```bash
+# Check current memory usage vs limits
+kubectl top pod -n simple-apis
+
+# Sample Output:
+# NAME                          CPU(cores)   MEMORY(bytes)
+# simpleapi1-7d4b8c9f6-2xkpq   450m         498Mi    ← approaching 512Mi limit!
+
+# Check node-level memory pressure
+kubectl describe node aks-nodepool1-12345678-vmss000000 | grep -A5 "MemoryPressure"
+```
+
+**Fix:**
+```yaml
+# Option A: Increase memory limit (if app legitimately needs more)
+resources:
+  requests:
+    memory: "256Mi"
+  limits:
+    memory: "1Gi"            # Was 512Mi — doubled
+
+# Option B: Enable GC tuning for .NET (reduce memory footprint)
+env:
+- name: DOTNET_GCConserveMemory    # 0-9: higher = more aggressive GC
+  value: "7"
+- name: DOTNET_GCHeapHardLimit     # Hard cap on GC heap in bytes
+  value: "419430400"               # 400MB
+- name: DOTNET_GCHeapHardLimitPercent
+  value: "75"                      # GC heap = 75% of container memory limit
+
+# Option C: Use VPA to right-size automatically
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: simpleapi1-vpa
+  namespace: simple-apis
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: simpleapi1
+  updatePolicy:
+    updateMode: "Off"          # "Off" = recommendations only, no auto-change
+                               # "Initial" = set on new pods only
+                               # "Auto" = live resize (restarts pods)
+  resourcePolicy:
+    containerPolicies:
+    - containerName: simpleapi1
+      minAllowed:
+        memory: 128Mi
+      maxAllowed:
+        memory: 2Gi            # VPA won't recommend more than this
+```
+
+---
+
+### Challenge 3: Pods Stuck in Pending — Not Scheduling
+
+**Symptom:**
+```bash
+kubectl get pods -n simple-apis
+# NAME                          READY   STATUS    RESTARTS   AGE
+# simpleapi1-7d4b8c9f6-zxpqr   0/1     Pending   0          10m
+```
+
+**Diagnosis:**
+```bash
+kubectl describe pod simpleapi1-7d4b8c9f6-zxpqr -n simple-apis
+
+# Common Event messages that reveal the cause:
+# "0/3 nodes are available: 3 Insufficient cpu"
+#   → Pod requests more CPU than any node has free
+#
+# "0/3 nodes are available: 3 node(s) had untolerated taint {CriticalAddonsOnly: true}"
+#   → Pod needs tolerations for system node pool taints
+#
+# "0/3 nodes are available: 3 node(s) didn't match node affinity/selector"
+#   → nodeSelector or affinity rules don't match any nodes
+#
+# "persistentvolumeclaim 'my-pvc' not found"
+#   → PVC doesn't exist or is in wrong namespace
+```
+
+**Fixes:**
+```bash
+# Fix 1: Not enough CPU/memory — scale out node pool
+az aks nodepool scale \
+  --resource-group myRG \
+  --cluster-name myAKS \
+  --name nodepool1 \
+  --node-count 5          # Add more nodes
+
+# Fix 2: Enable Cluster Autoscaler (automatic scale-out)
+az aks nodepool update \
+  --resource-group myRG \
+  --cluster-name myAKS \
+  --name nodepool1 \
+  --enable-cluster-autoscaler \
+  --min-count 2 \
+  --max-count 10
+
+# Fix 3: Wrong node selector — check what labels nodes have
+kubectl get nodes --show-labels
+# Then fix the nodeSelector in your Deployment to match actual labels
+```
+
+```yaml
+# Fix 4: Taint on system node pool — add toleration to your pod
+tolerations:
+- key: "CriticalAddonsOnly"
+  operator: "Exists"
+  effect: "NoSchedule"
+
+# Fix 5: Pod requests too high — reduce requests to realistic values
+resources:
+  requests:
+    cpu: "100m"           # Was 4000m (4 CPUs!) — reduce to what app actually needs
+    memory: "128Mi"
+```
+
+---
+
+### Challenge 4: ImagePullBackOff — Cannot Pull Container Image
+
+**Symptom:**
+```bash
+kubectl get pods -n simple-apis
+# NAME                          READY   STATUS             RESTARTS
+# simpleapi1-xxx                0/1     ImagePullBackOff   0
+
+kubectl describe pod simpleapi1-xxx -n simple-apis | grep -A5 "Failed"
+# Failed to pull image "acrdemo.azurecr.io/simpleapi1:v99":
+#   rpc error: code = Unknown desc = failed to pull and unpack image:
+#   unauthorized: authentication required
+```
+
+**Root Causes & Fixes:**
+```bash
+# Cause 1: ACR not attached to AKS cluster
+# Fix: Attach ACR to AKS (grants AcrPull role to kubelet identity)
+az aks update \
+  --resource-group myRG \
+  --name myAKS \
+  --attach-acr myACRName
+
+# Verify attachment
+az aks check-acr \
+  --resource-group myRG \
+  --name myAKS \
+  --acr myACRName
+# Output: ✓ Your cluster can pull images from myACRName.azurecr.io
+
+# Cause 2: Image tag doesn't exist
+# Fix: Check available tags in ACR
+az acr repository show-tags \
+  --name myACRName \
+  --repository simpleapi1 \
+  --output table
+# Output:
+# Result
+# ────────
+# v1
+# v2
+# latest
+
+# Cause 3: Wrong image name / typo
+kubectl get deployment simpleapi1 -n simple-apis -o jsonpath='{.spec.template.spec.containers[0].image}'
+# Output: acrdemo.azurecr.io/simpleapi1:v99   ← v99 doesn't exist, should be v1
+```
+
+```yaml
+# Cause 4: Private registry (non-ACR) — need imagePullSecret
+# Step 1: Create docker-registry secret
+# kubectl create secret docker-registry acr-secret \
+#   --docker-server=myacr.azurecr.io \
+#   --docker-username=myACRUser \
+#   --docker-password=myACRPassword \
+#   --namespace simple-apis
+
+# Step 2: Reference in Pod spec
+spec:
+  imagePullSecrets:
+  - name: acr-secret               # Reference the Secret
+  containers:
+  - name: simpleapi1
+    image: myacr.azurecr.io/simpleapi1:v1
+```
+
+---
+
+### Challenge 5: Service Not Reachable — 502/503 Errors
+
+**Symptom:** Ingress returns 502 Bad Gateway or curl to service times out.
+
+**Diagnosis Flow:**
+```bash
+# Step 1: Check if pods are Running AND Ready
+kubectl get pods -n simple-apis -l app=simpleapi1
+# READY column must show 1/1 (not 0/1)
+# If 0/1 — readiness probe is failing
+
+# Step 2: Check Service endpoints (are pods registered?)
+kubectl get endpoints simpleapi1-svc -n simple-apis
+# If ENDPOINTS column shows "<none>" — no pods match service selector!
+
+# Step 3: Verify service selector matches pod labels
+kubectl get service simpleapi1-svc -n simple-apis -o yaml | grep selector -A5
+# selector:
+#   app: simpleapi1
+kubectl get pods -n simple-apis --show-labels | grep simpleapi1
+# If labels don't match selector → pods never get registered as endpoints
+
+# Step 4: Port-forward directly to test the pod (bypass Service)
+kubectl port-forward pod/simpleapi1-7d4b8c9f6-2xkpq 8080:80 -n simple-apis
+curl http://localhost:8080/health
+# If this works but Service doesn't → networking issue between Service and pods
+
+# Step 5: Test via ClusterIP from inside cluster
+kubectl run debug --image=curlimages/curl --restart=Never -n simple-apis -- \
+  curl -sv http://simpleapi1-svc/health
+kubectl logs debug -n simple-apis
+kubectl delete pod debug -n simple-apis
+```
+
+```yaml
+# Fix: Readiness probe too strict — pod is healthy but probe fails
+readinessProbe:
+  httpGet:
+    path: /health
+    port: 80
+  initialDelaySeconds: 10      # Was 0 — give .NET app time to start up
+  periodSeconds: 5
+  successThreshold: 1          # How many successes needed to become Ready
+  failureThreshold: 3          # Fail 3 times before removing from endpoints
+  timeoutSeconds: 3            # Request timeout per probe
+```
+
+---
+
+### Challenge 6: Rolling Update Causes Downtime
+
+**Symptom:** During `kubectl rollout`, users experience 502 errors for 5-10 seconds.
+
+**Root Cause:** New pods start receiving traffic before they're ready, OR old pods are killed before connections drain.
+
+**Fix:**
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0          # Never kill old pod until new pod is Ready
+                                 # (0 = zero-downtime; default is 25%)
+      maxSurge: 1                # Allow 1 extra pod during rollout
+
+  template:
+    spec:
+      # Graceful shutdown: wait for in-flight requests to complete
+      terminationGracePeriodSeconds: 60   # K8s waits 60s for SIGTERM handler
+      containers:
+      - name: simpleapi1
+        # Handle SIGTERM gracefully in .NET:
+        # var cts = new CancellationTokenSource();
+        # app.Lifetime.ApplicationStopping.Register(() => cts.Cancel());
+        # await app.RunAsync(cts.Token);
+        lifecycle:
+          preStop:
+            exec:
+              # Sleep 15s before app shutdown begins
+              # Allows load balancer to stop routing to this pod
+              # (load balancer deregistration takes ~5-10 seconds)
+              command: ["/bin/sh", "-c", "sleep 15"]
+
+      # Pod Disruption Budget: never have fewer than 2 pods during voluntary disruption
+# (prevents ALL pods being killed simultaneously during node drain)
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: simpleapi1-pdb
+  namespace: simple-apis
+spec:
+  minAvailable: 2                # Always keep at least 2 pods running
+  # OR: maxUnavailable: 1       # Never allow more than 1 pod to be unavailable
+  selector:
+    matchLabels:
+      app: simpleapi1
+```
+
+---
+
+### Challenge 7: DNS Resolution Failures in Pods
+
+**Symptom:**
+```bash
+kubectl exec simpleapi1-xxx -n simple-apis -- \
+  curl http://simpleapi2-svc/health
+# curl: (6) Could not resolve host: simpleapi2-svc
+```
+
+**Diagnosis:**
+```bash
+# Test DNS directly
+kubectl exec simpleapi1-xxx -n simple-apis -- \
+  nslookup simpleapi2-svc.simple-apis.svc.cluster.local
+
+# If fails: check CoreDNS pods
+kubectl get pods -n kube-system -l k8s-app=kube-dns
+# All CoreDNS pods must be Running
+
+# Check CoreDNS logs for errors
+kubectl logs -n kube-system -l k8s-app=kube-dns --tail=50
+
+# Common CoreDNS log errors:
+# [ERROR] plugin/errors: 2 SERVFAIL  → upstream DNS failing
+# [WARNING] No resolv.conf file found → node DNS misconfiguration
+```
+
+```yaml
+# Fix 1: Custom DNS policy for pods that need external DNS
+spec:
+  dnsPolicy: "None"              # Override all defaults
+  dnsConfig:
+    nameservers:
+    - 10.0.0.10                  # CoreDNS ClusterIP (get with: kubectl get svc -n kube-system kube-dns)
+    searches:
+    - simple-apis.svc.cluster.local
+    - svc.cluster.local
+    - cluster.local
+    options:
+    - name: ndots
+      value: "5"
+
+# Fix 2: Increase CoreDNS replicas if DNS queries are timing out under load
+kubectl scale deployment coredns --replicas=3 -n kube-system
+```
+
+---
+
+### Challenge 8: Horizontal Pod Autoscaler Not Scaling
+
+**Symptom:**
+```bash
+kubectl get hpa -n simple-apis
+# NAME            REFERENCE              TARGETS         MINPODS   MAXPODS   REPLICAS
+# simpleapi1-hpa  Deployment/simpleapi1  <unknown>/60%   2         10        2
+# ↑ "unknown" target means HPA can't read CPU metrics
+```
+
+**Diagnosis:**
+```bash
+kubectl describe hpa simpleapi1-hpa -n simple-apis
+
+# Common warning messages:
+# "unable to get metrics for resource cpu: unable to fetch metrics from resource metrics API:
+#  the server could not find the requested resource (get pods.metrics.k8s.io)"
+#  → metrics-server not installed
+
+# "missing request for cpu"
+#  → Container has no CPU request defined — HPA needs requests to calculate %
+
+# Verify metrics-server is running
+kubectl get deployment metrics-server -n kube-system
+kubectl top pods -n simple-apis   # Should work if metrics-server is up
+```
+
+```bash
+# Fix 1: Install metrics-server (AKS usually has it, but verify)
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+
+# Fix 2: Ensure all containers have CPU requests defined
+# (HPA calculates "current CPU %" as: actual / requested — needs requested to be set)
+```
+
+```yaml
+# Fix 3: Use KEDA instead of HPA for Azure-native metrics (Service Bus, Event Hubs)
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: simpleapi1-scaledobject
+  namespace: simple-apis
+spec:
+  scaleTargetRef:
+    name: simpleapi1
+  minReplicaCount: 2
+  maxReplicaCount: 20
+  cooldownPeriod: 300
+  triggers:
+  - type: azure-servicebus
+    metadata:
+      queueName: order-queue
+      namespace: myservicebus
+      messageCount: "10"         # Scale when > 10 messages per pod
+    authenticationRef:
+      name: keda-azure-servicebus-auth
+```
+
+---
+
+### Challenge 9: Persistent Volume Not Mounting (Azure Disk)
+
+**Symptom:**
+```bash
+kubectl describe pod simpleapi1-xxx -n simple-apis | grep -A10 "Events"
+# Warning  FailedAttachVolume  2m  attachdetach-controller
+#   AttachVolume.Attach failed for volume "pvc-abc123":
+#   Attach timeout for volume /subscriptions/.../disks/pvc-abc123
+
+# Or:
+# Warning  FailedMount  90s  kubelet
+#   Unable to attach or mount volumes: unmounted volumes=[data]:
+#   timed out waiting for the condition
+```
+
+**Root Causes & Fixes:**
+```bash
+# Cause 1: Azure Disk stuck on old node (ReadWriteOnce can only attach to 1 node)
+# If previous pod was on node A and new pod scheduled on node B,
+# disk must detach from A before attaching to B — can take up to 5 minutes
+
+# Check which node the disk is attached to
+az disk show \
+  --ids /subscriptions/.../disks/pvc-abc123 \
+  --query "managedBy" -o tsv
+# Output: .../virtualMachines/aks-nodepool1-xxx-vmss_0   ← still on old node
+
+# Wait for detach or manually force detach via Azure CLI
+az disk update \
+  --ids /subscriptions/.../disks/pvc-abc123 \
+  --disk-state Unattached
+
+# Cause 2: Zone mismatch — disk in zone 1 but pod scheduled to zone 2
+# Fix: Use zone-redundant disk (zrs) or add node affinity to keep pod in same zone
+```
+
+```yaml
+# Fix: Add node affinity to keep pod in same zone as disk
+spec:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: topology.kubernetes.io/zone
+            operator: In
+            values:
+            - eastus-1               # Match zone where disk lives
+
+# Or: Use zone-redundant StorageClass (no zone pinning needed)
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: managed-csi-zrs
+provisioner: disk.csi.azure.com
+parameters:
+  skuName: Premium_ZRS              # Zone-redundant SSD — attaches from any zone
+reclaimPolicy: Retain
+allowVolumeExpansion: true
+```
+
+---
+
+### Challenge 10: Workload Identity Not Working — 401 Unauthorized
+
+**Symptom:** .NET app in pod gets `AuthenticationFailedException` when accessing Key Vault or Storage.
+
+```bash
+kubectl logs simpleapi1-xxx -n simple-apis | grep -i "auth"
+# Azure.Identity.AuthenticationFailedException:
+#   DefaultAzureCredential failed to retrieve a token from the included credentials.
+```
+
+**Diagnosis Checklist:**
+```bash
+# 1. Verify OIDC issuer is enabled on cluster
+az aks show -g myRG -n myAKS --query "oidcIssuerProfile.issuerUrl" -o tsv
+# Must return a URL like: https://eastus.oic.prod-aks.azure.com/tenant-id/cluster-id/
+
+# 2. Verify Workload Identity add-on is enabled
+az aks show -g myRG -n myAKS --query "addonProfiles.azureKeyvaultSecretsProvider" -o json
+# AND
+az aks show -g myRG -n myAKS --query "securityProfile.workloadIdentity.enabled" -o tsv
+# Must return: true
+
+# 3. Check ServiceAccount has correct annotation
+kubectl get serviceaccount simpleapi1-sa -n simple-apis -o yaml | grep annotations -A5
+# Must have:
+# annotations:
+#   azure.workload.identity/client-id: <managed-identity-client-id>
+
+# 4. Check pod has workload identity label
+kubectl get pod simpleapi1-xxx -n simple-apis -o yaml | grep "azure.workload.identity/use"
+# Must have label: azure.workload.identity/use: "true"
+
+# 5. Check federated credential exists on Managed Identity
+az identity federated-credential list \
+  --identity-name simpleapi1-identity \
+  --resource-group myRG \
+  --query "[].{Subject:subject, Issuer:issuer}" -o table
+# Subject must be: system:serviceaccount:simple-apis:simpleapi1-sa
+```
+
+```bash
+# Full fix script — recreate the workload identity chain
+SUBSCRIPTION=$(az account show --query id -o tsv)
+TENANT=$(az account show --query tenantId -o tsv)
+RG="myRG"
+CLUSTER="myAKS"
+NS="simple-apis"
+SA_NAME="simpleapi1-sa"
+MI_NAME="simpleapi1-identity"
+
+# Get OIDC issuer URL
+OIDC_ISSUER=$(az aks show -g $RG -n $CLUSTER --query "oidcIssuerProfile.issuerUrl" -o tsv)
+
+# Create Managed Identity
+az identity create -g $RG -n $MI_NAME
+MI_CLIENT_ID=$(az identity show -g $RG -n $MI_NAME --query clientId -o tsv)
+
+# Create federated credential
+az identity federated-credential create \
+  --identity-name $MI_NAME \
+  --resource-group $RG \
+  --name "aks-${NS}-${SA_NAME}" \
+  --issuer "$OIDC_ISSUER" \
+  --subject "system:serviceaccount:${NS}:${SA_NAME}" \
+  --audience "api://AzureADTokenExchange"
+
+# Grant MI access to Key Vault
+KV_ID=$(az keyvault show -n myKeyVault -g $RG --query id -o tsv)
+az role assignment create \
+  --role "Key Vault Secrets User" \
+  --assignee-object-id $(az identity show -g $RG -n $MI_NAME --query principalId -o tsv) \
+  --scope $KV_ID
+```
+
+```yaml
+# Kubernetes ServiceAccount with correct annotation
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: simpleapi1-sa
+  namespace: simple-apis
+  annotations:
+    azure.workload.identity/client-id: "<MI_CLIENT_ID>"   # From az identity show
+
+---
+# Pod/Deployment with workload identity label
+spec:
+  serviceAccountName: simpleapi1-sa  # Use the annotated SA
+  template:
+    metadata:
+      labels:
+        azure.workload.identity/use: "true"  # This label MUST be present
+```
+
+```csharp
+// .NET: DefaultAzureCredential automatically uses Workload Identity token
+// when running in Kubernetes pod with proper setup
+using Azure.Identity;
+using Azure.Security.KeyVault.Secrets;
+
+var credential = new DefaultAzureCredential();
+// In pod: uses AZURE_CLIENT_ID + projected OIDC token at
+// /var/run/secrets/azure/tokens/azure-identity-token
+
+var kvClient = new SecretClient(
+    new Uri("https://myKeyVault.vault.azure.net/"),
+    credential);
+
+var secret = await kvClient.GetSecretAsync("my-connection-string");
+Console.WriteLine(secret.Value.Value);
+```
+
+---
+
+## PART 19: Interview Q&A for .NET Developers — Expert Level
+
+> Answers are structured for interview delivery: 1-sentence summary → explanation → analogy → code/example → trade-offs.
+
+---
+
+### 19.1 — Conceptual Questions
+
+---
+
+**Q1: What is Kubernetes and why do we use AKS over self-managed Kubernetes?**
+
+**Answer:**
+Kubernetes is a container orchestration platform that automates deployment, scaling, and management of containerized applications using a desired-state reconciliation model.
+
+We use **AKS** because Azure manages the control plane (API server, etcd, scheduler) at no extra cost, handles OS patches and Kubernetes version upgrades, integrates natively with Azure AD, Azure Monitor, and ACR, and provides SLAs (99.95% for Standard tier). Self-managing Kubernetes means you're responsible for etcd backups, control plane HA, upgrades — significant operational overhead.
+
+**Mental Model:** AKS is like hiring a building management company (Azure) to handle the electricity, plumbing, and structural maintenance, while you only worry about what's inside your apartment (your containers).
+
+---
+
+**Q2: Explain the Kubernetes desired-state reconciliation model.**
+
+**Answer:**
+Kubernetes never "runs commands" — it constantly compares **actual state** (what's running) against **desired state** (what you declared in YAML) and makes changes to close the gap. This is called the reconciliation loop.
+
+Every controller (Deployment controller, ReplicaSet controller, HPA controller) runs an infinite loop:
+1. Watch API server for changes to its resource type
+2. Compare actual state vs desired state
+3. If they differ → take action (create pod, delete pod, scale)
+4. Update status in etcd
+
+**Mental Model:** Like a thermostat. You set 72°F (desired). The thermostat reads current temperature (actual). If actual < desired → turns on heat. If actual > desired → turns on AC. It never stops checking.
+
+**Why this matters in interviews:** This is why kubectl apply is idempotent — if you apply the same YAML twice, the second apply finds actual == desired and does nothing.
+
+---
+
+**Q3: What is the difference between a Deployment and a StatefulSet?**
+
+**Answer:**
+
+| | Deployment | StatefulSet |
+|--|-----------|-------------|
+| **Pod identity** | Random names (`api-xxx-yyy`) | Stable, ordered (`db-0`, `db-1`) |
+| **Pod scheduling** | Any order, simultaneously | Sequential (`db-0` before `db-1`) |
+| **Storage** | Shared PVC or no PVC | Each pod gets its own PVC (VolumeClaimTemplate) |
+| **DNS** | Via Service (not per-pod) | Per-pod DNS: `db-0.db-svc.ns.svc.cluster.local` |
+| **Use case** | Stateless APIs, web apps | Databases, Kafka, Zookeeper, Redis |
+
+**Mental Model:**
+- Deployment = a call center with interchangeable workers. Any worker can handle any call. If one leaves, a replacement is identical.
+- StatefulSet = a hospital with named doctors. "Dr. Smith" has a specific office and patient list. If Dr. Smith leaves, her replacement is specifically Dr. Smith's replacement — not just any doctor.
+
+---
+
+**Q4: Explain how Kubernetes Services work — specifically ClusterIP.**
+
+**Answer:**
+A ClusterIP Service is a stable virtual IP assigned by kube-proxy to a set of pods selected by label selector. When a request hits the ClusterIP, kube-proxy (running on each node using iptables or IPVS) load-balances the connection to one of the backing pod IPs.
+
+The ClusterIP never changes even when pods restart (and get new IPs). That's the whole point — pods are ephemeral, Services are stable.
+
+**DNS:** CoreDNS automatically creates a DNS entry: `<service>.<namespace>.svc.cluster.local → ClusterIP`
+
+**Mental Model:** Service is like a department's phone extension (1234). The people answering that extension change (pods come and go), but the extension number stays the same. The switchboard (kube-proxy) routes calls to whoever is available.
+
+```bash
+# Practical: verify service resolution
+kubectl exec myapp-pod -- nslookup simpleapi2-svc.simple-apis.svc.cluster.local
+# Returns: 10.0.15.42 (ClusterIP — never changes)
+```
+
+---
+
+**Q5: What is the difference between liveness, readiness, and startup probes?**
+
+**Answer:**
+
+| Probe | Question it answers | Action on failure | Use case |
+|-------|-------------------|-------------------|----------|
+| **Liveness** | "Is the container still alive?" | Restart container | Detect deadlocks, infinite loops |
+| **Readiness** | "Is the container ready for traffic?" | Remove from Service endpoints | DB not connected, warm-up |
+| **Startup** | "Has the container finished starting up?" | Restart if not ready in time | Slow-starting apps (Java, .NET) |
+
+**Key insight:** Startup probe runs FIRST. While startup probe is pending, liveness and readiness probes are disabled. This prevents liveness probe from killing a slow-starting container before it has a chance to initialize.
+
+**Mental Model:**
+- Startup = "Is the store open for the first time today?" (door unlocking)
+- Readiness = "Is the cashier ready to serve customers?" (can receive traffic)
+- Liveness = "Is the cashier still awake and working?" (not stuck)
+
+```yaml
+# .NET health check integration
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<AppDbContext>()           # Checks DB connectivity
+    .AddAzureKeyVault(kvUri, credential);        # Checks KV access
+
+app.MapHealthChecks("/health/live",   new HealthCheckOptions { Predicate = _ => false }); # Always returns healthy (liveness)
+app.MapHealthChecks("/health/ready",  new HealthCheckOptions());                           # Full check (readiness)
+```
+
+---
+
+**Q6: How does Workload Identity work and why is it better than storing secrets in environment variables?**
+
+**Answer:**
+Workload Identity allows pods to authenticate to Azure services (Key Vault, Storage, Service Bus) using a Managed Identity — **no passwords, no client secrets, no stored credentials**.
+
+**How it works (5-step chain):**
+1. AKS OIDC issuer issues a token for the pod's ServiceAccount
+2. The ServiceAccount is annotated with a Managed Identity's Client ID
+3. A Federated Credential on the Managed Identity trusts this specific ServiceAccount
+4. When the pod calls Azure SDK (`DefaultAzureCredential`), it reads the OIDC token from `/var/run/secrets/azure/tokens/`
+5. Azure AD exchanges the OIDC token for an Azure access token → grants access
+
+**Why better than env vars:**
+- Env var secrets can be read by anyone with `kubectl describe pod` or `kubectl exec`
+- Secrets in etcd need encryption at rest configured
+- Managed Identity tokens auto-rotate every hour
+- No risk of accidental commit to Git
+
+**Mental Model:** Instead of giving a contractor a key to your building (password), you give them a badge that the security system recognizes (OIDC token). The badge auto-expires and is issued by a trusted authority.
+
+---
+
+**Q7: Explain KEDA and when to use it over HPA.**
+
+**Answer:**
+KEDA (Kubernetes Event-Driven Autoscaling) scales pods based on external event sources like queue length, topic lag, HTTP request rate, or custom metrics. HPA scales based on CPU/memory metrics from the pod itself.
+
+**When to use KEDA:**
+- Scale based on Azure Service Bus queue depth (process messages faster when queue grows)
+- Scale-to-zero when there are no messages (save cost during quiet periods)
+- Scale based on Event Hubs consumer group lag
+- Scale based on Prometheus metrics not available in metrics-server
+
+**When to use HPA:**
+- CPU-bound workloads (web APIs with consistent CPU correlation to load)
+- Memory-based scaling (caching services)
+- When metrics-server is sufficient
+
+**Mental Model:** HPA is like hiring more checkout cashiers when the lines get long (after the fact — based on actual congestion). KEDA is like pre-staffing based on how many customers are in the parking lot (event-driven — scale before congestion hits).
+
+---
+
+**Q8: What is GitOps and how does ArgoCD implement it?**
+
+**Answer:**
+GitOps is an operational model where Git is the single source of truth for cluster configuration. You never run `kubectl apply` directly in production — instead, you push to Git, and a controller (ArgoCD/Flux) automatically synchronizes the cluster to match Git.
+
+**ArgoCD implementation:**
+1. You push a new Deployment YAML to Git
+2. ArgoCD polls Git every 3 minutes (or gets webhook notification)
+3. ArgoCD compares Git state vs live cluster state
+4. If drift detected → ArgoCD applies the change to bring cluster in sync
+5. ArgoCD shows "Synced" / "OutOfSync" status per Application
+
+**Benefits:**
+- Full audit trail (every change = a Git commit)
+- Easy rollback (`git revert`)
+- Drift detection (manual changes to cluster get overwritten)
+- Multi-cluster management from one Git repo
+
+**Mental Model:** Imagine a blueprint for a building. With GitOps, if a builder makes an unauthorized change to the building, an automated inspector detects the deviation from the blueprint and reverts it. The blueprint (Git) always wins.
+
+---
+
+### 19.2 — .NET-Specific Scenarios
+
+---
+
+**Q9: How would you containerize a .NET 10 Minimal API for AKS?**
+
+**Answer with code:**
+```dockerfile
+# Multi-stage Dockerfile for .NET 10 Minimal API
+# Stage 1: Build (uses full SDK)
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+# Copy csproj first (layer caching — only re-runs dotnet restore when .csproj changes)
+COPY SimpleApi1/SimpleApi1.csproj SimpleApi1/
+RUN dotnet restore SimpleApi1/SimpleApi1.csproj
+
+# Copy rest of source and build
+COPY SimpleApi1/ SimpleApi1/
+WORKDIR /src/SimpleApi1
+RUN dotnet publish -c Release -o /app/publish \
+    --no-restore \
+    /p:UseAppHost=false      # Disable OS-specific executable
+
+# Stage 2: Runtime (much smaller — no SDK)
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+WORKDIR /app
+
+# Run as non-root user for security
+RUN adduser --disabled-password --no-create-home appuser
+USER appuser
+
+COPY --from=build /app/publish .
+
+# Tell ASP.NET Core to listen on port 80
+ENV ASPNETCORE_HTTP_PORTS=80
+EXPOSE 80
+
+ENTRYPOINT ["dotnet", "SimpleApi1.dll"]
+```
+
+**Key points to mention in interview:**
+- Multi-stage reduces final image size from ~900MB to ~200MB
+- Non-root user prevents container escape attacks
+- Layer caching: copy .csproj first so `dotnet restore` only runs when dependencies change
+- `UseAppHost=false`: don't create OS-specific binary — use `dotnet` to run
+
+---
+
+**Q10: How would you implement zero-downtime deployment for a .NET API on AKS?**
+
+**Answer:**
+Zero-downtime requires coordination between Kubernetes deployment strategy and ASP.NET Core graceful shutdown.
+
+```csharp
+// Program.cs — Graceful shutdown handling
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddHealthChecks();
+
+var app = builder.Build();
+
+// Health endpoints for probes
+app.MapHealthChecks("/health/live",  new HealthCheckOptions { Predicate = _ => false });
+app.MapHealthChecks("/health/ready", new HealthCheckOptions());
+
+// When SIGTERM is received:
+// 1. K8s removes pod from Service endpoints (readiness probe will fail OR we respond 503)
+// 2. Wait for in-flight requests (preStop hook gives us 15s)
+// 3. App drains and exits
+app.Lifetime.ApplicationStopping.Register(() =>
+{
+    Console.WriteLine("SIGTERM received — draining...");
+    Thread.Sleep(5000);  // Wait 5s for load balancer to deregister us
+});
+
+app.Run();
+```
+
+```yaml
+# Deployment strategy for zero-downtime
+spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0      # Never kill old pod before new pod is Ready
+      maxSurge: 1            # Create 1 extra pod temporarily during rollout
+  template:
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+      - name: simpleapi1
+        lifecycle:
+          preStop:
+            exec:
+              command: ["sh", "-c", "sleep 15"]  # Wait for LB deregistration
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 80
+          initialDelaySeconds: 10    # Time for .NET to start
+          periodSeconds: 5
+```
+
+---
+
+**Q11: How do you access Azure Key Vault secrets in a .NET app running in AKS?**
+
+**Answer — two approaches:**
+
+**Approach A: CSI Driver (mounts secrets as files)**
+```yaml
+# SecretProviderClass — defines what to fetch from Key Vault
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: simpleapi1-kv
+  namespace: simple-apis
+spec:
+  provider: azure
+  parameters:
+    usePodIdentity: "false"
+    clientID: "<managed-identity-client-id>"
+    keyvaultName: "myKeyVault"
+    tenantId: "<tenant-id>"
+    objects: |
+      array:
+        - |
+          objectName: ConnectionStrings--DefaultConnection
+          objectType: secret
+  secretObjects:            # Also sync as K8s Secret (for env var use)
+  - secretName: app-secrets
+    type: Opaque
+    data:
+    - objectName: ConnectionStrings--DefaultConnection
+      key: connection-string
+```
+
+**Approach B: Azure SDK in code (recommended for .NET)**
+```csharp
+// Program.cs — fetch secrets directly at startup
+builder.Configuration.AddAzureKeyVault(
+    new Uri("https://myKeyVault.vault.azure.net/"),
+    new DefaultAzureCredential()
+    // DefaultAzureCredential uses Workload Identity token when in pod
+    // Uses local az login when developing locally
+);
+
+// Access like normal config
+var connStr = builder.Configuration["ConnectionStrings:DefaultConnection"];
+```
+
+**Which to use:**
+- CSI Driver: when other teams/systems also need the secrets, or when you need them as env vars
+- Azure SDK: cleaner for .NET — uses standard `IConfiguration` pattern
+
+---
+
+**Q12: How would you debug a .NET app that's not starting properly in AKS?**
+
+**Step-by-step answer:**
+```bash
+# Step 1: Check pod status
+kubectl get pods -n simple-apis
+# Look for: CrashLoopBackOff, Error, Pending, Init:0/1
+
+# Step 2: Read the application logs (most useful)
+kubectl logs <pod-name> -n simple-apis
+kubectl logs <pod-name> -n simple-apis --previous   # If already crashed
+
+# Step 3: Look at Kubernetes events
+kubectl describe pod <pod-name> -n simple-apis
+# Events section shows: image pull errors, volume mount failures, probe failures
+
+# Step 4: Check if it's a config issue — verify env vars
+kubectl exec <pod-name> -n simple-apis -- env | sort
+
+# Step 5: Interactive debugging
+kubectl exec -it <pod-name> -n simple-apis -- /bin/bash
+# Inside container: check /app/config files, test DB connections
+
+# Step 6: If pod won't start at all — run a debug container
+kubectl debug <pod-name> -n simple-apis \
+  --image=mcr.microsoft.com/dotnet/sdk:10.0 \
+  --share-processes --copy-to=debug-copy
+```
+
+---
+
+### 19.3 — Architecture & Design Questions
+
+---
+
+**Q13: How would you design a multi-tenant AKS setup for different teams?**
+
+**Answer:**
+Use **namespace-per-team** isolation with ResourceQuotas, NetworkPolicies, and RBAC:
+
+```yaml
+# 1. Namespace per team
+kubectl create namespace team-payments
+kubectl create namespace team-orders
+
+# 2. ResourceQuota — limit what each team can consume
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: team-payments-quota
+  namespace: team-payments
+spec:
+  hard:
+    requests.cpu: "8"          # Total CPU requests across all pods
+    requests.memory: 16Gi
+    limits.cpu: "16"
+    limits.memory: 32Gi
+    count/pods: "50"           # Max 50 pods in this namespace
+    count/services: "20"
+
+# 3. NetworkPolicy — namespace isolation (pods can't talk cross-namespace by default)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-cross-namespace
+  namespace: team-payments
+spec:
+  podSelector: {}               # Applies to ALL pods in namespace
+  policyTypes: [Ingress]
+  ingress:
+  - from:
+    - podSelector: {}           # Allow from pods IN SAME namespace only
+```
+
+---
+
+**Q14: How does KEDA scale to zero and what are the implications for .NET APIs?**
+
+**Answer:**
+KEDA can scale a Deployment to 0 replicas when there are no messages in a queue (or HTTP requests, or other trigger events). When a message arrives, KEDA scales from 0 to 1+ replicas before the message processor starts.
+
+**Implication for .NET APIs:** Cold start time. A .NET 10 Minimal API starts in ~2-5 seconds. With scale-to-zero:
+- First request after idle period → 3-7 second delay (pod start + .NET init)
+- Subsequent requests → normal latency
+
+**Mitigations:**
+```yaml
+# Keep minimum 1 replica during business hours (no cold start)
+spec:
+  minReplicaCount: 1         # Always at least 1 pod (no cold start)
+  maxReplicaCount: 20
+
+# Use KEDA CronScaler to pre-scale before peak hours
+- type: cron
+  metadata:
+    timezone: "America/New_York"
+    start: "55 8 * * 1-5"    # Scale up at 8:55 AM weekdays
+    end:   "0 18 * * 1-5"    # Scale down at 6:00 PM weekdays
+    desiredReplicas: "3"
+```
+
+---
+
+**Q15: What is the difference between Azure CNI and Kubenet networking in AKS?**
+
+**Answer:**
+
+| | Kubenet | Azure CNI | Azure CNI Overlay |
+|--|---------|-----------|-------------------|
+| **Pod IPs** | Not in VNet — private overlay | Real VNet IPs consumed | Overlay IPs, not from VNet |
+| **IP usage** | Efficient | High (1 IP per pod from subnet) | Efficient |
+| **Subnet size needed** | Small | Large (nodes × max-pods per node) | Small |
+| **Network policy** | Calico only | Calico or Azure | Cilium recommended |
+| **Performance** | Extra NAT hop | Direct routing | Near-native |
+| **Windows nodes** | Not supported | Supported | Limited |
+
+**When to choose:**
+- **Azure CNI:** Need pods accessible from on-prem via ExpressRoute, need Windows nodes
+- **Azure CNI Overlay:** New clusters — best balance of IP efficiency + direct routing
+- **Kubenet:** Small clusters, dev/test, limited IP space
+
+**Mental Model:** Kubenet = private phone network inside a company (pods use internal extensions, get NAT'd to public). Azure CNI = every employee gets a direct external phone number (real VNet IP).
+
+---
+
+**Q16: How would you implement blue/green deployment in AKS?**
+
+**Answer:**
+Blue/green uses two identical Deployments (blue=current, green=new). Traffic is switched by changing the Service selector label.
+
+```yaml
+# Blue Deployment (currently serving traffic)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simpleapi1-blue
+  namespace: simple-apis
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: simpleapi1
+      version: blue
+  template:
+    metadata:
+      labels:
+        app: simpleapi1
+        version: blue      # ← this label used for traffic switching
+    spec:
+      containers:
+      - name: simpleapi1
+        image: acrdemo.azurecr.io/simpleapi1:v1
+
+---
+# Green Deployment (new version, not serving traffic yet)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simpleapi1-green
+spec:
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: simpleapi1
+        version: green
+    spec:
+      containers:
+      - name: simpleapi1
+        image: acrdemo.azurecr.io/simpleapi1:v2   # New version
+
+---
+# Service: currently pointing to blue
+apiVersion: v1
+kind: Service
+metadata:
+  name: simpleapi1-svc
+spec:
+  selector:
+    app: simpleapi1
+    version: blue           # ← change to "green" to switch all traffic instantly
+  ports:
+  - port: 80
+```
+
+```bash
+# Switch traffic to green (instant cutover)
+kubectl patch service simpleapi1-svc -n simple-apis \
+  -p '{"spec":{"selector":{"version":"green"}}}'
+
+# Verify switch
+kubectl get endpoints simpleapi1-svc -n simple-apis
+# Should show green pod IPs
+
+# If green has issues — instant rollback
+kubectl patch service simpleapi1-svc -n simple-apis \
+  -p '{"spec":{"selector":{"version":"blue"}}}'
+```
+
+---
+
+### 19.4 — Operational Questions
+
+---
+
+**Q17: How do you ensure high availability for workloads in AKS?**
+
+**Answer (5 key pillars):**
+
+1. **Multiple replicas + PodDisruptionBudget**
+```yaml
+spec:
+  replicas: 3                # Never run less than 3 for HA
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+spec:
+  minAvailable: 2            # During node drain, always keep 2 pods running
+```
+
+2. **Availability Zones for node pools**
+```bash
+az aks nodepool add \
+  --cluster-name myAKS \
+  --name hapoolz \
+  --zones 1 2 3 \            # Spread nodes across 3 AZs
+  --node-count 3             # 1 node per zone
+```
+
+3. **Pod anti-affinity to spread across nodes/zones**
+```yaml
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      podAffinityTerm:
+        labelSelector:
+          matchLabels:
+            app: simpleapi1
+        topologyKey: topology.kubernetes.io/zone  # Spread across AZs
+```
+
+4. **Resource limits** — prevents one pod from consuming all node resources
+
+5. **Health probes** — ensures unhealthy pods are removed from Service endpoints
+
+---
+
+**Q18: Explain the AKS upgrade process and risks.**
+
+**Answer:**
+AKS upgrades happen in two phases:
+1. **Control plane upgrade:** Azure updates API server, scheduler, etcd. Usually transparent (~5 min).
+2. **Node pool upgrade:** Done node by node via cordon → drain → replace.
+
+```bash
+# Check available upgrades
+az aks get-upgrades -g myRG -n myAKS --output table
+# Output:
+# Name     KubernetesVersion   Upgrades
+# ───────  ─────────────────   ────────
+# default  1.29.9              1.30.5, 1.31.2
+
+# Upgrade control plane only
+az aks upgrade -g myRG -n myAKS --kubernetes-version 1.31.2 --control-plane-only
+
+# Upgrade node pool separately (with --max-surge for faster upgrade)
+az aks nodepool upgrade \
+  --resource-group myRG \
+  --cluster-name myAKS \
+  --name nodepool1 \
+  --kubernetes-version 1.31.2 \
+  --max-surge 33%    # Create extra nodes to speed up upgrade
+```
+
+**Risks & mitigations:**
+- API deprecations between versions → check deprecations before upgrade
+- PodDisruptionBudgets can block drain → ensure minAvailable allows drain
+- StatefulSet pods need careful ordering → test in dev first
+- Use Blue/Green node pools for zero-risk: add new v1.31 pool, drain old pool, delete old pool
+
+---
+
+**Q19: What metrics and alerts would you set up for a production AKS cluster?**
+
+**Answer:**
+
+```bash
+# Key metrics to alert on (via Azure Monitor / Prometheus)
+
+# 1. Pod restarts > 5 in 1 hour → likely CrashLoop
+# KQL in Log Analytics:
+# KubePodInventory
+# | where RestartCount > 5
+# | summarize count() by Name, Namespace
+
+# 2. Node memory utilization > 85% → risk of OOMKills
+# 3. PVC disk usage > 80% → storage running out
+# 4. Pending pods > 0 for > 10 min → scheduling failure
+# 5. HTTP 5xx error rate > 1% → app errors
+# 6. P99 latency > 2000ms → performance degradation
+# 7. HPA at max replicas → need larger limits or more nodes
+```
+
+```yaml
+# Prometheus alert rules (if using kube-prometheus-stack)
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: aks-critical-alerts
+  namespace: monitoring
+spec:
+  groups:
+  - name: pod.alerts
+    rules:
+    - alert: PodCrashLooping
+      expr: |
+        rate(kube_pod_container_status_restarts_total[15m]) * 60 * 15 > 5
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Pod {{ $labels.pod }} is crash looping"
+
+    - alert: HighMemoryUtilization
+      expr: |
+        (sum(container_memory_working_set_bytes{container!=""}) by (node))
+        / (sum(machine_memory_bytes) by (node)) > 0.85
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Node {{ $labels.node }} memory usage > 85%"
+```
+
+---
+
+## PART 20: AKS Development & Deployment — End-to-End Walkthrough
+
+> **Special Section:** Container orchestration, scaling, and deployment — from zero to production.
+
+This section walks through the complete journey: local development → containerization → push to ACR → deploy to AKS → scale → monitor.
+
+---
+
+### 20.1 — The Full Development Workflow
+
+```
+┌────────────────────────────────────────────────────────────────────────────┐
+│              END-TO-END AKS DEVELOPMENT & DEPLOYMENT WORKFLOW              │
+│                                                                            │
+│  LOCAL DEV          BUILD              REGISTRY         CLUSTER            │
+│  ┌──────────┐       ┌──────────┐       ┌──────────┐     ┌──────────────┐  │
+│  │ .NET App │──────►│ docker   │──────►│  Azure   │────►│ AKS Cluster  │  │
+│  │ SimpleApi│  build│  build   │  push │ Container│ pull│              │  │
+│  │          │       │          │       │ Registry │     │  Deployment  │  │
+│  └──────────┘       └──────────┘       └──────────┘     │  Service     │  │
+│       │                                                  │  Ingress     │  │
+│  docker run         Dockerfile                           └──────┬───────┘  │
+│  (local test)       (multi-stage)                               │          │
+│                                                          ┌──────▼───────┐  │
+│  SCALE ◄──────── HPA / KEDA / Cluster Autoscaler ────── │  Users/LB    │  │
+│                                                          └──────────────┘  │
+│  OBSERVE ◄───── Azure Monitor / Container Insights / Prometheus           │
+│                                                                            │
+│  CI/CD: Azure DevOps Pipeline / GitHub Actions                             │
+│  IaC: Bicep / Terraform provisions cluster, ACR, Key Vault                │
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 20.2 — Step 1: Containerize the .NET App
+
+```bash
+# Build SimpleApi1 image locally
+docker build -t simpleapi1:local -f SimpleApi1/Dockerfile SimpleApi1/
+
+# Test locally
+docker run -p 8080:80 simpleapi1:local
+curl http://localhost:8080/health
+# Output: {"status":"healthy","service":"simpleapi1"}
+
+# Multi-container local test with docker-compose
+cat > docker-compose.yml << 'EOF'
+services:
+  simpleapi1:
+    build: ./SimpleApi1
+    ports: ["8080:80"]
+    environment:
+      SIMPLEAPI2_BASE_URL: http://simpleapi2:80
+    depends_on: [simpleapi2]
+
+  simpleapi2:
+    build: ./SimpleApi2
+    environment:
+      ASPNETCORE_HTTP_PORTS: "80"
+EOF
+
+docker-compose up
+curl http://localhost:8080/combined-data
+```
+
+---
+
+### 20.3 — Step 2: Push to Azure Container Registry
+
+```bash
+# Create ACR
+az acr create \
+  --resource-group myRG \
+  --name acrdemoaks \
+  --sku Standard \
+  --admin-enabled false    # Use managed identity, not admin credentials
+
+# Login to ACR (uses current az login identity)
+az acr login --name acrdemoaks
+
+# Tag and push
+docker tag simpleapi1:local acrdemoaks.azurecr.io/simpleapi1:v1
+docker push acrdemoaks.azurecr.io/simpleapi1:v1
+
+docker tag simpleapi2:local acrdemoaks.azurecr.io/simpleapi2:v1
+docker push acrdemoaks.azurecr.io/simpleapi2:v1
+
+# Verify images in ACR
+az acr repository list --name acrdemoaks --output table
+# Output:
+# Result
+# ──────────
+# simpleapi1
+# simpleapi2
+
+az acr repository show-tags --name acrdemoaks --repository simpleapi1 --output table
+# Result
+# ──────
+# v1
+```
+
+---
+
+### 20.4 — Step 3: Provision AKS Cluster
+
+```bash
+# Create resource group
+az group create --name myRG --location eastus
+
+# Create AKS cluster with all production-ready settings
+az aks create \
+  --resource-group myRG \
+  --name myAKSCluster \
+  --kubernetes-version 1.31.2 \
+  --node-count 3 \
+  --node-vm-size Standard_D4s_v3 \
+  --enable-managed-identity \
+  --enable-oidc-issuer \
+  --enable-workload-identity \
+  --network-plugin azure \
+  --network-plugin-mode overlay \
+  --enable-cluster-autoscaler \
+  --min-count 2 \
+  --max-count 10 \
+  --tier standard \
+  --zones 1 2 3 \
+  --attach-acr acrdemoaks \
+  --enable-addons monitoring \
+  --workspace-resource-id /subscriptions/.../resourcegroups/myRG/providers/microsoft.operationalinsights/workspaces/myLAW
+
+# Get credentials
+az aks get-credentials --resource-group myRG --name myAKSCluster
+
+# Verify
+kubectl get nodes
+# NAME                                STATUS   ROLES   AGE   VERSION
+# aks-nodepool1-12345678-vmss000000   Ready    agent   2m    v1.31.2
+# aks-nodepool1-12345678-vmss000001   Ready    agent   2m    v1.31.2
+# aks-nodepool1-12345678-vmss000002   Ready    agent   2m    v1.31.2
+```
+
+---
+
+### 20.5 — Step 4: Deploy Applications
+
+```bash
+# Create namespace
+kubectl create namespace simple-apis
+
+# Apply all manifests
+kubectl apply -f k8s/simpleapi2-deployment.yaml -n simple-apis
+kubectl apply -f k8s/simpleapi1-deployment.yaml -n simple-apis
+kubectl apply -f k8s/ingress.yaml -n simple-apis
+
+# Watch rollout
+kubectl rollout status deployment/simpleapi1 -n simple-apis
+kubectl rollout status deployment/simpleapi2 -n simple-apis
+
+# Verify everything is running
+kubectl get all -n simple-apis
+# NAME                              READY   STATUS    RESTARTS
+# pod/simpleapi1-xxx-1              1/1     Running   0
+# pod/simpleapi1-xxx-2              1/1     Running   0
+# pod/simpleapi1-xxx-3              1/1     Running   0
+# pod/simpleapi2-xxx-1              1/1     Running   0
+# pod/simpleapi2-xxx-2              1/1     Running   0
+#
+# NAME                   TYPE           CLUSTER-IP    EXTERNAL-IP
+# service/simpleapi1-svc ClusterIP      10.0.42.18    <none>
+# service/simpleapi2-svc ClusterIP      10.0.15.42    <none>
+# service/api-lb         LoadBalancer   10.0.200.5    52.186.142.10
+#
+# NAME                         READY   UP-TO-DATE   AVAILABLE
+# deployment.apps/simpleapi1   3/3     3            3
+# deployment.apps/simpleapi2   2/2     2            2
+```
+
+---
+
+### 20.6 — Step 5: Configure Autoscaling
+
+```yaml
+# HPA for CPU-based scaling
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: simpleapi1-hpa
+  namespace: simple-apis
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: simpleapi1
+  minReplicas: 2
+  maxReplicas: 20
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 60     # Scale when avg CPU > 60%
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 75
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30   # React quickly to load spikes
+    scaleDown:
+      stabilizationWindowSeconds: 300  # Wait 5 min before scaling down
+```
+
+```bash
+# Apply and test HPA
+kubectl apply -f k8s/hpa.yaml -n simple-apis
+
+# Monitor HPA in real time
+kubectl get hpa -n simple-apis -w
+# NAME            REFERENCE              TARGETS   MINPODS   MAXPODS   REPLICAS
+# simpleapi1-hpa  Deployment/simpleapi1  8%/60%    2         20        2
+# simpleapi1-hpa  Deployment/simpleapi1  85%/60%   2         20        3    ← scaled up!
+# simpleapi1-hpa  Deployment/simpleapi1  92%/60%   2         20        5    ← more pods!
+```
+
+---
+
+### 20.7 — Step 6: CI/CD Pipeline (Azure DevOps)
+
+```yaml
+# azure-pipelines.yml — Full multi-stage pipeline
+trigger:
+  branches:
+    include: [main, release/*]
+  paths:
+    include: [SimpleApi1/**, SimpleApi2/**, k8s/**]
+
+variables:
+  ACR_NAME: acrdemoaks
+  AKS_CLUSTER: myAKSCluster
+  RESOURCE_GROUP: myRG
+  NAMESPACE: simple-apis
+
+stages:
+# ── STAGE 1: BUILD & PUSH ──────────────────────────────────────────
+- stage: Build
+  displayName: 'Build and Push Images'
+  jobs:
+  - job: BuildPush
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+    - task: AzureCLI@2
+      displayName: 'Build and Push to ACR'
+      inputs:
+        azureSubscription: 'MyServiceConnection'
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          # Login to ACR using managed identity (no stored passwords)
+          az acr login --name $(ACR_NAME)
+
+          # Build with git commit SHA as tag (immutable, traceable)
+          IMAGE_TAG=$(Build.SourceVersion | cut -c1-8)
+
+          docker build -t $(ACR_NAME).azurecr.io/simpleapi1:$IMAGE_TAG \
+            -f SimpleApi1/Dockerfile SimpleApi1/
+          docker push $(ACR_NAME).azurecr.io/simpleapi1:$IMAGE_TAG
+
+          docker build -t $(ACR_NAME).azurecr.io/simpleapi2:$IMAGE_TAG \
+            -f SimpleApi2/Dockerfile SimpleApi2/
+          docker push $(ACR_NAME).azurecr.io/simpleapi2:$IMAGE_TAG
+
+          # Write tag to pipeline variable for next stage
+          echo "##vso[task.setvariable variable=IMAGE_TAG;isOutput=true]$IMAGE_TAG"
+      name: buildStep
+
+# ── STAGE 2: DEPLOY TO DEV ─────────────────────────────────────────
+- stage: DeployDev
+  displayName: 'Deploy to Dev'
+  dependsOn: Build
+  condition: succeeded()
+  variables:
+    IMAGE_TAG: $[stageDependencies.Build.BuildPush.outputs['buildStep.IMAGE_TAG']]
+  jobs:
+  - deployment: DeployToDev
+    environment: 'dev'                 # Azure DevOps environment (tracks deployments)
+    pool:
+      vmImage: ubuntu-latest
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: AzureCLI@2
+            displayName: 'Deploy to AKS Dev'
+            inputs:
+              azureSubscription: 'MyServiceConnection'
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                az aks get-credentials \
+                  --resource-group $(RESOURCE_GROUP) \
+                  --name $(AKS_CLUSTER)-dev
+
+                # Update image tags using kubectl set image (or helm upgrade)
+                kubectl set image deployment/simpleapi1 \
+                  simpleapi1=$(ACR_NAME).azurecr.io/simpleapi1:$(IMAGE_TAG) \
+                  -n $(NAMESPACE)
+
+                kubectl set image deployment/simpleapi2 \
+                  simpleapi2=$(ACR_NAME).azurecr.io/simpleapi2:$(IMAGE_TAG) \
+                  -n $(NAMESPACE)
+
+                # Wait for rollout to complete
+                kubectl rollout status deployment/simpleapi1 -n $(NAMESPACE) --timeout=5m
+                kubectl rollout status deployment/simpleapi2 -n $(NAMESPACE) --timeout=5m
+
+# ── STAGE 3: DEPLOY TO PROD (manual approval gate) ─────────────────
+- stage: DeployProd
+  displayName: 'Deploy to Production'
+  dependsOn: DeployDev
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  jobs:
+  - deployment: DeployToProd
+    environment: 'production'          # Requires manual approval in Azure DevOps
+    pool:
+      vmImage: ubuntu-latest
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: AzureCLI@2
+            displayName: 'Deploy to AKS Prod'
+            inputs:
+              azureSubscription: 'MyServiceConnection'
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                az aks get-credentials \
+                  --resource-group $(RESOURCE_GROUP) \
+                  --name $(AKS_CLUSTER)-prod
+
+                kubectl set image deployment/simpleapi1 \
+                  simpleapi1=$(ACR_NAME).azurecr.io/simpleapi1:$(IMAGE_TAG) \
+                  -n $(NAMESPACE)
+
+                kubectl rollout status deployment/simpleapi1 \
+                  -n $(NAMESPACE) --timeout=10m
+
+                echo "Deployment complete: $(ACR_NAME).azurecr.io/simpleapi1:$(IMAGE_TAG)"
+```
+
+---
+
+### 20.8 — Step 7: Monitor in Production
+
+```bash
+# Real-time pod monitoring
+watch kubectl get pods -n simple-apis
+
+# Live HPA watching (see scaling in action)
+watch kubectl get hpa -n simple-apis
+
+# Stream logs from all pods with a label
+kubectl logs -f -l app=simpleapi1 -n simple-apis --all-containers=true --prefix=true
+
+# Check resource utilization
+kubectl top pods -n simple-apis
+kubectl top nodes
+
+# KQL query in Log Analytics — find all errors in last 1 hour
+# ContainerLogV2
+# | where TimeGenerated > ago(1h)
+# | where LogMessage contains "Exception" or LogMessage contains "Error"
+# | where Namespace == "simple-apis"
+# | project TimeGenerated, PodName, ContainerName, LogMessage
+# | order by TimeGenerated desc
+
+# View Azure Monitor metrics in Azure Portal:
+# AKS → Insights → Containers → Filter by namespace: simple-apis
+```
+
+---
+
+---
+
+## PART 21: [Offline-Laptop] Practice AKS & Helm End-to-End Without Cloud
+
+> **Goal:** Reproduce a production-grade AKS environment on your laptop — namespaces, deployments, services, ingress, helm, HPA, KEDA, Prometheus, Grafana, ArgoCD — all locally. No Azure subscription needed.
+
+---
+
+### 21.1 — Tool Choices: Which Local Kubernetes to Use?
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│         LOCAL KUBERNETES TOOLS — COMPARISON                              │
+│                                                                          │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │  Docker Desktop (Windows/Mac)                                   │    │
+│  │  ✓ Single click — enable K8s in Settings                        │    │
+│  │  ✓ Best Windows experience (WSL2 backend)                       │    │
+│  │  ✓ Shares Docker daemon — images available immediately          │    │
+│  │  ✗ Only 1 node (no node pool simulation)                        │    │
+│  │  ✗ Slower to start (~3 min)                                     │    │
+│  │  Recommended for: Windows developers, beginners                 │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+│                                                                          │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │  minikube                                                        │    │
+│  │  ✓ Multi-node support (--nodes 3)                               │    │
+│  │  ✓ Many addons: ingress, dashboard, metrics-server, registry    │    │
+│  │  ✓ Works on Docker, Hyper-V, VirtualBox driver                  │    │
+│  │  ✓ minikube tunnel exposes LoadBalancer services                │    │
+│  │  ✗ Slightly heavier than kind                                   │    │
+│  │  Recommended for: full feature practice, addons                 │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+│                                                                          │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │  kind (Kubernetes in Docker)                                     │    │
+│  │  ✓ Fastest startup (~30 seconds)                                │    │
+│  │  ✓ Multi-node via simple YAML config                            │    │
+│  │  ✓ Best for CI/CD pipelines                                     │    │
+│  │  ✗ LoadBalancer services need MetalLB (extra step)              │    │
+│  │  ✗ No built-in addons                                           │    │
+│  │  Recommended for: CI/CD testing, fast iteration                 │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+│                                                                          │
+│  ► This guide uses minikube (best for feature coverage on Windows)      │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 21.2 — Prerequisites Installation (Windows)
+
+**Install in this order — each depends on the previous:**
+
+```powershell
+# ── Step 1: Install Chocolatey package manager (run as Administrator) ──
+Set-ExecutionPolicy Bypass -Scope Process -Force
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+
+# ── Step 2: Install all tools at once ──────────────────────────────────
+choco install -y `
+  docker-desktop `          # Docker Engine + WSL2 backend
+  minikube `                # Local Kubernetes
+  kubernetes-cli `          # kubectl
+  helm `                    # Helm package manager
+  git `                     # Git (for GitOps)
+  dotnet-sdk `              # .NET SDK 10
+  vscode                    # VS Code
+
+# ── Step 3: Verify installations ──────────────────────────────────────
+docker --version
+# Docker version 27.x.x
+
+kubectl version --client
+# Client Version: v1.31.x
+
+minikube version
+# minikube version: v1.34.x
+
+helm version
+# version.BuildInfo{Version:"v3.16.x"}
+
+dotnet --version
+# 10.0.x
+```
+
+> **WSL2 Required on Windows:** Docker Desktop needs WSL2 (Windows Subsystem for Linux 2).
+> Enable it: `wsl --install` in an elevated PowerShell, then reboot.
+
+---
+
+### 21.3 — Start minikube with Production-Like Settings
+
+```bash
+# ── Start minikube — sized like a real dev cluster ─────────────────────
+minikube start \
+  --driver=docker \         # Use Docker as the VM driver (no Hyper-V needed)
+  --cpus=4 \                # Allocate 4 CPUs to minikube VM
+  --memory=8192 \           # 8GB RAM (Prometheus + Grafana need ~2GB)
+  --nodes=2 \               # 2 nodes — simulates node pool (1 control-plane, 1 worker)
+  --kubernetes-version=v1.31.0 \
+  --container-runtime=containerd \   # Matches AKS default runtime
+  --addons=ingress,metrics-server,dashboard
+
+# Sample Output:
+# 😄  minikube v1.34.0 on Windows 11
+# ✨  Using the docker driver based on user configuration
+# 👍  Starting "minikube" primary control-plane node in "minikube" cluster
+# 🚜  Pulling base image v0.0.45 ...
+# 🔥  Creating docker container (CPUs=4, Memory=8192MB) ...
+# 🐳  Preparing Kubernetes v1.31.0 on Docker ...
+# 🔎  Verifying Kubernetes components...
+# 🌟  Enabled addons: ingress, metrics-server, dashboard, storage-provisioner
+# 🏄  Done! kubectl is now configured to use "minikube" cluster
+
+# Verify nodes
+kubectl get nodes
+# NAME           STATUS   ROLES           AGE   VERSION
+# minikube       Ready    control-plane   2m    v1.31.0
+# minikube-m02   Ready    <none>          90s   v1.31.0
+
+# View full cluster info
+kubectl cluster-info
+# Kubernetes control plane is running at https://127.0.0.1:57987
+# CoreDNS is running at https://127.0.0.1:57987/api/v1/namespaces/kube-system/...
+
+# WHY --nodes=2: Simulates AKS node pool — practice pod scheduling,
+# anti-affinity, DaemonSets running on both nodes
+# WHY metrics-server: Required for HPA (Horizontal Pod Autoscaler)
+# WHY ingress: NGINX Ingress Controller — replaces Azure App Gateway locally
+```
+
+---
+
+### 21.4 — Build the .NET Apps for Local Kubernetes
+
+```bash
+# ── Create project structure ───────────────────────────────────────────
+mkdir -p ~/aks-local/{SimpleApi1,SimpleApi2,k8s,helm-chart}
+cd ~/aks-local
+
+# ── Create SimpleApi1 (.NET Minimal API) ──────────────────────────────
+dotnet new webapi -n SimpleApi1 --use-minimal-apis -o SimpleApi1 --no-openapi
+cd SimpleApi1
+
+# Replace Program.cs with our full app
+cat > Program.cs << 'EOF'
+var builder = WebApplication.CreateBuilder(args);
+
+// Register HttpClient for service-to-service calls
+builder.Services.AddHttpClient("SimpleApi2", client =>
+{
+    // In Kubernetes: use DNS name. Locally: use localhost fallback
+    client.BaseAddress = new Uri(
+        builder.Configuration["SIMPLEAPI2_URL"] ?? "http://localhost:5002"
+    );
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+
+builder.Services.AddHealthChecks();
+
+var app = builder.Build();
+
+// ── Health endpoint (used by liveness + readiness probes) ─────────────
+app.MapGet("/health", () => Results.Ok(new
+{
+    status = "healthy",
+    service = "simpleapi1",
+    timestamp = DateTime.UtcNow
+}));
+
+// ── Basic endpoint ─────────────────────────────────────────────────────
+app.MapGet("/", () => new { message = "Hello from SimpleApi1!", env = app.Environment.EnvironmentName });
+
+// ── Call SimpleApi2 (service-to-service) ──────────────────────────────
+app.MapGet("/combined", async (IHttpClientFactory factory) =>
+{
+    try
+    {
+        var client = factory.CreateClient("SimpleApi2");
+        var result = await client.GetFromJsonAsync<object>("/info");
+        return Results.Ok(new { from_api1 = "SimpleApi1 data", from_api2 = result });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Cannot reach SimpleApi2: {ex.Message}", statusCode: 503);
+    }
+});
+
+// ── Info endpoint ──────────────────────────────────────────────────────
+app.MapGet("/info", () => new
+{
+    service   = "simpleapi1",
+    version   = "v1",
+    pod       = Environment.GetEnvironmentVariable("HOSTNAME") ?? "local",
+    node      = Environment.GetEnvironmentVariable("MY_NODE_NAME") ?? "local",
+    namespace = Environment.GetEnvironmentVariable("MY_NAMESPACE") ?? "local"
+});
+
+app.MapHealthChecks("/health/live",  new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions { Predicate = _ => false });
+app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions());
+
+app.Run();
+EOF
+
+cd ~/aks-local
+
+# ── Create SimpleApi2 (identical structure, different service name) ───
+dotnet new webapi -n SimpleApi2 --use-minimal-apis -o SimpleApi2 --no-openapi
+cat > SimpleApi2/Program.cs << 'EOF'
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddHealthChecks();
+var app = builder.Build();
+
+app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "simpleapi2" }));
+app.MapGet("/", () => new { message = "Hello from SimpleApi2!" });
+app.MapGet("/info", () => new
+{
+    service   = "simpleapi2",
+    version   = "v1",
+    pod       = Environment.GetEnvironmentVariable("HOSTNAME") ?? "local",
+    data      = new[] { "item1", "item2", "item3" }
+});
+app.MapHealthChecks("/health/live",  new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions { Predicate = _ => false });
+app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions());
+app.Run();
+EOF
+```
+
+#### Dockerfiles
+```dockerfile
+# ~/aks-local/SimpleApi1/Dockerfile
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+COPY SimpleApi1.csproj .
+RUN dotnet restore
+COPY . .
+RUN dotnet publish -c Release -o /app/publish /p:UseAppHost=false
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0
+WORKDIR /app
+RUN adduser --disabled-password --no-create-home appuser && chown -R appuser /app
+USER appuser
+COPY --from=build /app/publish .
+ENV ASPNETCORE_HTTP_PORTS=80
+EXPOSE 80
+ENTRYPOINT ["dotnet", "SimpleApi1.dll"]
+```
+
+```bash
+# Copy same Dockerfile for SimpleApi2 (just change the dll name)
+cp SimpleApi1/Dockerfile SimpleApi2/Dockerfile
+sed -i 's/SimpleApi1.dll/SimpleApi2.dll/' SimpleApi2/Dockerfile
+```
+
+---
+
+### 21.5 — Build & Load Images into minikube
+
+```bash
+# KEY INSIGHT: minikube runs in its own Docker context.
+# Images built with your regular "docker build" are NOT visible inside minikube.
+# You must either:
+#   A) Build directly inside minikube's Docker daemon (eval $(minikube docker-env))
+#   B) Use minikube image load after building
+#   C) Use a local registry
+
+# ── Option A (Recommended): Build directly in minikube's Docker ──────
+eval $(minikube docker-env)
+# This command sets DOCKER_HOST, DOCKER_CERT_PATH etc to point at minikube's daemon
+# All subsequent docker commands go INTO minikube
+
+cd ~/aks-local
+docker build -t simpleapi1:v1 -f SimpleApi1/Dockerfile SimpleApi1/
+docker build -t simpleapi2:v1 -f SimpleApi2/Dockerfile SimpleApi2/
+
+# Verify images exist inside minikube
+docker images | grep simpleapi
+# simpleapi1  v1  abc123  2 minutes ago  210MB
+# simpleapi2  v1  def456  2 minutes ago  210MB
+
+# CRITICAL: Set imagePullPolicy: Never in your deployments!
+# (tells Kubernetes: don't try to pull from registry — use local image)
+
+# Reset your terminal to use host Docker again
+eval $(minikube docker-env -u)
+
+# ── Option B: Build locally then load into minikube ──────────────────
+docker build -t simpleapi1:v1 -f SimpleApi1/Dockerfile SimpleApi1/
+minikube image load simpleapi1:v1
+
+# Sample Output:
+# ❗  This file does not exist in the host system. Will load from path...
+# 📤  Loading image from path 'simpleapi1:v1'...
+# ✅  Loaded image: simpleapi1:v1
+```
+
+---
+
+### 21.6 — Namespace & Core Kubernetes Objects
+
+```bash
+# Create namespace
+kubectl create namespace simple-apis
+kubectl config set-context --current --namespace=simple-apis
+# Now all kubectl commands default to simple-apis namespace
+```
+
+#### SimpleApi2 Deployment (deploy backend first)
+```yaml
+# ~/aks-local/k8s/simpleapi2.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simpleapi2
+  namespace: simple-apis
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: simpleapi2
+  template:
+    metadata:
+      labels:
+        app: simpleapi2
+        version: v1
+    spec:
+      containers:
+      - name: simpleapi2
+        image: simpleapi2:v1
+        imagePullPolicy: Never         # CRITICAL for local — never pull from registry
+        ports:
+        - containerPort: 80
+        env:
+        - name: ASPNETCORE_HTTP_PORTS
+          value: "80"
+        - name: MY_NODE_NAME           # Expose node name as env var (downwardAPI)
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: MY_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: simpleapi2-svc
+  namespace: simple-apis
+spec:
+  type: ClusterIP
+  selector:
+    app: simpleapi2
+  ports:
+  - port: 80
+    targetPort: 80
+```
+
+#### SimpleApi1 Deployment (frontend, calls SimpleApi2)
+```yaml
+# ~/aks-local/k8s/simpleapi1.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simpleapi1
+  namespace: simple-apis
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: simpleapi1
+  template:
+    metadata:
+      labels:
+        app: simpleapi1
+        version: v1
+    spec:
+      containers:
+      - name: simpleapi1
+        image: simpleapi1:v1
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 80
+        env:
+        - name: ASPNETCORE_HTTP_PORTS
+          value: "80"
+        - name: SIMPLEAPI2_URL
+          value: "http://simpleapi2-svc.simple-apis.svc.cluster.local"
+        - name: MY_NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: MY_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: simpleapi1-svc
+  namespace: simple-apis
+spec:
+  type: ClusterIP
+  selector:
+    app: simpleapi1
+  ports:
+  - port: 80
+    targetPort: 80
+```
+
+```bash
+# Apply all manifests
+kubectl apply -f k8s/simpleapi2.yaml
+kubectl apply -f k8s/simpleapi1.yaml
+
+# Verify pods are Running
+kubectl get pods -n simple-apis -w
+# NAME                          READY   STATUS    RESTARTS   AGE
+# simpleapi1-xxx-1              1/1     Running   0          30s
+# simpleapi1-xxx-2              1/1     Running   0          30s
+# simpleapi2-xxx-1              1/1     Running   0          45s
+# simpleapi2-xxx-2              1/1     Running   0          45s
+
+# Verify service-to-service connectivity
+kubectl exec -it $(kubectl get pod -l app=simpleapi1 -o name | head -1) -- \
+  wget -qO- http://simpleapi2-svc/info
+# {"service":"simpleapi2","version":"v1","pod":"simpleapi2-xxx-1",...}
+
+# Test the /combined endpoint (calls SimpleApi2 internally)
+kubectl exec -it $(kubectl get pod -l app=simpleapi1 -o name | head -1) -- \
+  wget -qO- http://localhost/combined
+# {"from_api1":"SimpleApi1 data","from_api2":{"service":"simpleapi2",...}}
+```
+
+---
+
+### 21.7 — ConfigMap & Secret
+
+```bash
+# ── ConfigMap: non-sensitive configuration ────────────────────────────
+kubectl create configmap simpleapi1-config \
+  --from-literal=ENVIRONMENT=local-dev \
+  --from-literal=LOG_LEVEL=Debug \
+  --from-literal=FEATURE_FLAG_NEW_UI=true \
+  -n simple-apis
+
+# View ConfigMap
+kubectl describe configmap simpleapi1-config -n simple-apis
+# Data:
+# ────
+# ENVIRONMENT:  local-dev
+# FEATURE_FLAG_NEW_UI:  true
+# LOG_LEVEL:  Debug
+
+# ── Secret: sensitive data ─────────────────────────────────────────────
+kubectl create secret generic simpleapi1-secrets \
+  --from-literal=DB_PASSWORD=SuperSecret123! \
+  --from-literal=API_KEY=myapikey-abc-xyz \
+  -n simple-apis
+
+# Secrets are base64 encoded in etcd (NOT encrypted — for local this is fine)
+kubectl get secret simpleapi1-secrets -o yaml
+# data:
+#   DB_PASSWORD: U3VwZXJTZWNyZXQxMjMh   ← base64("SuperSecret123!")
+#   API_KEY: bXlhcGlrZXktYWJjLXh5eg==
+```
+
+```yaml
+# Use ConfigMap + Secret in deployment
+spec:
+  template:
+    spec:
+      containers:
+      - name: simpleapi1
+        envFrom:
+        - configMapRef:
+            name: simpleapi1-config     # All ConfigMap keys become env vars
+        - secretRef:
+            name: simpleapi1-secrets    # All Secret keys become env vars
+        # Or mount as files:
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config
+          readOnly: true
+      volumes:
+      - name: config-volume
+        configMap:
+          name: simpleapi1-config
+```
+
+---
+
+### 21.8 — Ingress (NGINX — replaces App Gateway/AGIC locally)
+
+```bash
+# minikube ingress addon was enabled at startup
+# Verify NGINX Ingress Controller is running
+kubectl get pods -n ingress-nginx
+# NAME                                        READY   STATUS    RESTARTS
+# ingress-nginx-controller-xxxxx              1/1     Running   0
+
+# Get the minikube IP (your "external IP" locally)
+minikube ip
+# 192.168.49.2
+```
+
+```yaml
+# ~/aks-local/k8s/ingress.yaml
+# Path-based routing — same pattern as production Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: simple-apis-ingress
+  namespace: simple-apis
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /       # Strip prefix path
+    nginx.ingress.kubernetes.io/use-regex: "true"
+spec:
+  ingressClassName: nginx                               # Use the NGINX Ingress class
+  rules:
+  - host: simple-apis.local                            # Fake local hostname
+    http:
+      paths:
+      - path: /api1(/|$)(.*)                           # /api1/* → simpleapi1
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: simpleapi1-svc
+            port:
+              number: 80
+      - path: /api2(/|$)(.*)                           # /api2/* → simpleapi2
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: simpleapi2-svc
+            port:
+              number: 80
+```
+
+```bash
+kubectl apply -f k8s/ingress.yaml
+
+# Add entry to hosts file (so browser resolves simple-apis.local)
+# On Windows — run as Administrator:
+echo "$(minikube ip) simple-apis.local" >> C:\Windows\System32\drivers\etc\hosts
+# On Mac/Linux:
+echo "$(minikube ip) simple-apis.local" | sudo tee -a /etc/hosts
+
+# Test routing
+curl http://simple-apis.local/api1/info
+# {"service":"simpleapi1","version":"v1",...}
+
+curl http://simple-apis.local/api1/combined
+# {"from_api1":"SimpleApi1 data","from_api2":{"service":"simpleapi2",...}}
+
+curl http://simple-apis.local/api2/info
+# {"service":"simpleapi2","data":["item1","item2","item3"]}
+```
+
+---
+
+### 21.9 — Persistent Volumes (Local Storage)
+
+```bash
+# minikube provides a built-in StorageClass using hostPath
+kubectl get storageclass
+# NAME                 PROVISIONER                RECLAIMPOLICY   VOLUMEBINDINGMODE
+# standard (default)   k8s.io/minikube-hostpath   Delete          Immediate
+```
+
+```yaml
+# ~/aks-local/k8s/pvc.yaml
+# PVC using minikube's default storageclass (local hostPath)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: api-data-pvc
+  namespace: simple-apis
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: standard     # minikube's default (equivalent to managed-csi on AKS)
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+# Pod using the PVC
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simpleapi1-with-storage
+  namespace: simple-apis
+spec:
+  replicas: 1                    # RWO = only 1 pod
+  selector:
+    matchLabels:
+      app: simpleapi1-storage
+  template:
+    metadata:
+      labels:
+        app: simpleapi1-storage
+    spec:
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: api-data-pvc
+      containers:
+      - name: simpleapi1
+        image: simpleapi1:v1
+        imagePullPolicy: Never
+        volumeMounts:
+        - name: data
+          mountPath: /app/data
+```
+
+```bash
+kubectl apply -f k8s/pvc.yaml
+
+kubectl get pvc -n simple-apis
+# NAME           STATUS   VOLUME                     CAPACITY   ACCESS MODES
+# api-data-pvc   Bound    pvc-abc123-...             1Gi        RWO
+
+# Write data to persistent volume
+kubectl exec -it deploy/simpleapi1-with-storage -- \
+  sh -c "echo 'hello from pod' > /app/data/test.txt"
+
+# Delete and recreate pod — data persists!
+kubectl rollout restart deployment/simpleapi1-with-storage
+kubectl exec -it deploy/simpleapi1-with-storage -- cat /app/data/test.txt
+# hello from pod   ← still there after pod restart!
+```
+
+---
+
+### 21.10 — HPA (Horizontal Pod Autoscaler) — Load Test
+
+```yaml
+# ~/aks-local/k8s/hpa.yaml
+# metrics-server addon was enabled at start — required for HPA
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: simpleapi1-hpa
+  namespace: simple-apis
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: simpleapi1
+  minReplicas: 2
+  maxReplicas: 8                 # Lower max for local (limited resources)
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 50   # Scale when avg CPU > 50%
+```
+
+```bash
+kubectl apply -f k8s/hpa.yaml
+
+# Watch HPA status (open in a separate terminal)
+kubectl get hpa -n simple-apis -w
+
+# ── Generate load to trigger scaling ────────────────────────────────────
+# Run a load generator pod
+kubectl run load-gen \
+  --image=busybox:latest \
+  --restart=Never \
+  -n simple-apis \
+  -- sh -c "while true; do wget -q -O- http://simpleapi1-svc/info; done"
+
+# Watch HPA react (in original terminal):
+# NAME            REFERENCE             TARGETS    MINPODS  MAXPODS  REPLICAS
+# simpleapi1-hpa  Deployment/simpleapi1 8%/50%     2        8        2
+# simpleapi1-hpa  Deployment/simpleapi1 72%/50%    2        8        3    ← scaling up!
+# simpleapi1-hpa  Deployment/simpleapi1 91%/50%    2        8        5
+
+# Stop the load generator
+kubectl delete pod load-gen -n simple-apis
+
+# HPA scales back down after 5 minutes (stabilizationWindow)
+# simpleapi1-hpa  Deployment/simpleapi1 2%/50%     2        8        2    ← scaled down
+```
+
+---
+
+### 21.11 — KEDA (Event-Driven Autoscaling) Locally
+
+```bash
+# Install KEDA via Helm
+helm repo add kedacore https://kedacore.github.io/charts
+helm repo update
+
+helm install keda kedacore/keda \
+  --namespace keda \
+  --create-namespace \
+  --wait
+
+# Verify KEDA pods
+kubectl get pods -n keda
+# NAME                                      READY   STATUS
+# keda-operator-xxx                         1/1     Running
+# keda-operator-metrics-apiserver-xxx       1/1     Running
+```
+
+```yaml
+# KEDA: Scale based on HTTP request count (KEDA HTTP Add-on) or Prometheus metric
+# For local practice, use the CPU scaler as a simple trigger
+# Or use the cron scaler (no external dependencies needed)
+
+# ~/aks-local/k8s/keda-scaledobject.yaml
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: simpleapi1-keda
+  namespace: simple-apis
+spec:
+  scaleTargetRef:
+    name: simpleapi1
+  minReplicaCount: 0             # Scale to ZERO when no activity! (cost saving)
+  maxReplicaCount: 5
+  cooldownPeriod: 60             # Wait 60s before scaling down to 0
+  triggers:
+  # ── Cron trigger: scale up during business hours, scale to 0 at night ──
+  - type: cron
+    metadata:
+      timezone: "America/New_York"
+      start: "0 9 * * 1-5"      # Scale to 2 replicas at 9am Mon-Fri
+      end:   "0 18 * * 1-5"     # Scale to 0 at 6pm
+      desiredReplicas: "2"
+  # ── CPU trigger: scale beyond 2 if CPU is high ──────────────────────
+  - type: cpu
+    metricType: Utilization
+    metadata:
+      value: "50"
+```
+
+```bash
+kubectl apply -f k8s/keda-scaledobject.yaml
+
+kubectl get scaledobject -n simple-apis
+# NAME               SCALETARGETKIND   SCALETARGETNAME   MIN   MAX   TRIGGERS
+# simpleapi1-keda    apps/Deployment   simpleapi1        0     5     cron,cpu
+
+# Watch pods go to 0 outside business hours
+kubectl get pods -n simple-apis -w
+```
+
+---
+
+### 21.12 — Helm: Package Manager End-to-End
+
+```bash
+# ── Add popular Helm repos ────────────────────────────────────────────
+helm repo add stable      https://charts.helm.sh/stable
+helm repo add bitnami     https://charts.bitnami.com/bitnami
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+helm repo update
+
+# ── Create a Helm chart for SimpleApi1 ────────────────────────────────
+helm create simple-apis-chart
+cd simple-apis-chart
+
+# Default structure created:
+# simple-apis-chart/
+# ├── Chart.yaml           ← Chart metadata
+# ├── values.yaml          ← Default values (overridable per environment)
+# ├── charts/              ← Sub-charts (dependencies)
+# └── templates/
+#     ├── deployment.yaml  ← Deployment template (uses {{ .Values.xxx }})
+#     ├── service.yaml
+#     ├── ingress.yaml
+#     ├── hpa.yaml
+#     ├── _helpers.tpl     ← Named templates (reusable snippets)
+#     └── NOTES.txt        ← Post-install notes
+```
+
+#### Chart.yaml
+```yaml
+# simple-apis-chart/Chart.yaml
+apiVersion: v2
+name: simple-apis-chart
+description: SimpleApi1 and SimpleApi2 AKS practice chart
+type: application
+version: 0.1.0              # Chart version (bump on chart changes)
+appVersion: "v1"            # Application version
+```
+
+#### values.yaml
+```yaml
+# simple-apis-chart/values.yaml
+# Default values — override with: helm install -f myvalues.yaml OR --set key=value
+
+replicaCount: 2
+
+image:
+  repository: simpleapi1
+  tag: v1
+  pullPolicy: Never          # Never pull — use local image in minikube
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  host: simple-apis.local
+  path: /api1
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 8
+  targetCPUUtilizationPercentage: 50
+
+simpleapi2:
+  url: "http://simpleapi2-svc.simple-apis.svc.cluster.local"
+
+env:
+  MY_NODE_NAME:
+    fieldRef: spec.nodeName
+```
+
+#### templates/deployment.yaml
+```yaml
+# simple-apis-chart/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "simple-apis-chart.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "simple-apis-chart.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}   {{/* Only set replicas if HPA is disabled */}}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "simple-apis-chart.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "simple-apis-chart.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+      - name: {{ .Chart.Name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - containerPort: 80
+        env:
+        - name: ASPNETCORE_HTTP_PORTS
+          value: "80"
+        - name: SIMPLEAPI2_URL
+          value: {{ .Values.simpleapi2.url | quote }}
+        - name: MY_NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 10
+```
+
+#### templates/hpa.yaml
+```yaml
+# simple-apis-chart/templates/hpa.yaml
+{{- if .Values.autoscaling.enabled }}    {{/* Only create HPA if enabled in values */}}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "simple-apis-chart.fullname" . }}-hpa
+  namespace: {{ .Release.Namespace }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "simple-apis-chart.fullname" . }}
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}
+```
+
+#### templates/_helpers.tpl
+```
+{{/*
+  _helpers.tpl — reusable named templates
+  Called with: {{ include "simple-apis-chart.fullname" . }}
+*/}}
+
+{{/* Expand the name of the chart */}}
+{{- define "simple-apis-chart.name" -}}
+{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/* Create a default fully qualified app name */}}
+{{- define "simple-apis-chart.fullname" -}}
+{{- if .Values.fullnameOverride }}
+{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- $name := default .Chart.Name .Values.nameOverride }}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
+{{- end }}
+{{- end }}
+
+{{/* Common labels for all objects */}}
+{{- define "simple-apis-chart.labels" -}}
+helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+{{ include "simple-apis-chart.selectorLabels" . }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}
+
+{{/* Selector labels — used in matchLabels */}}
+{{- define "simple-apis-chart.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "simple-apis-chart.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+```
+
+```bash
+# ── Lint the chart (catch YAML errors before install) ─────────────────
+helm lint simple-apis-chart/
+# ==> Linting simple-apis-chart/
+# [INFO] Chart.yaml: icon is recommended
+# 1 chart(s) linted, 0 chart(s) failed
+
+# ── Dry-run: preview generated YAML without applying ─────────────────
+helm install simple-apis simple-apis-chart/ \
+  --namespace simple-apis \
+  --dry-run --debug 2>&1 | head -80
+
+# ── Install the chart ─────────────────────────────────────────────────
+helm install simple-apis simple-apis-chart/ \
+  --namespace simple-apis \
+  --create-namespace \
+  --set image.repository=simpleapi1 \
+  --set image.tag=v1
+
+# Sample Output:
+# NAME: simple-apis
+# LAST DEPLOYED: Wed Feb 26 10:15:00 2026
+# NAMESPACE: simple-apis
+# STATUS: deployed
+# REVISION: 1
+
+# ── List releases ─────────────────────────────────────────────────────
+helm list -n simple-apis
+# NAME          NAMESPACE    REVISION  STATUS    CHART                   APP VERSION
+# simple-apis   simple-apis  1         deployed  simple-apis-chart-0.1.0 v1
+
+# ── Upgrade (new image version) ───────────────────────────────────────
+helm upgrade simple-apis simple-apis-chart/ \
+  -n simple-apis \
+  --set image.tag=v2 \
+  --atomic \             # Rollback automatically if upgrade fails
+  --timeout 5m
+
+# ── Override with environment-specific values ─────────────────────────
+cat > values-prod.yaml << 'EOF'
+replicaCount: 5
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+autoscaling:
+  maxReplicas: 20
+EOF
+
+helm upgrade simple-apis simple-apis-chart/ -n simple-apis -f values-prod.yaml
+
+# ── Rollback to previous revision ────────────────────────────────────
+helm rollback simple-apis 1 -n simple-apis
+# Rollback was a success! Happy Helming!
+
+# ── View history ─────────────────────────────────────────────────────
+helm history simple-apis -n simple-apis
+# REVISION  STATUS      DESCRIPTION
+# 1         superseded  Install complete
+# 2         superseded  Upgrade complete
+# 3         deployed    Rollback to 1
+
+# ── Uninstall ────────────────────────────────────────────────────────
+helm uninstall simple-apis -n simple-apis
+```
+
+---
+
+### 21.13 — Prometheus & Grafana via Helm (Local Monitoring)
+
+```bash
+# ── Install kube-prometheus-stack (Prometheus + Grafana + Alertmanager) ─
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+
+helm install monitoring prometheus-community/kube-prometheus-stack \
+  --namespace monitoring \
+  --create-namespace \
+  --set grafana.adminPassword=admin123 \
+  --set prometheus.prometheusSpec.retention=2d \    # Keep 2 days of data locally
+  --wait \
+  --timeout 10m
+
+# Sample Output:
+# NAME: monitoring
+# STATUS: deployed
+# NOTES:
+#   Get Grafana admin password: kubectl get secret ... -o jsonpath=...
+#   Get Grafana URL: kubectl port-forward svc/monitoring-grafana 3000:80
+
+# ── Check what got installed ─────────────────────────────────────────
+kubectl get pods -n monitoring
+# NAME                                                    READY   STATUS
+# alertmanager-monitoring-kube-prometheus-alertmanager-0  2/2     Running
+# monitoring-grafana-xxx                                  3/3     Running
+# monitoring-kube-prometheus-operator-xxx                 1/1     Running
+# monitoring-kube-state-metrics-xxx                       1/1     Running
+# monitoring-prometheus-node-exporter-xxx                 1/1     Running (DaemonSet)
+# prometheus-monitoring-kube-prometheus-prometheus-0      2/2     Running
+
+# ── Access Grafana dashboard ──────────────────────────────────────────
+kubectl port-forward svc/monitoring-grafana 3000:80 -n monitoring
+# Open browser: http://localhost:3000
+# Username: admin   Password: admin123
+#
+# Pre-built dashboards to explore:
+#   - Kubernetes / Compute Resources / Cluster
+#   - Kubernetes / Compute Resources / Namespace (Pods)
+#   - Kubernetes / Networking / Namespace (Pods)
+#   - Node Exporter / USE Method / Node
+
+# ── Access Prometheus UI ──────────────────────────────────────────────
+kubectl port-forward svc/monitoring-kube-prometheus-prometheus 9090:9090 -n monitoring
+# Open browser: http://localhost:9090
+# Try PromQL queries:
+#   container_memory_working_set_bytes{namespace="simple-apis"}
+#   rate(container_cpu_usage_seconds_total{namespace="simple-apis"}[5m])
+#   kube_pod_container_status_restarts_total{namespace="simple-apis"}
+```
+
+#### Custom PrometheusRule Alert
+```yaml
+# ~/aks-local/k8s/prometheus-alert.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: simple-apis-alerts
+  namespace: monitoring
+  labels:
+    # These labels tell the Prometheus operator to load this rule
+    release: monitoring          # Must match helm release name
+    app: kube-prometheus-stack
+spec:
+  groups:
+  - name: simple-apis
+    rules:
+    - alert: HighRestartCount
+      expr: |
+        rate(kube_pod_container_status_restarts_total{
+          namespace="simple-apis"
+        }[15m]) * 60 * 15 > 3
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Pod {{ $labels.pod }} restarted > 3 times in 15m"
+```
+
+---
+
+### 21.14 — ArgoCD (GitOps) Locally
+
+```bash
+# ── Install ArgoCD ────────────────────────────────────────────────────
+kubectl create namespace argocd
+kubectl apply -n argocd -f \
+  https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+# Wait for ArgoCD to be ready
+kubectl wait --for=condition=available deployment/argocd-server \
+  -n argocd --timeout=5m
+
+# ── Get admin password ─────────────────────────────────────────────────
+kubectl get secret argocd-initial-admin-secret -n argocd \
+  -o jsonpath="{.data.password}" | base64 -d
+# Output: XYZrandom123   ← initial password
+
+# ── Port-forward ArgoCD UI ─────────────────────────────────────────────
+kubectl port-forward svc/argocd-server 8080:443 -n argocd
+# Open browser: https://localhost:8080
+# Username: admin   Password: (from above)
+```
+
+#### Create ArgoCD Application (pointing to local Git repo)
+```bash
+# Initialize a local git repo with your k8s manifests
+cd ~/aks-local
+git init
+git add k8s/
+git commit -m "Initial k8s manifests"
+
+# For ArgoCD to sync a local repo, use a file:// URL
+# Or push to GitHub and use that URL
+```
+
+```yaml
+# ~/aks-local/argocd-app.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: simple-apis
+  namespace: argocd              # Application lives in argocd namespace
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io   # Delete K8s resources when app deleted
+spec:
+  project: default
+  source:
+    # For GitHub (recommended for real GitOps practice):
+    repoURL: https://github.com/yourusername/aks-local
+    targetRevision: main
+    path: k8s                   # Deploy all manifests in this folder
+
+    # For Helm chart in Git:
+    # helm:
+    #   valueFiles:
+    #   - values.yaml
+
+  destination:
+    server: https://kubernetes.default.svc    # Local cluster
+    namespace: simple-apis
+
+  syncPolicy:
+    automated:
+      prune: true               # Delete resources removed from Git
+      selfHeal: true            # Revert manual kubectl changes
+    syncOptions:
+    - CreateNamespace=true      # Auto-create namespace if missing
+```
+
+```bash
+kubectl apply -f argocd-app.yaml
+
+# Check sync status
+kubectl get applications -n argocd
+# NAME          SYNC STATUS   HEALTH STATUS
+# simple-apis   Synced        Healthy
+
+# Watch ArgoCD detect a change:
+# 1. Edit k8s/simpleapi1.yaml (change replicas: 2 to replicas: 3)
+# 2. git add . && git commit -m "Scale to 3" && git push
+# 3. ArgoCD detects change within 3 minutes (or click "Sync" in UI)
+# 4. kubectl get pods -n simple-apis   → shows 3 pods!
+```
+
+---
+
+### 21.15 — Network Policies Locally (Calico)
+
+```bash
+# minikube uses kindnet CNI by default (no network policy support)
+# Restart minikube with Calico CNI for network policy support
+
+minikube stop
+minikube start \
+  --driver=docker \
+  --cpus=4 \
+  --memory=8192 \
+  --cni=calico \               # Calico supports NetworkPolicy
+  --addons=ingress,metrics-server
+
+# Verify Calico is running
+kubectl get pods -n kube-system | grep calico
+# calico-kube-controllers-xxx    1/1   Running
+# calico-node-xxx                1/1   Running (DaemonSet on each node)
+```
+
+```yaml
+# Default-deny all ingress in namespace (zero-trust model)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: simple-apis
+spec:
+  podSelector: {}               # Applies to ALL pods
+  policyTypes:
+  - Ingress                     # Block all inbound
+
+---
+# Allow only simpleapi1 to call simpleapi2
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-api1-to-api2
+  namespace: simple-apis
+spec:
+  podSelector:
+    matchLabels:
+      app: simpleapi2           # Policy for simpleapi2 pods
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: simpleapi1       # Only simpleapi1 pods can call
+    ports:
+    - protocol: TCP
+      port: 80
+```
+
+```bash
+kubectl apply -f k8s/network-policy.yaml
+
+# Test: simpleapi1 can reach simpleapi2 (should work)
+kubectl exec -it $(kubectl get pod -l app=simpleapi1 -o name | head -1) -- \
+  wget -qO- http://simpleapi2-svc/info
+# {"service":"simpleapi2",...}   ← success
+
+# Test: random pod CANNOT reach simpleapi2 (blocked by NetworkPolicy)
+kubectl run test-blocked --image=busybox --restart=Never -n simple-apis -- \
+  wget --timeout=5 -O- http://simpleapi2-svc/info
+kubectl logs test-blocked -n simple-apis
+# wget: download timed out   ← correctly blocked!
+kubectl delete pod test-blocked -n simple-apis
+```
+
+---
+
+### 21.16 — StatefulSet with Local Storage
+
+```yaml
+# ~/aks-local/k8s/statefulset.yaml
+# Simulates a database with per-pod storage
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: localdb
+  namespace: simple-apis
+spec:
+  serviceName: localdb-headless   # Headless service for stable DNS
+  replicas: 2
+  selector:
+    matchLabels:
+      app: localdb
+  template:
+    metadata:
+      labels:
+        app: localdb
+    spec:
+      containers:
+      - name: db
+        image: busybox:latest
+        command: ["sh", "-c", "while true; do echo $(date) >> /data/log.txt; sleep 5; done"]
+        volumeMounts:
+        - name: data
+          mountPath: /data
+  # Each pod gets its own PVC automatically:
+  # localdb-0 → data-localdb-0
+  # localdb-1 → data-localdb-1
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: [ReadWriteOnce]
+      storageClassName: standard   # minikube's default
+      resources:
+        requests:
+          storage: 100Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: localdb-headless
+  namespace: simple-apis
+spec:
+  clusterIP: None                 # Headless = no ClusterIP; DNS returns pod IPs directly
+  selector:
+    app: localdb
+  ports:
+  - port: 80
+```
+
+```bash
+kubectl apply -f k8s/statefulset.yaml
+
+kubectl get statefulset -n simple-apis
+# NAME      READY   AGE
+# localdb   2/2     1m
+
+# Each pod has stable DNS name:
+# localdb-0.localdb-headless.simple-apis.svc.cluster.local
+# localdb-1.localdb-headless.simple-apis.svc.cluster.local
+
+kubectl exec localdb-0 -n simple-apis -- cat /data/log.txt
+# Thu Feb 26 10:00:00 UTC 2026
+# Thu Feb 26 10:00:05 UTC 2026
+
+# Delete pod — it comes back with SAME name and SAME storage
+kubectl delete pod localdb-0 -n simple-apis
+kubectl get pods -n simple-apis | grep localdb
+# localdb-0   1/1   Running   0   15s    ← back with same name!
+
+kubectl exec localdb-0 -n simple-apis -- cat /data/log.txt
+# Thu Feb 26 10:00:00 UTC 2026   ← old data still there
+# Thu Feb 26 10:02:30 UTC 2026   ← new data after restart
+```
+
+---
+
+### 21.17 — DaemonSet (Runs on Every Node)
+
+```yaml
+# ~/aks-local/k8s/daemonset.yaml
+# Simulates a node-level log collector (like Fluent Bit in production)
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-logger
+  namespace: simple-apis
+spec:
+  selector:
+    matchLabels:
+      app: node-logger
+  template:
+    metadata:
+      labels:
+        app: node-logger
+    spec:
+      tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule         # Run on control-plane node too
+      containers:
+      - name: logger
+        image: busybox:latest
+        command: ["sh", "-c", "while true; do echo [$(date)] Node: $MY_NODE; sleep 10; done"]
+        env:
+        - name: MY_NODE
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        volumeMounts:
+        - name: node-logs
+          mountPath: /host-logs
+          readOnly: true
+      volumes:
+      - name: node-logs
+        hostPath:
+          path: /var/log
+          type: Directory
+```
+
+```bash
+kubectl apply -f k8s/daemonset.yaml
+
+kubectl get daemonset -n simple-apis
+# NAME          DESIRED   CURRENT   READY   NODE SELECTOR
+# node-logger   2         2         2       <none>
+# ↑ 2 = one pod per node (minikube has 2 nodes)
+
+kubectl get pods -n simple-apis -l app=node-logger -o wide
+# NAME               READY  STATUS    NODE
+# node-logger-abc    1/1    Running   minikube       ← on node 1
+# node-logger-def    1/1    Running   minikube-m02   ← on node 2
+```
+
+---
+
+### 21.18 — RBAC: Local Practice
+
+```yaml
+# Create a read-only role for a developer who can only view pods/logs
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dev-viewer
+  namespace: simple-apis
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pod-reader
+  namespace: simple-apis
+rules:
+- apiGroups: [""]
+  resources: ["pods", "pods/log"]
+  verbs: ["get", "list", "watch"]   # Read-only: get, list, watch (NOT create/delete)
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dev-viewer-binding
+  namespace: simple-apis
+subjects:
+- kind: ServiceAccount
+  name: dev-viewer
+  namespace: simple-apis
+roleRef:
+  kind: Role
+  name: pod-reader
+  apiGroup: rbac.authorization.k8s.io
+```
+
+```bash
+kubectl apply -f k8s/rbac.yaml
+
+# Test: Use the ServiceAccount to run a pod and verify permissions
+kubectl run rbac-test \
+  --image=bitnami/kubectl:latest \
+  --restart=Never \
+  --serviceaccount=dev-viewer \
+  -n simple-apis \
+  --command -- sleep 3600
+
+# Can read pods (allowed)
+kubectl exec rbac-test -n simple-apis -- kubectl get pods
+# NAME            READY   STATUS   RESTARTS
+# simpleapi1-xxx  1/1     Running  0
+
+# Cannot delete pods (forbidden)
+kubectl exec rbac-test -n simple-apis -- \
+  kubectl delete pod simpleapi1-xxx
+# Error from server (Forbidden): pods "simpleapi1-xxx" is forbidden:
+# User "system:serviceaccount:simple-apis:dev-viewer" cannot delete resource "pods"
+
+kubectl delete pod rbac-test -n simple-apis
+```
+
+---
+
+### 21.19 — Full Cleanup & Restart Script
+
+```bash
+#!/bin/bash
+# ~/aks-local/scripts/reset.sh
+# Tear down everything and start fresh
+
+echo "=== Deleting all resources in simple-apis namespace ==="
+kubectl delete namespace simple-apis --ignore-not-found
+
+echo "=== Removing Helm releases ==="
+helm uninstall simple-apis -n simple-apis 2>/dev/null || true
+helm uninstall monitoring -n monitoring 2>/dev/null || true
+helm uninstall keda -n keda 2>/dev/null || true
+
+echo "=== Stopping minikube ==="
+minikube stop
+
+echo "=== Deleting minikube cluster (full reset) ==="
+minikube delete
+
+echo "=== Done. Run: minikube start to begin fresh ==="
+```
+
+---
+
+### 21.20 — Feature Coverage Map: Local vs Cloud
+
+| AKS Feature | Local Tool | Cloud Equivalent | Notes |
+|------------|-----------|------------------|-------|
+| Container runtime | containerd (minikube) | containerd (AKS) | Identical |
+| Ingress | NGINX Ingress (minikube addon) | AGIC / NGINX on AKS | Same YAML |
+| Persistent Volumes | hostPath (minikube) | Azure Disk CSI | Same PVC API |
+| Shared Volumes | hostPath RWX trick | Azure Files CSI | Limited locally |
+| HPA | metrics-server addon | Azure Monitor metrics | Identical behavior |
+| KEDA | Helm install | AKS add-on | Identical |
+| Network Policy | Calico (restart with --cni=calico) | Azure CNI Cilium | Same K8s API |
+| RBAC | kubectl apply | Azure RBAC + K8s RBAC | Identical K8s RBAC |
+| Secrets | K8s Secrets | Azure Key Vault CSI | No KV locally |
+| Monitoring | Prometheus + Grafana (Helm) | Azure Monitor + Managed Grafana | Same dashboards |
+| GitOps | ArgoCD (Helm) | ArgoCD or Flux | Identical |
+| StatefulSet | minikube storageclass | managed-premium-csi | Same YAML |
+| DaemonSet | hostPath /var/log | Azure Monitor agent | Same YAML |
+| LoadBalancer service | minikube tunnel | Azure Load Balancer | Same behavior |
+| Multi-tenancy | Namespaces + ResourceQuota | Same | Identical |
+| Service Mesh | Istio (Helm) | Istio AKS add-on | Same CRDs |
+
+```bash
+# ── Extra: Enable LoadBalancer type services locally ──────────────────
+# In a second terminal, run:
+minikube tunnel
+# This creates a network route so LoadBalancer services get a real IP
+# Sample Output:
+# Status: Running
+# machine: minikube
+# pid: 12345
+# route: 10.96.0.0/12 -> 192.168.49.2
+# minikube: Running
+# services: [simpleapi1-lb]
+#   namespace   name              loadbalancer-ip  ports
+#   simple-apis simpleapi1-lb     10.100.0.10      80
+
+# Now LoadBalancer services work like in real AKS!
+kubectl expose deployment simpleapi1 \
+  --type=LoadBalancer --port=80 --name=simpleapi1-lb -n simple-apis
+kubectl get svc simpleapi1-lb -n simple-apis
+# NAME            TYPE           CLUSTER-IP    EXTERNAL-IP   PORT(S)
+# simpleapi1-lb   LoadBalancer   10.100.0.10   10.100.0.10   80:xxxxx/TCP
+curl http://10.100.0.10/info
+```
+
+---
+
+### 21.21 — Quick Reference: All Local Commands in Order
+
+```bash
+# ═══════════════════════════════════════════════════════════════════
+#  COMPLETE LOCAL AKS SETUP — SEQUENCE OF COMMANDS
+# ═══════════════════════════════════════════════════════════════════
+
+# 1. Start cluster
+minikube start --driver=docker --cpus=4 --memory=8192 \
+  --nodes=2 --addons=ingress,metrics-server,dashboard
+
+# 2. Build images inside minikube
+eval $(minikube docker-env)
+docker build -t simpleapi1:v1 -f SimpleApi1/Dockerfile SimpleApi1/
+docker build -t simpleapi2:v1 -f SimpleApi2/Dockerfile SimpleApi2/
+eval $(minikube docker-env -u)
+
+# 3. Create namespace and deploy
+kubectl create namespace simple-apis
+kubectl apply -f k8s/ -n simple-apis
+
+# 4. Install Helm chart
+helm install simple-apis ./simple-apis-chart -n simple-apis
+
+# 5. Install monitoring
+helm install monitoring prometheus-community/kube-prometheus-stack \
+  -n monitoring --create-namespace --set grafana.adminPassword=admin123
+
+# 6. Install KEDA
+helm install keda kedacore/keda -n keda --create-namespace
+
+# 7. Install ArgoCD
+kubectl create namespace argocd
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+# 8. Access services
+kubectl port-forward svc/monitoring-grafana 3000:80 -n monitoring &
+kubectl port-forward svc/argocd-server 8080:443 -n argocd &
+minikube dashboard &             # Kubernetes Dashboard
+minikube tunnel &                # Enable LoadBalancer IPs
+
+# 9. Verify everything
+kubectl get all -n simple-apis
+kubectl get all -n monitoring
+kubectl get all -n keda
+kubectl get all -n argocd
+
+echo "Simple API: http://simple-apis.local/api1/info"
+echo "Grafana:    http://localhost:3000"
+echo "ArgoCD:     https://localhost:8080"
+echo "Dashboard:  (opens in browser)"
+```
+
+---
+
+---
+
+## PART 22: Merged Insights — Unique Content from Reference Guide
+
+> This part captures patterns and guidance unique to the companion reference file that enrich this guide with different angles, additional .NET integration patterns, and practical quick-reference formats.
+
+---
+
+### 22.1 — YAML Files Quick Index (Orientation Map)
+
+> **Mental model:** Before writing any YAML, know what role it plays. Every Kubernetes file addresses exactly one concern. This table is your map.
+
+| File | Kind(s) | Concern | Configures |
+|------|---------|---------|-----------|
+| `k8s-simpleapi1.yaml` | Deployment + Service | Workload + Networking | Pods, replicas, ClusterIP |
+| `k8s-simpleapi2.yaml` | Deployment + Service | Workload + Networking | Backend service pods |
+| `k8s-ingress.yaml` | Ingress | External HTTP routing | Path `/api1` → api1-svc, `/api2` → api2-svc |
+| `k8s-config.yaml` | ConfigMap | Non-sensitive config | Feature flags, app names, log levels |
+| `k8s-secrets.yaml` | Secret | Sensitive config | Connection strings, API keys |
+| `k8s-hpa.yaml` | HorizontalPodAutoscaler | Scaling | CPU/Memory-based auto-scale |
+| `k8s-pvc.yaml` | PVC + StorageClass | Storage | Durable disk for uploads/data |
+| `k8s-networkpolicy.yaml` | NetworkPolicy | Security | Which pods can talk to which |
+| `k8s-rbac.yaml` | ServiceAccount + Role + RoleBinding | Access Control | Who can do what in namespace |
+| `k8s-pdb.yaml` | PodDisruptionBudget | Reliability | Min pods during node drain/upgrade |
+
+```
+Deployment (replicas, image, probes, resources)
+    └── controlled by HPA (scale replicas based on CPU/memory)
+    └── selected by Service (stable IP/DNS → pods)
+              └── routed by Ingress (HTTP paths → service)
+    └── reads ConfigMap + Secret (env vars / file mounts)
+    └── mounts PVC (durable storage)
+    └── runs as ServiceAccount (workload identity for Azure access)
+    └── governed by NetworkPolicy (which pods can reach it)
+    └── protected by PodDisruptionBudget (safe during upgrades)
+```
+
+---
+
+### 22.2 — .NET API-Level Authentication with Entra ID (JWT Bearer)
+
+> **Context:** Kubernetes RBAC controls cluster access. Workload Identity controls Azure resource access. But **who can call your API endpoints** is controlled inside your .NET app using JWT tokens from Entra ID. These are three distinct, independent layers.
+
+```
+Layer 1 (Cluster level):   Kubernetes RBAC + Workload Identity
+Layer 2 (Application level): Entra ID JWT Bearer   ← this section
+                              → Controls which callers can hit which endpoints
+
+Client → "Authorization: Bearer <JWT>" → NGINX Ingress → SimpleApi1
+                                                   ↓
+                                       ASP.NET Core JwtBearer middleware
+                                       validates token against Entra ID
+                                                   ↓
+                                       [Authorize] attribute on endpoints
+```
+
+```bash
+dotnet add package Microsoft.AspNetCore.Authentication.JwtBearer
+```
+
+```csharp
+// Program.cs — Entra ID JWT Bearer auth for a .NET minimal API
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        // Entra ID v2 token issuer for your tenant
+        // TenantId injected via env var (ConfigMap) — not hardcoded
+        options.Authority =
+            $"https://login.microsoftonline.com/{builder.Configuration["AzureAd:TenantId"]}/v2.0";
+
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            // API's App ID URI or Client ID registered in Entra ID
+            ValidAudience = builder.Configuration["AzureAd:ClientId"],
+            ValidateLifetime = true,
+            ValidateIssuer  = true       // Prevent cross-tenant token reuse
+        };
+    });
+
+builder.Services.AddAuthorization();
+builder.Services.AddHealthChecks();
+
+var app = builder.Build();
+
+// UseAuthentication BEFORE UseAuthorization — order matters!
+app.UseAuthentication();
+app.UseAuthorization();
+
+// Public — no token required
+app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
+
+// Protected — must present valid Entra ID JWT
+app.MapGet("/secure-data", () =>
+    Results.Ok(new { secret = "sensitive data", ts = DateTime.UtcNow }))
+    .RequireAuthorization();
+
+// Role-protected — token must have "Admin" role claim
+app.MapGet("/admin-only", (HttpContext ctx) =>
+{
+    var caller = ctx.User.FindFirst("preferred_username")?.Value;
+    return Results.Ok(new { message = $"Hello admin: {caller}" });
+})
+.RequireAuthorization(p => p.RequireRole("Admin"));
+
+app.Run();
+```
+
+```yaml
+# Inject Entra ID config via Secret (never hardcode tenant/client IDs in images)
+env:
+- name: AzureAd__TenantId
+  valueFrom:
+    secretKeyRef:
+      name: entra-config
+      key: tenantId
+- name: AzureAd__ClientId
+  valueFrom:
+    secretKeyRef:
+      name: entra-config
+      key: clientId
+```
+
+```bash
+# Test with a real Entra ID token
+TOKEN=$(az account get-access-token --resource "api://<YOUR_CLIENT_ID>" --query accessToken -o tsv)
+curl -H "Authorization: Bearer $TOKEN" http://$INGRESS_IP/api1/secure-data
+# 200: {"secret":"sensitive data",...}
+
+curl http://$INGRESS_IP/api1/secure-data   # No token
+# 401 Unauthorized
+```
+
+---
+
+### 22.3 — Application Insights Full Integration for .NET on AKS
+
+> `kubectl logs` shows raw stdout. Application Insights gives you request durations, dependency calls (DB, downstream APIs), exceptions with stack traces, and custom events — all queryable in Azure Portal.
+
+```bash
+dotnet add package Microsoft.ApplicationInsights.AspNetCore
+```
+
+```csharp
+// Program.cs
+var builder = WebApplication.CreateBuilder(args);
+
+// Auto-reads APPLICATIONINSIGHTS_CONNECTION_STRING env var
+// OR builder.Configuration["ApplicationInsights:ConnectionString"]
+builder.Services.AddApplicationInsightsTelemetry();
+
+var app = builder.Build();
+
+// AI automatically tracks:
+//   HTTP requests (URL, duration, status) → "requests" table
+//   Exceptions (stack traces)             → "exceptions" table
+//   Downstream HTTP calls                 → "dependencies" table
+//   ILogger entries                       → "traces" table
+
+app.MapGet("/hello/{name?}", (string? name, ILogger<Program> logger) =>
+{
+    // This log line appears in App Insights "traces" with Property "Name"
+    logger.LogInformation("Handling /hello for {Name}", name ?? "World");
+    return Results.Ok(new { message = $"Hello, {name ?? "World"}!" });
+});
+
+app.Run();
+```
+
+```yaml
+# Deployment env var — connection string from Key Vault Secret
+env:
+- name: APPLICATIONINSIGHTS_CONNECTION_STRING
+  valueFrom:
+    secretKeyRef:
+      name: app-secrets
+      key: ai-connection-string
+```
+
+#### KQL Queries for App Insights
+
+```kusto
+// Failed requests in last 1 hour
+requests
+| where timestamp > ago(1h)
+| where success == false
+| where cloud_RoleName == "simpleapi1"
+| project timestamp, name, duration, resultCode, operation_Id
+| order by timestamp desc
+
+// P95 latency by endpoint
+requests
+| where timestamp > ago(1h)
+| where cloud_RoleName == "simpleapi1"
+| summarize avg(duration), percentile(duration, 95), count() by name
+| order by percentile_duration_95 desc
+
+// Exceptions with full details
+exceptions
+| where timestamp > ago(1h)
+| where cloud_RoleName == "simpleapi1"
+| project timestamp, type, outerMessage, innermostMessage, operation_Id
+| take 20
+
+// Downstream service call latency (SimpleApi1 → SimpleApi2)
+dependencies
+| where timestamp > ago(1h)
+| where cloud_RoleName == "simpleapi1"
+| summarize avg(duration), countif(success==false) by target, name
+
+// Log volume by severity (for cost monitoring)
+traces
+| where timestamp > ago(24h)
+| where cloud_RoleName == "simpleapi1"
+| summarize count() by severityLevel
+```
+
+---
+
+### 22.4 — Structured Logging with ILogger in .NET Minimal API
+
+> **Why it matters:** Unstructured text in logs is unsearchable. Structured logs with `{PropertyName}` placeholders become queryable columns in Log Analytics.
+
+```csharp
+// Program.cs — Structured logging setup for AKS
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole(o => o.FormatterName = "json");  // JSON = parseable by Azure Monitor
+
+// Reduce noise (and cost!) in production
+builder.Logging.SetMinimumLevel(
+    builder.Environment.IsProduction() ? LogLevel.Warning : LogLevel.Information);
+
+var app = builder.Build();
+
+app.MapGet("/hello/{name?}", (string? name, ILogger<Program> logger) =>
+{
+    var n = name ?? "World";
+
+    // {Name} and {PodName} become SEARCHABLE PROPERTIES in Log Analytics:
+    // ContainerLogV2 | where Properties.Name == "Alice"
+    logger.LogInformation("Handling /hello for {Name} on pod {PodName}",
+        n,
+        Environment.GetEnvironmentVariable("HOSTNAME"));  // K8s sets this to pod name
+
+    return Results.Ok(new { message = $"Hello, {n}!" });
+});
+
+app.MapGet("/process", async (ILogger<Program> logger) =>
+{
+    var sw = System.Diagnostics.Stopwatch.StartNew();
+    try
+    {
+        await Task.Delay(10);  // simulate work
+        logger.LogInformation("Process completed in {Duration}ms", sw.ElapsedMilliseconds);
+        return Results.Ok("done");
+    }
+    catch (Exception ex)
+    {
+        // LogError with exception object: captures full stack trace
+        logger.LogError(ex, "Process failed. RequestId={RequestId}", Guid.NewGuid());
+        return Results.Problem("Processing failed");
+    }
+});
+
+app.Run();
+```
+
+```json
+// appsettings.Production.json — mount as ConfigMap volume in AKS
+// Avoids rebuilding image just to change log levels
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Warning",
+      "Microsoft.AspNetCore": "Warning",
+      "Microsoft.Hosting.Lifetime": "Information",
+      "SimpleApi1": "Information"
+    }
+  }
+}
+```
+
+---
+
+### 22.5 — AGIC (Application Gateway Ingress Controller) + Azure DNS
+
+> **When to choose AGIC over NGINX:** You need Azure WAF, ExpressRoute integration, Azure-managed SSL certificates, or your organization's security standard requires Azure-native components.
+
+```bash
+RG="rg-aks-demo"; LOCATION="eastus"
+VNET="vnet-aks-appgw"; AKS_SUBNET="snet-aks"; APPGW_SUBNET="snet-appgw"
+APPGW_NAME="appgw-simpleapis"; AKS_NAME="aks-simpleapis"
+
+# Step 1: VNet with two dedicated subnets
+# App Gateway MUST have its own subnet (cannot share with AKS nodes)
+az network vnet create -g $RG -n $VNET \
+  --address-prefixes 10.0.0.0/16 \
+  --subnet-name $AKS_SUBNET --subnet-prefixes 10.0.0.0/24
+
+az network vnet subnet create -g $RG --vnet-name $VNET \
+  --name $APPGW_SUBNET --address-prefixes 10.0.1.0/24
+
+# Step 2: Static public IP for DNS A record (must be Standard SKU)
+az network public-ip create -g $RG -n pip-appgw \
+  --sku Standard --allocation-method Static --zone 1 2 3
+
+# Step 3: Application Gateway (WAF_v2 = WAF + autoscaling)
+az network application-gateway create -g $RG -n $APPGW_NAME \
+  --sku WAF_v2 --public-ip-address pip-appgw \
+  --vnet-name $VNET --subnet $APPGW_SUBNET
+
+APPGW_ID=$(az network application-gateway show -g $RG -n $APPGW_NAME --query id -o tsv)
+
+# Step 4: AKS in same VNet (Azure CNI required — AGIC doesn't work with kubenet)
+AKS_SUBNET_ID=$(az network vnet subnet show -g $RG \
+  --vnet-name $VNET --name $AKS_SUBNET --query id -o tsv)
+
+az aks create -g $RG -n $AKS_NAME --node-count 2 \
+  --network-plugin azure \
+  --vnet-subnet-id $AKS_SUBNET_ID \
+  --enable-managed-identity --generate-ssh-keys
+
+# Step 5: Enable AGIC add-on
+az aks enable-addons -g $RG -n $AKS_NAME \
+  --addons ingress-appgw --appgw-id $APPGW_ID
+
+az aks get-credentials -g $RG -n $AKS_NAME
+kubectl get pods -n kube-system | grep ingress-appgw
+# ingress-appgw-deployment-xxx   1/1   Running   0   2m ← AGIC controller running
+```
+
+```yaml
+# Ingress with AGIC — only the annotation differs from NGINX
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: simple-apis-agic
+  namespace: simple-apis
+  annotations:
+    kubernetes.io/ingress.class: azure/application-gateway  # AGIC
+    # NGINX equivalent: kubernetes.io/ingress.class: "nginx"
+spec:
+  rules:
+  - host: api.mycompany.com
+    http:
+      paths:
+      - path: /api1
+        pathType: Prefix
+        backend:
+          service:
+            name: simpleapi1-svc
+            port:
+              number: 80
+      - path: /api2
+        pathType: Prefix
+        backend:
+          service:
+            name: simpleapi2-svc
+            port:
+              number: 80
+```
+
+```bash
+# Step 6: Azure DNS — map api.mycompany.com to App Gateway IP
+DNS_ZONE="mycompany.com"
+az network dns zone create -g $RG -n $DNS_ZONE
+
+APPGW_IP=$(az network public-ip show -g $RG -n pip-appgw --query ipAddress -o tsv)
+
+# A record: api.mycompany.com → App Gateway public IP
+az network dns record-set a add-record -g $RG \
+  --zone-name $DNS_ZONE --record-set-name api \
+  --ipv4-address $APPGW_IP --ttl 300
+
+# End-to-end test (after DNS propagates, ~5 min)
+curl http://api.mycompany.com/api1/health
+# {"status":"healthy","service":"simpleapi1"}
+```
+
+---
+
+### 22.6 — Helm Go Template Functions Deep Dive
+
+> The Helm section covers structure. This section covers the Go template functions used inside every `templates/*.yaml` — the syntax that trips up everyone initially.
+
+```gotemplate
+{{/* ── Whitespace control ─────────────────────────────────────────── */}}
+{{-   trim preceding whitespace/newlines      }}
+{{    no trim                                 -}}
+{{-   trim both sides                         -}}
+
+{{/* ── Value access ──────────────────────────────────────────────── */}}
+{{ .Values.replicaCount }}          {{/* user-defined value */}}
+{{ .Release.Name }}                  {{/* helm install <NAME> ... */}}
+{{ .Release.Namespace }}
+{{ .Chart.Name }}                    {{/* from Chart.yaml */}}
+{{ .Chart.AppVersion }}
+
+{{/* ── default: fallback when value is empty ───────────────────── */}}
+replicas: {{ .Values.replicaCount | default 2 }}
+tag: "{{ .Values.image.tag | default .Chart.AppVersion }}"
+
+{{/* ── required: fail chart render with message if value unset ─── */}}
+connStr: {{ required "connectionString must be set!" .Values.connectionString | quote }}
+
+{{/* ── quote / squote: wrap in "double" or 'single' quotes ──────── */}}
+value: {{ .Values.flag | quote }}        {{/* "true" */}}
+value: {{ .Values.txt  | squote }}       {{/* 'my text' */}}
+
+{{/* ── toYaml + nindent: embed a complex map/list as YAML ────────── */}}
+{{/* Most used for: resources, env, tolerations, affinity, annotations */}}
+resources:
+  {{- toYaml .Values.resources | nindent 2 }}
+{{/* Renders .Values.resources as properly indented YAML block */}}
+
+{{/* ── nindent vs indent ────────────────────────────────────────── */}}
+{{/* nindent = newline THEN indent (use with {{- include ... }})    */}}
+{{/* indent  = indent only (no leading newline)                     */}}
+labels:
+  {{- include "mychart.labels" . | nindent 2 }}   {{/* standard pattern */}}
+
+{{/* ── ternary: inline if-else ─────────────────────────────────── */}}
+pullPolicy: {{ ternary "Always" "IfNotPresent" (eq .Values.image.tag "latest") }}
+
+{{/* ── printf: string formatting ────────────────────────────────── */}}
+image: "{{ printf "%s:%s" .Values.image.repository .Values.image.tag }}"
+
+{{/* ── trunc + trimSuffix: DNS-safe names (K8s name limit = 63) ─── */}}
+name: {{ printf "%s-%s" .Release.Name .Chart.Name | trunc 63 | trimSuffix "-" }}
+
+{{/* ── replace: string substitution ────────────────────────────── */}}
+name: {{ .Values.appName | replace "." "-" }}    {{/* app.v1 → app-v1 */}}
+```
+
+```gotemplate
+{{/* ── Conditionals ─────────────────────────────────────────────── */}}
+{{- if .Values.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+...
+{{- else }}
+replicas: {{ .Values.replicaCount }}   {{/* static replica count when no HPA */}}
+{{- end }}
+
+{{/* ── with: set dot (.) to a sub-object, skip block if nil ──────── */}}
+{{- with .Values.ingress.annotations }}
+annotations:
+  {{- toYaml . | nindent 4 }}
+{{- end }}   {{/* entire block skipped if .Values.ingress.annotations is nil */}}
+
+{{/* ── range over a list ─────────────────────────────────────────── */}}
+env:
+{{- range .Values.extraEnvVars }}
+- name: {{ .name }}
+  value: {{ .value | quote }}
+{{- end }}
+{{/* values.yaml:  extraEnvVars: [{name: LOG_LEVEL, value: debug}] */}}
+
+{{/* ── range over a map (key/value pairs) ──────────────────────── */}}
+annotations:
+{{- range $key, $value := .Values.podAnnotations }}
+  {{ $key }}: {{ $value | quote }}
+{{- end }}
+```
+
+```bash
+# Debug: render templates locally without installing
+helm template my-release ./mychart/
+helm template my-release ./mychart/ --set image.tag=v3 --debug
+
+# Lint the chart before pushing
+helm lint ./mychart/
+
+# Validate against live cluster (checks API compatibility, no install)
+helm install my-release ./mychart/ --dry-run --debug
+```
+
+---
+
+### 22.7 — Sequential Troubleshooting Playbook
+
+> **Rule:** Debug from pod outward. Start closest to the symptom and work toward the entry point. Never check Ingress before verifying the pod is healthy.
+
+```
+SYMPTOM: "API is not responding" or "getting errors"
+    │
+    ▼
+[1] Is cluster healthy?
+    kubectl get nodes  → all Ready?
+    az aks show -g $RG -n $AKS --query powerState -o tsv  → Running?
+    If NO → node issue (drain, disk pressure, VM failure)
+    │
+    ▼
+[2] Are pods Running and Ready?
+    kubectl get pods -n simple-apis
+    READY = 1/1 and STATUS = Running?
+    If NO → kubectl describe pod <pod> → Events section (ImagePullBackOff, OOMKilled?)
+    │
+    ▼
+[3] Does pod respond directly? (bypass Service and Ingress)
+    kubectl port-forward pod/<pod> 8080:80 -n simple-apis
+    curl http://localhost:8080/health
+    If NO → app code bug, missing env var, config error
+             kubectl exec <pod> -- env | sort  to check env vars
+    │
+    ▼
+[4] Does Service route to pods?
+    kubectl get endpoints simpleapi1-svc -n simple-apis
+    ENDPOINTS column = pod IPs (not <none>)?
+    If <none> → Service selector doesn't match pod labels
+    │
+    ▼
+[5] Does Ingress have an ADDRESS and correct rules?
+    kubectl get ingress -n simple-apis  → ADDRESS present?
+    kubectl describe ingress  → check Rules and Default backend
+    If no ADDRESS → Ingress controller issue
+    │
+    ▼
+[6] What do the application logs say?
+    kubectl logs deployment/simpleapi1 -n simple-apis
+    kubectl logs <pod> --previous  (logs from crashed container)
+    Look for: unhandled exceptions, DB connection failures, auth errors
+    │
+    ▼
+[7] What do Kubernetes Events say?
+    kubectl get events -n simple-apis --sort-by='.lastTimestamp'
+    Look for: Warning events — quota exceeded, failed scheduling, probe failures
+```
+
+```bash
+# One-liner: full namespace status at a glance
+kubectl get pods,svc,ingress,hpa,pvc,events -n simple-apis \
+  --sort-by='.lastTimestamp' 2>/dev/null | head -60
+
+# Find all Warning events cluster-wide
+kubectl get events -A --field-selector type=Warning \
+  --sort-by='.lastTimestamp' | tail -20
+```
+
+---
+
+### 22.8 — Architect-Level Reference: AKS Platform Patterns
+
+#### Entry Point Layer Decision Guide
+
+```
+External Client Request
+       │
+       ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  OPTIONAL: Azure API Management (APIM)                          │
+│  Use when: API product catalog, developer portal, rate limiting │
+│            per-consumer analytics, API versioning, auth offload │
+└─────────────────────────┬───────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  OPTIONAL: Azure Application Gateway                            │
+│  Use when: Azure WAF required, ExpressRoute integration,        │
+│            Azure-managed TLS certs, cookie-based session affinity│
+└─────────────────────────┬───────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  ALWAYS: Kubernetes Ingress (NGINX or AGIC)                     │
+│  Use for: path/host routing, TLS termination, pod-level routing │
+└─────────────────────────┬───────────────────────────────────────┘
+                          │
+                          ▼
+                 Kubernetes Services → Pods
+```
+
+#### IP Address Planning for Azure CNI
+
+```bash
+# Azure CNI: every pod gets a REAL VNet IP — plan BEFORE creating cluster
+# Formula: nodes × max_pods_per_node + buffer
+#
+# 5 nodes × 30 pods = 150 pods needed → /24 (256 IPs) ✓
+# 20 nodes × 30 pods = 600 pods needed → /22 (1024 IPs) ✓
+#
+# Check what's configured
+kubectl get nodes -o custom-columns=\
+'NAME:.metadata.name,MAX-PODS:.status.allocatable.pods'
+```
+
+#### Multi-Environment Namespace Strategy
+
+```yaml
+# ResourceQuota: prevent dev from consuming prod-scale resources
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: dev-quota
+  namespace: simple-apis-dev
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: 4Gi
+    limits.cpu: "4"
+    limits.memory: 8Gi
+    count/pods: "20"
+    count/services: "10"
+```
+
+---
+
+### 22.9 — Command Output Interpretation Reference
+
+```bash
+# ═══════════════════════════════════════════════════════════════════
+#  HEALTHY vs UNHEALTHY — what to look for
+# ═══════════════════════════════════════════════════════════════════
+
+# kubectl get pods:
+# HEALTHY:   1/1   Running   0   (READY=1/1, STATUS=Running, RESTARTS=0)
+# UNHEALTHY: 0/1   CrashLoopBackOff  8   ← restarting repeatedly
+# UNHEALTHY: 0/1   Pending   0            ← can't schedule (resources/taint/PVC)
+# UNHEALTHY: 0/1   Error     0            ← crashed, not retrying
+# UNHEALTHY: 1/1   Running   15           ← running BUT 15 restarts = unstable
+
+# kubectl get deployments:
+# HEALTHY:   3/3   3   3   ← READY=3/3, UP-TO-DATE=3, AVAILABLE=3
+# UNHEALTHY: 1/3   1   1   ← only 1 of 3 pods running
+
+# kubectl get hpa:
+# HEALTHY:   30%/60%   ← current/target, well under threshold
+# SCALING:   85%/60%   ← above threshold, HPA adding replicas NOW
+# BROKEN:    <unknown>/60%  ← metrics-server not running OR missing CPU requests
+
+# kubectl get pvc:
+# HEALTHY:   Bound   pvc-abc123   32Gi   RWO   ← disk provisioned and attached
+# BROKEN:    Pending             ← provisioner failed (check describe pvc)
+# BROKEN:    Lost                ← PV was deleted (data may be gone)
+
+# kubectl get ingress:
+# HEALTHY:   ADDRESS=20.50.100.200   ← external IP assigned
+# BROKEN:    ADDRESS=<empty>         ← ingress controller not running
+
+# kubectl get nodes:
+# HEALTHY:   Ready   agent   5d   v1.31.2
+# BROKEN:    NotReady             ← kubelet lost contact with API server
+# BROKEN:    SchedulingDisabled   ← node cordoned (manual or during upgrade)
+```
+
+---
+
 *End of Azure Kubernetes Service Complete Guide*
+
+> **Last Updated:** February 2026
+> **Kubernetes Version Coverage:** 1.27 – 1.31
+> **AKS CLI Version:** Azure CLI 2.60+
+> **Reference Apps:** SimpleApi1, SimpleApi2 (.NET 10 Minimal API)
+> **Total Sections:** 22 Parts, 80+ Topics
 
 
 
