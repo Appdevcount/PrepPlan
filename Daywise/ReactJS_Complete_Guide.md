@@ -6302,19 +6302,19 @@ This guide covered React comprehensively:
 6. **State Management**: Context, Redux, Zustand, React Query
 7. **Testing**: Jest, React Testing Library, MSW
 8. **SSR**: Next.js, Server Components
+9. **Formik**: Full form lifecycle (`useFormik`, `<Formik>`, `<Field>`, `FieldArray`), custom field components (`useField`), async submission, multi-step wizards
+10. **Yup**: Declarative schema validation — primitives, objects, arrays, cross-field refs, conditional `.when()`, custom `.test()` validators
+11. **React-Bootstrap**: Grid system, Form + validation integration, Modal, Toast, Table, Navbar, Card, Accordion, Tabs
+12. **Common Libraries**: React Query (server state, mutations, cache invalidation), Axios (interceptors, cancel), React Hook Form, React Select (async/creatable), TanStack Table (sort/filter/paginate), React Toastify, date-fns, Lodash, react-error-boundary
+13. **Jest Mental Model**: AAA pattern, matchers, mocking (functions/modules/spies), async testing, custom hooks (`renderHook`), provider wrappers, Formik form testing, MSW integration, snapshot testing, coverage thresholds
 
 **Key Interview Tips:**
 - Explain the "why" behind your choices
-- Discuss trade-offs
-- Show real-world experience
-- Know when NOT to use certain patterns
+- Discuss trade-offs (Formik vs React Hook Form, Axios vs fetch, controlled vs uncontrolled)
+- Show real-world experience with validation schemas and form UX
+- Know when NOT to use certain patterns (snapshots, over-mocking)
+- Testing: test behavior not implementation — prefer `getByRole` over `getByTestId`
 - Performance: always measure first
-
-9. **Formik**: Full form lifecycle, field-level validation, async submission
-10. **Yup**: Declarative schema validation, cross-field rules, custom validators
-11. **React-Bootstrap**: Grid, Form, Modal, Toast, Table — production-ready UI
-12. **Common Libraries**: React Query, Axios, React Hook Form, React Select, React Table, date-fns, Lodash, React Toastify
-13. **Jest Mental Model**: Arrange-Act-Assert, mocking patterns, async tests, coverage
 
 ---
 
