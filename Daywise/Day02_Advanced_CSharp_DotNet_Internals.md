@@ -1203,3 +1203,562 @@ Accepted - Deployed to production 2024-01-15
 - ✔ Understand architectural trade-offs for each pattern
 - ✔ Can articulate decision frameworks for tech choices
 - ✔ Know when NOT to use advanced patterns
+
+
+ Absolutely, Sirajudeen! Let’s prep you to *ace* these three interview topics with crisp explanations and solid, production‑ready code you can speak to confidently:
+
+*   **How do you get messages from Azure Service Bus?**
+*   **What is `HttpClientFactory` (and why/use it)?**
+*   **Experience with non‑relational DBs (Cosmos DB) — concepts + code**
+
+I’ll give you: a “how I’d answer” summary, followed by **detailed code**, best practices, and the trade‑offs interviewers love to hear.
+
+***
+
+## 1) Getting messages from **Azure Service Bus**
+
+### 🔑 What interviewers expect
+
+*   You know the modern SDK: `Azure.Messaging.ServiceBus`
+*   You can explain **PeekLock vs ReceiveAndDelete**, **processors vs manual receive APIs**
+*   You handle **retries, dead‑letter, sessions, and idempotency**
+*   You don’t leak secrets (prefer **Managed Identity**)
+
+### 🧠 How to say it (short, crisp)
+
+> “In Azure Service Bus, I typically use `ServiceBusProcessor` for background processing. I prefer **PeekLock** mode to ensure ‘at‑least‑once’ delivery, explicitly **complete/abandon/dead‑letter** based on outcomes, and set **MaxConcurrentCalls** and **PrefetchCount** for throughput. For ordered workflows, I enable **sessions** and use a `ServiceBusSessionProcessor`. In production I use **Managed Identity**, structured logging, and dead‑letter queues for poison messages.”
+
+### ✅ Minimal, production‑ready receiver (Queue) with Processor
+
+```csharp
+using Azure.Identity;                     // For Managed Identity (best practice)
+using Azure.Messaging.ServiceBus;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+
+var builder = Host.CreateApplicationBuilder(args);
+
+// Strongly prefer Managed Identity in Azure (no secrets in code)
+var fullyQualifiedNamespace = builder.Configuration["ServiceBus:Namespace"]; // e.g. "mybus.servicebus.windows.net"
+var queueName = builder.Configuration["ServiceBus:Queue"];
+
+builder.Services.AddSingleton(sp =>
+{
+    var credential = new DefaultAzureCredential(); // uses Managed Identity in Azure
+    var clientOptions = new ServiceBusClientOptions
+    {
+        RetryOptions = new ServiceBusRetryOptions
+        {
+            MaxRetries = 5,
+            Delay = TimeSpan.FromSeconds(0.8),
+            MaxDelay = TimeSpan.FromSeconds(8),
+            Mode = ServiceBusRetryMode.Exponential
+        }
+    };
+    return new ServiceBusClient(fullyQualifiedNamespace, credential, clientOptions);
+});
+
+builder.Services.AddHostedService<QueueProcessorService>();
+
+var app = builder.Build();
+await app.RunAsync();
+
+public class QueueProcessorService : BackgroundService
+{
+    private readonly ServiceBusClient _client;
+    private readonly ILogger<QueueProcessorService> _logger;
+    private ServiceBusProcessor? _processor;
+
+    public QueueProcessorService(ServiceBusClient client, ILogger<QueueProcessorService> logger)
+    {
+        _client = client;
+        _logger = logger;
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        var queueName = Environment.GetEnvironmentVariable("ServiceBus__Queue") ?? "orders";
+
+        var options = new ServiceBusProcessorOptions
+        {
+            AutoCompleteMessages = false,          // YOU settle message explicitly
+            MaxConcurrentCalls = 8,                // tune to your workload
+            PrefetchCount = 32,                    // boosts throughput
+            ReceiveMode = ServiceBusReceiveMode.PeekLock,
+            MaxAutoLockRenewalDuration = TimeSpan.FromMinutes(5)
+        };
+
+        _processor = _client.CreateProcessor(queueName, options);
+        _processor.ProcessMessageAsync += OnMessageAsync;
+        _processor.ProcessErrorAsync += OnErrorAsync;
+
+        await _processor.StartProcessingAsync(stoppingToken);
+        _logger.LogInformation("Service Bus processor started.");
+
+        // Wait until cancelled
+        await Task.Delay(Timeout.Infinite, stoppingToken);
+
+        await _processor.CloseAsync(stoppingToken);
+        _logger.LogInformation("Service Bus processor stopped.");
+    }
+
+    private async Task OnMessageAsync(ProcessMessageEventArgs args)
+    {
+        try
+        {
+            var body = args.Message.Body.ToString();
+            var messageId = args.Message.MessageId;
+            var sessionId = args.Message.SessionId;
+
+            // TODO: process message. Ensure idempotency using MessageId/your business key.
+            // If processing fails due to transient causes, throw to trigger retry.
+
+            await args.CompleteMessageAsync(args.Message);
+        }
+        catch (Exception ex)
+        {
+            // Let it abandon so it can be retried (up to max delivery count)
+            // You can also explicitly DeadLetter for non‑transient errors:
+            // await args.DeadLetterMessageAsync(args.Message, "NonTransient", ex.Message);
+            // For transient, do nothing (auto abandon) or explicitly call Abandon
+            await args.AbandonMessageAsync(args.Message);
+        }
+    }
+
+    private Task OnErrorAsync(ProcessErrorEventArgs args)
+    {
+        // Log entity path, exception & context
+        Console.Error.WriteLine($"Error on {args.EntityPath} - {args.Exception.Message}");
+        return Task.CompletedTask;
+    }
+}
+```
+
+#### Key points you can mention
+
+*   **At‑least‑once** delivery → ensure **idempotency** (use `MessageId` + store; or dedupe at your DB).
+*   Poison messages → **Dead‑letter** after max deliveries; have a DLQ handler.
+*   **Throughput**: `PrefetchCount`, `MaxConcurrentCalls`, **auto lock renewal** for long processing.
+*   **Retry**: the SDK does transient retries; you can add your own application‑level retry logic too.
+
+### 🔄 Manual pull (Receive and settle yourself)
+
+Use when you want full control or batch receive:
+
+```csharp
+await using var client = new ServiceBusClient(namespaceFqdn, new DefaultAzureCredential());
+var receiver = client.CreateReceiver(queueName, new ServiceBusReceiverOptions
+{
+    PrefetchCount = 50,
+    ReceiveMode = ServiceBusReceiveMode.PeekLock
+});
+
+while (!cancellationToken.IsCancellationRequested)
+{
+    // Receive a batch
+    var messages = await receiver.ReceiveMessagesAsync(
+        maxMessages: 20,
+        maxWaitTime: TimeSpan.FromSeconds(1),
+        cancellationToken);
+
+    foreach (var msg in messages)
+    {
+        try
+        {
+            // process...
+            await receiver.CompleteMessageAsync(msg);
+        }
+        catch
+        {
+            await receiver.AbandonMessageAsync(msg);
+        }
+    }
+}
+```
+
+### 🧭 Sessions (ordered, single‑consumer per SessionId)
+
+```csharp
+var processor = client.CreateSessionProcessor(queueName, new ServiceBusSessionProcessorOptions
+{
+    AutoCompleteMessages = false,
+    MaxConcurrentSessions = 4,
+    MaxConcurrentCallsPerSession = 1,
+    PrefetchCount = 20
+});
+
+processor.ProcessMessageAsync += async args =>
+{
+    // Messages for the same sessionId are ordered
+    // You can also read/write session state:
+    var state = await args.GetSessionStateAsync(); // BinaryData
+    await args.CompleteMessageAsync(args.Message);
+};
+
+processor.ProcessErrorAsync += args => Task.CompletedTask;
+
+await processor.StartProcessingAsync();
+```
+
+### 🚦 Receive modes you should know (interview tip)
+
+*   **PeekLock (default)**: safe; must `Complete`/`Abandon`/`DeadLetter`/`Defer`. Best for reliability.
+*   **ReceiveAndDelete**: highest throughput, but **no retries**. Only for non‑critical telemetry.
+
+***
+In **Azure Service Bus**, a **Session** is a feature that allows you to **group related messages** and ensure they are processed **in order**, **by the same consumer**, **one at a time**.
+
+Think of a *session* like a **conversation ID** that ties a set of messages together.
+
+***
+
+# ✅ **What is a Session in Azure Service Bus?**
+
+A **Session** is a logical grouping mechanism for messages that share the same `SessionId` property.  
+It ensures:
+
+### ✔ Ordered message processing (FIFO)
+
+Messages inside a session are always delivered in the **exact order** they were sent.
+
+### ✔ Single active consumer
+
+At any moment, **only one receiver/client** can lock and process a given session.
+
+### ✔ Stateful message processing
+
+Sessions support **session state**, which allows saving useful metadata between messages (like a mini key–value store).
+
+### ✔ High parallelism
+
+Multiple sessions can be processed concurrently — **one session per client**, but many clients in parallel.
+
+***
+
+# 🧠 Why do we need sessions?
+
+You need sessions when:
+
+*   Messages belong to a specific **workflow**, **user**, **order**, **transaction**, or **conversation**.
+*   Order matters (“process these in the same sequence they were sent”).
+*   You want guaranteed **affinity** — the same message stream handled by the same consumer.
+
+### Example use cases
+
+| Scenario                              | Why Session Helps                                  |
+| ------------------------------------- | -------------------------------------------------- |
+| Order processing for the same OrderId | Ensures all events for Order #111 process in order |
+| Chat app conversation                 | Each chat room or user is a session                |
+| IoT devices                           | Each device sends telemetry as a session           |
+| Banking transactions                  | Ensures sequential processing for the same account |
+
+***
+
+# 🏗 How it works (Simple Explanation)
+
+1.  Sender assigns `SessionId` to messages:
+
+```csharp
+await sender.SendMessageAsync(new ServiceBusMessage("Hello") { SessionId = "User-123" });
+```
+
+2.  Service Bus groups messages by `SessionId`.
+
+3.  A receiver locks a session:
+
+```csharp
+var sessionReceiver = await client.AcceptSessionAsync("my-queue", "User-123");
+```
+
+4.  That receiver gets all messages for that session **in order**.
+
+5.  Another consumer cannot access that session until the lock expires or processing completes.
+
+***
+
+# 📦 Session State (Bonus Feature)
+
+Service Bus lets you store small state information per session:
+
+```csharp
+await sessionReceiver.SetStateAsync(BinaryData.FromString("CurrentStep:2"));
+```
+
+The next message receiver can read it:
+
+```csharp
+var state = await sessionReceiver.GetStateAsync();
+```
+
+This acts like a lightweight persistence store specific to the session.
+
+***
+
+# 🚫 When NOT to use sessions
+
+Avoid sessions when:
+
+*   You need maximum throughput without ordering constraints.
+*   Message order doesn’t matter.
+*   You want many consumers to process messages independently.
+
+***
+
+# 🎯 One-line summary
+
+**A Service Bus session provides ordered, single-consumer processing for related messages using a `SessionId`, enabling stateful workflows and message affinity.**
+
+***
+
+If you'd like, I can also show:
+
+✅ Code examples for sending/receiving session messages  
+✅ How session locks work internally  
+✅ How sessions differ from message locks  
+✅ When to choose sessions vs partitioning
+
+Just tell me what you want next!
+
+## 2) What is **HttpClientFactory**?
+
+### 🔑 What interviewers expect
+
+*   Pain points solved: **socket exhaustion**, **DNS updates**, **handler lifetimes**
+*   **Named vs Typed** clients; custom handlers; **resiliency** with Polly
+*   When to **avoid `new HttpClient()` per request**
+
+### 🧠 How to say it
+
+> “`IHttpClientFactory` centralizes `HttpClient` creation, avoids socket exhaustion by reusing handlers, handles DNS refresh, and lets me register **named/typed** clients with default headers, base address, and **resiliency policies** (retry, timeout, circuit breaker) via Polly. I inject typed clients into services for cohesion and testability.”
+
+### ✅ Basic usage (factory & named client)
+
+```csharp
+// Program.cs
+using Polly;
+using Polly.Extensions.Http;
+
+builder.Services.AddHttpClient(); // baseline
+
+builder.Services.AddHttpClient("github", c =>
+{
+    c.BaseAddress = new Uri("https://api.github.com/");
+    c.DefaultRequestHeaders.UserAgent.ParseAdd("MyApp/1.0");
+    c.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+})
+.AddPolicyHandler(HttpPolicyExtensions
+    .HandleTransientHttpError()                // 5xx, 408, network errors
+    .OrResult(r => (int)r.StatusCode == 429)   // Too Many Requests
+    .WaitAndRetryAsync(new[]
+    {
+        TimeSpan.FromMilliseconds(200),
+        TimeSpan.FromMilliseconds(500),
+        TimeSpan.FromSeconds(1)
+    })); // add jitter in prod
+
+// Usage:
+public class GitService
+{
+    private readonly IHttpClientFactory _factory;
+    public GitService(IHttpClientFactory factory) => _factory = factory;
+
+    public async Task<string> GetAsync(CancellationToken ct)
+    {
+        var client = _factory.CreateClient("github");
+        using var resp = await client.GetAsync("/repos/dotnet/runtime", ct);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadAsStringAsync(ct);
+    }
+}
+```
+
+### ✅ Typed client (preferred for cohesion/testability)
+
+```csharp
+public class GitHubClient
+{
+    private readonly HttpClient _http;
+    public GitHubClient(HttpClient http) => _http = http;
+
+    public async Task<RepoDto?> GetRepoAsync(string owner, string repo, CancellationToken ct)
+    {
+        using var resp = await _http.GetAsync($"/repos/{owner}/{repo}", ct);
+        if (!resp.IsSuccessStatusCode) return null;
+        return await resp.Content.ReadFromJsonAsync<RepoDto>(cancellationToken: ct);
+    }
+}
+
+builder.Services.AddHttpClient<GitHubClient>(c =>
+{
+    c.BaseAddress = new Uri("https://api.github.com/");
+    c.DefaultRequestHeaders.UserAgent.ParseAdd("MyApp/1.0");
+    c.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+})
+// Add resilience — Retry + CircuitBreaker + Timeout
+.AddPolicyHandler(HttpPolicyExtensions.HandleTransientHttpError()
+    .OrResult(r => (int)r.StatusCode == 429)
+    .WaitAndRetryAsync(3, attempt => TimeSpan.FromMilliseconds(200 * attempt)))
+.AddPolicyHandler(Policy.TimeoutAsync<HttpResponseMessage>(TimeSpan.FromSeconds(10)))
+.AddPolicyHandler(Policy<HttpResponseMessage>
+    .Handle<Exception>()
+    .CircuitBreakerAsync(5, TimeSpan.FromSeconds(30)));
+```
+
+#### Talking points / gotchas
+
+*   **Don’t** `new HttpClient()` per request (leads to **socket exhaustion**).
+*   `HttpClientFactory` uses **`SocketsHttpHandler` pooling** and **DNS refresh** behind the scenes.
+*   Prefer **`ResponseHeadersRead`** for large downloads to stream the content.
+*   Add **telemetry** and **OpenTelemetry** for tracing outgoing calls.
+
+***
+
+## 3) Non‑relational DBs — **Azure Cosmos DB** (document store)
+
+### 🔑 What interviewers expect
+
+*   Data modeling for NoSQL (**denormalize**, embed vs reference)
+*   **Partitioning** strategy, **RU** (throughput), **consistency** levels
+*   SDK usage: CRUD, queries, **TransactionalBatch**, **Change Feed**
+*   Performance tuning: **indexing**, **hot partitions**, **bulk**, **diagnostics**
+
+### 🧠 How to say it
+
+> “With Cosmos DB (Core/SQL API), I pick a **high-cardinality, evenly distributed** partition key (e.g., `tenantId`, `orderIdPrefix`). I model documents in a **denormalized** shape optimized for my queries. I use the .NET SDK with point reads (`ReadItemAsync`) for the cheapest lookups, parameterized queries for scans, **TransactionalBatch** for atomic multi‑item operations within a partition, and the **Change Feed** for event‑driven processing. I monitor **RU charges**, tune **indexing policies**, and avoid hot partitions.”
+
+### ✅ SDK setup + CRUD + Query
+
+> Package: `Microsoft.Azure.Cosmos`
+
+```csharp
+using Microsoft.Azure.Cosmos;
+using System.Net;
+
+// Prefer AAD when possible: new CosmosClient(endpoint, new DefaultAzureCredential(), options)
+var endpoint = builder.Configuration["Cosmos:Endpoint"];
+var key = builder.Configuration["Cosmos:Key"];
+
+var client = new CosmosClient(endpoint, key, new CosmosClientOptions
+{
+    ConnectionMode = ConnectionMode.Direct,
+    SerializerOptions = new CosmosSerializationOptions
+    {
+        PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase
+    },
+    AllowBulkExecution = true, // for high-write scenarios
+    ApplicationName = "MyApp"
+});
+
+// Create DB & Container (Autoscale throughput)
+var db = await client.CreateDatabaseIfNotExistsAsync("appdb");
+var container = await db.Database.CreateContainerIfNotExistsAsync(
+    id: "orders",
+    partitionKeyPath: "/tenantId",
+    throughputProperties: ThroughputProperties.CreateAutoscaleThroughput(4000));
+
+public record Order(string id, string tenantId, string status, decimal amount);
+
+// Create
+var order = new Order(id: Guid.NewGuid().ToString(), tenantId: "t1", status: "New", amount: 199.99m);
+var createResp = await container.Container.CreateItemAsync(order, new PartitionKey(order.tenantId));
+Console.WriteLine($"Create RU: {createResp.RequestCharge}");
+
+// Read (point read is cheapest)
+var readResp = await container.Container.ReadItemAsync<Order>(order.id, new PartitionKey(order.tenantId));
+Console.WriteLine($"Read RU: {readResp.RequestCharge}");
+
+// Upsert
+order = order with { status = "Paid" };
+var upsertResp = await container.Container.UpsertItemAsync(order, new PartitionKey(order.tenantId));
+
+// Parameterized query
+var sql = "SELECT c.id, c.status, c.amount FROM c WHERE c.tenantId = @tenant AND c.status = @status";
+var qd = new QueryDefinition(sql)
+    .WithParameter("@tenant", "t1")
+    .WithParameter("@status", "Paid");
+using var it = container.Container.GetItemQueryIterator<Order>(qd, requestOptions: new QueryRequestOptions
+{
+    PartitionKey = new PartitionKey("t1"),           // If you know it, set it → cheaper & faster
+    MaxItemCount = 50
+});
+
+var results = new List<Order>();
+while (it.HasMoreResults)
+{
+    var page = await it.ReadNextAsync();
+    Console.WriteLine($"Query page RU: {page.RequestCharge}");
+    results.AddRange(page);
+}
+```
+
+### ✅ Transactional batch (atomic within a partition)
+
+```csharp
+var pk = new PartitionKey("t1");
+var batch = container.Container.CreateTransactionalBatch(pk)
+    .CreateItem(new Order(Guid.NewGuid().ToString(), "t1", "New", 50))
+    .UpsertItem(new Order(Guid.NewGuid().ToString(), "t1", "New", 75));
+
+var batchResp = await batch.ExecuteAsync();
+if (!batchResp.IsSuccessStatusCode)
+{
+    // entire batch rolled back
+    throw new Exception($"Batch failed: {batchResp.StatusCode}");
+}
+```
+
+### ✅ Optimistic concurrency (ETag)
+
+```csharp
+var doc = await container.Container.ReadItemAsync<Order>(id, new PartitionKey(tenantId));
+var options = new ItemRequestOptions { IfMatchEtag = doc.ETag };
+doc.Resource = doc.Resource with { status = "Shipped" };
+await container.Container.ReplaceItemAsync(doc.Resource, id, new PartitionKey(tenantId), options);
+```
+
+### ✅ Change Feed Processor (react to changes)
+
+```csharp
+var leaseContainer = (await db.Database.CreateContainerIfNotExistsAsync(
+    id: "leases", partitionKeyPath: "/id")).Container;
+
+var processor = db.Database.Client.GetContainer("appdb", "orders")
+    .GetChangeFeedProcessorBuilder<Order>("orders-processor", HandleChanges)
+    .WithInstanceName("worker-1")
+    .WithLeaseContainer(leaseContainer)
+    .Build();
+
+await processor.StartAsync();
+// ...
+async Task HandleChanges(IReadOnlyCollection<Order> changes, CancellationToken ct)
+{
+    foreach (var o in changes)
+    {
+        // process downstream (indexing, projections, etc.)
+    }
+}
+```
+
+### 📐 Data modeling & partitioning guidance
+
+*   Prefer **high‑cardinality** keys: `tenantId`, `userId`, `deviceId`.
+*   Co‑locate items that need **transactional batch** or frequent **joins** within a partition.
+*   Denormalize & **embed** sub‑documents; use cross‑refs only when necessary.
+*   Watch **hot partitions**—if one partition gets most writes/reads, rethink the key.
+
+### ⚙️ Performance & operations tips
+
+*   **RUs** are the currency. Prefer **point reads**. Narrow queries with `PartitionKey`.
+*   Enable **Autoscale** for spiky workloads; set **min/max** thoughtfully.
+*   Adjust **indexing policy**: exclude large properties you don’t filter/sort on.
+*   Use **composite indexes** when querying with multiple ORDER BYs.
+*   Handle **429 (rate limited)**—the SDK auto‑retries; expose diagnostics; shape traffic.
+*   Use **Cosmos Emulator** locally; use **Diag logs** + **QueryMetrics** to tune.
+
+***
+
+## How to *present* these in interviews
+
+*   Start with a **one‑liner** (what/why), then **trade‑offs**, then **code** choices.
+*   Call out **resilience** (retries, idempotency), **security** (Managed Identity), and **performance** (throughput, concurrency).
+*   Tie back to your experience: e.g., “We used **sessions in Service Bus** for per‑order sequencing,” or “We optimized **Cosmos queries** by pinning `PartitionKey` in request options and excluding unused fields from indexing.”
