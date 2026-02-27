@@ -1548,64 +1548,303 @@ export function RefPatterns() {
 
 ### useMemo and useCallback
 
+> **Mental Model:** Every time React re-renders a component, it re-runs the entire function body — every `const`, every calculation, every function definition is brand new. `useMemo` and `useCallback` are React's **cache** for values and functions across renders. Think of it like a sticky note: "if the inputs haven't changed, reuse the answer from last time instead of recalculating."
+
+---
+
+#### The Core Problem: Why Functions Break `React.memo`
+
+React re-renders a component whenever its parent re-renders. To prevent that, you wrap the child with `React.memo` — it skips re-rendering if props haven't changed. But there's a catch: **functions are objects in JS, so a new function is created every render, even if it looks identical.**
+
 ```jsx
-import { useMemo, useCallback, useState } from 'react';
+// ❌ THE PROBLEM — breaks React.memo silently
+function Parent() {
+  const [count, setCount] = useState(0);
 
-function ExpensiveComponent({ items, filter, onItemClick }) {
-  // useMemo - memoize expensive calculations
-  const filteredItems = useMemo(() => {
-    console.log('Filtering items...');  // Only runs when items or filter change
-    return items.filter(item =>
-      item.name.toLowerCase().includes(filter.toLowerCase())
-    );
-  }, [items, filter]);
-
-  // useMemo for expensive computations
-  const statistics = useMemo(() => {
-    console.log('Calculating statistics...');
-    return {
-      total: items.length,
-      average: items.reduce((a, b) => a + b.price, 0) / items.length,
-      max: Math.max(...items.map(i => i.price)),
-      min: Math.min(...items.map(i => i.price))
-    };
-  }, [items]);
-
-  // useCallback - memoize functions
-  const handleItemClick = useCallback((item) => {
-    console.log('Clicked:', item);
-    onItemClick(item);
-  }, [onItemClick]);
-
-  // Without useCallback, handleItemClick would be a new function every render
-  // Causing child components to re-render unnecessarily
+  // Every render creates a NEW function object at a new memory address
+  // Even though the code inside is identical
+  const handleClick = (item) => {
+    console.log('clicked', item);
+  };
 
   return (
-    <div>
-      <Stats data={statistics} />
-      <ItemList items={filteredItems} onItemClick={handleItemClick} />
-    </div>
+    <>
+      <button onClick={() => setCount(c => c + 1)}>Parent re-renders</button>
+      {/* Child gets a NEW handleClick prop every render → React.memo is useless */}
+      <ExpensiveList onItemClick={handleClick} />
+    </>
   );
 }
 
-// When to use useMemo/useCallback:
-// 1. Expensive calculations
-// 2. Referential equality for dependencies
-// 3. Passing callbacks to memoized children
+const ExpensiveList = React.memo(({ onItemClick }) => {
+  console.log('ExpensiveList rendered'); // This fires on EVERY parent render!
+  return <div>...</div>;
+});
+```
 
-// When NOT to use:
-// 1. Simple calculations (overhead not worth it)
-// 2. Primitives that are recreated anyway
-// 3. Functions not passed to children or used in deps
+**Step-by-step trace of what happens without useCallback:**
 
-// ❌ Over-optimization
-const value = useMemo(() => a + b, [a, b]);  // Addition is not expensive!
+```
+Render #1:
+  handleClick → memory address 0x001 (new function)
+  ExpensiveList receives onItemClick=0x001 → renders ✅
 
-// ✅ Good use case
-const sortedData = useMemo(() =>
-  [...data].sort((a, b) => a.date - b.date),
-  [data]
-);
+User clicks "Parent re-renders" button → count changes
+
+Render #2:
+  handleClick → memory address 0x002 (DIFFERENT function — same code, new object)
+  ExpensiveList receives onItemClick=0x002
+  React.memo compares: 0x001 !== 0x002 → RE-RENDERS ❌ (wasted!)
+
+Render #3:
+  handleClick → memory address 0x003
+  ExpensiveList → RE-RENDERS ❌ (wasted again!)
+```
+
+---
+
+#### `useCallback` — Stabilize a Function Reference
+
+`useCallback(fn, deps)` returns the **same function object** across renders as long as the dependencies haven't changed.
+
+```jsx
+// ✅ THE FIX — stable function reference
+function Parent() {
+  const [count, setCount] = useState(0);
+  const [selectedId, setSelectedId] = useState(null);
+
+  // handleClick is memoized — same reference as long as setSelectedId doesn't change
+  // setSelectedId comes from useState, so it's always stable — deps array is []
+  const handleClick = useCallback((item) => {
+    setSelectedId(item.id); // uses state setter, not state value
+  }, []); // [] = no dependencies = never recreated
+
+  return (
+    <>
+      <button onClick={() => setCount(c => c + 1)}>Parent re-renders</button>
+      {/* onItemClick is the SAME function reference every render */}
+      <ExpensiveList onItemClick={handleClick} />
+    </>
+  );
+}
+```
+
+**Step-by-step trace with useCallback:**
+
+```
+Render #1:
+  handleClick → memoized at address 0x001
+  ExpensiveList receives onItemClick=0x001 → renders ✅
+
+User clicks "Parent re-renders" → count changes
+
+Render #2:
+  handleClick → deps [] unchanged → returns SAME 0x001
+  ExpensiveList receives onItemClick=0x001
+  React.memo compares: 0x001 === 0x001 → SKIPS render ✅
+
+Render #3:
+  Same → SKIPS render ✅
+```
+
+---
+
+#### Dependency Array Rules
+
+The deps array tells React: "only give me a new function if one of these values changed."
+
+```jsx
+// ❌ WRONG — stale closure: userId inside function is always the initial value
+const fetchUser = useCallback(() => {
+  fetch(`/api/user/${userId}`); // captures userId from first render only
+}, []); // missing userId in deps
+
+// ✅ CORRECT — function gets a new reference when userId changes
+const fetchUser = useCallback(() => {
+  fetch(`/api/user/${userId}`);
+}, [userId]); // re-created only when userId changes
+
+// ✅ BEST when possible — pass the value as an argument, keep deps empty
+const fetchUser = useCallback((id) => {
+  fetch(`/api/user/${id}`);
+}, []); // no deps needed — id is a parameter, not a closed-over variable
+```
+
+---
+
+#### Real-World Scenario: Search Filter + Memoized List
+
+```jsx
+import { useState, useCallback, memo } from 'react';
+
+// Child is expensive — wrapping with memo so it only re-renders when its own props change
+const ProductRow = memo(({ product, onAddToCart }) => {
+  console.log(`ProductRow [${product.name}] rendered`);
+  return (
+    <div>
+      <span>{product.name} — ${product.price}</span>
+      <button onClick={() => onAddToCart(product)}>Add to Cart</button>
+    </div>
+  );
+});
+
+function ProductList() {
+  const [search, setSearch] = useState('');
+  const [cart, setCart] = useState([]);
+
+  // ✅ Stable reference — setCart from useState is always stable, so deps is []
+  // Without useCallback: every keystroke in the search box re-renders ALL ProductRow components
+  // With useCallback: ProductRow re-renders only when an item is actually added to cart
+  const handleAddToCart = useCallback((product) => {
+    setCart(prev => [...prev, product]);
+  }, []);
+
+  const products = [
+    { id: 1, name: 'Laptop', price: 999 },
+    { id: 2, name: 'Phone', price: 499 },
+    { id: 3, name: 'Tablet', price: 299 },
+  ];
+
+  const filtered = products.filter(p =>
+    p.name.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div>
+      <input
+        value={search}
+        onChange={e => setSearch(e.target.value)} // typing here causes re-renders
+        placeholder="Search products..."
+      />
+      <p>Cart: {cart.length} items</p>
+      {filtered.map(p => (
+        // onAddToCart is the same reference every render → ProductRow skips re-render
+        <ProductRow key={p.id} product={p} onAddToCart={handleAddToCart} />
+      ))}
+    </div>
+  );
+}
+```
+
+---
+
+#### `useMemo` — Cache an Expensive Calculation
+
+`useMemo(fn, deps)` caches the **return value** of a function. Use it when a calculation is genuinely expensive (not `a + b`, but sorting/filtering large arrays, building complex derived state).
+
+```jsx
+import { useMemo, useState } from 'react';
+
+function Analytics({ orders }) {
+  const [currency, setCurrency] = useState('USD');
+
+  // ❌ Without useMemo: this runs on EVERY render (even currency toggle changes it)
+  // If orders has 10,000 items, this is slow
+  const stats = {
+    total: orders.reduce((sum, o) => sum + o.amount, 0),
+    max: Math.max(...orders.map(o => o.amount)),
+    byStatus: orders.reduce((acc, o) => {
+      acc[o.status] = (acc[o.status] || 0) + 1;
+      return acc;
+    }, {})
+  };
+
+  // ✅ With useMemo: only recalculates when `orders` changes
+  // Changing `currency` doesn't trigger recalculation
+  const memoStats = useMemo(() => ({
+    total: orders.reduce((sum, o) => sum + o.amount, 0),
+    max: Math.max(...orders.map(o => o.amount)),
+    byStatus: orders.reduce((acc, o) => {
+      acc[o.status] = (acc[o.status] || 0) + 1;
+      return acc;
+    }, {})
+  }), [orders]); // recalculate only when orders array changes
+
+  return (
+    <div>
+      <button onClick={() => setCurrency(c => c === 'USD' ? 'EUR' : 'USD')}>
+        Toggle Currency
+      </button>
+      <p>Total: {memoStats.total} {currency}</p>
+      <p>Max single order: {memoStats.max}</p>
+    </div>
+  );
+}
+```
+
+**Second use of `useMemo`: stabilize object/array references for `useEffect` deps**
+
+```jsx
+// ❌ PROBLEM — options is a new object every render → useEffect fires on every render
+function UserProfile({ userId, role }) {
+  const options = { userId, role, includeDeleted: false }; // new object each render
+
+  useEffect(() => {
+    fetchUser(options); // runs every render — infinite loop risk!
+  }, [options]); // options reference changes every time
+}
+
+// ✅ FIX — useMemo stabilizes the object reference
+function UserProfile({ userId, role }) {
+  const options = useMemo(
+    () => ({ userId, role, includeDeleted: false }),
+    [userId, role] // only new object when userId or role actually changes
+  );
+
+  useEffect(() => {
+    fetchUser(options); // runs only when userId or role changes
+  }, [options]);
+}
+```
+
+---
+
+#### Decision Guide: Should I use useCallback / useMemo?
+
+```
+Is the function passed as a prop to a React.memo child?
+  YES → useCallback ✅
+  NO  → Is the function in a useEffect/useMemo dependency array?
+          YES → useCallback ✅
+          NO  → Skip it, plain function is fine
+
+Is the calculation expensive (sorting, filtering >100 items, complex reduce)?
+  YES → useMemo ✅
+  NO  → Is the result an object/array used in a dependency array?
+          YES → useMemo ✅ (prevents reference instability)
+          NO  → Skip it, inline calculation is fine
+```
+
+---
+
+#### Common Pitfalls
+
+```jsx
+// ❌ PITFALL 1: Object/array in deps — creates new reference every render
+// This defeats the purpose — handleSubmit is recreated every render
+const handleSubmit = useCallback(() => {
+  sendData(formData);
+}, [formData]); // if formData = { name, email } object, this always changes!
+
+// ✅ FIX: destructure to primitives
+const handleSubmit = useCallback(() => {
+  sendData({ name, email });
+}, [name, email]); // primitives — stable comparison
+
+// ❌ PITFALL 2: useCallback inside loops/conditions (breaks Rules of Hooks)
+items.forEach(item => {
+  const handler = useCallback(() => {}, []); // ILLEGAL
+});
+
+// ✅ FIX: define one handler that accepts the item as argument
+const handleItemAction = useCallback((itemId) => {
+  // use itemId
+}, []);
+// Then in JSX: onClick={() => handleItemAction(item.id)}
+
+// ❌ PITFALL 3: Memoizing everything "just in case" — adds overhead with no benefit
+const add = useCallback((a, b) => a + b, []); // math is not expensive, skip this
+const label = useMemo(() => `Hello ${name}`, [name]); // string template is not expensive
 ```
 
 ### useReducer
