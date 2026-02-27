@@ -1,12 +1,12 @@
 # DSA — Complete Study Guide
-### C# Edition · Beginner → FAANG Expert · Mental Models · Patterns · Practice
+### C# Edition · Beginner → FAANG Expert · Mental Models · Diagrams · Brute→Optimal · Practice
 
 > **How to use this guide**
-> - **Beginner**: Read Parts 1–3 linearly, do every practice problem before moving on
-> - **Intermediate**: Jump to Part 9 (Patterns) first, then revisit weak topic sections
+> - **Beginner**: Read Parts 1–3 linearly, do every practice problem before reading the solution
+> - **Intermediate**: Jump to Part 9 (Patterns), then revisit weak topic sections
 > - **Interview prep**: Start with Section 50 (cheat sheet), identify gaps, fill them
-> - **Each section is self-contained**: Mental model → concept → code → complexity → practice
-> - **Practice problems**: Full C# solutions included — attempt the problem BEFORE reading the solution
+> - **Each section**: Mental Model → Visual Diagram → Concept → Code (with WHY comments) → Approach Evolution → Trace → Complexity → Practice
+> - **Every practice problem** shows: 🔴 Brute Force → 🟡 Better → 🟢 Optimal evolution
 
 ---
 
@@ -44,9 +44,9 @@
 - [Section 21 — Advanced Graphs (Topological Sort, Union-Find)](#section-21--advanced-graphs)
 
 ### PART 6 — SORTING ALGORITHMS
-- [Section 22 — O(n²) Sorts (Bubble, Selection, Insertion)](#section-22--on²-sorts)
-- [Section 23 — O(n log n) Sorts (Merge, Quick, Heap)](#section-23--on-log-n-sorts)
-- [Section 24 — O(n) Sorts (Counting, Radix, Bucket)](#section-24--on-sorts)
+- [Section 22 — O(n²) Sorts](#section-22--on²-sorts)
+- [Section 23 — O(n log n) Sorts](#section-23--on-log-n-sorts)
+- [Section 24 — O(n) Sorts](#section-24--on-sorts)
 - [Section 25 — .NET Sorting APIs](#section-25--net-sorting-apis)
 
 ### PART 7 — SEARCHING ALGORITHMS
@@ -96,267 +96,246 @@
 >
 > A great chef doesn't just start cooking randomly. They: **Understand** the dish → **Map** out ingredients → **Plan** steps → **Implement** → **Review** taste → **Evaluate** presentation. Algorithm design is the same structured process. The UMPIRE framework is your recipe card.
 
-### The UMPIRE Framework (6 Steps for Every Interview Problem)
-
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    THE UMPIRE FRAMEWORK                         │
-├─────────┬───────────────────────────────────────────────────────┤
-│    U    │  UNDERSTAND — Restate the problem in your own words   │
-│    M    │  MATCH — Which data structure / pattern fits?         │
-│    P    │  PLAN — Pseudocode the approach before coding         │
-│    I    │  IMPLEMENT — Write clean code                         │
-│    R    │  REVIEW — Trace through with example + edge cases     │
-│    E    │  EVALUATE — State time & space complexity             │
-└─────────┴───────────────────────────────────────────────────────┘
+╔══════════════════════════════════════════════════════════════════╗
+║              THE UMPIRE FRAMEWORK — 6 STEPS                     ║
+╠══════════════════════════════════════════════════════════════════╣
+║  U — Understand  │ Restate the problem in your own words        ║
+║  M — Match       │ Identify which pattern/data structure fits   ║
+║  P — Plan        │ Write pseudocode before any code             ║
+║  I — Implement   │ Code cleanly, name variables well            ║
+║  R — Review      │ Trace with example, check edge cases         ║
+║  E — Evaluate    │ State time + space complexity                 ║
+╚══════════════════════════════════════════════════════════════════╝
 ```
 
-### U — Understand (3–5 minutes)
-Ask clarifying questions BEFORE writing any code. Interviewers reward this.
+### The UMPIRE Framework in Detail
+
+**U — Understand** (2–3 minutes)
+- Ask clarifying questions: Is the array sorted? Can there be duplicates? What's the expected input size?
+- Write down 2–3 examples including edge cases (empty input, single element, all same values)
+- Confirm output format (return value vs modify in-place)
+
+**M — Match** (1–2 minutes)
+- What data structure does this problem scream? (sorted array → binary search; frequency → hashmap)
+- What algorithmic pattern fits? (see Section 4 for the 14 patterns)
+
+**P — Plan** (2–3 minutes)
+- Write pseudocode in comments BEFORE writing actual code
+- Talk through your plan with the interviewer
+- Estimate complexity upfront: "I think this is O(n log n) time, O(1) space"
+
+**I — Implement** (10–15 minutes)
+- Use meaningful variable names (`complement` not `x`)
+- Handle the main case first, edge cases at the end
+- Code as if the interviewer will maintain this code
+
+**R — Review** (3–5 minutes)
+- Dry-run your code with the example you wrote in U step
+- Check: null input, empty array, single element, duplicates, negatives
+
+**E — Evaluate** (1 minute)
+- State Big O clearly: "Time O(n), Space O(n) for the hashmap"
+- Mention trade-offs: "We could save space with O(n²) time..."
+
+### Interview Communication Template
 
 ```
-Questions to always ask:
-1. What are the input types and ranges? (ints, strings, arrays — null? empty? negative?)
-2. What should I return? (index, value, bool, modified input?)
-3. Are there duplicates? Is the input sorted?
-4. What are the constraints? (n ≤ 10^5 means O(n log n) is fine; n ≤ 10^9 means O(log n))
-5. Can I modify the input in-place?
+"Let me make sure I understand the problem...
+ So we're given [input] and need to return [output].
+ Edge cases I'll consider: [list 2-3].
+
+ I'm thinking [pattern name] because [reason].
+ My plan: [2-3 bullet steps].
+
+ Time complexity will be O(?) because [reason].
+ Let me code this up..."
 ```
-
-### M — Match (Pattern Recognition)
-```
-If input is array/string        → Two Pointers, Sliding Window, Binary Search
-If input is LinkedList          → Fast/Slow Pointers, In-place Reversal
-If input is Tree                → DFS (recursion), BFS (queue)
-If input is Graph               → DFS/BFS + visited set
-If problem asks for "all combos" → Backtracking
-If problem asks "optimal value"  → DP or Greedy
-If problem asks "top K"          → Heap (PriorityQueue)
-If problem needs fast lookup     → HashMap / HashSet
-If problem has sorted structure  → Binary Search
-```
-
-### P — Plan (Write Pseudocode)
-Never skip this. Write 3–5 lines of pseudocode first. This catches logical errors before you get deep into implementation.
-
-### I — Implement (Write Clean C# Code)
-```csharp
-// Use descriptive variable names (not i,j if context is unclear)
-// Write helper methods for repeated logic
-// Handle edge cases explicitly at the TOP of the function
-// int.MaxValue / 2 instead of int.MaxValue to avoid overflow when adding
-```
-
-### R — Review (Trace Through an Example)
-Pick the simplest non-trivial example and trace through manually. Then check:
-- Empty input
-- Single element
-- All same elements
-- Already sorted / reverse sorted
-- Negative numbers / zero
-
-### E — Evaluate (Complexity)
-Always state both:
-- **Time complexity**: with justification ("O(n log n) because we sort once")
-- **Space complexity**: include recursion stack for recursive solutions
-
-> **🎯 Key Insight:** Most interviewers care more about your THINKING PROCESS (steps U, M, P) than the final code. Talking out loud during these steps separates good candidates from great ones.
 
 ---
 
 ## Section 2 — Complexity Analysis
 
-> **🧠 Mental Model: The Russian Nesting Dolls**
+> **🧠 Mental Model: Racing Cars on Different Tracks**
 >
-> Big O describes HOW FAST a function grows, not the actual time. A loop inside a loop is O(n²) — like opening a doll to find another doll. The outer doll is one n, the inner doll multiplies by another n. The constant (paint color, size ratio) doesn't matter at scale — only the nesting depth does.
-
-### The Big O Hierarchy (from fastest to slowest)
+> Think of input size n as the length of a racetrack. O(1) is a teleporter — distance doesn't matter. O(log n) is a sports car — doubling track length barely slows you. O(n) is a bicycle — linear effort. O(n²) is walking with a backpack that gets heavier each step. O(2ⁿ) is a snail that doubles its weight every meter.
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│  COMPLEXITY GROWTH (n = 1,000,000 operations)            │
-├──────────────┬──────────────┬────────────────────────────┤
-│  Notation    │  n=100 ops   │  Name / Example            │
-├──────────────┼──────────────┼────────────────────────────┤
-│  O(1)        │  1           │  Constant — array access   │
-│  O(log n)    │  7           │  Logarithmic — binary srch │
-│  O(n)        │  100         │  Linear — single loop      │
-│  O(n log n)  │  700         │  Log-linear — merge sort   │
-│  O(n²)       │  10,000      │  Quadratic — nested loops  │
-│  O(2ⁿ)       │  10^30       │  Exponential — all subsets │
-│  O(n!)       │  9 * 10^157  │  Factorial — permutations  │
-└──────────────┴──────────────┴────────────────────────────┘
+COMPLEXITY GROWTH VISUALIZATION (n = 1,000,000)
+═══════════════════════════════════════════════════════════════
+O(1)       │ 1 operation          │ ████
+O(log n)   │ ~20 operations       │ ████
+O(n)       │ 1,000,000 ops        │ ██████████████████████
+O(n log n) │ ~20,000,000 ops      │ ██████████████████████████
+O(n²)      │ 1,000,000,000,000 ops│ TIMEOUT ❌
+O(2ⁿ)      │ ∞ effectively        │ NEVER FINISH ❌
+═══════════════════════════════════════════════════════════════
+
+TARGET COMPLEXITIES FOR INTERVIEWS:
+  10^8 operations ≈ 1 second on modern hardware
+  n = 10^6  → need O(n) or O(n log n)
+  n = 10^4  → O(n²) is acceptable
+  n = 20    → O(2ⁿ) or O(n!) may be OK (backtracking)
 ```
 
-### Big O Rules (Drop Constants, Keep Dominants)
+### Big O Rules
 
 ```csharp
-// Rule 1: Drop constants
-// O(2n) → O(n)
-for (int i = 0; i < n; i++) { }  // O(n)
-for (int i = 0; i < n; i++) { }  // O(n)
-// Total: O(2n) = O(n)
+// RULE 1: Drop constants — O(2n) → O(n)
+for (int i = 0; i < n; i++) { }     // O(n)
+for (int j = 0; j < n; j++) { }     // O(n)
+// Total: O(2n) = O(n) ← drop constant
 
-// Rule 2: Drop non-dominant terms
-// O(n² + n) → O(n²)
-for (int i = 0; i < n; i++)          // O(n)
-    for (int j = 0; j < n; j++) { }  // O(n) inside = O(n²)
-for (int k = 0; k < n; k++) { }      // O(n) — dominated by n²
-// Total: O(n² + n) = O(n²)
+// RULE 2: Drop non-dominant terms — O(n² + n) → O(n²)
+for (int i = 0; i < n; i++)         // O(n²) ← dominates
+    for (int j = 0; j < n; j++) { }
+for (int k = 0; k < n; k++) { }     // O(n) ← dwarfed
 
-// Rule 3: Different inputs = different variables
-// O(a + b) — NOT O(n)
-for (int i = 0; i < a.Length; i++) { }  // O(a)
-for (int j = 0; j < b.Length; j++) { }  // O(b)
-// Total: O(a + b) — use separate variables for separate inputs
+// RULE 3: Different variables = different terms
+void Foo(int[] a, int[] b) {
+    foreach (var x in a) { }        // O(a.Length) — call it 'a'
+    foreach (var y in b) { }        // O(b.Length) — call it 'b'
+    // Total: O(a + b), NOT O(n)!
+}
 
-// Rule 4: Nested loops multiply
-// O(n * m)
-for (int i = 0; i < n; i++)
-    for (int j = 0; j < m; j++) { }  // O(n * m)
+// RULE 4: Recursive functions — count recursive calls × work per call
+int Fib(int n) {                    // branches = 2 each call
+    if (n <= 1) return n;           // depth = n
+    return Fib(n-1) + Fib(n-2);    // → O(2^n) time, O(n) stack space
+}
 ```
 
-### Complexity by Problem Constraint (Interview cheat)
+### Complexity Quick Reference
 
-```
-n ≤ 10        → O(n!) is fine (backtracking with small n)
-n ≤ 20        → O(2ⁿ) is fine
-n ≤ 500       → O(n²) is fine
-n ≤ 5,000     → O(n² log n) might work
-n ≤ 100,000   → O(n log n) needed
-n ≤ 1,000,000 → O(n) needed
-n ≤ 10^9      → O(log n) or O(1) only
-```
-
-### Space Complexity
-
-```csharp
-// O(1) — no extra space proportional to input
-int sum = 0;
-for (int i = 0; i < arr.Length; i++) sum += arr[i];
-
-// O(n) — extra array or dictionary proportional to input
-var dict = new Dictionary<int, int>();  // grows with n
-
-// O(log n) — recursion stack for binary search / balanced tree DFS
-// O(n) — recursion stack for linear recursion (unbalanced tree DFS)
-// O(h) — tree height h for tree DFS (best case log n, worst case n)
-```
-
-> **🎯 Key Insight:** Recursion always has hidden space cost — the call stack. A recursive DFS on a tree of depth h uses O(h) space even with no explicit data structures. For a balanced tree h = O(log n); for a skewed tree h = O(n).
+| Notation | Name | Example |
+|----------|------|---------|
+| O(1) | Constant | Array index, hash lookup |
+| O(log n) | Logarithmic | Binary search |
+| O(n) | Linear | Single loop through array |
+| O(n log n) | Linearithmic | Merge sort, heap sort |
+| O(n²) | Quadratic | Nested loops |
+| O(n³) | Cubic | Triple nested loops |
+| O(2ⁿ) | Exponential | All subsets, recursive fib |
+| O(n!) | Factorial | All permutations |
 
 ---
 
 ## Section 3 — Space-Time Trade-offs & Amortized Analysis
 
-> **🧠 Mental Model: The Pre-cooked Meal vs. Fresh Cooking**
+> **🧠 Mental Model: Caching in a Restaurant**
 >
-> Space-time trade-off: you can cook from scratch every time (slow, low memory) OR pre-cook and store in fridge (fast, uses space). Caching/memoization is the "pre-cooked meal" strategy. Amortized analysis: spreading the occasional expensive operation (restock the fridge) across many cheap operations (grab from fridge).
+> A restaurant can cook every dish fresh (slow, no memory) or pre-cook popular dishes (fast, uses refrigerator space). Trading **space** for **time** is the fundamental trade-off in algorithm design. HashMap, memoization, and prefix sums all "pay" with memory to "earn" speed.
 
-### Space-Time Trade-off Examples
+### Common Space-Time Trade-offs
+
+```
+TRADE-OFF EXAMPLES:
+═════════════════════════════════════════════════════════════════
+  Problem: "Find sum of subarray [i..j] quickly"
+
+  Option A (no extra space):
+    Loop from i to j, sum as you go → O(n) time per query, O(1) space
+
+  Option B (prefix sum — spend space, save time):
+    pre[i] = sum of arr[0..i-1]          ← O(n) space upfront
+    query(i,j) = pre[j+1] - pre[i]       ← O(1) per query!
+    Preprocessing: O(n) once, then O(1) per query
+
+  If you have 10,000 queries → Option B saves enormous time
+═════════════════════════════════════════════════════════════════
+```
 
 ```csharp
-// PROBLEM: Check if array has duplicates
-
-// Option 1: O(n²) time, O(1) space — no extra storage
-bool HasDuplicateBrute(int[] arr) {
+// PREFIX SUM — the canonical space-for-time trade
+int[] BuildPrefixSum(int[] arr) {
+    int[] pre = new int[arr.Length + 1];  // +1 for empty prefix (pre[0]=0)
     for (int i = 0; i < arr.Length; i++)
-        for (int j = i + 1; j < arr.Length; j++)
-            if (arr[i] == arr[j]) return true;
-    return false;
+        pre[i + 1] = pre[i] + arr[i];    // pre[i+1] = sum of arr[0..i]
+    return pre;
 }
 
-// Option 2: O(n) time, O(n) space — trade space for speed
-bool HasDuplicateOptimal(int[] arr) {
-    var seen = new HashSet<int>();  // O(n) space
-    foreach (int x in arr) {
-        if (!seen.Add(x)) return true;  // Add returns false if duplicate
-    }
-    return false;
+int RangeSum(int[] pre, int left, int right) {
+    // Sum of arr[left..right] = prefix up to right+1 minus prefix up to left
+    return pre[right + 1] - pre[left];   // O(1) magic!
 }
-// Decision: If memory is limited → use Option 1; if speed matters → Option 2
 ```
 
-### Amortized Analysis — Dynamic Array (List\<T\>)
+### Amortized Analysis
 
-```csharp
-// List<T> doubles capacity when full. Each doubling is O(n), but rare.
-// Amortized cost per Add() = O(1) because doublings happen less and less.
-
-// Proof: n operations on List<T>
-// Copies: n/2 + n/4 + n/8 + ... ≤ n
-// Total copies ≤ n → amortized O(1) per operation
-
-var list = new List<int>();  // capacity starts at 4
-for (int i = 0; i < 1000; i++)
-    list.Add(i);  // O(1) amortized — occasional O(n) doubling happens
 ```
+DYNAMIC ARRAY (List<T>) — AMORTIZED O(1) APPEND
+═══════════════════════════════════════════════════════════════
+  Capacity 1 → 2 → 4 → 8 → 16 → ...   (doubles when full)
 
-### When to Choose Which
+  Append sequence (capacity=4):
+  [A]         capacity=1, count=1       cost=1
+  [A,B]       capacity=2, count=2       cost=1+copy1=2 (resize!)
+  [A,B,C]     capacity=4, count=3       cost=1
+  [A,B,C,D]   capacity=4, count=4       cost=1
+  [A,B,C,D,E] capacity=8, count=5       cost=1+copy4=5 (resize!)
 
-| Scenario | Choice | Reason |
-|----------|--------|--------|
-| Memory-constrained embedded system | Time cost | Space is precious |
-| Web API serving millions of requests | Space cost | Speed matters more |
-| One-time batch job | Either | Optimize for simplicity |
-| Repeated lookups on same data | Cache (space) | Avoid recomputation |
-| Streaming data (can't store) | Time cost | Can't store all input |
+  Total cost for n appends ≈ n + (1+2+4+...+n/2) ≈ 2n = O(n)
+  Amortized per append = O(n)/n = O(1) ✅
+═══════════════════════════════════════════════════════════════
+```
 
 ---
 
-## Section 4 — The 14 Problem-Solving Patterns Catalog
+## Section 4 — The 14 Problem-Solving Patterns (Catalog)
 
-> **🧠 Mental Model: A Doctor's Diagnostic Playbook**
+> **🧠 Mental Model: A Toolkit**
 >
-> Doctors don't diagnose from scratch each time — they match symptoms to known patterns. Similarly, 95% of coding problems map to one of ~14 patterns. Once you recognize the pattern, the solution structure is mostly known. The skill is PATTERN RECOGNITION, not memorizing every problem.
-
-### The 14 Patterns — Quick Reference
+> A carpenter doesn't use a hammer for every job. Similarly, 95% of interview problems fit into ~14 recognizable patterns. Once you see the pattern, the solution follows automatically. This section is your toolkit reference — each pattern has its own deep-dive section in Part 9.
 
 ```
-┌───┬──────────────────────────┬─────────────────────────────────────────┐
-│ # │  Pattern                 │  Trigger Keywords                       │
-├───┼──────────────────────────┼─────────────────────────────────────────┤
-│ 1 │  Two Pointers            │  sorted array, pair sum, palindrome     │
-│ 2 │  Sliding Window          │  subarray/substring, contiguous, max/min│
-│ 3 │  Fast & Slow Pointers    │  cycle detection, middle of list        │
-│ 4 │  Merge Intervals         │  overlapping intervals, meeting rooms   │
-│ 5 │  Cyclic Sort             │  numbers 1–n, find missing/duplicate    │
-│ 6 │  Linked List Reversal    │  reverse in-place, reverse sublist      │
-│ 7 │  Tree BFS                │  level-by-level, shortest path in tree  │
-│ 8 │  Tree DFS                │  path sum, all paths, depth             │
-│ 9 │  Two Heaps               │  median of stream, scheduling           │
-│10 │  Subsets                 │  all combinations, power set            │
-│11 │  Modified Binary Search  │  sorted+rotated, bitonic, first/last    │
-│12 │  Top K Elements          │  k largest/smallest/frequent            │
-│13 │  K-way Merge             │  merge k sorted lists/arrays            │
-│14 │  Topological Sort        │  dependencies, course prerequisites     │
-└───┴──────────────────────────┴─────────────────────────────────────────┘
+╔══════════════════════════════════════════════════════════════════╗
+║           14 PROBLEM-SOLVING PATTERNS — QUICK REFERENCE         ║
+╠══════════╦═══════════════════════════╦══════════════════════════╣
+║ Pattern  ║ When to use               ║ Key indicator            ║
+╠══════════╬═══════════════════════════╬══════════════════════════╣
+║ 1. Two   ║ Sorted array, find pair   ║ "find two numbers that"  ║
+║ Pointers ║ sum/difference/product    ║ "palindrome check"       ║
+╠══════════╬═══════════════════════════╬══════════════════════════╣
+║ 2. Slide ║ Subarray/substring of     ║ "contiguous subarray"    ║
+║ Window   ║ fixed or variable size    ║ "longest substring"      ║
+╠══════════╬═══════════════════════════╬══════════════════════════╣
+║ 3. Fast/ ║ Linked list cycle,        ║ "detect cycle"           ║
+║ Slow Ptr ║ middle of list            ║ "find middle"            ║
+╠══════════╬═══════════════════════════╬══════════════════════════╣
+║ 4. Merge ║ Overlapping ranges,       ║ "intervals", "meetings"  ║
+║ Intervals║ insert/merge intervals    ║ "overlap"                ║
+╠══════════╬═══════════════════════════╬══════════════════════════╣
+║ 5. Cyclic║ Array with values in      ║ "find missing/duplicate" ║
+║ Sort     ║ range [1..n]              ║ "in-place rearrangement" ║
+╠══════════╬═══════════════════════════╬══════════════════════════╣
+║ 6. LL    ║ Reverse a linked list     ║ "reverse", "reorder"     ║
+║ Reversal ║ or part of it             ║ "k-group reversal"       ║
+╠══════════╬═══════════════════════════╬══════════════════════════╣
+║ 7. Mod.  ║ Sorted but rotated,       ║ "rotated array"          ║
+║ Bin Srch ║ find in mountain array    ║ "find first/last pos"    ║
+╠══════════╬═══════════════════════════╬══════════════════════════╣
+║ 8. Top K ║ Find k largest/smallest   ║ "top k", "kth largest"   ║
+║ Elements ║ K closest points          ║ "k frequent elements"    ║
+╠══════════╬═══════════════════════════╬══════════════════════════╣
+║ 9. Mono. ║ Next greater/smaller      ║ "next greater element"   ║
+║ Stack    ║ Largest rectangle         ║ "temperatures"           ║
+╠══════════╬═══════════════════════════╬══════════════════════════╣
+║ 10. Bit  ║ Single number in pairs,   ║ "XOR", "bits", "power2"  ║
+║ Manipul. ║ count set bits            ║ "without +/-"            ║
+╠══════════╬═══════════════════════════╬══════════════════════════╣
+║ 11. BFS  ║ Shortest path, level-by-  ║ "shortest path"          ║
+║ Pattern  ║ level tree traversal      ║ "minimum steps"          ║
+╠══════════╬═══════════════════════════╬══════════════════════════╣
+║ 12. DFS/ ║ All paths, permutations,  ║ "all combinations"       ║
+║ Backtrack║ subsets, N-Queens         ║ "generate all"           ║
+╠══════════╬═══════════════════════════╬══════════════════════════╣
+║ 13. DP   ║ Overlapping subproblems,  ║ "minimum/maximum"        ║
+║          ║ optimal substructure      ║ "count ways to"          ║
+╠══════════╬═══════════════════════════╬══════════════════════════╣
+║ 14. Greedy║ Local optimal = global   ║ "minimum cost"           ║
+║          ║ optimal (provable)        ║ "maximum profit"         ║
+╚══════════╩═══════════════════════════╩══════════════════════════╝
 ```
-
-### Pattern Decision Tree
-
-```
-Is the input sorted (or can be sorted)?
-├── YES → Binary Search or Two Pointers
-└── NO
-    Is it a contiguous subarray/substring problem?
-    ├── YES → Sliding Window
-    └── NO
-        Is it a LinkedList problem?
-        ├── YES → Fast/Slow Pointers or In-place Reversal
-        └── NO
-            Is it a Tree/Graph problem?
-            ├── TREE → BFS (level order) or DFS (path/depth)
-            └── GRAPH → BFS (shortest path) or DFS (connectivity)
-                Is it "find all combinations/subsets"?
-                ├── YES → Backtracking / Subsets pattern
-                └── NO
-                    Does it ask for "optimal" (max/min)?
-                    ├── YES → DP (overlapping subproblems?) or Greedy
-                    └── NO → HashMap/HashSet for O(1) lookup
-```
-
-> **🎯 Key Insight:** Spend 3–5 minutes on pattern matching (Step M of UMPIRE) before any coding. Saying "this looks like a sliding window problem" immediately shows the interviewer you have structured problem-solving skills.
 
 ---
 
@@ -368,54 +347,81 @@ Is the input sorted (or can be sorted)?
 
 > **🧠 Mental Model: A Parking Lot**
 >
-> An array is like a numbered parking lot. Every spot has a fixed number (index 0, 1, 2...). You can drive directly to spot #42 in O(1) — no need to check spots 0–41. But if you want to INSERT a spot between 3 and 4, you must physically move every car after spot 3 — that's O(n). The lot has a fixed size — if it's full and you need more space, you build a new bigger lot and move every car (that's how `List<T>` resizes).
-
-### Array Layout in Memory
+> An array is like a parking lot with numbered spaces. You can jump directly to space #42 in O(1) — the lot's layout tells you exactly where it is. But if you want to INSERT a new car in the middle, every car to the right must shift one spot — O(n) work. Arrays excel at **random access**, struggle with **insertions/deletions in the middle**.
 
 ```
-Index:  0     1     2     3     4
-      ┌─────┬─────┬─────┬─────┬─────┐
-      │  10 │  20 │  30 │  40 │  50 │
-      └─────┴─────┴─────┴─────┴─────┘
-        ↑                             ↑
-     base addr                   base + 4*4 (int = 4 bytes)
+ARRAY MEMORY LAYOUT (int[] arr = {10, 20, 30, 40, 50})
+═══════════════════════════════════════════════════════════════
+  Index:   [0]   [1]   [2]   [3]   [4]
+  Value:   [10]  [20]  [30]  [40]  [50]
+           ↑
+    base address (e.g., 0x1000)
+    arr[2] = *(0x1000 + 2 * sizeof(int)) = *(0x1008) = 30
+    → O(1) access via pointer arithmetic
 
-Random access: arr[i] = base_address + i * element_size  → O(1)
+  INSERTION at index 1 (value=99):
+  BEFORE: [10] [20] [30] [40] [50]
+  SHIFT:   ← all elements right of 1 shift right
+  AFTER:  [10] [99] [20] [30] [40] [50]  ← O(n) work!
+
+  DELETION at index 1:
+  BEFORE: [10] [99] [20] [30] [40] [50]
+  SHIFT:   ← all elements right of 1 shift left
+  AFTER:  [10] [20] [30] [40] [50]  ← O(n) work!
+═══════════════════════════════════════════════════════════════
 ```
 
-### C# Array Operations
+### C# Array Essentials
 
 ```csharp
-// DECLARATION
-int[] arr = new int[5];                    // fixed size, all zeros
-int[] arr2 = { 1, 2, 3, 4, 5 };           // initialize with values
-int[,] matrix = new int[3, 4];            // 2D array (3 rows, 4 cols)
-int[][] jagged = new int[3][];            // jagged array (rows can differ)
+// ═══ DECLARATION & INITIALIZATION ═══
+int[] arr = new int[5];              // all zeros
+int[] arr2 = { 1, 2, 3, 4, 5 };     // inline init
+int[] arr3 = new int[] { 1, 2, 3 }; // explicit
 
-// DYNAMIC ARRAY — List<T> (preferred in C#)
+// ═══ 2D ARRAYS (grid problems — very common in interviews!) ═══
+int[,] matrix = new int[3, 4];       // 3 rows, 4 cols — rectangular
+int[][] jagged = new int[3][];       // jagged: each row has different length
+jagged[0] = new int[] { 1, 2 };
+jagged[1] = new int[] { 3, 4, 5 };
+
+// Grid traversal — 4 directions (up/down/left/right)
+int[] dr = { -1, 1, 0, 0 };  // row deltas: up, down, left, right
+int[] dc = { 0, 0, -1, 1 };  // col deltas: up, down, left, right
+for (int d = 0; d < 4; d++) {
+    int nr = row + dr[d];     // new row
+    int nc = col + dc[d];     // new col
+    if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+        // process neighbor (nr, nc)
+    }
+}
+
+// ═══ LIST<T> — DYNAMIC ARRAY (preferred in interviews) ═══
 var list = new List<int> { 1, 2, 3 };
-list.Add(4);                               // O(1) amortized
-list.Insert(1, 99);                        // O(n) — shifts elements right
-list.RemoveAt(2);                          // O(n) — shifts elements left
-list.Contains(99);                         // O(n) — linear search
+list.Add(4);           // O(1) amortized — may trigger resize
+list.Insert(0, 99);    // O(n) — shifts all elements
+list.RemoveAt(0);      // O(n) — shifts all elements
+list[0];               // O(1) random access
+list.Count;            // O(1) — cached, not counted each time!
 
-// USEFUL OPERATIONS
-Array.Sort(arr);                           // O(n log n) — introsort
-Array.Reverse(arr);                        // O(n)
-Array.BinarySearch(arr, 30);              // O(log n) — array must be sorted
-int[] copy = (int[])arr.Clone();           // shallow copy
-Array.Fill(arr, 0);                        // fill all with value
+// ═══ COMMON ARRAY OPERATIONS IN INTERVIEWS ═══
+// Reverse
+Array.Reverse(arr);                  // O(n), in-place
 
-// 2D ARRAY TRAVERSAL
-for (int row = 0; row < matrix.GetLength(0); row++)
-    for (int col = 0; col < matrix.GetLength(1); col++)
-        Console.Write(matrix[row, col]);
+// Sort
+Array.Sort(arr);                     // O(n log n), in-place
+Array.Sort(arr, (a, b) => b - a);   // descending — custom comparer
 
-// COMMON IDIOMS
-int[] prefix = new int[arr.Length + 1];   // prefix sum array
-for (int i = 0; i < arr.Length; i++)
-    prefix[i + 1] = prefix[i] + arr[i];   // prefix[i] = sum of arr[0..i-1]
-// Range sum [l, r] = prefix[r+1] - prefix[l]  → O(1) after O(n) build
+// Binary search (requires sorted)
+int idx = Array.BinarySearch(arr, 42); // O(log n)
+
+// Copy (shallow)
+int[] copy = (int[])arr.Clone();    // or: arr.ToArray()
+
+// LINQ on arrays
+int max = arr.Max();                // O(n)
+int sum = arr.Sum();                // O(n)
+int[] filtered = arr.Where(x => x > 0).ToArray(); // O(n)
 ```
 
 ### Complexity Table
@@ -425,46 +431,102 @@ for (int i = 0; i < arr.Length; i++)
 | Access by index | O(1) | O(1) |
 | Search (unsorted) | O(n) | O(n) |
 | Search (sorted) | O(log n) | O(log n) |
-| Insert at end | N/A (fixed) | O(1) amortized |
-| Insert at middle | N/A (fixed) | O(n) |
-| Delete at end | N/A (fixed) | O(1) |
-| Delete at middle | N/A (fixed) | O(n) |
+| Insert at end | N/A | O(1) amortized |
+| Insert at middle | N/A | O(n) |
+| Delete at end | N/A | O(1) |
+| Delete at middle | N/A | O(n) |
 | Space | O(n) | O(n) |
 
 ### Common Pitfalls
-- ⚠️ Off-by-one errors: `arr[arr.Length]` throws `IndexOutOfRangeException`
-- ⚠️ Integer overflow: `int mid = (left + right) / 2` can overflow — use `left + (right - left) / 2`
-- ⚠️ Modifying array while iterating with `foreach` — use index-based `for` instead
-- ⚠️ `arr.Clone()` is a shallow copy — for array of objects, objects are not deep-copied
+- ⚠️ Off-by-one errors: `arr[arr.Length]` throws `IndexOutOfRangeException` — use `arr.Length - 1`
+- ⚠️ Integer overflow in mid calculation: use `left + (right - left) / 2` not `(left + right) / 2`
+- ⚠️ Modifying list while iterating with `foreach` → `InvalidOperationException`
+- ⚠️ `arr.Clone()` is shallow — for reference types, elements are not deep-copied
+
+---
 
 ### 🔴 Practice Problem: Two Sum (LeetCode #1 — Easy)
 
-**Problem:** Given an array of integers `nums` and an integer `target`, return indices of the two numbers that add up to target. Each input has exactly one solution, you may not use the same element twice.
+**Problem:** Given `nums` array and integer `target`, return indices of two numbers that add up to `target`.
 
-**Approach:** HashMap for O(n) — for each number, check if its complement (target - num) is already seen.
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: TWO SUM                                     ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 BRUTE FORCE  │ Try every pair (i,j)  │ O(n²) time │ O(1)   ║
+║                  │ nested loops          │            │ space  ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟡 BETTER       │ Sort + two pointers   │ O(n log n) │ O(1)   ║
+║                  │ (loses original index)│            │ space  ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 OPTIMAL      │ HashMap: store seen   │ O(n) time  │ O(n)   ║
+║                  │ values → O(1) lookup  │            │ space  ║
+╚══════════════════════════════════════════════════════════════════╝
 
+KEY INSIGHT: "I need fast lookup of complement = target - num"
+             Fast lookup → HashMap (Dictionary) → O(1) per check
+```
+
+**🔴 Brute Force — O(n²)**
+```csharp
+// Try EVERY pair — two nested loops
+// Works, but too slow for large arrays
+public int[] TwoSumBrute(int[] nums, int target) {
+    for (int i = 0; i < nums.Length; i++) {
+        for (int j = i + 1; j < nums.Length; j++) {   // j starts at i+1 to avoid using same element
+            if (nums[i] + nums[j] == target)
+                return new[] { i, j };
+        }
+    }
+    return Array.Empty<int>();
+}
+// Problem: for n=10^4, this is 10^8 operations → TLE (Time Limit Exceeded)
+```
+
+**🟢 Optimal — HashMap O(n)**
 ```csharp
 public int[] TwoSum(int[] nums, int target) {
-    // Store: number → index, for O(1) complement lookup
-    var seen = new Dictionary<int, int>();
+    // WHY Dictionary? We need to answer "have I seen the complement before?"
+    // in O(1) time. Dictionary gives O(1) average lookup by key.
+    var seen = new Dictionary<int, int>(); // key=value, val=index
 
     for (int i = 0; i < nums.Length; i++) {
-        int complement = target - nums[i];
+        // WHY compute complement first? If complement exists in seen,
+        // we already have both numbers — no need to add current one yet.
+        int complement = target - nums[i];  // what number do we NEED?
 
-        // If complement already seen, we found our pair
+        // TryGetValue is preferred over ContainsKey + indexer
+        // because it does ONE lookup (not two)
         if (seen.TryGetValue(complement, out int j))
-            return new[] { j, i };
+            return new[] { j, i };  // j is the earlier index, i is current
 
-        // Otherwise record this number and its index
+        // WHY add AFTER checking? Prevents using same element twice.
+        // Example: nums=[3,3], target=6 → we don't want to use index 0 twice
         seen[nums[i]] = i;
     }
 
-    return Array.Empty<int>(); // problem guarantees a solution exists
+    return Array.Empty<int>(); // guaranteed solution exists per problem statement
 }
-// Time: O(n) — single pass | Space: O(n) — dictionary stores up to n entries
+// Time: O(n) — single pass through array
+// Space: O(n) — dictionary stores at most n entries
 ```
 
-> **🎯 Key Insight:** The brute-force O(n²) nested loop is the natural first thought. Recognizing "I need fast lookup of a VALUE" → HashMap is the key mental leap. Almost every array problem that needs "find complement/pair" uses this HashMap trick.
+```
+STEP-BY-STEP TRACE: nums=[2,7,11,15], target=9
+════════════════════════════════════════════════════════
+  i=0 │ num=2  │ comp=9-2=7   │ seen={}     │ 7 not in seen → add {2:0}
+  i=1 │ num=7  │ comp=9-7=2   │ seen={2:0}  │ 2 IS in seen! → return [0,1] ✅
+════════════════════════════════════════════════════════
+
+TRACE: nums=[3,2,4], target=6
+════════════════════════════════════════════════════════
+  i=0 │ num=3  │ comp=6-3=3   │ seen={}     │ 3 not in seen → add {3:0}
+  i=1 │ num=2  │ comp=6-2=4   │ seen={3:0}  │ 4 not in seen → add {2:1}
+  i=2 │ num=4  │ comp=6-4=2   │ seen={3,2}  │ 2 IS in seen! → return [1,2] ✅
+════════════════════════════════════════════════════════
+```
+
+> **🎯 Key Insight:** The pattern "need fast lookup of a value" → HashMap is the #1 most important trick in array problems. It transforms O(n²) brute force (nested loop) to O(n) in one HashMap pass. Master this pattern first.
 
 ---
 
@@ -472,111 +534,214 @@ public int[] TwoSum(int[] nums, int target) {
 
 > **🧠 Mental Model: A Bead Necklace**
 >
-> A string is like a necklace of character beads. In C#, strings are **immutable** — once created, you cannot change a bead. Every "modification" creates a new necklace. `StringBuilder` is like a work-in-progress necklace on the table — you add/remove beads freely, then string them together at the end.
+> A string is like a necklace of character beads. In C#, strings are **immutable** — once created, you cannot change a bead in place. Every "modification" creates a new necklace. `StringBuilder` is a work-in-progress necklace on the table — you add/remove beads freely, then string them together at the end (`.ToString()`).
 
-### C# String Fundamentals
+```
+STRING IMMUTABILITY VISUALIZATION:
+═══════════════════════════════════════════════════════════════
+  string s = "hello";
+  s += " world";    // What ACTUALLY happens:
+
+  Memory BEFORE:
+    Heap: [ h | e | l | l | o ]  ← "hello" at address 0x100
+    s → 0x100
+
+  Memory AFTER:
+    Heap: [ h | e | l | l | o ]  ← "hello" STILL EXISTS (GC will clean up)
+          [ h | e | l | l | o |   | w | o | r | l | d ]  ← NEW string at 0x200
+    s → 0x200
+
+  COST: O(n) to create new string (copies all chars)
+  IN A LOOP: s += char is O(n²) total! Use StringBuilder instead.
+═══════════════════════════════════════════════════════════════
+```
+
+### C# String Essentials
 
 ```csharp
-// IMMUTABILITY — every operation creates a new string
-string s = "hello";
-string s2 = s.ToUpper();  // new string "HELLO" — s is still "hello"
-s += " world";            // creates a new string — old "hello" is garbage collected
+// ═══ CHAR OPERATIONS — CRITICAL FOR INTERVIEW PROBLEMS ═══
+char c = 'a';
+char.IsDigit('5');      // true — is it 0-9?
+char.IsLetter('a');     // true — is it a-z or A-Z?
+char.IsWhiteSpace(' '); // true
+char.ToLower('A');      // 'a'
+char.ToUpper('a');      // 'A'
 
-// CHAR OPERATIONS
-char c = s[0];                  // O(1) index access
-int len = s.Length;             // O(1)
-bool hasA = s.Contains("a");    // O(n) — linear scan
-int idx = s.IndexOf('l');       // O(n)
+// WHY char-to-index? Many string problems use frequency arrays
+// instead of HashMap — faster (array vs hash) and simpler
+int idx = 'c' - 'a';   // = 2 → maps 'a'→0, 'b'→1, ..., 'z'→25
+// Reverse: (char)('a' + 2) = 'c'
 
-// CHARACTER CHECKS (important for interview problems)
-char.IsDigit('5');              // true
-char.IsLetter('a');             // true
-char.IsWhiteSpace(' ');         // true
-char.ToLower('A');              // 'a'
-(int)('a' - 'a') == 0           // convert char to 0-25 index — key for frequency arrays!
-(int)('z' - 'a') == 25
+// FREQUENCY ARRAY PATTERN (faster than Dictionary for fixed alphabet)
+int[] freq = new int[26];           // 26 lowercase letters
+foreach (char ch in "hello")
+    freq[ch - 'a']++;               // 'h'→7, 'e'→4, 'l'→11, 'o'→14
+// Check if two strings are anagrams: freq arrays must be equal
 
-// FREQUENCY ARRAY (faster than Dictionary for lowercase letters)
-int[] freq = new int[26];
-foreach (char ch in s)
-    freq[ch - 'a']++;           // map 'a'→0, 'b'→1, ..., 'z'→25
-
-// STRINGBUILDER — O(1) amortized append vs O(n) for string concatenation
+// ═══ STRINGBUILDER — O(1) AMORTIZED APPEND ═══
 var sb = new StringBuilder();
-sb.Append("hello");
-sb.Append(' ');
-sb.Append("world");
-string result = sb.ToString();  // build once at end
+sb.Append("hello");    // add string — O(1) amortized
+sb.Append(' ');        // add char
+sb.Insert(0, "say: "); // O(n) — inserts at position
+sb.Remove(0, 5);       // O(n) — removes chars
+string result = sb.ToString(); // ONE allocation at the end
 
-// SPLITTING AND JOINING
-string[] words = "hello world".Split(' ');
-string joined = string.Join(", ", words);  // "hello, world"
+// ═══ IMPORTANT STRING METHODS ═══
+string s = "Hello World";
+s.Length;              // 11 — O(1)
+s[0];                  // 'H' — O(1) index access
+s.ToCharArray();       // convert to char[] for mutation
+s.Substring(6, 5);     // "World" — O(n), creates new string
+s.IndexOf('o');        // 4 — first occurrence
+s.LastIndexOf('o');    // 7 — last occurrence
+s.Contains("World");   // true — O(n)
+s.Split(' ');          // ["Hello", "World"]
+string.Join("-", arr); // "Hello-World"
+s.Replace("World","C#"); // new string with replacement
+s.Trim();              // remove whitespace from both ends
+s.TrimStart();         // remove from left only
+s.TrimEnd();           // remove from right only
+new string('a', 5);    // "aaaaa" — repeat char n times
 
-// SPAN<CHAR> — zero-allocation slicing (performance-critical code)
-ReadOnlySpan<char> span = s.AsSpan(1, 3);  // slice without allocation
+// ═══ SPAN<CHAR> — ZERO-ALLOCATION SUBSTRING (performance code) ═══
+ReadOnlySpan<char> span = s.AsSpan(6, 5); // "World" — no heap allocation!
+// Use in hot paths where memory matters
 ```
 
 ### Complexity Table
 
-| Operation | String | StringBuilder |
+| Operation | string | StringBuilder |
 |-----------|--------|---------------|
 | Length | O(1) | O(1) |
 | Index access | O(1) | O(1) |
-| Concatenation | O(n) new string | O(1) amortized |
+| Concatenation (+=) | O(n) new string | O(1) amortized |
 | Substring | O(n) copy | O(1) with Span |
-| Contains/IndexOf | O(n) | O(n) |
-| Compare | O(n) | O(n) |
+| IndexOf/Contains | O(n) | O(n) |
+| Build n-char result | O(n²) if += in loop! | O(n) |
 
-### Common Pitfalls
-- ⚠️ String concatenation in a loop: `s += char` is O(n²) total — always use `StringBuilder`
-- ⚠️ `string.Compare` vs `==`: use `==` for value equality (C# overloads it correctly for strings)
-- ⚠️ `null` vs `""` vs `" "` — check with `string.IsNullOrWhiteSpace(s)`
-- ⚠️ Unicode: `s.Length` is UTF-16 code units, not characters — emoji can be length 2
+---
 
 ### 🔴 Practice Problem: Longest Palindromic Substring (LeetCode #5 — Medium)
 
 **Problem:** Given string `s`, return the longest palindromic substring.
 
-**Approach:** Expand Around Center — for each character, try expanding outward while characters match.
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: LONGEST PALINDROMIC SUBSTRING              ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 BRUTE    │ Check all O(n²) substrings, each O(n) │ O(n³)  ║
+║  FORCE       │ verify palindrome                      │ O(1)   ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟡 DP       │ dp[i][j]=true if palindrome,           │ O(n²)  ║
+║              │ build from short to long               │ O(n²)  ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 EXPAND   │ For each center, expand outward        │ O(n²)  ║
+║  FROM CENTER │ while chars match. 2 cases: odd/even  │ O(1)   ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🏆 MANACHER │ Specialized O(n) algorithm             │ O(n²)  ║
+║  (bonus)     │ (rarely needed in interviews)          │ O(n)   ║
+╚══════════════════════════════════════════════════════════════════╝
+
+KEY INSIGHT: A palindrome has a CENTER. Instead of checking every
+             substring, stand at each center and expand outward.
+             2 types of centers: odd-length (single char center)
+             and even-length (between two chars).
+```
+
+```
+EXPAND-FROM-CENTER VISUALIZATION on "babad":
+═══════════════════════════════════════════════════════════════
+  String:  b  a  b  a  d
+  Index:   0  1  2  3  4
+
+  Center 0 (char 'b'): expand → 'b' (len=1, no expansion possible)
+  Center 1 (char 'a'): expand L=0,R=2 → s[0]='b' s[2]='b' match!
+                        expand L=-1 → out of bounds. palindrome="bab" len=3
+  Center 2 (char 'b'): expand L=1,R=3 → s[1]='a' s[3]='a' match!
+                        expand L=0,R=4 → s[0]='b' s[4]='d' NO match
+                        palindrome="aba" len=3
+  Center between 1&2 (even): L=1,R=2 → 'a' vs 'b' NO match → len=0
+  Best: "bab" or "aba", both len=3 → return either
+═══════════════════════════════════════════════════════════════
+```
 
 ```csharp
 public string LongestPalindrome(string s) {
     if (s.Length == 0) return "";
 
-    int start = 0, maxLen = 1;
+    int start = 0, maxLen = 1; // track best palindrome found
 
-    // Try each character as center (odd length) and between chars (even length)
+    // Helper: expand from center and return length of palindrome found
+    // WHY a local function? Avoids code duplication for odd/even cases
+    int Expand(int left, int right) {
+        // Expand outward while within bounds AND chars match
+        // WHY check both boundaries? String is finite; can't go past ends
+        while (left >= 0 && right < s.Length && s[left] == s[right]) {
+            left--;   // move left pointer outward
+            right++;  // move right pointer outward
+        }
+        // WHY right - left - 1? After the last successful expansion,
+        // left went one too far left and right went one too far right.
+        // Actual palindrome is s[left+1 .. right-1], length = (right-1)-(left+1)+1 = right-left-1
+        return right - left - 1;
+    }
+
     for (int i = 0; i < s.Length; i++) {
-        // Odd length palindromes (center at i)
-        int len1 = ExpandFromCenter(s, i, i);
-        // Even length palindromes (center between i and i+1)
-        int len2 = ExpandFromCenter(s, i, i + 1);
+        // Case 1: ODD-length palindrome centered at character i
+        // Example: "aba" centered at 'b' (index 1)
+        int oddLen = Expand(i, i);
 
-        int len = Math.Max(len1, len2);
-        if (len > maxLen) {
-            maxLen = len;
-            // Calculate start: center - half the length
-            start = i - (len - 1) / 2;
+        // Case 2: EVEN-length palindrome centered BETWEEN i and i+1
+        // Example: "abba" centered between the two 'b's
+        int evenLen = Expand(i, i + 1);
+
+        // Update best if we found a longer palindrome
+        int bestLen = Math.Max(oddLen, evenLen);
+        if (bestLen > maxLen) {
+            maxLen = bestLen;
+            // WHY this formula? The palindrome ends at i + bestLen/2
+            // and starts at i - (bestLen-1)/2
+            // Integer division handles odd vs even correctly
+            start = i - (bestLen - 1) / 2;
         }
     }
 
     return s.Substring(start, maxLen);
 }
-
-private int ExpandFromCenter(string s, int left, int right) {
-    // Expand while within bounds AND characters match
-    while (left >= 0 && right < s.Length && s[left] == s[right]) {
-        left--;
-        right++;
-    }
-    // When loop ends, left and right are OUTSIDE the palindrome
-    return right - left - 1;  // length of palindrome
-}
-// Time: O(n²) — n centers, each expansion up to O(n)
-// Space: O(1) — only store start index and length
+// Time: O(n²) — n centers × O(n) expansion each
+// Space: O(1) — only track indices, no extra data structure
 ```
 
-> **🎯 Key Insight:** There are two types of palindrome centers: single character (odd length like "aba") and between characters (even length like "abba"). Always check both. The DP solution is O(n²) time AND space — expand-around-center achieves same time with O(1) space.
+```
+TRACE: s = "cbbd"
+════════════════════════════════════════════════════════════
+  i=0 ('c'): odd=Expand(0,0)  → left=-1 stop → len=1
+             even=Expand(0,1) → 'c' vs 'b' mismatch → len=0
+             best=1, start=0
+
+  i=1 ('b'): odd=Expand(1,1)  → 'c' vs 'b' mismatch at (0,2) → len=1
+             even=Expand(1,2) → 'b' vs 'b' match! → (0,3): 'c' vs 'd' mismatch
+                                len=(3-0-1)=2 → palindrome="bb"
+             best=2, start=1
+
+  i=2 ('b'): odd=Expand(2,2)  → 'b' vs 'b' match! → (0,4) out of bounds
+                                len=(4-0-1)=... wait: left=0,right=3 after first
+                                expansion. Then left=-1,right=4. len=4-(-1)-1=4? No.
+                                Let's re-trace: Expand(2,2):
+                                  left=2,right=2: s[2]='b'==s[2]='b' → left=1,right=3
+                                  left=1,right=3: s[1]='b'==s[3]='d'? No → stop
+                                  return 3-1-1=1
+             even=Expand(2,3) → 'b' vs 'd' mismatch → len=0
+             best=1
+
+  i=3 ('d'): odd=Expand(3,3)  → len=1
+             best=1
+
+  Final: maxLen=2, start=1 → s.Substring(1,2) = "bb" ✅
+════════════════════════════════════════════════════════════
+```
+
+> **🎯 Key Insight:** When dealing with palindromes, think "expand from center" rather than "check all substrings." The center perspective reduces the problem from O(n³) to O(n²). Remember there are TWO types of centers: single character (odd-length) and between two characters (even-length).
 
 ---
 
@@ -584,130 +749,220 @@ private int ExpandFromCenter(string s, int left, int right) {
 
 > **🧠 Mental Model: A Scavenger Hunt**
 >
-> A linked list is like a scavenger hunt where each clue (node) contains: (1) a message (data) and (2) the location of the NEXT clue (pointer). You MUST start from clue #1 and follow the chain — you cannot jump to clue #7 directly. To add a new clue between clues 3 and 4: just change clue 3 to point to the new clue, and new clue points to old clue 4. No "moving" required — O(1) insert once you're at position.
-
-### Linked List Structure
+> A linked list is like a scavenger hunt — each clue (node) contains: (1) the current clue's content (data), and (2) directions to the next clue location (next pointer). You CANNOT jump to clue #5 without following the chain from #1 → #2 → #3 → #4 → #5. That's why access is O(n), but insertion (once you're at the spot) is O(1) — just redirect the pointer!
 
 ```
-Singly Linked List:
-┌──────┬──┐   ┌──────┬──┐   ┌──────┬──┐   ┌──────┬────┐
-│  10  │ ─┼──►│  20  │ ─┼──►│  30  │ ─┼──►│  40  │null│
-└──────┴──┘   └──────┴──┘   └──────┴──┘   └──────┴────┘
-  head                                         tail
+SINGLY LINKED LIST STRUCTURE:
+═══════════════════════════════════════════════════════════════
+  head
+   │
+   ▼
+  ┌────┬──────┐    ┌────┬──────┐    ┌────┬──────┐    ┌────┬──────┐
+  │ 1  │  ●───┼───►│ 2  │  ●───┼───►│ 3  │  ●───┼───►│ 4  │ null │
+  └────┴──────┘    └────┴──────┘    └────┴──────┘    └────┴──────┘
+  [val][next]       [val][next]       [val][next]      [val][next]
 
-Doubly Linked List:
-     ┌──────────────────────────────────────────┐
-     │  ┌──┬──────┬──┐   ┌──┬──────┬──┐        │
-null◄┼──┤  │  10  │ ─┼──►│  │  20  │ ─┼──► ... │
-     │  └──┴──────┴──┘ ◄─┼──┴──────┴──┘        │
-     └──────────────────────────────────────────┘
+DOUBLY LINKED LIST (LinkedList<T> in C#):
+  null ←─ [1] ⇄ [2] ⇄ [3] ⇄ [4] ─► null
+           ↑                   ↑
+          head               tail  (O(1) access to both ends!)
+
+INSERT at head (O(1)):           DELETE from middle (O(1) if you have the node):
+  newNode → [99] → [1] → [2]    [1] ──►[2]──► [3]
+  head = newNode                         ↕ unlink
+                                 [1] ──────────► [3]
+═══════════════════════════════════════════════════════════════
 ```
 
-### C# Linked List — From Scratch + Built-in
+### Custom Linked List Node (C#)
 
 ```csharp
-// NODE DEFINITION (for interview problems — write this yourself)
+// WHY define our own? LeetCode problems use custom ListNode, not LinkedList<T>
 public class ListNode {
-    public int Val;
-    public ListNode Next;
+    public int val;
+    public ListNode next;
+    // Record syntax alternative (cleaner):
+    // public record ListNode(int val, ListNode next = null);
     public ListNode(int val = 0, ListNode next = null) {
-        Val = val; Next = next;
+        this.val = val;
+        this.next = next;
     }
 }
 
-// COMMON LINKED LIST OPERATIONS
-// 1. Traverse
-void Traverse(ListNode head) {
-    ListNode curr = head;
+// BUILDING A LIST from array (utility for testing)
+ListNode BuildList(int[] vals) {
+    var dummy = new ListNode(0);  // dummy head avoids special-casing head node
+    var curr = dummy;
+    foreach (int v in vals) {
+        curr.next = new ListNode(v);
+        curr = curr.next;
+    }
+    return dummy.next; // return actual head, not dummy
+}
+
+// THREE ESSENTIAL LINKED LIST TECHNIQUES:
+
+// 1. DUMMY HEAD NODE — eliminates edge cases when head might change
+ListNode RemoveValue(ListNode head, int val) {
+    var dummy = new ListNode(0) { next = head }; // dummy points to real head
+    var curr = dummy;
+    while (curr.next != null) {
+        if (curr.next.val == val)
+            curr.next = curr.next.next; // skip the node to delete
+        else
+            curr = curr.next;
+    }
+    return dummy.next; // return potentially new head
+}
+
+// 2. TWO POINTER (fast/slow) — find middle, detect cycle
+ListNode FindMiddle(ListNode head) {
+    ListNode slow = head, fast = head;
+    // WHY fast && fast.next? fast moves 2 steps, need to check both
+    while (fast != null && fast.next != null) {
+        slow = slow.next;       // moves 1 step
+        fast = fast.next.next;  // moves 2 steps
+    }
+    return slow; // when fast reaches end, slow is at middle
+}
+
+// 3. REVERSING — the 3-pointer technique (most important LL technique!)
+ListNode Reverse(ListNode head) {
+    ListNode prev = null, curr = head;
     while (curr != null) {
-        Console.Write(curr.Val + " → ");
-        curr = curr.Next;
+        ListNode next = curr.next; // SAVE next before we overwrite it
+        curr.next = prev;          // REVERSE the link (point backward)
+        prev = curr;               // ADVANCE prev (it becomes the new "behind")
+        curr = next;               // ADVANCE curr (move forward)
     }
+    return prev; // prev is now pointing to the new head (old tail)
 }
-
-// 2. Insert at front — O(1)
-ListNode InsertFront(ListNode head, int val) {
-    var newNode = new ListNode(val);
-    newNode.Next = head;   // new node points to old head
-    return newNode;        // new node is new head
-}
-
-// 3. Delete a node by value — O(n)
-ListNode DeleteVal(ListNode head, int val) {
-    var dummy = new ListNode(0, head);  // dummy prevents null head special case
-    ListNode prev = dummy;
-    while (prev.Next != null) {
-        if (prev.Next.Val == val) {
-            prev.Next = prev.Next.Next;  // skip the target node
-            break;
-        }
-        prev = prev.Next;
-    }
-    return dummy.Next;  // real head (may have changed if we deleted original head)
-}
-
-// .NET BUILT-IN: LinkedList<T>
-var ll = new LinkedList<int>();
-ll.AddFirst(10);              // O(1)
-ll.AddLast(20);               // O(1)
-ll.AddAfter(ll.First, 15);    // O(1) given node reference
-ll.Remove(ll.First);          // O(1) given node reference
-ll.Find(20);                  // O(n) — returns LinkedListNode<T>
 ```
 
 ### Complexity Table
 
-| Operation | Array/List\<T\> | Linked List |
-|-----------|----------------|-------------|
-| Access by index | O(1) | O(n) |
+| Operation | Singly LL | Doubly LL (LinkedList\<T\>) |
+|-----------|-----------|-------------------------------|
+| Access by index | O(n) | O(n) |
 | Search | O(n) | O(n) |
-| Insert at front | O(n) shift | O(1) |
-| Insert at back | O(1) amortized | O(1) with tail ptr |
-| Insert at middle | O(n) shift | O(1) if at position |
-| Delete at front | O(n) shift | O(1) |
-| Delete at middle | O(n) shift | O(1) if at position |
+| Insert at head | O(1) | O(1) |
+| Insert at tail | O(n)* | O(1) — has tail pointer |
+| Insert at middle | O(n) to find + O(1) | O(n) to find + O(1) |
+| Delete at head | O(1) | O(1) |
 | Space | O(n) | O(n) + pointer overhead |
 
-### Common Pitfalls
-- ⚠️ Always use a **dummy node** when the head might change — avoids null-head special cases
-- ⚠️ Save `curr.Next` BEFORE modifying `curr.Next` in reversal problems
-- ⚠️ Null check before accessing `.Next` or `.Val`
-- ⚠️ Off-by-one in "find kth from end" — use two-pointer approach with k gap
+*O(1) if you maintain a tail pointer
+
+---
 
 ### 🔴 Practice Problem: Reverse Linked List (LeetCode #206 — Easy)
 
 **Problem:** Reverse a singly linked list. Return the new head.
 
-```csharp
-// ITERATIVE — O(n) time, O(1) space
-public ListNode ReverseList(ListNode head) {
-    ListNode prev = null;
-    ListNode curr = head;
-
-    while (curr != null) {
-        ListNode nextTemp = curr.Next;  // save next BEFORE we overwrite it
-        curr.Next = prev;              // reverse the pointer
-        prev = curr;                   // advance prev to current
-        curr = nextTemp;               // advance curr to saved next
-    }
-
-    return prev;  // prev is now the new head (last node of original list)
-}
-
-// RECURSIVE — O(n) time, O(n) space (call stack)
-public ListNode ReverseListRecursive(ListNode head) {
-    if (head == null || head.Next == null) return head;  // base case
-
-    ListNode newHead = ReverseListRecursive(head.Next);  // reverse rest
-    head.Next.Next = head;  // make next node point back to current
-    head.Next = null;       // disconnect current from old direction
-    return newHead;
-}
-// Mental trace: 1→2→3→null
-// After reverse: null←1←2←3 → return 3 as new head
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: REVERSE LINKED LIST                         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 BRUTE    │ Copy to array, reverse   │ O(n) time │ O(n) sp  ║
+║  FORCE       │ array, rebuild list      │           │          ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟡 STACK    │ Push all nodes, pop to   │ O(n) time │ O(n) sp  ║
+║              │ rebuild — same as above  │           │          ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 ITERATIVE│ 3-pointer in-place       │ O(n) time │ O(1) sp  ║
+║  (OPTIMAL)   │ prev/curr/next           │           │          ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 RECURSIVE│ Elegant but O(n) stack   │ O(n) time │ O(n) sp  ║
+║  (ALTERNATE) │ space (call stack)       │           │          ║
+╚══════════════════════════════════════════════════════════════════╝
 ```
 
-> **🎯 Key Insight:** The 3-variable iterative pattern (`prev`, `curr`, `nextTemp`) is the foundation for ALL linked list reversal problems. Memorize it cold. The recursive version is elegant but uses O(n) stack space — interviewers may ask for both.
+```
+THE 3-POINTER REVERSAL — VISUAL:
+═══════════════════════════════════════════════════════════════
+INITIAL:  null ←prev  curr→ [1] → [2] → [3] → [4] → null
+
+STEP 1:   Save next=[2]. Flip: [1]→null. Move prev=[1], curr=[2]
+          null ← [1]    [2] → [3] → [4] → null
+                prev    curr
+
+STEP 2:   Save next=[3]. Flip: [2]→[1]. Move prev=[2], curr=[3]
+          null ← [1] ← [2]    [3] → [4] → null
+                       prev    curr
+
+STEP 3:   Save next=[4]. Flip: [3]→[2]. Move prev=[3], curr=[4]
+          null ← [1] ← [2] ← [3]    [4] → null
+                              prev    curr
+
+STEP 4:   Save next=null. Flip: [4]→[3]. Move prev=[4], curr=null
+          null ← [1] ← [2] ← [3] ← [4]    null
+                                    prev    curr
+
+curr==null → STOP. Return prev=[4] as new head.
+Result: [4] → [3] → [2] → [1] → null ✅
+═══════════════════════════════════════════════════════════════
+```
+
+```csharp
+// ITERATIVE — O(n) time, O(1) space (PREFERRED in interviews)
+public ListNode ReverseList(ListNode head) {
+    ListNode prev = null;  // starts as null because new tail points to null
+    ListNode curr = head;  // starts at head, walks forward
+
+    while (curr != null) {
+        // STEP 1: Save next before we destroy the link!
+        // Without this save, we'd lose the rest of the list when we flip curr.next
+        ListNode next = curr.next;
+
+        // STEP 2: Flip the arrow — instead of pointing forward, point backward
+        curr.next = prev;
+
+        // STEP 3: Advance both pointers by one position
+        prev = curr;    // prev moves to where curr was
+        curr = next;    // curr moves to what was next
+    }
+
+    // WHY return prev, not curr? curr is null (we went past the end).
+    // prev is sitting on the node that became the new head (old tail).
+    return prev;
+}
+
+// RECURSIVE — O(n) time, O(n) space (elegant but uses call stack)
+public ListNode ReverseListRecursive(ListNode head) {
+    // BASE CASE: empty list or single node — already "reversed"
+    if (head == null || head.next == null) return head;
+
+    // RECURSIVE CASE: assume the rest (head.next onward) is already reversed
+    // Example: [1] → [2] → [3] → [4] → null
+    // newHead = ReverseList([2]→[3]→[4]) returns [4]→[3]→[2]→null
+    ListNode newHead = ReverseListRecursive(head.next);
+
+    // Now we need to attach head ([1]) to the end of the reversed portion
+    // head.next is still [2] (not changed yet)
+    // We want [2].next = [1], then [1].next = null
+    head.next.next = head;  // [2] now points back to [1]
+    head.next = null;       // [1] points to null (it becomes the new tail)
+
+    return newHead; // [4] is still the new head of the fully reversed list
+}
+```
+
+```
+TRACE: head = [1] → [2] → [3] → null
+═══════════════════════════════════════════════════════════
+  INIT:    prev=null, curr=[1]
+  ITER 1:  next=[2], curr.next=null, prev=[1], curr=[2]
+           List state: null←[1]  [2]→[3]→null
+  ITER 2:  next=[3], curr.next=[1], prev=[2], curr=[3]
+           List state: null←[1]←[2]  [3]→null
+  ITER 3:  next=null, curr.next=[2], prev=[3], curr=null
+           List state: null←[1]←[2]←[3]
+  curr==null → return prev=[3]
+  Result: [3]→[2]→[1]→null ✅
+═══════════════════════════════════════════════════════════
+```
+
+> **🎯 Key Insight:** The 3-pointer reversal (prev/curr/next) is THE fundamental linked list technique. It appears in dozens of problems. Memorize this pattern: save-next, flip-link, advance-both. The key danger is losing the rest of the list — always save `next` before flipping.
 
 ---
 
@@ -715,124 +970,181 @@ public ListNode ReverseListRecursive(ListNode head) {
 
 > **🧠 Mental Model: A Plate Dispenser in a Cafeteria**
 >
-> A stack is like a spring-loaded plate dispenser. You can only add (push) to the top or remove (pop) from the top. The plate at the bottom was put there first (LIFO — Last In, First Out). The key insight: "the most recently added item is always processed FIRST." This property makes stacks perfect for: undo operations, matching parentheses, function call tracking, and "next greater element" problems.
-
-### Stack Operations
+> A stack is like a spring-loaded plate dispenser. You can only interact with the TOP plate. Push a plate (add) → it goes on top. Pop a plate (remove) → you take from the top. You can't grab a plate from the middle without taking all plates above it first. **LIFO = Last In, First Out**.
 
 ```
-PUSH 10 → PUSH 20 → PUSH 30 → POP → POP
+STACK OPERATIONS VISUALIZATION:
+═══════════════════════════════════════════════════════════════
+  Push(1):    Push(2):    Push(3):    Pop():     Peek():
+  ┌───┐       ┌───┐       ┌───┐       ┌───┐      ┌───┐
+  │ 1 │←top   │ 2 │←top   │ 3 │←top   │ 2 │←top  │ 2 │←top
+  └───┘        │ 1 │       │ 2 │       │ 1 │      │ 1 │
+               └───┘       │ 1 │       └───┘      └───┘
+                            └───┘     returns 3   returns 2
+                                      (3 removed)  (2 stays)
 
-  ┌────┐
-  │ 30 │  ← top     POP → 30
-  ├────┤
-  │ 20 │            POP → 20
-  ├────┤
-  │ 10 │  ← bottom
-  └────┘
+APPLICATIONS:
+  ✅ Undo/Redo (text editors) — push action, pop to undo
+  ✅ Function call stack — push frame on call, pop on return
+  ✅ Bracket matching — push open, pop/match on close
+  ✅ Monotonic stack — next greater/smaller element
+  ✅ DFS (iterative) — push neighbors, pop to visit next
+═══════════════════════════════════════════════════════════════
 ```
 
-### C# Stack Implementation
+### C# Stack<T> API
 
 ```csharp
-// .NET BUILT-IN Stack<T>
 var stack = new Stack<int>();
-stack.Push(10);            // O(1)
-stack.Push(20);
-stack.Push(30);
-int top = stack.Peek();    // O(1) — look without removing: 30
-int val = stack.Pop();     // O(1) — remove and return: 30
-int count = stack.Count;   // O(1)
-bool empty = stack.Count == 0;
 
-// FROM SCRATCH (using List<T> as backing store)
-public class MyStack<T> {
-    private List<T> _data = new();
+// CORE OPERATIONS — all O(1)
+stack.Push(1);      // add to top
+stack.Push(2);
+stack.Push(3);
 
-    public void Push(T item) => _data.Add(item);      // add to end = top
+int top = stack.Peek();  // look at top WITHOUT removing → 3
+int popped = stack.Pop(); // remove and return top → 3
+int count = stack.Count;  // 2
 
-    public T Pop() {
-        if (_data.Count == 0) throw new InvalidOperationException();
-        T item = _data[^1];     // [^1] = last element (C# 8+ index from end)
-        _data.RemoveAt(_data.Count - 1);
-        return item;
-    }
+// SAFE CHECK BEFORE POP (avoid InvalidOperationException)
+if (stack.Count > 0)
+    stack.Pop();
 
-    public T Peek() => _data.Count == 0
-        ? throw new InvalidOperationException()
-        : _data[^1];
+// TryPop — non-throwing version (C# 8+)
+if (stack.TryPop(out int val)) { /* val = popped value */ }
+if (stack.TryPeek(out int top2)) { /* top2 = top value */ }
 
-    public int Count => _data.Count;
-}
+// ITERATION (top to bottom order)
+foreach (int item in stack)
+    Console.Write(item); // prints: 2 1 (top first)
 
-// MONOTONIC STACK PATTERN — next greater element
-int[] NextGreaterElement(int[] arr) {
-    int n = arr.Length;
-    int[] result = new int[n];
-    Array.Fill(result, -1);       // default: no greater element
-    var stack = new Stack<int>(); // stores INDICES (not values)
+// MONOTONIC STACK PATTERN (crucial for interview problems!)
+// Problem: find Next Greater Element for each position
+int[] NextGreater(int[] arr) {
+    int[] result = new int[arr.Length];
+    Array.Fill(result, -1);     // default: no greater element found
+    var stack = new Stack<int>(); // stores INDICES (not values!)
 
-    for (int i = 0; i < n; i++) {
-        // Pop all indices whose element is smaller than current
+    for (int i = 0; i < arr.Length; i++) {
+        // WHY pop while stack top is smaller? Because arr[i] is the
+        // "next greater element" for everything smaller than it on the stack
         while (stack.Count > 0 && arr[stack.Peek()] < arr[i]) {
             int idx = stack.Pop();
             result[idx] = arr[i]; // arr[i] is the next greater for arr[idx]
         }
-        stack.Push(i);            // push current index
+        stack.Push(i); // push INDEX (so we can update result array)
     }
     return result;
 }
-// Input:  [2, 1, 2, 4, 3]
-// Output: [4, 2, 4,-1,-1]
 ```
 
 ### Complexity Table
 
-| Operation | Time | Space |
-|-----------|------|-------|
-| Push | O(1) | O(1) |
-| Pop | O(1) | O(1) |
-| Peek | O(1) | O(1) |
-| Search | O(n) | O(1) |
-| Overall space | — | O(n) |
+| Operation | Stack\<T\> |
+|-----------|-----------|
+| Push | O(1) amortized |
+| Pop | O(1) |
+| Peek | O(1) |
+| Search | O(n) |
+| Space | O(n) |
 
-### Common Pitfalls
-- ⚠️ Always check `Count > 0` before `Pop()` or `Peek()` — both throw on empty stack
-- ⚠️ In monotonic stack problems, decide upfront: increasing or decreasing monotonic? (next greater = decreasing, next smaller = increasing)
-- ⚠️ Store INDICES in stack, not values — you often need the index to compute distances/results
+---
 
 ### 🔴 Practice Problem: Valid Parentheses (LeetCode #20 — Easy)
 
-**Problem:** Given string with `()[]{}`, determine if the brackets are valid (properly opened and closed in order).
+**Problem:** Given a string of brackets `()[]{}`, determine if the input string is valid (correctly opened and closed).
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: VALID PARENTHESES                           ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 NAIVE    │ Count opens vs closes    │ O(n) time │ O(1) sp  ║
+║              │ fails: "](" has count=0  │           │          ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 STACK    │ Push opens, match closes │ O(n) time │ O(n) sp  ║
+║  (OPTIMAL)   │ Stack tracks order!      │           │          ║
+╚══════════════════════════════════════════════════════════════════╝
+
+KEY INSIGHT: Counter approach FAILS because it ignores ORDER.
+             "](" has equal open/close count but is INVALID.
+             Stack preserves order — the most recent open bracket
+             must match the next close bracket.
+```
+
+```
+BRACKET MATCHING VISUALIZATION:
+═══════════════════════════════════════════════════════════════
+  Input: "({[]})"
+
+  Read '(' → push:  stack=['(']
+  Read '{' → push:  stack=['(', '{']
+  Read '[' → push:  stack=['(', '{', '[']
+  Read ']' → close: top='[', matches ']' → pop  stack=['(', '{']
+  Read '}' → close: top='{', matches '}' → pop  stack=['(']
+  Read ')' → close: top='(', matches ')' → pop  stack=[]
+  End: stack empty → VALID ✅
+
+  Input: "([)]"
+
+  Read '(' → push:  stack=['(']
+  Read '[' → push:  stack=['(', '[']
+  Read ')' → close: top='[', does NOT match ')' → INVALID ❌
+═══════════════════════════════════════════════════════════════
+```
 
 ```csharp
 public bool IsValid(string s) {
+    // WHY stack? Brackets must be closed in reverse order of opening.
+    // Stack naturally tracks this LIFO (Last In, First Out) property.
     var stack = new Stack<char>();
 
-    // Map each closing bracket to its expected opening bracket
-    var map = new Dictionary<char, char> {
-        { ')', '(' },
-        { ']', '[' },
-        { '}', '{' }
+    // WHY a dictionary? Cleaner than multiple if-else chains.
+    // Maps each CLOSING bracket to its expected OPENING bracket.
+    var match = new Dictionary<char, char> {
+        [')'] = '(',   // if we see ')', we expect '(' on top of stack
+        [']'] = '[',   // if we see ']', we expect '[' on top of stack
+        ['}'] = '{'    // if we see '}', we expect '{' on top of stack
     };
 
     foreach (char c in s) {
-        if (!map.ContainsKey(c)) {
-            // It's an opening bracket — push it
+        if (!match.ContainsKey(c)) {
+            // It's an OPENING bracket ('(', '[', or '{')
+            // Push onto stack — we'll match it when we see its closing bracket
             stack.Push(c);
         } else {
-            // It's a closing bracket — must match the top of stack
-            if (stack.Count == 0 || stack.Pop() != map[c])
-                return false;
+            // It's a CLOSING bracket → check if stack top matches
+            // WHY stack.Count == 0 check? ")" with empty stack → no opening bracket → invalid
+            if (stack.Count == 0 || stack.Peek() != match[c])
+                return false; // mismatch → invalid
+            stack.Pop(); // matched! remove the opening bracket
         }
     }
 
-    return stack.Count == 0; // valid only if all opening brackets were matched
+    // WHY check stack empty? Unclosed brackets like "((" → stack has '(' '(' → invalid
+    return stack.Count == 0;
 }
-// Time: O(n) | Space: O(n) for the stack
-// Edge cases: ")(" → false (close before open), "" → true (empty is valid)
+// Time: O(n) — visit each character once
+// Space: O(n) — stack stores at most n/2 opening brackets
 ```
 
-> **🎯 Key Insight:** Any "matching pairs" problem (HTML tags, brackets, quotes) uses a stack. Push opens, when you see a close — pop and verify it matches. Final stack must be empty for full validity.
+```
+TRACE: s = "{[]}"
+═══════════════════════════════════════════════════════════════
+  c='{'  → opening → push     stack=['{']
+  c='['  → opening → push     stack=['{','[']
+  c=']'  → closing, match[']']='[', peek='[' ✓ → pop   stack=['{']
+  c='}'  → closing, match['}']='[', peek='{' ✓ → pop   stack=[]
+  END: stack.Count==0 → return true ✅
+
+TRACE: s = "([)"
+═══════════════════════════════════════════════════════════════
+  c='('  → opening → push     stack=['(']
+  c='['  → opening → push     stack=['(','[']
+  c=')'  → closing, match[')']='(', peek='[' ✗ → return false ❌
+═══════════════════════════════════════════════════════════════
+```
+
+> **🎯 Key Insight:** Stack is perfect for any "matching" or "nesting" problem because it naturally handles the LIFO order. When you see a closing bracket, the most recently opened bracket must match. This "most recent must match first" pattern always signals a Stack.
 
 ---
 
@@ -840,127 +1152,160 @@ public bool IsValid(string s) {
 
 > **🧠 Mental Model: Airport Security Line**
 >
-> A queue is an airport security line: first person to join (enqueue) is the first to pass through security (dequeue). FIFO — First In, First Out. A deque (double-ended queue) is like a line where VIPs can jump to the front OR join at the back, and anyone can leave from either end. Critical insight: **BFS always uses a Queue** (process nodes level by level — the first node added at a level must be processed before the next level).
-
-### Queue & Deque Operations
+> A queue is like an airport security line. First person in line gets through first (FIFO = First In, First Out). You join at the back (Enqueue) and leave from the front (Dequeue). A deque (double-ended queue) is like a line where you can also join or leave from the front — more flexible.
 
 ```
-ENQUEUE:  front ← [10][20][30] ← rear    (enqueue adds to rear)
-DEQUEUE:  front → 10  [20][30] ← rear    (dequeue removes from front)
+QUEUE vs DEQUE vs PRIORITY QUEUE:
+═══════════════════════════════════════════════════════════════
+  QUEUE:    Enqueue→ [D] [C] [B] [A] →Dequeue
+            back                       front
+            FIFO: A was first in, A is first out
 
-DEQUE:
-AddFront/RemoveFront ↔ [10][20][30] ↔ AddBack/RemoveBack
+  DEQUE:    AddFront/RemoveFront ←[D][C][B][A]→ AddBack/RemoveBack
+            Double-ended — both ends are O(1)
+
+  PRIORITY QUEUE (Heap):
+            Items come out in PRIORITY ORDER, not insertion order
+            Min-heap: smallest priority value comes out first
+            Max-heap: largest priority value comes out first
+
+USE CASES:
+  Queue → BFS traversal, task scheduling, print queue
+  Deque → Sliding window maximum (maintain decreasing deque)
+  PQ    → Dijkstra's shortest path, Top K elements, A* search
+═══════════════════════════════════════════════════════════════
 ```
 
-### C# Queue & Deque Implementation
+### C# Queue APIs
 
 ```csharp
-// .NET BUILT-IN Queue<T>
+// ═══ QUEUE<T> ═══
 var queue = new Queue<int>();
-queue.Enqueue(10);          // O(1) — add to back
-queue.Enqueue(20);
-queue.Enqueue(30);
-int front = queue.Peek();   // O(1) — view front: 10
-int val = queue.Dequeue();  // O(1) — remove front: 10
-int count = queue.Count;    // O(1)
+queue.Enqueue(1);           // add to back — O(1)
+queue.Enqueue(2);
+queue.Enqueue(3);
 
-// DEQUE (Double-Ended Queue) — use LinkedList<T> in C#
-var deque = new LinkedList<int>();
-deque.AddFirst(10);          // add to front — O(1)
-deque.AddLast(20);           // add to back  — O(1)
-int firstVal = deque.First.Value;  // peek front
-int lastVal = deque.Last.Value;    // peek back
-deque.RemoveFirst();         // O(1)
-deque.RemoveLast();          // O(1)
+int front = queue.Peek();   // look at front → 1 — O(1)
+int deq = queue.Dequeue();  // remove from front → 1 — O(1)
+int count = queue.Count;    // 2
 
-// PRIORITY QUEUE (min-heap by default in .NET 6+)
+queue.TryDequeue(out int val); // non-throwing version
+
+// ═══ PRIORITY QUEUE<TElement, TPriority> (.NET 6+) ═══
+// Min-heap by default: LOWEST priority value comes out first
 var pq = new PriorityQueue<string, int>();
-pq.Enqueue("task1", 3);     // element, priority (lower = higher priority)
-pq.Enqueue("task2", 1);
-pq.Enqueue("task3", 2);
-string next = pq.Dequeue(); // "task2" — lowest priority number first
 
-// For MAX-HEAP, negate the priority:
-pq.Enqueue("task1", -3);    // will be dequeued first (largest original priority)
+pq.Enqueue("task A", 3);   // element="task A", priority=3
+pq.Enqueue("task B", 1);   // lowest priority number = most urgent
+pq.Enqueue("task C", 2);
 
-// CIRCULAR QUEUE (fixed size) — interview question
-public class MyCircularQueue {
-    private int[] _buf;
-    private int _head, _tail, _size, _capacity;
+string next = pq.Peek();    // "task B" (priority 1 = min)
+string done = pq.Dequeue(); // "task B" comes out first
 
-    public MyCircularQueue(int k) {
-        _buf = new int[k];
-        _capacity = k;
+// For MAX-HEAP (largest priority first): negate the priority
+pq.Enqueue("item", -score);  // negative → smaller = was-larger
+// Or use custom IComparer<int>
+
+// ═══ BFS TEMPLATE — Queue is the heart of BFS ═══
+void BFS(TreeNode root) {
+    if (root == null) return;
+    var queue = new Queue<TreeNode>();
+    queue.Enqueue(root);
+
+    while (queue.Count > 0) {
+        // WHY snapshot size? Process all nodes at current level BEFORE
+        // enqueuing nodes of next level. Size at start of while = level size.
+        int levelSize = queue.Count;
+        for (int i = 0; i < levelSize; i++) {
+            var node = queue.Dequeue();
+            // process node...
+            if (node.left != null) queue.Enqueue(node.left);
+            if (node.right != null) queue.Enqueue(node.right);
+        }
     }
-
-    public bool EnQueue(int val) {
-        if (_size == _capacity) return false;
-        _buf[_tail] = val;
-        _tail = (_tail + 1) % _capacity;  // wrap around
-        _size++;
-        return true;
-    }
-
-    public bool DeQueue() {
-        if (_size == 0) return false;
-        _head = (_head + 1) % _capacity;  // wrap around
-        _size--;
-        return true;
-    }
-
-    public int Front() => _size == 0 ? -1 : _buf[_head];
-    public int Rear()  => _size == 0 ? -1 : _buf[(_tail - 1 + _capacity) % _capacity];
-    public bool IsEmpty() => _size == 0;
-    public bool IsFull()  => _size == _capacity;
 }
 ```
 
-### Complexity Table
-
-| Operation | Queue | Deque (LinkedList) | PriorityQueue |
-|-----------|-------|--------------------|---------------|
-| Enqueue/Add | O(1) | O(1) | O(log n) |
-| Dequeue/Remove | O(1) | O(1) | O(log n) |
-| Peek | O(1) | O(1) | O(1) |
-| Space | O(n) | O(n) | O(n) |
+---
 
 ### 🔴 Practice Problem: Sliding Window Maximum (LeetCode #239 — Hard)
 
-**Problem:** Given array `nums` and window size `k`, return array of maximums for each window of size k.
+**Problem:** Given array `nums` and window size `k`, return max of each window as it slides.
 
-**Approach:** Monotonic Deque — maintain indices of useful elements (decreasing order of values).
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: SLIDING WINDOW MAXIMUM                      ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 BRUTE    │ For each window, find max│ O(n×k) time│ O(1) sp ║
+║              │ by scanning k elements   │            │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟡 SEGMENT  │ Build segment tree for   │ O(n log n) │ O(n) sp ║
+║  TREE        │ range max queries        │            │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 DEQUE    │ Monotonic decreasing     │ O(n) time  │ O(k) sp ║
+║  (OPTIMAL)   │ deque of indices         │            │         ║
+╚══════════════════════════════════════════════════════════════════╝
+
+KEY INSIGHT: Maintain a deque of INDICES in DECREASING value order.
+             - Front is always the max of the current window
+             - Remove indices that fall out of window
+             - Remove smaller elements from back (they'll never be max)
+```
+
+```
+DEQUE STATE VISUALIZATION: nums=[3,1,2,4,1], k=3
+═══════════════════════════════════════════════════════════════
+  i=0: num=3 → deque=[] → push 0 → deque=[0]
+  i=1: num=1 → 1<3, just push → deque=[0,1]
+  i=2: num=2 → 2>1, pop 1 → deque=[0], push 2 → deque=[0,2]
+       window [0..2] complete: result=[nums[0]]=3
+
+  i=3: num=4 → 4>nums[2]=2 pop, 4>nums[0]=3 pop → deque=[], push 3
+       → deque=[3]
+       window [1..3]: front=3, result=[3,4]
+
+  i=4: num=1 → 1<nums[3]=4, push → deque=[3,4]
+       window [2..4]: front=3 (index 3 is in [2..4]), result=[3,4,4]
+═══════════════════════════════════════════════════════════════
+```
 
 ```csharp
 public int[] MaxSlidingWindow(int[] nums, int k) {
     int n = nums.Length;
-    int[] result = new int[n - k + 1];
-    // Deque stores INDICES — front = index of current window maximum
-    var deque = new LinkedList<int>();
+    int[] result = new int[n - k + 1]; // total windows = n-k+1
+
+    // WHY LinkedList as deque? C# lacks a built-in Deque.
+    // LinkedList<T> supports O(1) AddFirst/AddLast/RemoveFirst/RemoveLast
+    // We store INDICES (not values) so we can check if index is in window
+    var deque = new LinkedList<int>(); // stores indices, front=max
 
     for (int i = 0; i < n; i++) {
-        // Remove indices outside current window from front
+        // CLEANUP: remove indices that are out of the current window
+        // Window is [i-k+1 .. i]. If front index < i-k+1, remove it.
         while (deque.Count > 0 && deque.First.Value < i - k + 1)
             deque.RemoveFirst();
 
-        // Remove indices whose VALUES are smaller than nums[i] from back
-        // They can never be the max while nums[i] is in the window
+        // MAINTAIN DECREASING ORDER: remove all indices from the back
+        // whose corresponding values are LESS THAN nums[i].
+        // WHY? Those smaller values can never be the window max — nums[i]
+        // is larger AND appears later in the array, so it dominates them.
         while (deque.Count > 0 && nums[deque.Last.Value] < nums[i])
             deque.RemoveLast();
 
-        deque.AddLast(i);  // add current index
+        deque.AddLast(i); // add current index to back
 
-        // Window is full — record the max (front of deque)
+        // Window is complete when i >= k-1 (we have k elements)
         if (i >= k - 1)
-            result[i - k + 1] = nums[deque.First.Value];
+            result[i - k + 1] = nums[deque.First.Value]; // front = max
     }
 
     return result;
 }
-// Time: O(n) — each element added and removed at most once
-// Space: O(k) — deque holds at most k elements
+// Time: O(n) — each index is added/removed from deque at most once
+// Space: O(k) — deque contains at most k indices
 ```
 
-> **🎯 Key Insight:** PriorityQueue\<TElement, TPriority\> was added in .NET 6. For older .NET, you need to implement a heap or use `SortedSet<(int val, int idx)>`. Always clarify .NET version in interviews. The monotonic deque pattern achieves O(n) vs O(n log n) for a heap-based approach.
+> **🎯 Key Insight:** The monotonic deque maintains a "useful candidates" list for the window max. The key invariant: **deque is always decreasing from front to back** (front = current window's max). When a new larger element arrives, all previous smaller elements become useless forever — remove them. This O(n) solution is the classic deque/monotonic queue pattern.
 
 ---
 
@@ -970,225 +1315,359 @@ public int[] MaxSlidingWindow(int[] nums, int k) {
 
 ## Section 10 — Hash Maps (Dictionary)
 
-> **🧠 Mental Model: The Library Card Catalog**
+> **🧠 Mental Model: Library Card Catalog**
 >
-> A hash map is like a library's card catalog. When you receive a book, you apply a "catalog rule" (hash function) to its title to decide which drawer (bucket) it goes in. To find a book later, apply the same rule to jump directly to the right drawer — O(1). If two books hash to the same drawer (collision), you flip through a short sub-list within that drawer. With a good hash function, drawers stay short → still near O(1).
-
-### Hash Map Internals
+> A HashMap (Dictionary) is like an old library card catalog. Each drawer has a label (key), and inside is the exact shelf location (value). You don't scan every book — you look up the card catalog entry directly. That's O(1) average time regardless of how many books (entries) there are.
 
 ```
-key → hash(key) → bucket index → linked list (for collision handling)
+HASH MAP INTERNALS — HOW IT WORKS:
+═══════════════════════════════════════════════════════════════
+  Insert("apple", 5):
+  1. Hash("apple") → e.g., 42
+  2. bucket_index = 42 % bucket_count → e.g., 2
+  3. Store (key="apple", value=5) in bucket[2]
 
-hash("apple") → 3  → bucket[3] → ["apple": 5]
-hash("grape") → 7  → bucket[7] → ["grape": 12]
-hash("mango") → 3  → bucket[3] → ["apple": 5] → ["mango": 8]  ← collision!
-                                   └── linear probe or chaining ──┘
+  Lookup("apple"):
+  1. Hash("apple") → 42
+  2. bucket_index = 42 % bucket_count → 2
+  3. Find "apple" in bucket[2] → return 5
+
+  COLLISION (two keys hash to same bucket):
+  ┌──────────────────────────────────────────┐
+  │ Chaining (C# uses this):                │
+  │ bucket[2] → ["apple"→5] → ["grape"→8]   │
+  │            (linked list in same bucket)  │
+  │ Worst case (all keys collide): O(n)      │
+  │ Average case: O(1) with good hash        │
+  └──────────────────────────────────────────┘
+═══════════════════════════════════════════════════════════════
 ```
 
-### C# Dictionary Operations
+### C# Dictionary<K,V> Essentials
 
 ```csharp
 // CREATION
 var dict = new Dictionary<string, int>();
-var dict2 = new Dictionary<int, List<int>>();  // value can be complex type
+var dict2 = new Dictionary<int, List<string>>(); // value can be complex type
 
-// ADD / UPDATE
-dict["apple"] = 5;               // add or update (no exception on duplicate key)
-dict.Add("grape", 12);           // throws if key exists
-dict.TryAdd("apple", 99);        // safe — returns false if key exists, doesn't throw
+// ADD / UPDATE — O(1) average
+dict["apple"] = 5;          // set value (adds if not exists, updates if exists)
+dict.Add("banana", 3);      // throws if key already exists!
+dict.TryAdd("apple", 99);   // safe add — returns false if key exists (doesn't overwrite)
 
-// ACCESS
-int val = dict["apple"];                  // throws KeyNotFoundException if missing
-dict.TryGetValue("mango", out int v);    // safe — returns false if missing
-int count = dict.GetValueOrDefault("banana", 0);  // returns 0 if missing
+// LOOKUP — O(1) average
+int val = dict["apple"];    // throws KeyNotFoundException if not found!
+// SAFE LOOKUP (preferred):
+if (dict.TryGetValue("apple", out int v))
+    Console.WriteLine(v);   // v = 5
 
-// CHECK EXISTENCE
-bool hasKey = dict.ContainsKey("apple"); // O(1)
-bool hasVal = dict.ContainsValue(5);     // O(n) — avoid in hot paths
+// GET WITH DEFAULT (doesn't throw)
+int count = dict.GetValueOrDefault("missing", 0); // 0 if not found
 
-// REMOVE
-dict.Remove("apple");            // O(1) average
+// CONTAINS
+bool hasKey = dict.ContainsKey("apple");   // O(1)
+bool hasVal = dict.ContainsValue(5);       // O(n) — scans all values!
+
+// DELETE
+dict.Remove("apple");           // O(1)
+dict.TryRemove("apple");        // actually Remove returns bool — use that
 
 // ITERATION
-foreach (var (key, value) in dict)    // deconstruct KeyValuePair
+foreach (var (key, value) in dict)          // deconstruction syntax
     Console.WriteLine($"{key}: {value}");
 
-foreach (string key in dict.Keys) { }
-foreach (int value in dict.Values) { }
+foreach (var kvp in dict)
+    Console.WriteLine($"{kvp.Key}: {kvp.Value}");
 
-// FREQUENCY COUNT PATTERN (most common use in interviews)
-int[] nums = { 1, 2, 2, 3, 3, 3 };
-var freq = new Dictionary<int, int>();
-foreach (int n in nums)
-    freq[n] = freq.GetValueOrDefault(n, 0) + 1;
-// freq = {1:1, 2:2, 3:3}
+// KEY PATTERN: FREQUENCY COUNT
+string[] words = { "apple", "banana", "apple", "cherry", "banana", "apple" };
+var freq = new Dictionary<string, int>();
+foreach (string word in words)
+    freq[word] = freq.GetValueOrDefault(word, 0) + 1;
+// freq = {"apple":3, "banana":2, "cherry":1}
 
-// GROUPING PATTERN
-string[] words = { "eat", "tea", "tan", "ate", "nat", "bat" };
+// KEY PATTERN: GROUP BY (like LINQ GroupBy but manual)
+// e.g., Group strings by their sorted form (for anagram detection)
 var groups = new Dictionary<string, List<string>>();
 foreach (string word in words) {
-    char[] chars = word.ToCharArray();
-    Array.Sort(chars);
-    string key = new string(chars);  // sorted version as key
-    if (!groups.TryGetValue(key, out var list))
-        groups[key] = list = new List<string>();
-    list.Add(word);
+    string key = string.Concat(word.OrderBy(c => c)); // sort chars as key
+    if (!groups.ContainsKey(key)) groups[key] = new List<string>();
+    groups[key].Add(word);
 }
-// groups: {"aet": ["eat","tea","ate"], "ant": ["tan","nat"], "abt": ["bat"]}
 ```
 
 ### Complexity Table
 
-| Operation | Average | Worst (many collisions) |
-|-----------|---------|------------------------|
-| Insert | O(1) | O(n) |
+| Operation | Average | Worst (all collide) |
+|-----------|---------|---------------------|
 | Lookup | O(1) | O(n) |
+| Insert | O(1) | O(n) |
 | Delete | O(1) | O(n) |
+| ContainsKey | O(1) | O(n) |
+| Iteration | O(n) | O(n) |
 | Space | O(n) | O(n) |
 
-### Common Pitfalls
-- ⚠️ `dict[key]` throws `KeyNotFoundException` — always use `TryGetValue` for safe access
-- ⚠️ Mutable objects as keys: if you modify the key object after insertion, lookup breaks (hash changes)
-- ⚠️ Iterating and modifying dictionary simultaneously throws `InvalidOperationException`
-- ⚠️ `Dictionary` is NOT ordered — use `SortedDictionary<K,V>` for sorted iteration (O(log n) ops)
+---
 
 ### 🔴 Practice Problem: Group Anagrams (LeetCode #49 — Medium)
 
 **Problem:** Given array of strings, group anagrams together.
 
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: GROUP ANAGRAMS                              ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 BRUTE    │ Compare every pair O(n²) │ O(n²×m)   │ O(n×m)  ║
+║              │ sort each and compare    │            │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟡 SORT KEY │ Sort each word as key    │ O(n×m log m│ O(n×m)  ║
+║  (GOOD)      │ group same-sorted-words  │            │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 COUNT KEY│ 26-char frequency as key │ O(n×m)    │ O(n×m)  ║
+║  (OPTIMAL)   │ group same-frequency wds │            │         ║
+╚══════════════════════════════════════════════════════════════════╝
+
+KEY INSIGHT: Two words are anagrams ↔ they have identical letter frequencies.
+             Represent each word by its "canonical form" as a HashMap key.
+             Sort approach: O(m log m) per word. Frequency approach: O(m).
+```
+
+```
+VISUALIZATION: strs = ["eat","tea","tan","ate","nat","bat"]
+═══════════════════════════════════════════════════════════════
+  Sort-based keys:
+    "eat" → sort → "aet"  → group "aet" = ["eat"]
+    "tea" → sort → "aet"  → group "aet" = ["eat", "tea"]
+    "tan" → sort → "ant"  → group "ant" = ["tan"]
+    "ate" → sort → "aet"  → group "aet" = ["eat","tea","ate"]
+    "nat" → sort → "ant"  → group "ant" = ["tan","nat"]
+    "bat" → sort → "abt"  → group "abt" = ["bat"]
+
+  Result: [["eat","tea","ate"], ["tan","nat"], ["bat"]]
+═══════════════════════════════════════════════════════════════
+```
+
 ```csharp
 public IList<IList<string>> GroupAnagrams(string[] strs) {
-    // Key insight: all anagrams have the same SORTED characters
+    // WHY Dictionary with string key? We need a canonical form for each
+    // anagram group. Words in the same group will have the same key.
     var groups = new Dictionary<string, List<string>>();
 
-    foreach (string s in strs) {
-        // Sort the characters to create a canonical key
-        char[] chars = s.ToCharArray();
-        Array.Sort(chars);
-        string key = new string(chars);  // "eat" → "aet", "tea" → "aet"
+    foreach (string word in strs) {
+        // APPROACH: Sort the word's characters alphabetically.
+        // All anagrams produce the same sorted form → same dictionary key.
+        // "eat", "tea", "ate" → all become "aet"
+        char[] chars = word.ToCharArray();
+        Array.Sort(chars);                      // sort in-place: O(m log m)
+        string key = new string(chars);         // "aet", "ant", "abt"
 
+        // If this key hasn't been seen, create a new list for this group
         if (!groups.ContainsKey(key))
             groups[key] = new List<string>();
-        groups[key].Add(s);
+
+        groups[key].Add(word); // add word to its anagram group
     }
 
+    // Convert dictionary values (the groups) to the required return type
     return new List<IList<string>>(groups.Values);
 }
-// Time: O(n * k log k) where n = num strings, k = max string length
-// Space: O(n * k) for the dictionary
+// Time: O(n × m log m) where n=num words, m=max word length
+// Space: O(n × m) for the dictionary
 
-// OPTIMIZATION: Use frequency array as key instead of sorting
+// OPTIMAL VERSION using frequency array as key (O(n×m) time):
 public IList<IList<string>> GroupAnagramsOptimal(string[] strs) {
     var groups = new Dictionary<string, List<string>>();
 
-    foreach (string s in strs) {
-        int[] freq = new int[26];
-        foreach (char c in s) freq[c - 'a']++;
-        // Convert freq array to string key: "1#0#0#...#1#..."
-        string key = string.Join("#", freq);  // O(26) = O(1)
+    foreach (string word in strs) {
+        // Build 26-char frequency array as the key
+        int[] count = new int[26];
+        foreach (char c in word)
+            count[c - 'a']++;  // increment frequency for each character
 
-        if (!groups.ContainsKey(key))
-            groups[key] = new List<string>();
-        groups[key].Add(s);
+        // Convert frequency array to string key: "[3,0,0,...,1,...]"
+        // WHY not just use count.ToString()? Arrays don't override ToString() meaningfully.
+        // We need a deterministic string representation that two anagrams share.
+        string key = string.Join(",", count);  // "1,0,0,1,0,...,1,..."
+
+        if (!groups.ContainsKey(key)) groups[key] = new List<string>();
+        groups[key].Add(word);
     }
 
     return new List<IList<string>>(groups.Values);
 }
-// Time: O(n * k) — no sorting! k is max string length
+// Time: O(n × m) — no sorting, just O(m) per word for frequency count
 ```
+
+> **🎯 Key Insight:** The key technique is finding a **canonical form** — a representation that all anagrams share. Sorted characters work (O(m log m) per word). Frequency count works (O(m) per word). This "canonical form as hashmap key" pattern appears in many string grouping problems.
 
 ---
 
 ## Section 11 — Hash Sets
 
-> **🧠 Mental Model: The Guestlist Clipboard**
+> **🧠 Mental Model: A VIP Guest List**
 >
-> A HashSet is like a bouncer's clipboard at a club. The bouncer can instantly check "is this person on the list?" (O(1) lookup), add someone to the list (O(1) insert), or cross off a name (O(1) delete). There's no concept of "what's at position 5?" — it's purely membership: in or out. Unlike Dictionary which maps key→value, HashSet only stores keys.
+> A HashSet is a guest list — it only tells you YES (member) or NO (not a member). No duplicates allowed. Checking "is this person on the list?" is O(1). A SortedSet is the same list but alphabetically ordered — slightly slower O(log n) per operation but always sorted.
 
-### C# HashSet Operations
+```
+HASHSET vs DICTIONARY:
+═══════════════════════════════════════════════════════════════
+  HashSet<T>:
+    - Stores ONLY keys (no associated values)
+    - Fast membership test: set.Contains(x) → O(1)
+    - No duplicates
+    - Use when: "have I seen this before?" / "is x in this collection?"
 
-```csharp
-// CREATION
-var set = new HashSet<int>();
-var set2 = new HashSet<int> { 1, 2, 3 };  // initialize with values
-var set3 = new HashSet<int>(arr);          // from array (deduplicates automatically)
+  Dictionary<K,V>:
+    - Stores key-value pairs
+    - Use when: "how many times?" / "what's the value associated with x?"
 
-// CORE OPERATIONS
-set.Add(5);           // O(1) — returns true if added, false if already exists
-set.Remove(5);        // O(1) — returns true if removed, false if not found
-bool has = set.Contains(5);    // O(1) — the key operation!
+  SortedSet<T>:
+    - Like HashSet but maintains sorted order (uses Red-Black Tree)
+    - O(log n) operations (vs O(1) for HashSet)
+    - Use when: "find all elements in range [lo, hi]"
 
-// SET OPERATIONS
-var a = new HashSet<int> { 1, 2, 3, 4 };
-var b = new HashSet<int> { 3, 4, 5, 6 };
-
-a.IntersectWith(b);   // a = {3, 4}       — modifies a in-place
-a.UnionWith(b);       // a = {1,2,3,4,5,6}
-a.ExceptWith(b);      // a = {1, 2}       — elements in a but not b
-a.SymmetricExceptWith(b); // a = {1,2,5,6} — elements in one but not both
-
-// NON-MODIFYING (create new set)
-bool isSubset = a.IsSubsetOf(b);
-bool isSuperset = a.IsSupersetOf(b);
-bool overlaps = a.Overlaps(b);
-bool equal = a.SetEquals(b);
-
-// SORTED SET — maintains sorted order, O(log n) operations
-var sortedSet = new SortedSet<int> { 5, 1, 3, 2, 4 };
-// Iterates as: 1, 2, 3, 4, 5
-int min = sortedSet.Min;      // O(log n)
-int max = sortedSet.Max;      // O(log n)
-var range = sortedSet.GetViewBetween(2, 4);  // {2, 3, 4} — O(log n)
+  COMMON USE CASES for HashSet:
+  ✅ Deduplication: convert list to set to remove duplicates
+  ✅ Cycle detection: "have we visited this node?"
+  ✅ Lookup in O(1): faster than List.Contains (O(n))
+  ✅ Set operations: union, intersection, difference
+═══════════════════════════════════════════════════════════════
 ```
 
-### Complexity Table
+### C# HashSet<T> API
 
-| Operation | HashSet | SortedSet |
-|-----------|---------|-----------|
-| Add | O(1) avg | O(log n) |
-| Remove | O(1) avg | O(log n) |
-| Contains | O(1) avg | O(log n) |
-| Min/Max | O(n) | O(log n) |
-| Range query | O(n) | O(log n) |
-| Space | O(n) | O(n) |
+```csharp
+var set = new HashSet<int>();
+
+// CORE OPERATIONS — all O(1) average
+set.Add(1);          // adds element; returns false if already exists
+set.Add(2);
+set.Add(1);          // duplicate — ignored, returns false
+set.Count;           // 2 (not 3!)
+
+bool found = set.Contains(1);   // true — O(1)
+set.Remove(2);                  // O(1)
+
+// INITIALIZE FROM COLLECTION (auto-deduplication!)
+int[] nums = { 1, 2, 3, 1, 2 };
+var unique = new HashSet<int>(nums); // {1, 2, 3} — duplicates removed
+
+// SET OPERATIONS
+var a = new HashSet<int> { 1, 2, 3 };
+var b = new HashSet<int> { 2, 3, 4 };
+a.UnionWith(b);        // a = {1,2,3,4} — in-place union
+a.IntersectWith(b);    // a = {2,3,4} — keep only common
+a.ExceptWith(b);       // a = {1} — remove elements in b
+
+// SORTED SET (maintains order, O(log n))
+var sorted = new SortedSet<int> { 5, 1, 3, 2, 4 };
+sorted.Min;            // 1 — O(1)
+sorted.Max;            // 5 — O(1)
+// Get all elements in range [2, 4]:
+var range = sorted.GetViewBetween(2, 4); // {2,3,4}
+```
+
+---
 
 ### 🔴 Practice Problem: Longest Consecutive Sequence (LeetCode #128 — Medium)
 
-**Problem:** Given unsorted array of integers, find length of longest consecutive elements sequence. Must be O(n).
+**Problem:** Given unsorted array of integers, find the length of longest consecutive elements sequence. Must run in O(n).
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: LONGEST CONSECUTIVE SEQUENCE                ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 BRUTE    │ For each num, check    │ O(n²) or   │ O(1) sp  ║
+║              │ num+1, num+2... in arr │ O(n³)      │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟡 SORT     │ Sort, then scan for    │ O(n log n) │ O(1) sp  ║
+║              │ consecutive elements   │            │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 HASHSET  │ For each sequence      │ O(n) time  │ O(n) sp  ║
+║  (OPTIMAL)   │ START, expand with set │            │         ║
+╚══════════════════════════════════════════════════════════════════╝
+
+KEY INSIGHT: Only START counting from a sequence's beginning.
+             A number x is a sequence start if (x-1) is NOT in the set.
+             This ensures each sequence is counted exactly once → O(n) total.
+```
+
+```
+VISUALIZATION: nums = [100, 4, 200, 1, 3, 2]
+═══════════════════════════════════════════════════════════════
+  Set = {100, 4, 200, 1, 3, 2}
+
+  num=100: is 99 in set? No → START of sequence
+           100→101? No. Sequence length=1
+
+  num=4:   is 3 in set? Yes → NOT a start, skip
+
+  num=200: is 199 in set? No → START of sequence
+           200→201? No. Sequence length=1
+
+  num=1:   is 0 in set? No → START of sequence!
+           1→2 in set? Yes. 2→3? Yes. 3→4? Yes. 4→5? No.
+           Sequence: 1,2,3,4 → length=4 ← LONGEST
+
+  num=3:   is 2 in set? Yes → NOT a start, skip
+  num=2:   is 1 in set? Yes → NOT a start, skip
+
+  Answer: 4 ✅
+═══════════════════════════════════════════════════════════════
+```
 
 ```csharp
 public int LongestConsecutive(int[] nums) {
-    // O(n) build — HashSet for O(1) lookup
-    var numSet = new HashSet<int>(nums);
+    // WHY HashSet? We need O(1) "does x+1 exist?" checks.
+    // If we searched the array each time: O(n) per check = O(n²) total.
+    var numSet = new HashSet<int>(nums); // O(n) to build
+
     int longest = 0;
 
-    foreach (int num in numSet) {
-        // Only start counting from the BEGINNING of a sequence
-        // A number is a sequence start if (num - 1) is NOT in the set
+    foreach (int num in numSet) {  // iterate set (no duplicates = cleaner)
+        // KEY OPTIMIZATION: Only start counting from sequence beginnings.
+        // A number is a sequence START if num-1 is NOT in the set.
+        // WHY? If num-1 IS in the set, then counting from num would give
+        // a PARTIAL sequence that we'll count again from the true start.
+        // This check is what makes the algorithm O(n) instead of O(n²).
         if (!numSet.Contains(num - 1)) {
             int currentNum = num;
-            int streak = 1;
+            int length = 1;
 
-            // Extend the sequence as far as possible
+            // Extend the sequence as far as consecutive numbers exist
             while (numSet.Contains(currentNum + 1)) {
-                currentNum++;
-                streak++;
+                currentNum++;   // move to next number in sequence
+                length++;       // count it
             }
 
-            longest = Math.Max(longest, streak);
+            longest = Math.Max(longest, length);
         }
     }
 
     return longest;
 }
-// Time: O(n) — each number is visited at most twice (once in outer loop, once in inner)
-// Space: O(n) for the HashSet
-
-// WHY NOT SORT? Sorting = O(n log n). The HashSet trick avoids that.
-// Key insight: skip non-starts to avoid redundant work — that's why it's O(n) not O(n²)
+// Time: O(n) — each number is visited at most twice:
+//             once in outer foreach, once in inner while (when it's inside a sequence)
+// Space: O(n) — HashSet stores all numbers
 ```
 
-> **🎯 Key Insight:** The trick that makes this O(n) instead of O(n²) is starting sequences ONLY from their beginning (when `num - 1` is absent). Without this, every number starts a count-up, causing O(n²). Always ask: "Can I avoid redundant starting points?"
+```
+TRACE: nums = [0, 3, 7, 2, 5, 8, 4, 6, 0, 1]
+═══════════════════════════════════════════════════════════════
+  Set = {0, 1, 2, 3, 4, 5, 6, 7, 8}  (note: 0 deduplicated)
+
+  num=0: 0-1=-1 not in set → START
+         0→1→2→3→4→5→6→7→8→9? No. length=9 ← longest!
+
+  num=3: 3-1=2 in set → SKIP
+  num=7: 7-1=6 in set → SKIP
+  ... all others skipped (all are inside the 0..8 sequence)
+
+  Answer: 9 ✅
+═══════════════════════════════════════════════════════════════
+```
+
+> **🎯 Key Insight:** The "only start from sequence beginnings" optimization is what makes this O(n). Without it, every number would trigger a full scan → O(n²). The key question: "Am I the start of a sequence?" = "Is num-1 absent from the set?"
 
 ---
 
@@ -1198,446 +1677,816 @@ public int LongestConsecutive(int[] nums) {
 
 ## Section 12 — Binary Trees
 
-> **🧠 Mental Model: The Company Org Chart**
+> **🧠 Mental Model: An Org Chart**
 >
-> A binary tree is like a company org chart. The CEO (root) manages at most 2 direct reports (left child, right child). Each manager also manages at most 2 people. To find someone's salary, you might need to search the whole chart (O(n)). The SHAPE of the tree determines efficiency — a balanced tree (same depth on both sides) is O(log n) deep; a skewed tree (everyone has only one report) degenerates to a linked list at O(n) deep.
-
-### Binary Tree Structure
+> A binary tree is like a company org chart — the CEO (root) at top, each person (node) has at most 2 direct reports (left child, right child). To find someone, you start from the CEO and follow the management chain down. You can't jump directly to middle management — you must traverse the hierarchy.
 
 ```
-         ┌───┐
-         │ 1 │           Level 0 (root)
-         └─┬─┘
-      ┌────┴────┐
-    ┌─┴─┐     ┌─┴─┐
-    │ 2 │     │ 3 │      Level 1
-    └─┬─┘     └─┬─┘
-  ┌──┴──┐   ┌──┴──┐
-┌─┴─┐ ┌─┴─┐ │ 6 │ │ 7 │  Level 2 (leaves)
-│ 4 │ │ 5 │ └───┘ └───┘
-└───┘ └───┘
+BINARY TREE ANATOMY:
+═══════════════════════════════════════════════════════════════
+                    ┌───┐
+                    │ 1 │  ← Root (no parent)
+                    └─┬─┘
+             ┌────────┴────────┐
+           ┌─┴─┐             ┌─┴─┐
+           │ 2 │             │ 3 │  ← Internal nodes
+           └─┬─┘             └─┬─┘
+        ┌────┴────┐            └──┐
+      ┌─┴─┐     ┌─┴─┐          ┌─┴─┐
+      │ 4 │     │ 5 │          │ 6 │  ← Leaves (no children)
+      └───┘     └───┘          └───┘
 
-Height = 2 (longest root-to-leaf path)
-Perfect binary tree of height h has 2^(h+1) - 1 total nodes
+  Terminology:
+  - Height: longest path from root to leaf = 3 (root→2→5 or root→3→6)
+  - Depth of node 5: distance from root = 2 (root→2→5)
+  - Level: all nodes at same depth. Level 0=[1], Level 1=[2,3], Level 2=[4,5,6]
+  - Full binary tree: every node has 0 or 2 children
+  - Complete: all levels full except possibly last (filled left to right)
+  - Perfect: all internal nodes have 2 children, all leaves at same level
+═══════════════════════════════════════════════════════════════
+
+FOUR TRAVERSAL ORDERS:
+═══════════════════════════════════════════════════════════════
+         1
+        / \
+       2   3
+      / \
+     4   5
+
+  InOrder   (L-Root-R): 4, 2, 5, 1, 3   ← gives SORTED order for BST!
+  PreOrder  (Root-L-R): 1, 2, 4, 5, 3   ← good for copying/serializing tree
+  PostOrder (L-R-Root): 4, 5, 2, 3, 1   ← good for deleting tree (delete children first)
+  LevelOrder (BFS):     1, 2, 3, 4, 5   ← level by level, uses queue
+═══════════════════════════════════════════════════════════════
 ```
 
-### Tree Traversals
-
-```
-     1
-    / \
-   2   3
-  / \
- 4   5
-
-Inorder   (Left→Root→Right): 4, 2, 5, 1, 3  ← BST gives SORTED order
-Preorder  (Root→Left→Right): 1, 2, 4, 5, 3  ← good for serializing tree
-Postorder (Left→Right→Root): 4, 5, 2, 3, 1  ← good for deletion
-Level order (BFS left→right): 1, 2, 3, 4, 5  ← level-by-level processing
-```
-
-### C# Binary Tree Implementation
+### TreeNode and Traversals
 
 ```csharp
-// NODE — write this in every tree interview
 public class TreeNode {
-    public int Val;
-    public TreeNode Left, Right;
+    public int val;
+    public TreeNode left, right;
     public TreeNode(int val = 0, TreeNode left = null, TreeNode right = null) {
-        Val = val; Left = left; Right = right;
+        this.val = val; this.left = left; this.right = right;
     }
 }
 
-// INORDER — Recursive
-void Inorder(TreeNode root, List<int> res) {
+// ═══ RECURSIVE TRAVERSALS — elegant but O(h) stack space ═══
+
+// InOrder: Left → Root → Right
+void InOrder(TreeNode root, List<int> result) {
+    if (root == null) return;           // base case: empty tree
+    InOrder(root.left, result);         // recurse left subtree
+    result.Add(root.val);               // visit root AFTER left
+    InOrder(root.right, result);        // recurse right subtree
+}
+
+// PreOrder: Root → Left → Right
+void PreOrder(TreeNode root, List<int> result) {
     if (root == null) return;
-    Inorder(root.Left, res);
-    res.Add(root.Val);
-    Inorder(root.Right, res);
+    result.Add(root.val);               // visit root FIRST
+    PreOrder(root.left, result);
+    PreOrder(root.right, result);
 }
 
-// INORDER — Iterative (avoids stack overflow on huge trees)
-List<int> InorderIterative(TreeNode root) {
-    var res = new List<int>();
+// PostOrder: Left → Right → Root
+void PostOrder(TreeNode root, List<int> result) {
+    if (root == null) return;
+    PostOrder(root.left, result);
+    PostOrder(root.right, result);
+    result.Add(root.val);               // visit root LAST (after children)
+}
+
+// ═══ ITERATIVE INORDER — avoids stack overflow for deep trees ═══
+IList<int> InOrderIterative(TreeNode root) {
+    var result = new List<int>();
     var stack = new Stack<TreeNode>();
-    TreeNode curr = root;
+    var curr = root;
+
     while (curr != null || stack.Count > 0) {
-        while (curr != null) { stack.Push(curr); curr = curr.Left; }
-        curr = stack.Pop();
-        res.Add(curr.Val);
-        curr = curr.Right;
-    }
-    return res;
-}
-
-// LEVEL ORDER — BFS
-IList<IList<int>> LevelOrder(TreeNode root) {
-    var res = new List<IList<int>>();
-    if (root == null) return res;
-    var q = new Queue<TreeNode>();
-    q.Enqueue(root);
-    while (q.Count > 0) {
-        int size = q.Count;                // snapshot of current level size!
-        var level = new List<int>();
-        for (int i = 0; i < size; i++) {
-            var node = q.Dequeue();
-            level.Add(node.Val);
-            if (node.Left != null) q.Enqueue(node.Left);
-            if (node.Right != null) q.Enqueue(node.Right);
+        // Go as far LEFT as possible, pushing nodes onto stack
+        while (curr != null) {
+            stack.Push(curr);
+            curr = curr.left;
         }
-        res.Add(level);
+        // Left exhausted: pop, visit, then explore right
+        curr = stack.Pop();
+        result.Add(curr.val);  // visit
+        curr = curr.right;     // switch to right subtree
     }
-    return res;
+    return result;
 }
 
-// HEIGHT
-int Height(TreeNode root) {
-    if (root == null) return 0;
-    return 1 + Math.Max(Height(root.Left), Height(root.Right));
+// ═══ LEVEL ORDER (BFS) — most common in interviews ═══
+IList<IList<int>> LevelOrder(TreeNode root) {
+    var result = new List<IList<int>>();
+    if (root == null) return result;
+
+    var queue = new Queue<TreeNode>();
+    queue.Enqueue(root);
+
+    while (queue.Count > 0) {
+        int levelSize = queue.Count;   // SNAPSHOT: how many nodes at this level
+        var level = new List<int>();
+
+        for (int i = 0; i < levelSize; i++) {
+            var node = queue.Dequeue();
+            level.Add(node.val);
+            // Enqueue children for NEXT level (after current level done)
+            if (node.left != null) queue.Enqueue(node.left);
+            if (node.right != null) queue.Enqueue(node.right);
+        }
+        result.Add(level);
+    }
+    return result;
 }
 ```
 
-### Complexity Table
-
-| Operation | Balanced | Skewed (worst) |
-|-----------|----------|----------------|
-| Search | O(log n) | O(n) |
-| Traversal | O(n) | O(n) |
-| Height | O(log n) | O(n) |
-| Space (DFS) | O(log n) stack | O(n) stack |
-| Space (BFS) | O(n) queue | O(n) queue |
+---
 
 ### 🔴 Practice Problem: Binary Tree Level Order Traversal (LeetCode #102 — Medium)
 
-The `LevelOrder` method above IS the solution. Key insight: `int size = q.Count` snapshots the current level count — without this, you'd mix nodes from different levels.
+**Problem:** Return level-by-level values of a binary tree as a list of lists.
 
-```csharp
-// Time: O(n) — each node visited once
-// Space: O(n) — queue holds up to n/2 nodes at the leaf level
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: LEVEL ORDER TRAVERSAL                       ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 DFS     │ Recursive DFS tracking  │ O(n) time  │ O(h) sp  ║
+║             │ depth → add to level d  │            │          ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 BFS     │ Queue-based level order │ O(n) time  │ O(w) sp  ║
+║  (CANONICAL)│ snapshot level size     │            │ w=width  ║
+╚══════════════════════════════════════════════════════════════════╝
+
+KEY INSIGHT: BFS naturally visits nodes level by level (neighbors first).
+             Snapshot queue.Count at start of each level to know
+             how many nodes belong to the current level.
 ```
 
-> **🎯 Key Insight:** The `int size = queue.Count` snapshot is THE key pattern for level-order problems. It separates "current level nodes" from "next level nodes being added." Memorize this pattern cold.
+```
+BFS TRACE on tree:
+         1
+        / \
+       2   3
+      / \   \
+     4   5   6
+
+═══════════════════════════════════════════════════════════════
+  INIT: queue=[1]
+
+  LEVEL 0: size=1
+    dequeue 1 → level=[1], enqueue 2, 3 → queue=[2,3]
+    result=[[1]]
+
+  LEVEL 1: size=2
+    dequeue 2 → level=[2], enqueue 4,5 → queue=[3,4,5]
+    dequeue 3 → level=[2,3], enqueue 6   → queue=[4,5,6]
+    result=[[1],[2,3]]
+
+  LEVEL 2: size=3
+    dequeue 4 → level=[4], no children  → queue=[5,6]
+    dequeue 5 → level=[4,5], no children → queue=[6]
+    dequeue 6 → level=[4,5,6], no children → queue=[]
+    result=[[1],[2,3],[4,5,6]]
+
+  queue empty → DONE ✅
+═══════════════════════════════════════════════════════════════
+```
+
+```csharp
+public IList<IList<int>> LevelOrder(TreeNode root) {
+    var result = new List<IList<int>>();
+    if (root == null) return result;  // edge case: empty tree
+
+    var queue = new Queue<TreeNode>();
+    queue.Enqueue(root);  // start BFS from root
+
+    while (queue.Count > 0) {
+        // WHY snapshot size? queue.Count GROWS as we add children.
+        // We must capture the count at the START of this level
+        // to know when the current level ends and next level begins.
+        int levelSize = queue.Count;
+        var level = new List<int>();
+
+        for (int i = 0; i < levelSize; i++) {  // process exactly this level's nodes
+            TreeNode node = queue.Dequeue();
+            level.Add(node.val);
+
+            // Enqueue children — they'll be processed in the NEXT iteration
+            if (node.left != null) queue.Enqueue(node.left);
+            if (node.right != null) queue.Enqueue(node.right);
+        }
+
+        result.Add(level);  // this level is complete
+    }
+
+    return result;
+}
+// Time: O(n) — visit each node exactly once
+// Space: O(w) where w = max width of tree (last level can have n/2 nodes → O(n))
+```
+
+> **🎯 Key Insight:** The `levelSize = queue.Count` snapshot is the essential BFS technique. Without it, you'd mix nodes from different levels. This pattern directly extends to: "right side view," "average of levels," "zigzag traversal" — all use the same BFS with level snapshot.
 
 ---
 
 ## Section 13 — Binary Search Trees (BST)
 
-> **🧠 Mental Model: A Physical Dictionary**
+> **🧠 Mental Model: A Dictionary Book**
 >
-> A BST is like a physical dictionary. Every page (node) has a word. All words to the LEFT come alphabetically before this word; RIGHT come after. To find "monkey": open to middle, if "monkey" < current word flip left; if greater flip right. Each comparison eliminates HALF the remaining search space — O(log n).
-
-### BST Property & Operations
+> A BST is like a physical dictionary — every page is sorted, and you always know which direction to go. Too far left? Turn right. Too far right? Turn left. The LEFT subtree is always SMALLER, the RIGHT subtree is always LARGER. This invariant lets you discard half the tree at every step — O(log n) average search.
 
 ```
-BST Invariant: left subtree values < node.Val < right subtree values
+BST INVARIANT — CRITICAL TO REMEMBER:
+═══════════════════════════════════════════════════════════════
+  For every node X:
+    ALL values in LEFT subtree < X.val
+    ALL values in RIGHT subtree > X.val
 
-      8
-     / \
-    3   10
-   / \    \
-  1   6    14
-     / \   /
-    4   7 13
+         8          ← root
+        / \
+       3   10
+      / \    \
+     1   6    14
+        / \   /
+       4   7 13
 
-Inorder gives sorted: 1, 3, 4, 6, 7, 8, 10, 13, 14
+  InOrder traversal → 1,3,4,6,7,8,10,13,14 → SORTED! ✅
+  (This is why InOrder of BST gives sorted output)
+
+  Search 6: 6<8 → go left → 6>3 → go right → 6==6 ✓ (O(log n))
+  Search 5: 5<8 → left → 5>3 → right → 5<6 → left → 5>4 → right
+            → null → NOT FOUND (O(log n))
+
+  UNBALANCED BST (worst case: sorted input):
+  1 → 2 → 3 → 4 → 5  (like a linked list!)
+  Search becomes O(n) instead of O(log n)
+═══════════════════════════════════════════════════════════════
 ```
+
+### BST Operations
 
 ```csharp
-// SEARCH — O(log n) balanced
+// ═══ BST SEARCH ═══
 TreeNode Search(TreeNode root, int target) {
-    if (root == null || root.Val == target) return root;
-    return target < root.Val ? Search(root.Left, target) : Search(root.Right, target);
+    if (root == null || root.val == target)
+        return root;  // base case: not found or exact match
+
+    // WHY left/right split? BST invariant guarantees:
+    // target < root.val → must be in left subtree (if it exists)
+    // target > root.val → must be in right subtree
+    return target < root.val
+        ? Search(root.left, target)    // go left
+        : Search(root.right, target);  // go right
 }
 
-// INSERT — O(log n) balanced
+// ═══ BST INSERT ═══
 TreeNode Insert(TreeNode root, int val) {
+    // Base case: found the correct empty spot — create node here
     if (root == null) return new TreeNode(val);
-    if (val < root.Val) root.Left = Insert(root.Left, val);
-    else if (val > root.Val) root.Right = Insert(root.Right, val);
-    return root;
+
+    if (val < root.val)
+        root.left = Insert(root.left, val);   // insert in left subtree
+    else if (val > root.val)
+        root.right = Insert(root.right, val); // insert in right subtree
+    // val == root.val: duplicate, do nothing (BST typically has unique values)
+
+    return root;  // return root unchanged (only a leaf was added)
 }
 
-// DELETE — O(log n) — 3 cases
+// ═══ BST DELETE (complex — 3 cases) ═══
 TreeNode Delete(TreeNode root, int key) {
     if (root == null) return null;
-    if (key < root.Val) { root.Left = Delete(root.Left, key); }
-    else if (key > root.Val) { root.Right = Delete(root.Right, key); }
-    else {
-        if (root.Left == null) return root.Right;   // case 1 & 2: 0 or 1 child
-        if (root.Right == null) return root.Left;
-        // Case 3: 2 children — replace with inorder successor (min of right subtree)
-        TreeNode successor = root.Right;
-        while (successor.Left != null) successor = successor.Left;
-        root.Val = successor.Val;
-        root.Right = Delete(root.Right, successor.Val);
+
+    if (key < root.val) {
+        root.left = Delete(root.left, key);    // search left
+    } else if (key > root.val) {
+        root.right = Delete(root.right, key);  // search right
+    } else {
+        // Found node to delete! 3 cases:
+
+        // Case 1: LEAF node — just remove it
+        if (root.left == null && root.right == null) return null;
+
+        // Case 2: ONE child — replace node with that child
+        if (root.left == null) return root.right;
+        if (root.right == null) return root.left;
+
+        // Case 3: TWO children — find InOrder SUCCESSOR (smallest in right subtree)
+        // Replace root's value with successor's value, then delete successor
+        TreeNode successor = root.right;
+        while (successor.left != null)
+            successor = successor.left;  // go left until no more left
+
+        root.val = successor.val;                        // replace value
+        root.right = Delete(root.right, successor.val);  // delete successor
     }
     return root;
 }
 ```
 
+---
+
 ### 🔴 Practice Problem: Validate Binary Search Tree (LeetCode #98 — Medium)
 
+**Problem:** Determine if a binary tree is a valid BST.
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: VALIDATE BST                                ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 WRONG    │ Only check left<root and │ Fails for  │ O(n)sp  ║
+║  APPROACH    │ right>root at each node  │ this case: │         ║
+║              │                          │    5        │         ║
+║              │                          │   / \       │         ║
+║              │                          │  1   4 ←   │         ║
+║              │                          │     / \     │         ║
+║              │                          │    3   6    │         ║
+║              │ 3 < 4 ✓ but 3 < 5 fails! │            │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟡 INORDER  │ InOrder traversal should │ O(n) time  │ O(n)sp  ║
+║              │ give strictly increasing  │            │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 BOUNDS   │ Pass min/max bounds down │ O(n) time  │ O(h)sp  ║
+║  (OPTIMAL)   │ each recursive call      │            │         ║
+╚══════════════════════════════════════════════════════════════════╝
+
+KEY INSIGHT: Each node must satisfy BOTH its local constraint AND
+             ALL ancestor constraints. Pass valid range [min, max]
+             down the recursion — tighten bounds at each level.
+```
+
+```
+BOUNDS PROPAGATION VISUALIZATION:
+═══════════════════════════════════════════════════════════════
+  Validate(root=5, min=-∞, max=+∞):
+    5 is in (-∞, +∞) ✓
+    Validate(left=1, min=-∞, max=5):   ← max tightened to 5
+      1 is in (-∞, 5) ✓
+      Validate(left=null): true
+      Validate(right=null): true
+    Validate(right=4, min=5, max=+∞):  ← min tightened to 5
+      4 is in (5, +∞)? NO! 4 < 5 ❌ → return false
+═══════════════════════════════════════════════════════════════
+```
+
 ```csharp
-public bool IsValidBST(TreeNode root) => Validate(root, long.MinValue, long.MaxValue);
+public bool IsValidBST(TreeNode root) {
+    // WHY use long instead of int for bounds?
+    // Node values can be int.MinValue and int.MaxValue themselves.
+    // Using long prevents overflow when comparing at boundaries.
+    return Validate(root, long.MinValue, long.MaxValue);
+}
 
 bool Validate(TreeNode node, long min, long max) {
-    if (node == null) return true;
-    if (node.Val <= min || node.Val >= max) return false;
-    // Tighten the valid range for children
-    return Validate(node.Left, min, node.Val)
-        && Validate(node.Right, node.Val, max);
+    if (node == null) return true;  // empty tree/subtree is valid
+
+    // Check if current node's value is within the allowed range
+    // WHY strict inequalities? BST requires strictly less/greater (no duplicates)
+    if (node.val <= min || node.val >= max)
+        return false;  // violates BST property
+
+    // Recurse into subtrees with TIGHTENED bounds:
+    // Left subtree: all values must be < node.val (new max = node.val)
+    // Right subtree: all values must be > node.val (new min = node.val)
+    return Validate(node.left, min, node.val) &&   // tighten max for left
+           Validate(node.right, node.val, max);     // tighten min for right
 }
-// Time: O(n) | Space: O(h)
-// WHY long? If node value is int.MinValue, (val <= int.MinValue) would be wrong
-// Common mistake: only check local left < root < right — misses global invariant violation
+// Time: O(n) — visit each node once
+// Space: O(h) — recursion stack, O(log n) balanced, O(n) skewed
 ```
+
+> **🎯 Key Insight:** Don't just check parent-child relationship — check the ENTIRE range constraint from root to current node. The bounds propagation technique is the clean O(n) solution. The wrong approach only checks immediate parent, missing deeper violations.
 
 ---
 
 ## Section 14 — Heaps & Priority Queues
 
-> **🧠 Mental Model: The Tournament Bracket**
+> **🧠 Mental Model: A Tournament Bracket**
 >
-> A heap is a single-elimination tournament. The winner (min-heap: smallest; max-heap: largest) is always at the top (root). Remove the winner → runner-up bubbles up. Add new participant → starts at bottom and bubbles up if they win matchups. Always a nearly-complete tree → O(log n) depth guaranteed.
-
-### Heap Array Representation
+> A heap is like a tournament bracket — the winner (min or max) always bubbles to the top. When you remove the winner, the next-best candidate rises to take their place. Inserting a new player? They challenge upward until finding their correct position. The key insight: **you only care about the TOP element**, not the full sorted order.
 
 ```
-MIN-HEAP:          Array: [1, 2, 3, 4, 5, 6, 7]
-        1          Index:  0  1  2  3  4  5  6
-       / \
-      2   3         Parent of i    = (i-1)/2
-     / \ / \        Left child     = 2*i+1
-    4  5 6  7       Right child    = 2*i+2
+MIN-HEAP STRUCTURE (parent always ≤ children):
+═══════════════════════════════════════════════════════════════
+         1          ← root (minimum element)
+        / \
+       3   2
+      / \ / \
+     7  8 4  5
+
+  STORED AS ARRAY: [1, 3, 2, 7, 8, 4, 5]
+  Parent of i: (i-1)/2     Children of i: 2i+1, 2i+2
+  index:       0  1  2  3  4  5  6
+
+  HEAPIFY UP (after insert 0):
+  Insert 0 at index 6: [1,3,2,7,8,4,5,0]... wait 0 at end
+  Actually array after insert: [1,3,2,7,8,4,5, 0]
+  0 < parent(3): swap → [1,3,2,0,8,4,5,7]
+  0 < parent(1): swap → [1,0,2,3,8,4,5,7]  ← hmm parent at (3-1)/2=1
+  Actually let me re-index: 0 inserted at position 7
+  parent of 7 = (7-1)/2 = 3 → arr[3]=7, 0<7 swap: [1,3,2,0,8,4,5,7]
+  parent of 3 = (3-1)/2 = 1 → arr[1]=3, 0<3 swap: [1,0,2,3,8,4,5,7]
+  parent of 1 = (1-1)/2 = 0 → arr[0]=1, 0<1 swap: [0,1,2,3,8,4,5,7]
+  parent = none (at root) → DONE
+
+  RESULT: 0 is now at root ✅
+
+  HEAPIFY DOWN (after removing root):
+  Remove root (min), put last element at root: [7,3,2,?,8,4,5]
+  Wait — replace root with last: [7,1,2,3,8,4,5] → no, after removing 0:
+  Put last (7) at root: [7,3,2,3,8,4,5]... simplified:
+  7 > min(child1,child2)=min(3,2)=2 → swap with index 2: [2,3,7,...]
+  7 > min(child1,child2)=min(4,5)=4 → swap with index 5: [2,3,4,...]
+  No more children → DONE (min=2 now at root) ✅
+═══════════════════════════════════════════════════════════════
 ```
+
+### C# PriorityQueue<T,P>
 
 ```csharp
-// .NET 6+ PriorityQueue<TElement, TPriority> — min-heap by default
-var minHeap = new PriorityQueue<int, int>();
-minHeap.Enqueue(5, 5);   // (element, priority) — lower priority = dequeued first
-minHeap.Enqueue(1, 1);
-minHeap.Enqueue(3, 3);
-int min = minHeap.Peek();     // 1  — O(1)
-int val = minHeap.Dequeue();  // 1  — O(log n)
+// MIN-HEAP (lowest priority number = highest priority = dequeued first)
+var minHeap = new PriorityQueue<string, int>();
 
-// MAX-HEAP: negate the priority
+minHeap.Enqueue("task A", 5);   // element, priority
+minHeap.Enqueue("task B", 1);   // priority 1 = most urgent
+minHeap.Enqueue("task C", 3);
+
+string next = minHeap.Peek();       // "task B" — O(1)
+string done = minHeap.Dequeue();    // "task B" — O(log n) (heapify down)
+minHeap.Enqueue("task D", 2);       // O(log n) (heapify up)
+
+// MAX-HEAP: negate priority so smallest (= most negative) = was-largest
 var maxHeap = new PriorityQueue<int, int>();
-maxHeap.Enqueue(5, -5);  // priority -5 → comes out first (smallest priority number)
-int max = maxHeap.Dequeue();  // element=5
+maxHeap.Enqueue(5, -5);    // negate priority to simulate max-heap
+maxHeap.Enqueue(3, -3);
+maxHeap.Enqueue(8, -8);
+int maxVal = maxHeap.Dequeue();  // 8 (was -8, the most negative)
 
-// FROM SCRATCH — MinHeap internals
-public class MinHeap {
-    private List<int> _data = new();
-    public int Count => _data.Count;
-    public int Peek() => _data[0];
+// PATTERN: Find Kth Largest using MIN-HEAP of size k
+int FindKthLargest(int[] nums, int k) {
+    var heap = new PriorityQueue<int, int>(); // min-heap
 
-    public void Push(int val) {
-        _data.Add(val);
-        BubbleUp(_data.Count - 1);
+    foreach (int num in nums) {
+        heap.Enqueue(num, num);          // add to heap
+        if (heap.Count > k)
+            heap.Dequeue();              // remove smallest — keep only top k
     }
-
-    public int Pop() {
-        int min = _data[0];
-        _data[0] = _data[^1];
-        _data.RemoveAt(_data.Count - 1);
-        if (_data.Count > 0) BubbleDown(0);
-        return min;
-    }
-
-    void BubbleUp(int i) {
-        while (i > 0) {
-            int p = (i - 1) / 2;
-            if (_data[p] <= _data[i]) break;
-            (_data[p], _data[i]) = (_data[i], _data[p]);
-            i = p;
-        }
-    }
-
-    void BubbleDown(int i) {
-        int n = _data.Count;
-        while (true) {
-            int s = i, l = 2*i+1, r = 2*i+2;
-            if (l < n && _data[l] < _data[s]) s = l;
-            if (r < n && _data[r] < _data[s]) s = r;
-            if (s == i) break;
-            (_data[s], _data[i]) = (_data[i], _data[s]);
-            i = s;
-        }
-    }
+    // Now heap contains k largest elements; min of heap = kth largest
+    return heap.Peek();
 }
 ```
 
 ### Complexity Table
 
-| Operation | Time |
-|-----------|------|
-| Push (Enqueue) | O(log n) |
-| Pop (Dequeue) | O(log n) |
-| Peek | O(1) |
-| Build from array | O(n) |
+| Operation | Min/Max Heap |
+|-----------|-------------|
+| Insert (Enqueue) | O(log n) |
+| Get min/max (Peek) | O(1) |
+| Remove min/max (Dequeue) | O(log n) |
+| Build heap from array | O(n) |
+| Search | O(n) |
 | Space | O(n) |
+
+---
 
 ### 🔴 Practice Problem: Kth Largest Element (LeetCode #215 — Medium)
 
-```csharp
-public int FindKthLargest(int[] nums, int k) {
-    // Min-heap of size k: top = kth largest
-    var minHeap = new PriorityQueue<int, int>();
-    foreach (int num in nums) {
-        minHeap.Enqueue(num, num);
-        if (minHeap.Count > k) minHeap.Dequeue();  // evict smallest
-    }
-    return minHeap.Peek();  // top = kth largest
-}
-// Time: O(n log k) | Space: O(k)
-// Better than sorting O(n log n) when k << n
+**Problem:** Find the kth largest element in an unsorted array (not necessarily distinct).
+
 ```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: KTH LARGEST ELEMENT                         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 BRUTE    │ Sort descending, return │ O(n log n) │ O(1) sp  ║
+║              │ element at index k-1    │            │          ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟡 MIN-HEAP │ Maintain min-heap size k│ O(n log k) │ O(k) sp  ║
+║  SIZE K      │ answer = heap top       │            │          ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 QUICKSEL │ Partition like QuickSort│ O(n) avg   │ O(1) sp  ║
+║  (OPTIMAL)   │ only recurse one side   │ O(n²) worst│          ║
+╚══════════════════════════════════════════════════════════════════╝
+
+KEY INSIGHT: Min-heap of size k is the practical choice (guaranteed O(n log k)).
+             QuickSelect is optimal on average but has worst case O(n²).
+             For interviews: heap approach is safer and easier to code correctly.
+```
+
+```csharp
+// APPROACH 1: Min-Heap of Size k — O(n log k)
+public int FindKthLargest(int[] nums, int k) {
+    // WHY min-heap (not max-heap)? We maintain the k LARGEST elements seen so far.
+    // The MINIMUM of those k largest = the kth largest overall.
+    // When we see a new element larger than the current min (heap top),
+    // it displaces the current minimum → we always keep the k largest.
+    var minHeap = new PriorityQueue<int, int>();
+
+    foreach (int num in nums) {
+        minHeap.Enqueue(num, num);  // element=priority=num (min priority dequeued first)
+
+        // WHY remove when count > k? We only need k elements.
+        // The element removed is the SMALLEST so far — it can't be kth largest.
+        if (minHeap.Count > k)
+            minHeap.Dequeue();  // remove the current minimum (too small to be kth largest)
+    }
+
+    // The heap now contains exactly k largest elements.
+    // The minimum of those k = kth largest overall.
+    return minHeap.Peek();
+}
+// Time: O(n log k) — n iterations, each O(log k) heap operation
+// Space: O(k) — heap size bounded by k
+
+// APPROACH 2: QuickSelect — O(n) average
+public int FindKthLargestQuickSelect(int[] nums, int k) {
+    // We want kth largest = (n-k)th smallest (0-indexed from end)
+    return QuickSelect(nums, 0, nums.Length - 1, nums.Length - k);
+}
+
+int QuickSelect(int[] nums, int left, int right, int targetIdx) {
+    if (left == right) return nums[left]; // single element
+
+    // Partition: choose pivot, put smaller elements left, larger right
+    int pivotIdx = Partition(nums, left, right);
+
+    if (pivotIdx == targetIdx) return nums[pivotIdx];      // found!
+    if (targetIdx < pivotIdx) return QuickSelect(nums, left, pivotIdx - 1, targetIdx);
+    return QuickSelect(nums, pivotIdx + 1, right, targetIdx);
+}
+
+int Partition(int[] nums, int left, int right) {
+    int pivot = nums[right]; // use last element as pivot
+    int i = left;
+
+    for (int j = left; j < right; j++) {
+        if (nums[j] <= pivot) {
+            (nums[i], nums[j]) = (nums[j], nums[i]); // swap
+            i++;
+        }
+    }
+    (nums[i], nums[right]) = (nums[right], nums[i]); // place pivot
+    return i;
+}
+```
+
+```
+TRACE: nums=[3,2,1,5,6,4], k=2
+═══════════════════════════════════════════════════════════════
+  Looking for 2nd largest = element at sorted-desc index 1 = 5
+
+  Min-heap approach:
+  Process 3: heap=[3] size=1
+  Process 2: heap=[2,3] size=2
+  Process 1: heap=[1,3,2]→remove 1→heap=[2,3] size=2 (1<heap min, remove it)
+  Process 5: heap=[2,3,5]→remove 2→heap=[3,5] size=2
+  Process 6: heap=[3,5,6]→remove 3→heap=[5,6] size=2
+  Process 4: heap=[4,5,6]→remove 4→heap=[5,6] size=2
+  Peek = 5 ✅ (2nd largest is 5)
+═══════════════════════════════════════════════════════════════
+```
+
+> **🎯 Key Insight:** Min-heap of size k is the go-to pattern for "Top K" problems. The heap always maintains the k largest seen so far, with the kth largest sitting at the top (min). This same pattern solves: "Top K Frequent Elements," "K Closest Points," "Find Median from Data Stream."
 
 ---
 
 ## Section 15 — Tries (Prefix Trees)
 
-> **🧠 Mental Model: Phone Autocomplete**
+> **🧠 Mental Model: Autocomplete on Your Phone**
 >
-> A Trie powers your phone's autocomplete. Each character you type navigates DOWN one level. All words sharing the prefix "ap" (apple, application, apt) share the "ap" path. Lookup is O(L) — word length — regardless of how many words are stored. Perfect for: autocomplete, spell check, prefix matching, word dictionaries.
-
-### Trie Structure
+> A Trie is like the autocomplete feature on your phone. Each time you type a letter, the phone narrows down suggestions. The Trie stores all words as paths from root to leaf — each edge represents one character. Shared prefixes share the same path. "apple" and "apply" share "appl" as a common root path.
 
 ```
-Words: ["app", "apple", "bat", "ball"]
+TRIE STRUCTURE for words: ["apple", "app", "apply", "apt"]
+═══════════════════════════════════════════════════════════════
+                root
+                 │
+                 a
+                 │
+                 p ←─── "ap" is shared prefix for all words
+                / \
+               p   t
+               │   │
+               l   *  ← "apt" ends here (isEnd=true)
+              / \
+             e   y
+             │   │
+             *   *  ← "apple" and "apply" both end here
 
-         root
-        /    \
-       a      b
-       |      |
-       p      a
-       |     / \
-       p    t   l
-      / \   |   |
-    [✓] l  [✓] l
-        |       |
-        e      [✓]
-        |
-       [✓]  ← "apple"
-[✓] = IsEnd (complete word)
+  * = isEnd marker (this path forms a complete word)
+
+  SPACE: Each node stores up to 26 child pointers (for lowercase a-z)
+  A trie with n words of avg length m: O(n×m) space worst case,
+  but often much less due to shared prefixes.
+═══════════════════════════════════════════════════════════════
 ```
+
+### Trie Implementation
 
 ```csharp
 public class TrieNode {
-    public TrieNode[] Children = new TrieNode[26];
-    public bool IsEnd;
+    // WHY array of 26? For lowercase a-z alphabet, index by char-'a'
+    // Alternative: Dictionary<char,TrieNode> for Unicode/arbitrary chars
+    public TrieNode[] children = new TrieNode[26];
+    public bool isEnd = false;  // true if a word ends at this node
 }
 
 public class Trie {
-    private readonly TrieNode _root = new();
+    private TrieNode root = new TrieNode();
 
+    // INSERT: O(m) where m = word length
     public void Insert(string word) {
-        TrieNode node = _root;
+        TrieNode curr = root;
         foreach (char c in word) {
-            int i = c - 'a';
-            node.Children[i] ??= new TrieNode();
-            node = node.Children[i];
+            int idx = c - 'a';  // 'a'→0, 'b'→1, ..., 'z'→25
+            // WHY null check? Create node only if this path doesn't exist yet
+            if (curr.children[idx] == null)
+                curr.children[idx] = new TrieNode();
+            curr = curr.children[idx];  // move down the trie
         }
-        node.IsEnd = true;
+        curr.isEnd = true;  // mark the end of this word
     }
 
+    // SEARCH: does exactly this word exist? O(m)
     public bool Search(string word) {
-        var node = GetNode(word);
-        return node != null && node.IsEnd;  // must exist AND be end of word
+        TrieNode curr = root;
+        foreach (char c in word) {
+            int idx = c - 'a';
+            if (curr.children[idx] == null)
+                return false;  // character path doesn't exist
+            curr = curr.children[idx];
+        }
+        return curr.isEnd;  // WHY check isEnd? "app" shouldn't match if only "apple" inserted
     }
 
-    public bool StartsWith(string prefix) => GetNode(prefix) != null;
-
-    private TrieNode GetNode(string s) {
-        TrieNode node = _root;
-        foreach (char c in s) {
-            int i = c - 'a';
-            if (node.Children[i] == null) return null;
-            node = node.Children[i];
+    // STARTS WITH: does any word have this prefix? O(m)
+    public bool StartsWith(string prefix) {
+        TrieNode curr = root;
+        foreach (char c in prefix) {
+            int idx = c - 'a';
+            if (curr.children[idx] == null)
+                return false;  // prefix path doesn't exist
+            curr = curr.children[idx];
         }
-        return node;
+        return true;  // WHY no isEnd check? Prefix doesn't need to be a complete word
     }
 }
-// All operations: O(L) time, O(L) space per insert
 ```
+
+---
 
 ### 🔴 Practice Problem: Implement Trie (LeetCode #208 — Medium)
 
-The Trie class above is the complete solution. Key test:
-```csharp
-var t = new Trie();
-t.Insert("apple");
-t.Search("apple");    // true
-t.Search("app");      // false — not inserted
-t.StartsWith("app");  // true — prefix exists
-t.Insert("app");
-t.Search("app");      // true — now explicitly inserted
+**Problem:** Implement `insert`, `search`, and `startsWith` for a Trie data structure.
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: IMPLEMENT TRIE                              ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 HASHSET  │ Store words in HashSet  │ O(m) insert│ O(n×m)  ║
+║              │ — no prefix support     │ O(m) search│         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 TRIE     │ Character-by-character  │ O(m) all   │ O(n×m)  ║
+║  (CANONICAL) │ tree — enables prefix   │ ops        │ worst   ║
+╚══════════════════════════════════════════════════════════════════╝
+
+TRACE: insert("apple"), insert("app"), search("apple"), startsWith("ap")
+═══════════════════════════════════════════════════════════════
+  insert("apple"):
+    root→a→p→p→l→e (isEnd=true at e)
+
+  insert("app"):
+    root→a→p→p (isEnd=true at second p)  ← shares path with "apple"
+
+  search("apple"):
+    Walk: a→p→p→l→e → isEnd=true → true ✅
+
+  search("app"):
+    Walk: a→p→p → isEnd=true → true ✅
+
+  search("ap"):
+    Walk: a→p → isEnd=false → false ✅
+
+  startsWith("ap"):
+    Walk: a→p → path exists → true ✅
+═══════════════════════════════════════════════════════════════
 ```
 
-> **🎯 Key Insight:** `IsEnd` distinguishes a PREFIX ("app") from a WORD ("app" inserted). Always use `Children[26]` array (not Dictionary) for lowercase-only problems — simpler and faster. Use Dictionary only when character set is unknown/large.
+The Trie implementation above (in the section header) IS the solution — see the `Trie` class. Time: O(m) for all operations, Space: O(n×m) total.
+
+> **🎯 Key Insight:** Trie's superpower is **prefix-based operations** in O(m) time. HashSet can't do `startsWith` efficiently. Use Trie when you need: autocomplete, prefix search, word dictionary with wildcards, IP routing tables.
 
 ---
 
 ## Section 16 — Advanced Trees
 
-> **🧠 Mental Model: The Self-Balancing Scale**
+> **🧠 Mental Model: Self-Balancing Acrobat**
 >
-> AVL trees self-balance like a scale that auto-adjusts after every weight change. Segment trees are like pre-computed tournament brackets for range queries — answer "sum of positions 3–7" in O(log n) instead of O(n) linear scan.
+> An AVL/Red-Black tree is like an acrobat that constantly rebalances. After every insertion or deletion, the tree checks if it's lopsided and performs "rotations" to stay balanced — ensuring O(log n) operations always hold. The Segment Tree is a "divide-and-conquer reporting" tree — split the array in half recursively, each node stores a range summary.
 
-### Segment Tree — Range Sum with Point Update
+```
+SEGMENT TREE for array [1, 3, 5, 7, 9, 11]:
+═══════════════════════════════════════════════════════════════
+         [0..5] sum=36
+           /       \
+    [0..2] sum=9   [3..5] sum=27
+    /    \           /    \
+ [0..1]  [2]      [3..4]  [5]
+ sum=4   5         sum=16  11
+  / \             /    \
+[0] [1]          [3]   [4]
+ 1    3            7     9
+
+  Query sum [1..4]: combine [1..2]=[3+5]=8, [3..4]=[7+9]=16 → 24
+  Update arr[2] = 6: update [0..5],[0..2],[2] nodes only (log n updates)
+═══════════════════════════════════════════════════════════════
+```
+
+### Segment Tree Implementation
 
 ```csharp
 public class SegmentTree {
-    private int[] _tree;
-    private int _n;
+    private int[] tree;  // internal array representation
+    private int n;
 
-    public SegmentTree(int[] nums) {
-        _n = nums.Length;
-        _tree = new int[4 * _n];
-        Build(nums, 0, 0, _n - 1);
+    public SegmentTree(int[] arr) {
+        n = arr.Length;
+        tree = new int[4 * n]; // 4n is safe upper bound for segment tree size
+        Build(arr, 0, 0, n - 1);
     }
 
-    void Build(int[] nums, int node, int start, int end) {
-        if (start == end) { _tree[node] = nums[start]; return; }
+    // Build segment tree from bottom up: O(n)
+    void Build(int[] arr, int node, int start, int end) {
+        if (start == end) {
+            tree[node] = arr[start]; // leaf node stores single element
+            return;
+        }
         int mid = (start + end) / 2;
-        Build(nums, 2*node+1, start, mid);
-        Build(nums, 2*node+2, mid+1, end);
-        _tree[node] = _tree[2*node+1] + _tree[2*node+2];
+        Build(arr, 2*node+1, start, mid);    // build left child
+        Build(arr, 2*node+2, mid+1, end);    // build right child
+        tree[node] = tree[2*node+1] + tree[2*node+2]; // parent = sum of children
     }
 
-    public void Update(int idx, int val) => Update(0, 0, _n-1, idx, val);
+    // Point update: change arr[idx] to val — O(log n)
+    public void Update(int idx, int val) => Update(0, 0, n-1, idx, val);
+
     void Update(int node, int start, int end, int idx, int val) {
-        if (start == end) { _tree[node] = val; return; }
+        if (start == end) {
+            tree[node] = val;  // update leaf
+            return;
+        }
         int mid = (start + end) / 2;
-        if (idx <= mid) Update(2*node+1, start, mid, idx, val);
-        else Update(2*node+2, mid+1, end, idx, val);
-        _tree[node] = _tree[2*node+1] + _tree[2*node+2];
+        if (idx <= mid) Update(2*node+1, start, mid, idx, val);   // go left
+        else Update(2*node+2, mid+1, end, idx, val);              // go right
+        tree[node] = tree[2*node+1] + tree[2*node+2];            // update parent
     }
 
-    public int Query(int l, int r) => Query(0, 0, _n-1, l, r);
+    // Range sum query: sum of arr[l..r] — O(log n)
+    public int Query(int l, int r) => Query(0, 0, n-1, l, r);
+
     int Query(int node, int start, int end, int l, int r) {
-        if (r < start || end < l) return 0;             // out of range
-        if (l <= start && end <= r) return _tree[node]; // fully in range
+        if (r < start || end < l) return 0;             // completely outside range
+        if (l <= start && end <= r) return tree[node];  // completely inside range
         int mid = (start + end) / 2;
-        return Query(2*node+1, start, mid, l, r)
-             + Query(2*node+2, mid+1, end, l, r);
+        return Query(2*node+1, start, mid, l, r) +      // partial overlap: split
+               Query(2*node+2, mid+1, end, l, r);
     }
 }
-// Build: O(n) | Update: O(log n) | Query: O(log n) | Space: O(n)
 ```
+
+---
 
 ### 🔴 Practice Problem: Range Sum Query - Mutable (LeetCode #307 — Medium)
 
-```csharp
-public class NumArray {
-    private SegmentTree _tree;
-    public NumArray(int[] nums) { _tree = new SegmentTree(nums); }
-    public void Update(int index, int val) { _tree.Update(index, val); }
-    public int SumRange(int left, int right) { return _tree.Query(left, right); }
-}
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: RANGE SUM QUERY MUTABLE                     ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 NAIVE    │ Recompute sum each time │ O(n) query │ O(1) sp  ║
+║              │                         │ O(1) update│          ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟡 PREFIX   │ Prefix sums, rebuild on │ O(1) query │ O(n) sp  ║
+║  SUM         │ every update            │ O(n) update│          ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 SEGMENT  │ Segment tree            │ O(log n)   │ O(n) sp  ║
+║  TREE        │ both query and update   │ both ops   │          ║
+╚══════════════════════════════════════════════════════════════════╝
 ```
 
-> **🎯 Key Insight:** Segment Tree supports ANY associative operation (sum, min, max, GCD). Fenwick Tree (BIT) is simpler code but only works for invertible operations like sum/XOR. In interviews, knowing Segment Tree is impressive; Fenwick Tree is a bonus.
+The `SegmentTree` class above implements the solution. Use it as `NumArray`:
+
+```csharp
+public class NumArray {
+    private SegmentTree seg;
+    public NumArray(int[] nums) => seg = new SegmentTree(nums);
+    public void Update(int index, int val) => seg.Update(index, val);
+    public int SumRange(int left, int right) => seg.Query(left, right);
+}
+// Time: O(n) build, O(log n) update and query — Space: O(n)
+```
+
+> **🎯 Key Insight:** Segment tree is the go-to for **range queries with updates**. Without updates → prefix sum (O(1) query). With updates → segment tree (O(log n) both). Fenwick tree (Binary Indexed Tree) achieves the same with simpler code but harder intuition.
 
 ---
 
@@ -1647,170 +2496,365 @@ public class NumArray {
 
 ## Section 17 — Graph Fundamentals
 
-> **🧠 Mental Model: The Road Network**
+> **🧠 Mental Model: A Road Network**
 >
-> A graph is a road network. Cities = NODES (vertices). Roads = EDGES. One-way roads = DIRECTED edges. Roads with distance = WEIGHTED edges. "Can you reach city B from A?" = CONNECTIVITY. "Shortest route?" = SHORTEST PATH. Grids (2D matrices) are the most common graph in interviews — cells are nodes, adjacent cells are edges.
-
-### Graph Representations
+> A graph is like a city road network. Cities are nodes (vertices). Roads are edges. Some roads are one-way (directed graph). Roads have distance (weighted graph). You can reach city B from city A if there's a path — but finding the SHORTEST path requires algorithms like Dijkstra. The key insight: graphs model ANY relationship between entities.
 
 ```
-Graph:  1 — 2 — 3
-        |   |
-        4 — 5
+GRAPH REPRESENTATIONS:
+═══════════════════════════════════════════════════════════════
+  Graph with 5 nodes, edges: 0-1, 0-2, 1-3, 2-3, 3-4
 
-Adjacency List (sparse graphs — O(V+E) space):
-{ 1:[2,4], 2:[1,3,5], 3:[2], 4:[1,5], 5:[2,4] }
+  ADJACENCY MATRIX (good for dense graphs):
+       0  1  2  3  4
+    0 [0, 1, 1, 0, 0]
+    1 [1, 0, 0, 1, 0]
+    2 [1, 0, 0, 1, 0]
+    3 [0, 1, 1, 0, 1]
+    4 [0, 0, 0, 1, 0]
+  Space: O(V²). Edge check: O(1). List neighbors: O(V).
 
-Adjacency Matrix (dense or O(1) edge check — O(V²) space):
-   1 2 3 4 5
-1 [0,1,0,1,0]
-2 [1,0,1,0,1]
-3 [0,1,0,0,0]
+  ADJACENCY LIST (preferred — good for sparse graphs):
+    0: [1, 2]
+    1: [0, 3]
+    2: [0, 3]
+    3: [1, 2, 4]
+    4: [3]
+  Space: O(V+E). Edge check: O(degree). List neighbors: O(degree).
+
+  In C#: Dictionary<int, List<int>> or List<List<int>>
+═══════════════════════════════════════════════════════════════
+
+GRAPH TYPES:
+═══════════════════════════════════════════════════════════════
+  Undirected: edges go both ways (social network friends)
+  Directed (Digraph): edges have direction (Twitter follows)
+  Weighted: edges have weights (road distances)
+  DAG: Directed Acyclic Graph (no cycles) — used in topological sort
+  Bipartite: nodes split in 2 groups, edges only cross groups
+  Tree: connected graph with V-1 edges and no cycles
+═══════════════════════════════════════════════════════════════
 ```
+
+### Building a Graph in C#
 
 ```csharp
-// BUILD adjacency list from edge list (standard interview setup)
-int n = 5;
-int[][] edges = { new[]{0,1}, new[]{1,2}, new[]{0,2} };
-
+// ADJACENCY LIST — most common in interviews
+int V = 5; // number of vertices
 var adj = new List<List<int>>();
-for (int i = 0; i < n; i++) adj.Add(new List<int>());
-foreach (var e in edges) {
-    adj[e[0]].Add(e[1]);
-    adj[e[1]].Add(e[0]);  // undirected: add both directions
+for (int i = 0; i < V; i++)
+    adj.Add(new List<int>());  // initialize each vertex's neighbor list
+
+// Add undirected edge 0-1
+void AddEdge(int u, int v) {
+    adj[u].Add(v);  // u → v
+    adj[v].Add(u);  // v → u (undirected)
 }
 
-// GRID AS GRAPH — 4-directional movement
-int[] dr = { -1, 1, 0, 0 };  // up, down, left, right
-int[] dc = {  0, 0,-1, 1 };
-// neighbors of (r,c):
-for (int d = 0; d < 4; d++) {
-    int nr = r + dr[d], nc = c + dc[d];
-    if (nr >= 0 && nr < rows && nc >= 0 && nc < cols)
-        // (nr, nc) is a valid neighbor
-        ;
+// WEIGHTED GRAPH: store (neighbor, weight) pairs
+var weightedAdj = new List<List<(int node, int weight)>>();
+
+// FROM EDGE LIST (common input format in problems):
+int[][] edges = { new[]{0,1}, new[]{0,2}, new[]{1,3} };
+var graph = new Dictionary<int, List<int>>();
+foreach (int[] e in edges) {
+    if (!graph.ContainsKey(e[0])) graph[e[0]] = new List<int>();
+    if (!graph.ContainsKey(e[1])) graph[e[1]] = new List<int>();
+    graph[e[0]].Add(e[1]);
+    graph[e[1]].Add(e[0]);  // remove for directed graph
 }
-// For 8-directional (diagonals too): extend dr/dc with (-1,-1),(-1,1),(1,-1),(1,1)
 ```
 
-### Graph Vocabulary
-
-| Term | Definition |
-|------|-----------|
-| DAG | Directed Acyclic Graph — used for dependencies/scheduling |
-| Tree | Connected undirected graph with exactly V-1 edges (no cycles) |
-| Connected component | Maximal set of mutually reachable vertices |
-| In-degree | Number of incoming edges (directed graph) |
-| Topological order | Linear ordering of vertices in a DAG respecting edge directions |
+---
 
 ### 🔴 Practice Problem: Number of Islands (LeetCode #200 — Medium)
 
+**Problem:** Given 2D grid of '1's (land) and '0's (water), count number of islands.
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: NUMBER OF ISLANDS                           ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 BRUTE    │ Find each '1', BFS/DFS  │ O(m×n)    │ O(m×n)  ║
+║  (also opt.) │ to mark entire island   │            │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 DFS/BFS  │ For each unvisited '1', │ O(m×n)    │ O(m×n)  ║
+║  (CANONICAL) │ DFS to sink entire isl. │            │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 UNION    │ Union-Find to connect   │ O(m×n×α)  │ O(m×n)  ║
+║  FIND        │ adjacent land cells     │ ≈O(m×n)   │         ║
+╚══════════════════════════════════════════════════════════════════╝
+
+KEY INSIGHT: Treat the grid as a graph. Each '1' cell is a node.
+             Adjacent '1' cells share edges. Count connected components.
+             DFS from each unvisited '1' marks its entire island.
+```
+
+```
+VISUALIZATION:
+  Grid:        After DFS from (0,0):    After DFS from (0,4):
+  1 1 1 0 0    2 2 2 0 0                2 2 2 0 3
+  1 1 0 0 0    2 2 0 0 0                2 2 0 0 0
+  0 0 0 1 1    0 0 0 1 1  ← unvisited  0 0 0 2 2
+  0 0 0 0 0    0 0 0 0 0                0 0 0 0 0
+
+  Count=1 → Count=2 → Count=3 (after DFS from (2,3))
+  Answer = 3 islands
+```
+
 ```csharp
 public int NumIslands(char[][] grid) {
-    int rows = grid.Length, cols = grid[0].Length, count = 0;
-    for (int r = 0; r < rows; r++)
-        for (int c = 0; c < cols; c++)
-            if (grid[r][c] == '1') { count++; Sink(grid, r, c); }
+    if (grid == null || grid.Length == 0) return 0;
+
+    int rows = grid.Length, cols = grid[0].Length;
+    int count = 0;
+
+    for (int r = 0; r < rows; r++) {
+        for (int c = 0; c < cols; c++) {
+            if (grid[r][c] == '1') {
+                count++;           // found a new island!
+                DFS(grid, r, c);   // sink the entire island (mark as visited)
+            }
+        }
+    }
     return count;
 }
 
-void Sink(char[][] grid, int r, int c) {
-    if (r < 0 || r >= grid.Length || c < 0 || c >= grid[0].Length || grid[r][c] != '1') return;
-    grid[r][c] = '0';  // mark visited by sinking land into water
-    Sink(grid, r-1, c); Sink(grid, r+1, c);
-    Sink(grid, r, c-1); Sink(grid, r, c+1);
+void DFS(char[][] grid, int r, int c) {
+    // WHY these boundary checks? Prevent out-of-bounds array access
+    // WHY check '0'? '0' is water — no island to explore there
+    if (r < 0 || r >= grid.Length || c < 0 || c >= grid[0].Length || grid[r][c] != '1')
+        return;
+
+    // WHY set to '0'? Mark as VISITED — prevents revisiting the same cell
+    // (acts as a visited set without extra memory)
+    grid[r][c] = '0';
+
+    // Explore all 4 directions (up, down, left, right)
+    DFS(grid, r-1, c);  // up
+    DFS(grid, r+1, c);  // down
+    DFS(grid, r, c-1);  // left
+    DFS(grid, r, c+1);  // right
 }
-// Time: O(rows × cols) | Space: O(rows × cols) worst-case stack
+// Time: O(m×n) — each cell visited at most once
+// Space: O(m×n) — recursion stack worst case (all land)
 ```
+
+```
+TRACE: grid = [["1","1","0"],["0","1","0"],["0","0","1"]]
+═══════════════════════════════════════════════════════════════
+  (0,0)='1' → count=1 → DFS(0,0):
+    mark (0,0)='0', recurse: up OOB, down=(1,0)='0',
+    left OOB, right=(0,1)='1' → DFS(0,1):
+      mark (0,1)='0', recurse: right=(0,2)='0', down=(1,1)='1' → DFS(1,1):
+        mark (1,1)='0', all neighbors '0' or OOB → done
+
+  (0,1)='0' skip, (0,2)='0' skip
+  (1,0)='0' skip, (1,1)='0' skip (marked), (1,2)='0' skip
+  (2,0)='0' skip, (2,1)='0' skip
+  (2,2)='1' → count=2 → DFS(2,2): mark '0', no '1' neighbors
+
+  Answer: 2 ✅
+═══════════════════════════════════════════════════════════════
+```
+
+> **🎯 Key Insight:** Grid problems are graph problems in disguise. The "sink the island" DFS (marking visited cells as '0' in-place) is cleaner than maintaining a separate visited array. This connected components counting pattern appears in dozens of problems: "Max Area of Island," "Pacific Atlantic Water Flow," "Word Search."
 
 ---
 
 ## Section 18 — Graph Traversals: DFS & BFS
 
-> **🧠 Mental Model: Two Styles of Maze Exploration**
+> **🧠 Mental Model: DFS = Exploring a Maze / BFS = Ripples in Water**
 >
-> **DFS** = brave explorer: go as DEEP as possible, only backtrack when stuck. Uses a stack/recursion. Best for: cycle detection, connected components, topological sort, all-paths.
+> **DFS**: Like exploring a maze — go as deep as possible down one path, hit a dead end, backtrack, try another path. Uses a **stack** (explicit or call stack).
 >
-> **BFS** = methodical explorer: explore all neighbors at current distance before going farther. Uses a queue. Best for: SHORTEST PATH in unweighted graphs, level-by-level processing.
+> **BFS**: Like dropping a stone in water — ripples spread outward in all directions equally. Explores all neighbors at distance 1, then distance 2, etc. Uses a **queue**. BFS guarantees **shortest path** in unweighted graphs.
+
+```
+DFS vs BFS COMPARISON:
+═══════════════════════════════════════════════════════════════
+  Graph:  1 — 2 — 4
+          |   |
+          3 — 5
+
+  DFS from 1 (stack-based, exploring order depends on adj list):
+  Visit 1 → push neighbors [2,3] → visit 3 → push neighbors [1,5]
+  → 1 visited → visit 5 → push [2,3] → 2,3 visited → visit 2
+  → push [1,4,5] → all visited except 4 → visit 4
+  Order: 1, 3, 5, 2, 4 (or similar — depends on order)
+
+  BFS from 1 (queue-based):
+  Queue: [1] → visit 1, enqueue [2,3]
+  Queue: [2,3] → visit 2, enqueue [4,5]; visit 3, enqueue [5]
+  Queue: [4,5,5] → visit 4; visit 5; skip 5 (visited)
+  Order: 1, 2, 3, 4, 5 (level by level)
+
+  BFS GUARANTEES shortest path in unweighted graphs!
+  DFS is better for: cycle detection, topological sort, all paths
+═══════════════════════════════════════════════════════════════
+```
+
+### DFS & BFS Templates
 
 ```csharp
-// DFS — Recursive
-void DfsRecursive(List<List<int>> graph, int node, bool[] visited) {
-    visited[node] = true;
-    foreach (int neighbor in graph[node])
-        if (!visited[neighbor])
-            DfsRecursive(graph, neighbor, visited);
-}
+// ═══ DFS — RECURSIVE (most intuitive) ═══
+void DFSRecursive(Dictionary<int, List<int>> graph, int node, HashSet<int> visited) {
+    visited.Add(node);
+    Console.Write(node + " ");  // process node
 
-// DFS — Iterative (avoids stack overflow)
-void DfsIterative(List<List<int>> graph, int start, bool[] visited) {
-    var stack = new Stack<int>();
-    stack.Push(start);
-    while (stack.Count > 0) {
-        int node = stack.Pop();
-        if (visited[node]) continue;
-        visited[node] = true;
-        foreach (int nb in graph[node])
-            if (!visited[nb]) stack.Push(nb);
+    foreach (int neighbor in graph.GetValueOrDefault(node, new List<int>())) {
+        if (!visited.Contains(neighbor))  // only visit unvisited
+            DFSRecursive(graph, neighbor, visited);
     }
 }
 
-// BFS — SHORTEST PATH (unweighted)
-int BfsShortestPath(List<List<int>> graph, int start, int end) {
-    bool[] visited = new bool[graph.Count];
+// ═══ DFS — ITERATIVE (avoids stack overflow on deep graphs) ═══
+void DFSIterative(Dictionary<int, List<int>> graph, int start) {
+    var visited = new HashSet<int>();
+    var stack = new Stack<int>();
+    stack.Push(start);
+
+    while (stack.Count > 0) {
+        int node = stack.Pop();
+        if (visited.Contains(node)) continue;  // already processed
+        visited.Add(node);
+        Console.Write(node + " ");
+
+        // Push neighbors in reverse order to maintain left-to-right visit order
+        foreach (int neighbor in graph.GetValueOrDefault(node, new List<int>()))
+            if (!visited.Contains(neighbor))
+                stack.Push(neighbor);
+    }
+}
+
+// ═══ BFS — ITERATIVE (always use queue) ═══
+void BFS(Dictionary<int, List<int>> graph, int start) {
+    var visited = new HashSet<int> { start };
+    var queue = new Queue<int>();
+    queue.Enqueue(start);
+
+    while (queue.Count > 0) {
+        int node = queue.Dequeue();
+        Console.Write(node + " ");
+
+        foreach (int neighbor in graph.GetValueOrDefault(node, new List<int>())) {
+            // WHY add to visited when ENQUEUING (not dequeuing)?
+            // Prevents adding the same node to queue multiple times
+            if (!visited.Contains(neighbor)) {
+                visited.Add(neighbor);
+                queue.Enqueue(neighbor);
+            }
+        }
+    }
+}
+
+// ═══ BFS SHORTEST PATH (unweighted) ═══
+int BFSShortestPath(Dictionary<int, List<int>> graph, int start, int end) {
+    var visited = new HashSet<int> { start };
     var queue = new Queue<(int node, int dist)>();
-    visited[start] = true;
     queue.Enqueue((start, 0));
+
     while (queue.Count > 0) {
         var (node, dist) = queue.Dequeue();
-        if (node == end) return dist;
-        foreach (int nb in graph[node])
-            if (!visited[nb]) { visited[nb] = true; queue.Enqueue((nb, dist+1)); }
+        if (node == end) return dist;  // found! return distance
+
+        foreach (int neighbor in graph.GetValueOrDefault(node, new List<int>())) {
+            if (!visited.Contains(neighbor)) {
+                visited.Add(neighbor);
+                queue.Enqueue((neighbor, dist + 1));  // increment distance
+            }
+        }
     }
     return -1;  // unreachable
 }
 ```
 
-### DFS vs BFS Comparison
-
-| Aspect | DFS | BFS |
-|--------|-----|-----|
-| Data structure | Stack (or recursion) | Queue |
-| Space | O(h) — height of DFS tree | O(w) — width of BFS frontier |
-| Shortest path? | No (for unweighted) | Yes (for unweighted) |
-| Best for | Cycles, components, paths | Shortest path, levels |
-| Grid problems | Connected components | Minimum steps |
+---
 
 ### 🔴 Practice Problem: Course Schedule (LeetCode #207 — Medium)
 
-**Can you finish all courses given prerequisites? (cycle detection in directed graph)**
+**Problem:** There are `n` courses. Some courses have prerequisites. Can you finish all courses?
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: COURSE SCHEDULE (CYCLE DETECTION)           ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 BRUTE    │ Check all possible      │ O(V+E)×V  │ O(V+E)  ║
+║              │ orderings               │           │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 DFS CYCLE│ 3-state DFS coloring:   │ O(V+E)    │ O(V+E)  ║
+║  DETECTION   │ white/gray/black        │            │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 TOPO SORT│ Kahn's BFS: if all      │ O(V+E)    │ O(V+E)  ║
+║  (BFS KAHN'S)│ nodes processed→no cycle│            │         ║
+╚══════════════════════════════════════════════════════════════════╝
+
+KEY INSIGHT: The problem reduces to: "Does this directed graph have a cycle?"
+             If cycle exists → impossible to finish courses.
+             3-color DFS: white=unvisited, gray=in-progress, black=done.
+             If you revisit a GRAY node → cycle found!
+```
+
+```
+3-COLOR DFS VISUALIZATION: 0→1→2→0 (cycle) vs 0→1→2 (no cycle)
+═══════════════════════════════════════════════════════════════
+  CYCLE: 0 requires 1, 1 requires 2, 2 requires 0
+
+  DFS(0): color[0]=gray
+    DFS(1): color[1]=gray
+      DFS(2): color[2]=gray
+        neighbor=0: color[0]==gray → CYCLE DETECTED! ❌
+
+  NO CYCLE: 0 requires 1, 1 requires 2, 2 requires nothing
+
+  DFS(0): color[0]=gray
+    DFS(1): color[1]=gray
+      DFS(2): color[2]=gray
+        no neighbors → color[2]=black, return false
+      color[1]=black, return false
+    color[0]=black, return false
+  No cycle ✅
+═══════════════════════════════════════════════════════════════
+```
 
 ```csharp
 public bool CanFinish(int numCourses, int[][] prerequisites) {
+    // Build adjacency list: prereq → dependent courses
     var graph = new List<List<int>>();
     for (int i = 0; i < numCourses; i++) graph.Add(new List<int>());
-    foreach (var pre in prerequisites)
-        graph[pre[1]].Add(pre[0]);  // b → a means b must come before a
+    foreach (int[] pre in prerequisites)
+        graph[pre[1]].Add(pre[0]); // pre[1] must come before pre[0]
 
-    // 0=unvisited, 1=in-progress (current DFS path), 2=completed
+    // 3-state coloring: 0=unvisited, 1=in-progress (gray), 2=done (black)
     int[] state = new int[numCourses];
 
-    bool HasCycle(int node) {
-        if (state[node] == 1) return true;   // back edge → cycle!
-        if (state[node] == 2) return false;  // already fully explored
-        state[node] = 1;
-        foreach (int nb in graph[node])
-            if (HasCycle(nb)) return true;
-        state[node] = 2;
-        return false;
-    }
-
+    // Check each node for cycles (graph may be disconnected)
     for (int i = 0; i < numCourses; i++)
-        if (HasCycle(i)) return false;
+        if (state[i] == 0 && HasCycle(graph, state, i))
+            return false;
+
     return true;
 }
-// Time: O(V + E) | Space: O(V + E)
+
+bool HasCycle(List<List<int>> graph, int[] state, int node) {
+    state[node] = 1;  // mark as IN-PROGRESS (gray) — we're currently exploring this path
+
+    foreach (int neighbor in graph[node]) {
+        if (state[neighbor] == 1)  // found a node we're currently exploring = BACK EDGE = CYCLE
+            return true;
+        if (state[neighbor] == 0 && HasCycle(graph, state, neighbor))
+            return true;  // cycle found deeper in the recursion
+        // state[neighbor] == 2: already fully processed, safe to skip
+    }
+
+    state[node] = 2;  // mark as DONE (black) — no cycle through this node
+    return false;
+}
+// Time: O(V+E) — visit each node and edge once
+// Space: O(V+E) — adjacency list + O(V) state + O(V) call stack
 ```
+
+> **🎯 Key Insight:** Cycle detection in directed graphs uses 3 states (not 2). A "visited" boolean fails — it can't distinguish between "finished exploring" and "currently on the path." The gray state (in-progress) is what detects back edges → cycles.
 
 ---
 
@@ -1818,210 +2862,318 @@ public bool CanFinish(int numCourses, int[][] prerequisites) {
 
 > **🧠 Mental Model: GPS Navigation**
 >
-> Dijkstra = GPS always exploring the nearest unvisited city first — guaranteed shortest for NON-NEGATIVE weights. Bellman-Ford = GPS that rechecks all roads V-1 times — handles negative weights, detects negative cycles. Floyd-Warshall = precomputes a complete distance table for ALL city pairs.
+> Dijkstra's algorithm is like a GPS that always expands to the nearest unvisited city. It's **greedy** — always process the closest known city next. This greedy choice works because weights are non-negative (you can't make a path shorter by taking a detour). Bellman-Ford handles negative weights by relaxing ALL edges repeatedly.
+
+```
+DIJKSTRA VISUALIZATION: find shortest from node 0
+═══════════════════════════════════════════════════════════════
+  Graph:    0 ——4—— 1
+            |       |
+            8      -3  ← Dijkstra fails with negative! Use Bellman-Ford
+            |       |
+            3 ——2—— 2
+
+  With all positive weights:
+  0——4——1, 0——8——3, 1——5——2, 3——2——2
+
+  Init: dist=[0,∞,∞,∞], PQ=[(0,0)]  # (dist,node)
+  Pop (0,0): update neighbors: dist[1]=4, dist[3]=8 → PQ=[(4,1),(8,3)]
+  Pop (4,1): update neighbors: dist[2]=4+5=9 → PQ=[(8,3),(9,2)]
+  Pop (8,3): update neighbors: dist[2]=min(9,8+2)=10→no update
+  Pop (9,2): no neighbors to relax
+  Final dist=[0,4,9,8] ✅
+═══════════════════════════════════════════════════════════════
+```
 
 ### Dijkstra's Algorithm
 
 ```csharp
-int[] Dijkstra(List<List<(int nb, int w)>> graph, int src) {
-    int n = graph.Count;
-    int[] dist = new int[n];
-    Array.Fill(dist, int.MaxValue / 2);  // /2 prevents overflow when adding weights
+public int[] Dijkstra(int[][] graph, int src, int V) {
+    // dist[i] = shortest distance from src to i
+    int[] dist = new int[V];
+    Array.Fill(dist, int.MaxValue / 2);  // WHY /2? Prevent overflow when adding edge weights
     dist[src] = 0;
 
-    var pq = new PriorityQueue<int, int>();  // (node, distance)
+    // Min-heap: (distance, node) — always process nearest unfinished node
+    var pq = new PriorityQueue<int, int>();  // element=node, priority=distance
     pq.Enqueue(src, 0);
 
     while (pq.Count > 0) {
-        int curr = pq.Dequeue();
-        foreach (var (nb, w) in graph[curr]) {
-            int newDist = dist[curr] + w;
-            if (newDist < dist[nb]) {
-                dist[nb] = newDist;
-                pq.Enqueue(nb, newDist);
+        int u = pq.Dequeue();  // node with minimum current distance
+
+        // RELAX all edges from u
+        // "Relaxation" = check if going through u gives a shorter path to neighbor
+        for (int v = 0; v < V; v++) {
+            if (graph[u][v] != 0) {  // edge exists
+                int newDist = dist[u] + graph[u][v];
+                if (newDist < dist[v]) {  // found shorter path!
+                    dist[v] = newDist;
+                    pq.Enqueue(v, newDist);  // re-add with better distance
+                }
             }
         }
     }
     return dist;
 }
-// Time: O((V + E) log V) | Space: O(V + E)
-// ONLY works for non-negative weights!
+// Time: O((V+E) log V) with priority queue
+// Space: O(V) for dist array + O(V) for priority queue
 ```
 
-### Bellman-Ford (Negative Weights)
-
-```csharp
-int[] BellmanFord(int n, int[][] edges, int src) {
-    int[] dist = new int[n];
-    Array.Fill(dist, int.MaxValue / 2);
-    dist[src] = 0;
-    // Relax all edges V-1 times
-    for (int i = 0; i < n - 1; i++)
-        foreach (var e in edges)   // e = [u, v, weight]
-            if (dist[e[0]] + e[2] < dist[e[1]])
-                dist[e[1]] = dist[e[0]] + e[2];
-    // Vth relaxation detects negative cycle
-    foreach (var e in edges)
-        if (dist[e[0]] + e[2] < dist[e[1]]) return null;  // negative cycle!
-    return dist;
-}
-// Time: O(V × E) | Space: O(V)
-```
+---
 
 ### 🔴 Practice Problem: Network Delay Time (LeetCode #743 — Medium)
 
+**Problem:** Network of `n` nodes. Given travel times for directed edges, find time for all nodes to receive signal from node `k`.
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: NETWORK DELAY TIME                          ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 BRUTE    │ BFS/DFS for each pair   │ O(V²+VE)  │ O(V+E)  ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 DIJKSTRA │ SSSP from source k      │ O(E log V)│ O(V+E)  ║
+║  (OPTIMAL)   │ answer = max of dist[]  │            │         ║
+╚══════════════════════════════════════════════════════════════════╝
+```
+
 ```csharp
 public int NetworkDelayTime(int[][] times, int n, int k) {
-    var graph = new List<List<(int, int)>>();
-    for (int i = 0; i <= n; i++) graph.Add(new List<(int, int)>());
-    foreach (var t in times) graph[t[0]].Add((t[1], t[2]));
-
-    int[] dist = Dijkstra(graph, k);  // shortest from source k
-
-    int maxDist = 0;
-    for (int i = 1; i <= n; i++) {
-        if (dist[i] == int.MaxValue / 2) return -1;  // unreachable
-        maxDist = Math.Max(maxDist, dist[i]);
+    // Build adjacency list: node → list of (neighbor, weight)
+    var graph = new Dictionary<int, List<(int to, int w)>>();
+    foreach (int[] t in times) {
+        if (!graph.ContainsKey(t[0])) graph[t[0]] = new List<(int, int)>();
+        graph[t[0]].Add((t[1], t[2]));
     }
-    return maxDist;  // max shortest path = time for signal to reach all nodes
+
+    // Dijkstra from source k
+    var dist = new Dictionary<int, int>();
+    var pq = new PriorityQueue<int, int>(); // (node, distance)
+    pq.Enqueue(k, 0);
+
+    while (pq.Count > 0) {
+        pq.TryDequeue(out int u, out int d);
+        if (dist.ContainsKey(u)) continue;  // already finalized
+        dist[u] = d;  // finalize shortest distance to u
+
+        if (graph.ContainsKey(u)) {
+            foreach (var (v, w) in graph[u]) {
+                if (!dist.ContainsKey(v))
+                    pq.Enqueue(v, d + w);  // explore neighbor
+            }
+        }
+    }
+
+    // If not all nodes reachable, return -1
+    if (dist.Count != n) return -1;
+    // Answer: maximum delay = slowest-to-reach node
+    return dist.Values.Max();
 }
+// Time: O(E log V), Space: O(V+E)
 ```
+
+> **🎯 Key Insight:** "Time for ALL nodes to receive" = shortest path to ALL nodes = single-source shortest path. Then answer = max of all shortest paths (slowest path determines when ALL nodes have signal). This SSSP + max pattern is classic.
 
 ---
 
 ## Section 20 — Minimum Spanning Trees
 
-> **🧠 Mental Model: Building a Power Grid**
+> **🧠 Mental Model: Cheapest Way to Connect Cities**
 >
-> Connect all n houses with power lines (weighted edges) at minimum total cost, no redundant loops. An MST uses exactly V-1 edges to connect all V vertices with minimum total weight. Kruskal's: sort edges by weight, greedily add if they don't create a cycle (use Union-Find). Prim's: grow the tree one vertex at a time via min-heap.
+> Given n cities and possible roads between them (each with a cost), find the cheapest set of roads that connects ALL cities. An MST connects all n vertices using exactly n-1 edges with minimum total weight and no cycles.
 
-### Kruskal's Algorithm
-
-```csharp
-int Kruskal(int n, int[][] edges) {  // edges = [[u, v, weight], ...]
-    Array.Sort(edges, (a, b) => a[2].CompareTo(b[2]));  // sort by weight
-    int[] parent = Enumerable.Range(0, n).ToArray();
-    int[] rank = new int[n];
-
-    int Find(int x) {
-        if (parent[x] != x) parent[x] = Find(parent[x]);  // path compression
-        return parent[x];
-    }
-    bool Union(int x, int y) {
-        int px = Find(x), py = Find(y);
-        if (px == py) return false;  // same component → cycle
-        if (rank[px] < rank[py]) (px, py) = (py, px);
-        parent[py] = px;
-        if (rank[px] == rank[py]) rank[px]++;
-        return true;
-    }
-
-    int total = 0, edgesUsed = 0;
-    foreach (var e in edges) {
-        if (Union(e[0], e[1])) {
-            total += e[2];
-            if (++edgesUsed == n - 1) break;
-        }
-    }
-    return edgesUsed == n - 1 ? total : -1;
-}
-// Time: O(E log E) for sort + O(E α(V)) for Union-Find
 ```
+MST ALGORITHMS:
+═══════════════════════════════════════════════════════════════
+  KRUSKAL'S:  Sort edges by weight → add edge if it doesn't create cycle
+              Uses Union-Find to detect cycles in O(α) ≈ O(1)
+              Best for: sparse graphs (few edges)
 
-### 🔴 Practice Problem: Min Cost to Connect All Points (LeetCode #1584 — Medium)
+  PRIM'S:     Start from any node → greedily add cheapest edge
+              connecting current tree to new node
+              Uses priority queue → O(E log V)
+              Best for: dense graphs (many edges)
+═══════════════════════════════════════════════════════════════
 
-```csharp
-public int MinCostConnectPoints(int[][] points) {
-    int n = points.Length;
-    var edges = new List<int[]>();
-    for (int i = 0; i < n; i++)
-        for (int j = i + 1; j < n; j++) {
-            int cost = Math.Abs(points[i][0]-points[j][0]) + Math.Abs(points[i][1]-points[j][1]);
-            edges.Add(new[] { i, j, cost });
-        }
-    return Kruskal(n, edges.ToArray());
-}
-// Time: O(n² log n) — building O(n²) edges then sorting
+KRUSKAL'S VISUALIZATION:
+  Nodes: 0,1,2,3  Edges by weight: (0-1,1),(0-2,3),(1-2,2),(1-3,4),(2-3,5)
+
+  Sort: [(0-1,1),(1-2,2),(0-2,3),(1-3,4),(2-3,5)]
+
+  Add (0-1,1): {0,1} not connected → ADD. MST=[0-1]. Cost=1
+  Add (1-2,2): {1,2} not connected → ADD. MST=[0-1,1-2]. Cost=3
+  Add (0-2,3): {0,2} already connected! → SKIP (cycle)
+  Add (1-3,4): {1,3} not connected → ADD. MST=[0-1,1-2,1-3]. Cost=7
+  Done! (V-1=3 edges added)
 ```
 
 ---
 
-## Section 21 — Advanced Graphs
+### 🔴 Practice Problem: Min Cost to Connect All Points (LeetCode #1584 — Medium)
 
-> **🧠 Mental Model: Topological Sort = Project Scheduling**
->
-> Topological sort gives a valid task ORDER when tasks have dependencies. Only works on DAGs (no circular deps). Kahn's algorithm: repeatedly remove tasks with no remaining prerequisites. Union-Find: "are these two people in the same social circle?" — efficiently answers dynamic connectivity.
+**Problem:** Given array of points, return minimum cost to connect all points. Cost = Manhattan distance.
 
-### Topological Sort (Kahn's BFS)
-
-```csharp
-IList<int> TopoSort(int n, int[][] edges) {
-    var graph = new List<List<int>>();
-    int[] inDegree = new int[n];
-    for (int i = 0; i < n; i++) graph.Add(new List<int>());
-    foreach (var e in edges) { graph[e[0]].Add(e[1]); inDegree[e[1]]++; }
-
-    var queue = new Queue<int>();
-    for (int i = 0; i < n; i++) if (inDegree[i] == 0) queue.Enqueue(i);
-
-    var order = new List<int>();
-    while (queue.Count > 0) {
-        int node = queue.Dequeue();
-        order.Add(node);
-        foreach (int nb in graph[node])
-            if (--inDegree[nb] == 0) queue.Enqueue(nb);
-    }
-    return order.Count == n ? order : new List<int>();  // empty = has cycle
-}
-// Time: O(V + E) | Space: O(V + E)
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: CONNECT ALL POINTS                          ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 BRUTE    │ Try all spanning trees  │ O(n^n)    │ O(n²)   ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟡 KRUSKAL  │ Sort all O(n²) edges,   │ O(n²logn) │ O(n²)   ║
+║              │ Union-Find              │            │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 PRIM'S   │ Priority queue, no      │ O(n²logn) │ O(n)    ║
+║  (OPTIMAL)   │ need to pre-build edges │            │         ║
+╚══════════════════════════════════════════════════════════════════╝
 ```
 
-### Union-Find
+```csharp
+public int MinCostConnectPoints(int[][] points) {
+    int n = points.Length;
+    // PRIM'S algorithm: grow MST from point 0
+    // minCost[i] = cheapest edge connecting point i to current MST
+    int[] minCost = new int[n];
+    Array.Fill(minCost, int.MaxValue);
+    minCost[0] = 0;  // start from point 0, cost 0
+    bool[] inMST = new bool[n];  // track which points are already in MST
+    int totalCost = 0;
+
+    for (int iter = 0; iter < n; iter++) {
+        // Find the unvisited point with minimum edge cost to MST
+        int u = -1;
+        for (int i = 0; i < n; i++)
+            if (!inMST[i] && (u == -1 || minCost[i] < minCost[u]))
+                u = i;
+
+        inMST[u] = true;    // add u to MST
+        totalCost += minCost[u];  // add the edge cost
+
+        // Update minCost for all points not yet in MST
+        for (int v = 0; v < n; v++) {
+            if (!inMST[v]) {
+                // Manhattan distance between u and v
+                int dist = Math.Abs(points[u][0] - points[v][0]) +
+                           Math.Abs(points[u][1] - points[v][1]);
+                minCost[v] = Math.Min(minCost[v], dist);  // update if cheaper
+            }
+        }
+    }
+    return totalCost;
+}
+// Time: O(n²) — n iterations, each O(n) scan; better than Kruskal for dense graphs
+// Space: O(n) — minCost and inMST arrays
+```
+
+> **🎯 Key Insight:** Prim's algorithm is ideal here because the graph is complete (every pair of points has an edge). We don't need to pre-build all O(n²) edges — we can compute edge weights on-the-fly. Kruskal's would need to store all edges, using O(n²) space.
+
+---
+
+## Section 21 — Advanced Graphs (Topological Sort, Union-Find)
+
+> **🧠 Mental Model: Union-Find = Partisan Groups / Topo Sort = Dependency Order**
+>
+> **Union-Find**: Like social groups that merge. Each group has a "leader" (root). Merging groups = connecting their leaders. Checking if two people are in the same group = checking if they have the same leader.
+>
+> **Topological Sort**: Like getting dressed — you must put on socks BEFORE shoes. Given dependency constraints, find a valid ordering of tasks.
+
+```
+UNION-FIND OPERATIONS:
+═══════════════════════════════════════════════════════════════
+  parent = [0, 1, 2, 3, 4]  (each node is its own parent initially)
+
+  Union(0, 1):  parent[1] = 0  → groups: {0,1}, {2}, {3}, {4}
+  Union(1, 2):  parent[2] = root(1) = 0  → groups: {0,1,2}, {3}, {4}
+  Find(2): 2→parent[2]=0→parent[0]=0 (root) = 0
+
+  WITH PATH COMPRESSION: during Find, make every node point directly to root
+  Find(2): path 2→0, set parent[2]=0 (already is 0 in this case)
+
+  RANK UNION: always attach smaller tree under larger tree root
+  → keeps tree height O(log n) → Find is O(log n) → α(n) with both optimizations
+═══════════════════════════════════════════════════════════════
+```
+
+### Union-Find (Disjoint Set Union)
 
 ```csharp
 public class UnionFind {
-    private int[] _parent, _rank;
-    public int Components { get; private set; }
+    private int[] parent, rank;
 
     public UnionFind(int n) {
-        _parent = Enumerable.Range(0, n).ToArray();
-        _rank = new int[n];
-        Components = n;
+        parent = new int[n];
+        rank = new int[n];
+        for (int i = 0; i < n; i++) parent[i] = i;  // each node is its own root
     }
 
+    // Find root with PATH COMPRESSION — O(α(n)) amortized ≈ O(1)
     public int Find(int x) {
-        if (_parent[x] != x) _parent[x] = Find(_parent[x]);  // path compression
-        return _parent[x];
+        // WHY recursive? Path compression: on the way back up,
+        // set every node's parent directly to root → flatten the tree
+        if (parent[x] != x)
+            parent[x] = Find(parent[x]);  // path compression: point directly to root
+        return parent[x];
     }
 
+    // Union by rank — O(α(n)) amortized
     public bool Union(int x, int y) {
-        int px = Find(x), py = Find(y);
-        if (px == py) return false;
-        if (_rank[px] < _rank[py]) (px, py) = (py, px);
-        _parent[py] = px;
-        if (_rank[px] == _rank[py]) _rank[px]++;
-        Components--;
-        return true;
+        int rx = Find(x), ry = Find(y);
+        if (rx == ry) return false;  // already in same set
+
+        // WHY rank-based union? Attach smaller tree under larger tree
+        // to keep height logarithmic → prevents degenerate linear chains
+        if (rank[rx] < rank[ry]) (rx, ry) = (ry, rx); // ensure rx has higher rank
+        parent[ry] = rx;            // attach ry's tree under rx
+        if (rank[rx] == rank[ry]) rank[rx]++;  // only increase rank when equal
+
+        return true;  // successfully merged two different sets
     }
 
     public bool Connected(int x, int y) => Find(x) == Find(y);
 }
 ```
 
+---
+
 ### 🔴 Practice Problem: Redundant Connection (LeetCode #684 — Medium)
+
+**Problem:** In an undirected graph that started as a tree, one extra edge was added. Find the redundant edge.
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: REDUNDANT CONNECTION                         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 BRUTE    │ Remove each edge, check │ O(E×(V+E))│ O(V+E)  ║
+║              │ if graph still connected│            │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 UNION    │ Add edges one by one;   │ O(E×α(V)) │ O(V)    ║
+║  FIND        │ first edge connecting   │ ≈O(E)     │         ║
+║  (OPTIMAL)   │ already-connected nodes │            │         ║
+╚══════════════════════════════════════════════════════════════════╝
+
+KEY INSIGHT: Process edges in order. Before adding each edge, check if
+             both endpoints are ALREADY connected (same component).
+             If yes → this edge creates a cycle → it's REDUNDANT.
+```
 
 ```csharp
 public int[] FindRedundantConnection(int[][] edges) {
-    var uf = new UnionFind(edges.Length + 1);  // nodes are 1-indexed
-    foreach (var edge in edges)
-        if (!uf.Union(edge[0], edge[1]))
-            return edge;  // already connected → this edge is redundant
-    return Array.Empty<int>();
+    int n = edges.Length;
+    var uf = new UnionFind(n + 1);  // +1 because nodes are 1-indexed
+
+    foreach (int[] edge in edges) {
+        int u = edge[0], v = edge[1];
+        // WHY check before union? If u and v are already in the same component,
+        // adding this edge creates a cycle → it's the redundant edge
+        if (!uf.Union(u, v))
+            return edge;  // this edge connects two already-connected nodes
+    }
+
+    return Array.Empty<int>(); // should never reach here per problem constraints
 }
-// Time: O(n α(n)) ≈ O(n) | Space: O(n)
+// Time: O(E × α(V)) ≈ O(E) — α is inverse Ackermann, essentially constant
+// Space: O(V) — Union-Find arrays
 ```
 
-> **🎯 Key Insight:** Union-Find with path compression + union by rank achieves nearly O(1) per operation — one of the most elegant data structures in CS. It answers "are X and Y connected?" in nearly constant time, making it perfect for Kruskal's MST and any dynamic connectivity problem.
+> **🎯 Key Insight:** Union-Find is THE data structure for "are these two elements in the same group?" queries. It answers this in near-O(1) and is perfect for: detecting cycles in undirected graphs, Kruskal's MST, network connectivity problems, and any "merge groups" problem.
 
 ---
 
@@ -2031,403 +3183,431 @@ public int[] FindRedundantConnection(int[][] edges) {
 
 ## Section 22 — O(n²) Sorts
 
-> **🧠 Mental Model: Different Ways to Sort Playing Cards**
+> **🧠 Mental Model: Card Game Sorting**
 >
-> **Bubble Sort** = rookie mistake: scan left to right, swap adjacent cards if out of order, repeat. The largest card "bubbles" to the right each pass. **Selection Sort** = find the smallest card in the unsorted pile, place it at the end of the sorted pile. **Insertion Sort** = how you naturally sort cards in your hand — pick one card and insert it into its correct position among already-sorted cards. Insertion sort is actually OPTIMAL for nearly-sorted data.
+> **Bubble Sort**: Like repeatedly swapping adjacent misplaced cards. Simple but inefficient — O(n²) swaps in worst case.
+> **Selection Sort**: Like always picking the smallest remaining card and placing it next. Simple selection, but O(n²) always.
+> **Insertion Sort**: Like sorting cards in your hand — take one card at a time and insert it in the right position among already-sorted cards. **Best for nearly-sorted data — O(n) best case!**
 
-### The Three O(n²) Sorts
+```
+INSERTION SORT VISUALIZATION: [5, 3, 1, 4, 2]
+═══════════════════════════════════════════════════════════════
+  [5| 3  1  4  2]  → insert 3: [3  5| 1  4  2]
+  [3  5| 1  4  2]  → insert 1: [1  3  5| 4  2]
+  [1  3  5| 4  2]  → insert 4: [1  3  4  5| 2]
+  [1  3  4  5| 2]  → insert 2: [1  2  3  4  5]
+
+  | = boundary between sorted and unsorted portions
+  Each insertion: shift elements right until correct position found
+═══════════════════════════════════════════════════════════════
+```
 
 ```csharp
-// BUBBLE SORT — O(n²) time, O(1) space
-// Mental: each pass "bubbles" the max to the end
-void BubbleSort(int[] arr) {
-    int n = arr.Length;
-    for (int i = 0; i < n - 1; i++) {
-        bool swapped = false;
-        for (int j = 0; j < n - i - 1; j++) {
-            if (arr[j] > arr[j + 1]) {
-                (arr[j], arr[j+1]) = (arr[j+1], arr[j]);
-                swapped = true;
-            }
-        }
-        if (!swapped) break;  // early exit — already sorted!
-    }
-}
-
-// SELECTION SORT — O(n²) time, O(1) space
-// Mental: find minimum, swap to front, repeat on remaining
-void SelectionSort(int[] arr) {
-    int n = arr.Length;
-    for (int i = 0; i < n - 1; i++) {
-        int minIdx = i;
-        for (int j = i + 1; j < n; j++)
-            if (arr[j] < arr[minIdx]) minIdx = j;
-        (arr[i], arr[minIdx]) = (arr[minIdx], arr[i]);
-    }
-}
-
-// INSERTION SORT — O(n²) worst, O(n) best (already sorted!)
-// Mental: grow a sorted sub-array by inserting one element at a time
+// INSERTION SORT — O(n²) worst, O(n) best (nearly sorted), O(1) space
 void InsertionSort(int[] arr) {
     for (int i = 1; i < arr.Length; i++) {
-        int key = arr[i];
+        int key = arr[i];   // the card we're inserting
         int j = i - 1;
+
         // Shift elements greater than key one position right
+        // WHY go right? Make room for key in its correct position
         while (j >= 0 && arr[j] > key) {
-            arr[j + 1] = arr[j];
+            arr[j + 1] = arr[j];  // shift right
             j--;
         }
         arr[j + 1] = key;  // insert key in its correct position
     }
 }
+
+// BUBBLE SORT — O(n²) worst/avg, O(n) best with optimization
+void BubbleSort(int[] arr) {
+    int n = arr.Length;
+    for (int i = 0; i < n - 1; i++) {
+        bool swapped = false;
+        for (int j = 0; j < n - i - 1; j++) {  // n-i-1: last i elements already sorted
+            if (arr[j] > arr[j + 1]) {
+                (arr[j], arr[j + 1]) = (arr[j + 1], arr[j]);
+                swapped = true;
+            }
+        }
+        if (!swapped) break;  // early exit: array already sorted!
+    }
+}
 ```
 
-### Complexity Comparison
+---
 
-| Algorithm | Best | Average | Worst | Space | Stable? |
-|-----------|------|---------|-------|-------|---------|
-| Bubble | O(n) | O(n²) | O(n²) | O(1) | Yes |
-| Selection | O(n²) | O(n²) | O(n²) | O(1) | No |
-| Insertion | O(n) | O(n²) | O(n²) | O(1) | Yes |
+### 🔴 Practice Problem: Sort Colors (LeetCode #75 — Medium) — Dutch National Flag
 
-**When to use O(n²) sorts:**
-- Small arrays (n < 20): insertion sort often beats O(n log n) sorts due to low overhead
-- Nearly sorted data: insertion sort is O(n) in best case
-- Memory constrained: all are O(1) space
+**Problem:** Sort array of 0s, 1s, 2s in-place in one pass.
 
-### 🔴 Practice Problem: Sort Colors (LeetCode #75 — Medium)
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: SORT COLORS                                  ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 BRUTE    │ Use any sort: O(n log n) │ O(n log n)│ O(1)    ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟡 COUNT    │ Count 0s,1s,2s, fill    │ O(n) 2pass│ O(1)    ║
+║              │ array (2 passes)        │            │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 DUTCH    │ 3-pointer: lo,mid,hi    │ O(n) 1pass│ O(1)    ║
+║  FLAG        │ single pass             │            │         ║
+╚══════════════════════════════════════════════════════════════════╝
 
-**Problem:** Given array with only 0, 1, 2 (Dutch National Flag problem), sort in-place without using library sort.
+DUTCH NATIONAL FLAG (3-way partition):
+  lo: next position for 0
+  mid: current element being examined
+  hi: next position for 2
 
-**Approach:** Three-pointer technique — Dutch Flag partition.
+  Invariant: [0..lo-1]=0s, [lo..mid-1]=1s, [mid..hi]=unsorted, [hi+1..n-1]=2s
+```
+
+```
+TRACE: [2,0,2,1,1,0]
+════════════════════════════════════════════════════════════
+  lo=0,mid=0,hi=5
+  arr[0]=2: swap mid(2) with hi(0)→[0,0,2,1,1,2], hi=4
+  arr[0]=0: swap lo(0) with mid(0)→[0,0,2,1,1,2], lo=1,mid=1
+  arr[1]=0: swap lo(0) with mid(0)→[0,0,2,1,1,2], lo=2,mid=2
+  arr[2]=2: swap mid(2) with hi(1)→[0,0,1,1,2,2], hi=3
+  arr[2]=1: mid=3
+  arr[3]=1: mid=4
+  mid>hi → DONE: [0,0,1,1,2,2] ✅
+```
 
 ```csharp
 public void SortColors(int[] nums) {
-    int low = 0, mid = 0, high = nums.Length - 1;
+    int lo = 0, mid = 0, hi = nums.Length - 1;
 
-    // Invariant:
-    //   [0..low-1] = all 0s
-    //   [low..mid-1] = all 1s
-    //   [mid..high] = unknown
-    //   [high+1..n-1] = all 2s
-
-    while (mid <= high) {
+    while (mid <= hi) {
         if (nums[mid] == 0) {
-            (nums[low], nums[mid]) = (nums[mid], nums[low]);
-            low++; mid++;         // 0 goes to low zone, advance both
-        } else if (nums[mid] == 1) {
-            mid++;                // 1 already in correct zone
+            // 0 goes to front: swap with lo position, advance both lo and mid
+            (nums[lo], nums[mid]) = (nums[mid], nums[lo]);
+            lo++; mid++;  // WHY advance mid? We know nums[lo] was 1 (in sorted region)
+        } else if (nums[mid] == 2) {
+            // 2 goes to back: swap with hi position, only decrease hi
+            (nums[mid], nums[hi]) = (nums[hi], nums[mid]);
+            hi--;  // WHY NOT advance mid? nums[hi] might be 0,1, or 2 — need to re-examine
         } else {
-            (nums[mid], nums[high]) = (nums[high], nums[mid]);
-            high--;               // 2 goes to high zone; DON'T advance mid (new nums[mid] unchecked)
+            mid++;  // 1 is in correct region [lo..hi], just advance
         }
     }
 }
-// Time: O(n) single pass | Space: O(1)
+// Time: O(n) — single pass, each element processed at most twice
+// Space: O(1) — in-place with 3 pointers
 ```
 
-> **🎯 Key Insight:** Insertion sort is used internally by .NET's `Array.Sort` for small subarrays (< 16 elements) — it's faster than quicksort for tiny arrays due to lower constant factors. This is called "introsort" — hybrid of quicksort, heapsort, and insertion sort.
+> **🎯 Key Insight:** Dutch National Flag is the archetype for 3-way partition. The critical insight: when swapping from the front (lo), you can advance mid because the swapped value is already known to be valid (1). When swapping from the back (hi), you DON'T advance mid because the swapped value is unknown.
 
 ---
 
 ## Section 23 — O(n log n) Sorts
 
-> **🧠 Mental Model: Divide and Conquer the Chaos**
+> **🧠 Mental Model: Divide-and-Conquer Filing System**
 >
-> **Merge Sort** = split the pile into two halves, sort each half separately, then carefully merge the two sorted piles — like a librarian sorting books by splitting the shelf, sorting each half, then merging back. Always O(n log n), guaranteed. **Quick Sort** = pick a "pivot" book, put all smaller books to its left, all larger to its right — now the pivot is in its final position! Repeat on left and right piles. Average O(n log n) but O(n²) worst case with bad pivot.
+> **Merge Sort**: Recursively split the array in half, sort each half, merge. Like sorting two piles of papers separately then interleaving them in order. **Stable, O(n log n) guaranteed, but O(n) extra space.**
+> **Quick Sort**: Pick a pivot, partition smaller elements left and larger right, recurse on each side. Like sorting a filing cabinet around a middle folder. **O(n log n) average, O(1) extra space, O(n²) worst case.**
 
-### Merge Sort
+```
+MERGE SORT TRACE: [38,27,43,3,9,82,10]
+═══════════════════════════════════════════════════════════════
+  Split:    [38,27,43,3]    [9,82,10]
+  Split:  [38,27] [43,3]  [9,82] [10]
+  Split: [38][27][43][3] [9][82][10]
+  Merge: [27,38] [3,43]  [9,82] [10]
+  Merge: [3,27,38,43]    [9,10,82]
+  Merge: [3,9,10,27,38,43,82] ✅
+
+  Each level: O(n) work × O(log n) levels = O(n log n)
+═══════════════════════════════════════════════════════════════
+```
 
 ```csharp
-// MERGE SORT — O(n log n) time, O(n) space — STABLE, guaranteed performance
+// MERGE SORT — O(n log n) time, O(n) space, STABLE
 void MergeSort(int[] arr, int left, int right) {
-    if (left >= right) return;           // base case: single element
+    if (left >= right) return;  // base case: 0 or 1 elements
 
-    int mid = left + (right - left) / 2; // avoid overflow vs (left+right)/2
-    MergeSort(arr, left, mid);           // sort left half
-    MergeSort(arr, mid + 1, right);      // sort right half
-    Merge(arr, left, mid, right);        // merge sorted halves
+    int mid = left + (right - left) / 2;  // avoid overflow vs (left+right)/2
+    MergeSort(arr, left, mid);    // sort left half
+    MergeSort(arr, mid+1, right); // sort right half
+    Merge(arr, left, mid, right); // merge the sorted halves
 }
 
 void Merge(int[] arr, int left, int mid, int right) {
-    // Copy to temp arrays
-    int[] leftArr = arr[left..(mid+1)];     // C# range syntax
-    int[] rightArr = arr[(mid+1)..(right+1)];
+    // Copy both halves to temp arrays for comparison
+    int[] L = arr[left..(mid+1)];    // C# range syntax
+    int[] R = arr[(mid+1)..(right+1)];
 
     int i = 0, j = 0, k = left;
-    while (i < leftArr.Length && j < rightArr.Length) {
-        // Take smaller element — <= makes it STABLE (preserves equal elements' order)
-        if (leftArr[i] <= rightArr[j]) arr[k++] = leftArr[i++];
-        else arr[k++] = rightArr[j++];
+    while (i < L.Length && j < R.Length) {
+        // WHY <=? Stability: when equal, take from LEFT array first
+        // (preserves original relative order of equal elements)
+        if (L[i] <= R[j]) arr[k++] = L[i++];
+        else arr[k++] = R[j++];
     }
-    while (i < leftArr.Length) arr[k++] = leftArr[i++];
-    while (j < rightArr.Length) arr[k++] = rightArr[j++];
+    while (i < L.Length) arr[k++] = L[i++];  // remaining left elements
+    while (j < R.Length) arr[k++] = R[j++];  // remaining right elements
 }
-// Time: O(n log n) always | Space: O(n) for temp arrays
-```
 
-### Quick Sort
-
-```csharp
-// QUICK SORT — O(n log n) average, O(n²) worst, O(log n) space — NOT stable
+// QUICK SORT — O(n log n) avg, O(n²) worst, O(1) space, UNSTABLE
 void QuickSort(int[] arr, int left, int right) {
     if (left >= right) return;
-    int pivotIdx = Partition(arr, left, right);
-    QuickSort(arr, left, pivotIdx - 1);
-    QuickSort(arr, pivotIdx + 1, right);
+    int pi = Partition(arr, left, right);
+    QuickSort(arr, left, pi - 1);   // sort left of pivot
+    QuickSort(arr, pi + 1, right);  // sort right of pivot
 }
 
 int Partition(int[] arr, int left, int right) {
-    // Lomuto partition — pivot = last element
+    // WHY random pivot? Avoids O(n²) worst case on sorted/reverse-sorted input
+    int randIdx = new Random().Next(left, right + 1);
+    (arr[randIdx], arr[right]) = (arr[right], arr[randIdx]); // move pivot to end
+
     int pivot = arr[right];
-    int i = left - 1;               // i = boundary of "less than pivot" zone
+    int i = left - 1;  // i = last position of "smaller than pivot" section
 
     for (int j = left; j < right; j++) {
         if (arr[j] <= pivot) {
             i++;
-            (arr[i], arr[j]) = (arr[j], arr[i]);  // move to left zone
+            (arr[i], arr[j]) = (arr[j], arr[i]);  // swap to smaller section
         }
     }
-    // Place pivot in its final position
-    (arr[i+1], arr[right]) = (arr[right], arr[i+1]);
-    return i + 1;
-}
-
-// RANDOMIZED QUICKSORT — prevents O(n²) on sorted input
-int PartitionRandom(int[] arr, int left, int right) {
-    int randIdx = new Random().Next(left, right + 1);
-    (arr[randIdx], arr[right]) = (arr[right], arr[randIdx]);  // swap random to end
-    return Partition(arr, left, right);
+    (arr[i+1], arr[right]) = (arr[right], arr[i+1]);  // place pivot in final position
+    return i + 1;  // pivot's final index
 }
 ```
 
-### Heap Sort
-
-```csharp
-// HEAP SORT — O(n log n) guaranteed, O(1) space — NOT stable
-void HeapSort(int[] arr) {
-    int n = arr.Length;
-    // Build max-heap: heapify from last non-leaf down to root
-    for (int i = n / 2 - 1; i >= 0; i--)
-        Heapify(arr, n, i);
-
-    // Extract max one by one
-    for (int i = n - 1; i > 0; i--) {
-        (arr[0], arr[i]) = (arr[i], arr[0]);  // move current max to end
-        Heapify(arr, i, 0);                    // re-heapify reduced heap
-    }
-}
-
-void Heapify(int[] arr, int n, int i) {
-    int largest = i, left = 2*i+1, right = 2*i+2;
-    if (left < n && arr[left] > arr[largest]) largest = left;
-    if (right < n && arr[right] > arr[largest]) largest = right;
-    if (largest != i) {
-        (arr[i], arr[largest]) = (arr[largest], arr[i]);
-        Heapify(arr, n, largest);  // recursively heapify affected subtree
-    }
-}
-```
-
-### Comparison Table
-
-| Algorithm | Best | Average | Worst | Space | Stable | Use when |
-|-----------|------|---------|-------|-------|--------|---------|
-| Merge Sort | O(n log n) | O(n log n) | O(n log n) | O(n) | Yes | Need stability or linked list sort |
-| Quick Sort | O(n log n) | O(n log n) | O(n²) | O(log n) | No | General purpose, cache-friendly |
-| Heap Sort | O(n log n) | O(n log n) | O(n log n) | O(1) | No | Need O(1) space + O(n log n) guarantee |
+---
 
 ### 🔴 Practice Problem: Sort List (LeetCode #148 — Medium)
 
 **Problem:** Sort a linked list in O(n log n) time and O(1) space.
 
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: SORT LINKED LIST                            ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 COPY     │ Copy to array, sort,    │ O(n log n)│ O(n) sp  ║
+║  TO ARRAY    │ rebuild linked list     │            │          ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟡 INSERT   │ Insertion sort on LL    │ O(n²)     │ O(1) sp  ║
+║  SORT LL     │ (good for nearly sorted)│            │          ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 MERGE    │ Merge sort on LL:       │ O(n log n)│ O(log n) ║
+║  SORT LL     │ find mid, split, merge  │            │ stack sp ║
+╚══════════════════════════════════════════════════════════════════╝
+```
+
 ```csharp
 public ListNode SortList(ListNode head) {
-    if (head?.Next == null) return head;  // base case: 0 or 1 nodes
+    // BASE CASE: 0 or 1 nodes — already sorted
+    if (head == null || head.next == null) return head;
 
-    // Find middle using fast/slow pointers
-    ListNode slow = head, fast = head.Next;
-    while (fast?.Next != null) { slow = slow.Next; fast = fast.Next.Next; }
+    // STEP 1: Find middle using fast/slow pointers
+    // WHY this specific middle? We want LEFT half to be shorter or equal
+    ListNode slow = head, fast = head.next; // WHY head.next? Ensures left half ≤ right half
+    while (fast != null && fast.next != null) {
+        slow = slow.next;
+        fast = fast.next.next;
+    }
+    // slow is now at the end of the LEFT half
 
-    ListNode mid = slow.Next;
-    slow.Next = null;  // split the list into two halves
+    // STEP 2: Split the list at middle
+    ListNode right = slow.next;  // right half starts at slow.next
+    slow.next = null;            // cut the connection — now two separate lists
 
-    ListNode left = SortList(head);   // sort first half
-    ListNode right = SortList(mid);   // sort second half
-    return Merge(left, right);        // merge sorted halves
+    // STEP 3: Recursively sort both halves
+    ListNode leftSorted = SortList(head);   // sort left half
+    ListNode rightSorted = SortList(right); // sort right half
+
+    // STEP 4: Merge the two sorted halves
+    return Merge(leftSorted, rightSorted);
 }
 
 ListNode Merge(ListNode l1, ListNode l2) {
-    var dummy = new ListNode(0);
-    ListNode curr = dummy;
+    var dummy = new ListNode(0);  // dummy head to simplify edge cases
+    var curr = dummy;
+
     while (l1 != null && l2 != null) {
-        if (l1.Val <= l2.Val) { curr.Next = l1; l1 = l1.Next; }
-        else { curr.Next = l2; l2 = l2.Next; }
-        curr = curr.Next;
+        if (l1.val <= l2.val) {  // take smaller value
+            curr.next = l1;
+            l1 = l1.next;
+        } else {
+            curr.next = l2;
+            l2 = l2.next;
+        }
+        curr = curr.next;
     }
-    curr.Next = l1 ?? l2;
-    return dummy.Next;
+    curr.next = l1 ?? l2;  // attach remaining nodes (one list is exhausted)
+    return dummy.next;
 }
-// Time: O(n log n) | Space: O(log n) for recursion stack
+// Time: O(n log n) — T(n) = 2T(n/2) + O(n) → Master Theorem → O(n log n)
+// Space: O(log n) — recursion stack depth
 ```
+
+> **🎯 Key Insight:** Merge sort is the ONLY practical O(n log n) sort for linked lists. Quick sort on linked lists is poor (no random access for pivot selection, poor cache performance). The key sub-skills: find middle (fast/slow), split list (slow.next=null), merge two sorted lists.
 
 ---
 
 ## Section 24 — O(n) Sorts
 
-> **🧠 Mental Model: Sorting Mail by ZIP Code**
+> **🧠 Mental Model: Mailroom Sorting**
 >
-> If you know the RANGE of values, you can sort without comparisons. **Counting Sort**: count how many envelopes go to each ZIP code, then place them — O(n + k) where k is the range. **Radix Sort**: sort by last digit, then second-to-last, etc. — sorting envelopes by ZIP digit-by-digit. **Bucket Sort**: divide envelopes into ZIP-code buckets (0-1k, 1k-2k...), sort each small bucket, combine.
+> Counting Sort is like a mailroom with pigeonholes (one per zip code). Instead of comparing letters, you drop each letter in its pigeonhole → collect in order. No comparisons needed — hence beating the O(n log n) comparison lower bound. Works ONLY on integer data within a known range.
 
-### Counting Sort
+```
+COUNTING SORT VISUALIZATION: [4, 2, 2, 8, 3, 3, 1]
+═══════════════════════════════════════════════════════════════
+  Range: 1 to 8
+  Count array: [0,1,2,2,1,0,0,0,1]
+               idx 0 1 2 3 4 5 6 7 8
+  (count[4]=1 means '4' appears once)
 
-```csharp
-// COUNTING SORT — O(n + k) time, O(k) space where k = value range
-// ONLY works for non-negative integers with a known bounded range
-int[] CountingSort(int[] arr) {
-    if (arr.Length == 0) return arr;
-    int max = arr.Max();                // find range
+  Prefix sum:  [0,1,3,5,6,6,6,6,7]
+  (prefix[4]=6 means '4' should end at position 6 in output)
 
-    int[] count = new int[max + 1];
-    foreach (int x in arr) count[x]++;  // count occurrences
-
-    // Accumulate prefix sums (for stable sorting)
-    for (int i = 1; i <= max; i++) count[i] += count[i - 1];
-
-    int[] output = new int[arr.Length];
-    // Build output right-to-left to maintain stability
-    for (int i = arr.Length - 1; i >= 0; i--) {
-        output[--count[arr[i]]] = arr[i];
-    }
-    return output;
-}
+  Build output: [1,2,2,3,3,4,8]
+═══════════════════════════════════════════════════════════════
 ```
 
-### Radix Sort
-
-```csharp
-// RADIX SORT — O(d × (n + k)) where d = digits, k = base (usually 10)
-// Best for large n with fixed-length integers
-void RadixSort(int[] arr) {
-    int max = arr.Max();
-    // Sort by each digit position: 1s, 10s, 100s, ...
-    for (int exp = 1; max / exp > 0; exp *= 10)
-        CountingSortByDigit(arr, exp);
-}
-
-void CountingSortByDigit(int[] arr, int exp) {
-    int n = arr.Length;
-    int[] output = new int[n];
-    int[] count = new int[10];  // digits 0-9
-
-    foreach (int x in arr) count[(x / exp) % 10]++;
-    for (int i = 1; i < 10; i++) count[i] += count[i - 1];
-    for (int i = n - 1; i >= 0; i--) {
-        int digit = (arr[i] / exp) % 10;
-        output[--count[digit]] = arr[i];
-    }
-    Array.Copy(output, arr, n);
-}
-// Time: O(d × n) where d = number of digits | Space: O(n + 10)
-```
+---
 
 ### 🔴 Practice Problem: Maximum Gap (LeetCode #164 — Hard)
 
-**Problem:** Given unsorted array, find max difference between successive elements in sorted form, in O(n) time and space.
+**Problem:** After sorting, find maximum gap between successive elements. Must be O(n) time and space.
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: MAXIMUM GAP                                  ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 SORT    │ Sort, scan for max gap   │ O(n log n) │ O(1)    ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 BUCKET  │ Pigeonhole principle:    │ O(n) time  │ O(n) sp ║
+║  SORT       │ answer can't be within  │            │         ║
+║  (OPTIMAL)  │ same bucket             │            │         ║
+╚══════════════════════════════════════════════════════════════════╝
+
+KEY INSIGHT (Pigeonhole): n numbers have n-1 gaps. Spread = max-min.
+             Average gap = (max-min)/(n-1). Max gap ≥ average gap.
+             Use n-1 buckets of size avg_gap. The max gap MUST cross bucket boundaries!
+             So only compare adjacent buckets' max-min values.
+```
 
 ```csharp
 public int MaximumGap(int[] nums) {
     if (nums.Length < 2) return 0;
+    int n = nums.Length;
     int min = nums.Min(), max = nums.Max();
     if (min == max) return 0;
 
-    int n = nums.Length;
-    // Pigeonhole: gap >= (max-min)/(n-1) — use bucket size = this floor value
+    // Bucket size: ceiling of average gap ensures at least n-1 buckets
     int bucketSize = Math.Max(1, (max - min) / (n - 1));
     int bucketCount = (max - min) / bucketSize + 1;
 
+    // Each bucket stores [min, max] of values that fall in it
     int[] bucketMin = new int[bucketCount];
     int[] bucketMax = new int[bucketCount];
     Array.Fill(bucketMin, int.MaxValue);
     Array.Fill(bucketMax, int.MinValue);
 
     foreach (int num in nums) {
-        int idx = (num - min) / bucketSize;
-        bucketMin[idx] = Math.Min(bucketMin[idx], num);
-        bucketMax[idx] = Math.Max(bucketMax[idx], num);
+        int bi = (num - min) / bucketSize;  // which bucket does this number go in?
+        bucketMin[bi] = Math.Min(bucketMin[bi], num);
+        bucketMax[bi] = Math.Max(bucketMax[bi], num);
     }
 
+    // Max gap = max of (next bucket min - prev bucket max) across adjacent non-empty buckets
     int maxGap = 0, prevMax = min;
-    foreach (int i in Enumerable.Range(0, bucketCount)) {
-        if (bucketMin[i] == int.MaxValue) continue;  // empty bucket
+    for (int i = 0; i < bucketCount; i++) {
+        if (bucketMin[i] == int.MaxValue) continue;  // empty bucket — skip
         maxGap = Math.Max(maxGap, bucketMin[i] - prevMax);
         prevMax = bucketMax[i];
     }
     return maxGap;
 }
-// Time: O(n) | Space: O(n) — bucket sort approach
+// Time: O(n), Space: O(n)
 ```
+
+> **🎯 Key Insight:** The pigeonhole/bucket insight is non-obvious. The max gap must span between two different buckets (not within one). So comparing only bucket-boundary values gives the answer in O(n). This is an elegant problem that requires insight rather than brute force.
 
 ---
 
 ## Section 25 — .NET Sorting APIs
 
-> **🧠 Mental Model: Using Power Tools Instead of Hand Tools**
+> **🧠 Mental Model: Language Built-in Tools**
 >
-> Writing your own sort is like carving with hand tools — great to understand, but in practice you use .NET's highly-optimized power tools. .NET's `Array.Sort` uses introsort (quicksort + heapsort + insertion sort hybrid) — O(n log n) guaranteed. Know the APIs cold for interview coding; know the internals for depth questions.
-
-### .NET Sorting APIs
+> C# provides powerful, optimized sorting APIs. `Array.Sort` uses IntroSort (hybrid of QuickSort, HeapSort, InsertionSort) — O(n log n) worst case. `List.Sort` is the same. LINQ `OrderBy` creates a new sorted sequence using stable sort.
 
 ```csharp
-// ARRAY.SORT — in-place, O(n log n), introsort
-int[] arr = { 3, 1, 4, 1, 5, 9 };
-Array.Sort(arr);                                    // ascending
-Array.Sort(arr, (a, b) => b.CompareTo(a));          // descending
-Array.Sort(arr, 2, 3);                              // sort subarray [2..4]
+// ARRAY.SORT — in-place, O(n log n), unstable
+int[] arr = { 3, 1, 4, 1, 5 };
+Array.Sort(arr);                            // ascending: [1,1,3,4,5]
+Array.Sort(arr, (a, b) => b - a);          // descending: [5,4,3,1,1]
+Array.Sort(arr, 1, 3);                     // sort arr[1..3] only
 
-// SORT WITH CUSTOM COMPARER
-string[] words = { "banana", "apple", "cherry" };
-Array.Sort(words, (a, b) => a.Length.CompareTo(b.Length));  // by length
+// SORT STRINGS by length, then alphabetically
+string[] words = { "banana", "apple", "fig", "kiwi" };
+Array.Sort(words, (a, b) => a.Length != b.Length
+    ? a.Length.CompareTo(b.Length)  // sort by length first
+    : string.Compare(a, b));         // then alphabetically
 
-// LIST.SORT — same as Array.Sort but for List<T>
-var list = new List<int> { 3, 1, 4, 1, 5 };
-list.Sort();
-list.Sort((a, b) => b - a);  // descending via difference (safe only for small values)
+// SORT OBJECTS — use IComparer<T>
+class Person { public string Name; public int Age; }
+var people = new Person[] { ... };
+Array.Sort(people, Comparer<Person>.Create((a, b) => a.Age - b.Age));
 
-// LINQ ORDERING — creates new IEnumerable, does NOT sort in-place
-var sorted = arr.OrderBy(x => x);                  // ascending
-var sortedDesc = arr.OrderByDescending(x => x);    // descending
-var multiSort = arr.OrderBy(x => x % 2).ThenBy(x => x);  // even first, then by value
+// LIST.SORT — same as Array.Sort for lists
+var list = new List<int> { 3, 1, 4 };
+list.Sort();                    // [1,3,4]
+list.Sort((a, b) => b - a);     // [4,3,1] descending
 
-// SORTEDSET / SORTEDDICTIONARY — auto-sorted on insert, O(log n) per op
-var ss = new SortedSet<int> { 5, 1, 3 };           // iterates: 1, 3, 5
-var sd = new SortedDictionary<string, int>();       // sorted by key
+// LINQ ORDERBY — creates NEW sorted sequence, stable sort
+var sorted = arr.OrderBy(x => x).ToArray();           // ascending
+var sortedDesc = arr.OrderByDescending(x => x).ToArray(); // descending
+var sortedMulti = words.OrderBy(w => w.Length).ThenBy(w => w).ToArray();
 
-// STABILITY: List.Sort and Array.Sort are NOT stable (use LINQ OrderBy for stable sort)
-// LINQ OrderBy IS stable — equal elements maintain original order
+// SORTEDDICTIONARY / SORTEDSET — always sorted
+var sd = new SortedDictionary<int, string>();
+sd[3] = "c"; sd[1] = "a"; sd[2] = "b";
+// Iteration: 1→a, 2→b, 3→c (always sorted by key)
 ```
+
+---
 
 ### 🔴 Practice Problem: Largest Number (LeetCode #179 — Medium)
 
-**Problem:** Given array of non-negative integers, arrange them to form the largest number.
+**Problem:** Given list of non-negative integers, arrange them to form the largest number.
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: LARGEST NUMBER                              ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 WRONG    │ Sort numerically descend│ Fails: 9 vs 90         ║
+║  APPROACH    │ (9,90,..→909 but 990 is │ 990 > 909!             ║
+║              │ better)                 │                         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 CUSTOM   │ Sort by concatenation:  │ O(n log n × m)         ║
+║  COMPARATOR  │ if a+b > b+a: a first   │ m = avg digit count    ║
+╚══════════════════════════════════════════════════════════════════╝
+```
 
 ```csharp
 public string LargestNumber(int[] nums) {
-    string[] strs = Array.ConvertAll(nums, n => n.ToString());
+    string[] strs = nums.Select(n => n.ToString()).ToArray();
 
-    // Custom compare: "34" vs "3" → compare "343" vs "334" → "343" > "334" → "34" comes first
-    Array.Sort(strs, (a, b) => string.Compare(b + a, a + b, StringComparison.Ordinal));
+    // WHY custom comparator? Sort by which concatenation is LARGER
+    // "9" vs "90": compare "990" (9 first) vs "909" (90 first) → "990" wins → 9 comes first
+    Array.Sort(strs, (a, b) => string.Compare(b + a, a + b)); // b+a > a+b → b first
 
-    // Edge case: if largest number is 0, whole result is "0"
+    // Edge case: all zeros → result should be "0" not "000..."
     if (strs[0] == "0") return "0";
 
     return string.Concat(strs);
 }
-// Time: O(n k log n) where k = avg number length
-// Key insight: define custom total order using concatenation comparison
+// Time: O(n log n × m) where m = max digits per number
+// Space: O(n) for string array
 ```
 
-> **🎯 Key Insight:** The comparison `(a + b).CompareTo(b + a)` defines a total order on strings for "maximum concatenation." This is the classic trick for this problem type. Always use `string.Compare` with `StringComparison.Ordinal` for predictable, locale-independent string comparison.
+> **🎯 Key Insight:** Custom comparators unlock powerful sorting. The key: define what "comes before" means. For largest number: a comes before b if (a+b) > (b+a) as strings. The transitivity of this comparison makes it a valid total order.
 
 ---
 
@@ -2437,28 +3617,31 @@ public string LargestNumber(int[] nums) {
 
 ## Section 26 — Linear Search & Variants
 
-> **🧠 Mental Model: Looking for Your Keys**
+> **🧠 Mental Model: Searching a Messy Room**
 >
-> Linear search is like looking for your keys in a messy room — you check every spot one by one until you find them. Inefficient but UNIVERSAL: works on ANY collection, sorted or not. The "Find Peak Element" variant is clever: use a directional clue (if left neighbor is bigger, peak must be left; if right is bigger, peak must be right) to eliminate half the search space at each step — turning O(n) into O(log n).
+> Linear search is like searching a messy room with no organization — you check every spot until you find what you need. O(n) worst case. But sometimes messy rooms have patterns: peaks (highest point), valleys, rotations — these allow smarter searches even without full sorting.
 
-```csharp
-// BASIC LINEAR SEARCH — O(n) time, O(1) space
-int LinearSearch(int[] arr, int target) {
-    for (int i = 0; i < arr.Length; i++)
-        if (arr[i] == target) return i;
-    return -1;
-}
-
-// .NET equivalents:
-int idx = Array.IndexOf(arr, target);       // O(n) — returns -1 if not found
-int idx2 = list.IndexOf(target);            // O(n) — List<T>
-bool has = arr.Contains(target);            // O(n) — LINQ (NOT HashSet)
-int first = arr.First(x => x > 5);         // O(n) — LINQ first matching
-```
+---
 
 ### 🔴 Practice Problem: Find Peak Element (LeetCode #162 — Medium)
 
-**Problem:** A peak element is greater than its neighbors. Find any peak element's index in O(log n).
+**Problem:** Find a peak element (element greater than its neighbors). Return any peak's index.
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: FIND PEAK ELEMENT                           ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 LINEAR   │ Scan for first element  │ O(n)      │ O(1) sp  ║
+║              │ where arr[i]>arr[i+1]   │            │          ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 BINARY   │ If arr[mid]<arr[mid+1], │ O(log n)  │ O(1) sp  ║
+║  SEARCH      │ peak is to the right    │            │          ║
+╚══════════════════════════════════════════════════════════════════╝
+
+KEY INSIGHT: If arr[mid] < arr[mid+1], there MUST be a peak on the right
+             (array values go up at mid, and eventually reach array boundary).
+             Binary search can eliminate half the search space each step.
+```
 
 ```csharp
 public int FindPeakElement(int[] nums) {
@@ -2467,103 +3650,141 @@ public int FindPeakElement(int[] nums) {
     while (left < right) {
         int mid = left + (right - left) / 2;
 
-        if (nums[mid] > nums[mid + 1]) {
-            // Peak is in left half (including mid) — mid could be the peak
-            right = mid;
-        } else {
-            // nums[mid] < nums[mid+1]: peak is in right half
+        if (nums[mid] < nums[mid + 1]) {
+            // WHY go right? The slope is going UP toward right.
+            // A peak must exist at mid+1 or further right.
             left = mid + 1;
+        } else {
+            // WHY go left (including mid)? nums[mid] >= nums[mid+1]
+            // Either mid IS a peak, or a peak exists to its left.
+            right = mid;  // WHY not mid-1? mid itself might be the peak!
         }
     }
-
-    return left;  // left == right: found the peak
+    return left;  // left == right == peak index
 }
-// Time: O(log n) — binary search on unsorted! | Space: O(1)
-// Key insight: if nums[mid] < nums[mid+1], going right is "uphill" → peak exists right
+// Time: O(log n), Space: O(1)
 ```
 
 ---
 
-## Section 27 — Binary Search
+## Section 27 — Binary Search (Classic + Advanced)
 
-> **🧠 Mental Model: The Hot-Cold Game**
+> **🧠 Mental Model: The Hot/Cold Game**
 >
-> Binary search is the "hot/cold" guessing game. You guess the MIDDLE number. If too high → cold (go lower). If too low → cold (go higher). If just right → hot (found it!). Each guess eliminates HALF the remaining search space. After log₂(n) guesses you're guaranteed to find it. The SORTED requirement is like knowing the numbers are arranged from cold to hot — without sorting, you have no directional clue.
+> Binary search is like the "hot/cold" guessing game — each guess eliminates HALF the remaining search space. After k guesses, you've eliminated all but 1/2^k possibilities. With n=1,000,000, you find the answer in just 20 guesses. The KEY requirement: **the array must be monotonic** (sorted, or have a property that allows halving).
+
+```
+BINARY SEARCH — THE TEMPLATE:
+═══════════════════════════════════════════════════════════════
+  Sorted array: [1, 3, 5, 7, 9, 11, 13]  target=7
+
+  left=0, right=6
+  mid=3: arr[3]=7 == target → FOUND at index 3 ✅
+
+  target=6:
+  left=0, right=6, mid=3: arr[3]=7 > 6 → right=2
+  left=0, right=2, mid=1: arr[1]=3 < 6 → left=2
+  left=2, right=2, mid=2: arr[2]=5 < 6 → left=3
+  left=3 > right=2 → NOT FOUND (-1)
+
+  INVARIANT: target, if it exists, is always in [left, right]
+  LOOP CONDITION: left <= right (search space not empty)
+  MID CALCULATION: left + (right-left)/2 (prevents overflow)
+═══════════════════════════════════════════════════════════════
+```
 
 ### Binary Search Variants
 
 ```csharp
-// CLASSIC — find exact target
+// ═══ CLASSIC BINARY SEARCH ═══
 int BinarySearch(int[] arr, int target) {
     int left = 0, right = arr.Length - 1;
-    while (left <= right) {                          // <= because right = arr.Length-1 (inclusive)
-        int mid = left + (right - left) / 2;         // avoids integer overflow vs (left+right)/2
+    while (left <= right) {
+        int mid = left + (right - left) / 2;  // WHY this formula? Prevents integer overflow
         if (arr[mid] == target) return mid;
-        if (arr[mid] < target) left = mid + 1;       // target in right half
-        else right = mid - 1;                         // target in left half
+        if (arr[mid] < target) left = mid + 1;   // target in right half
+        else right = mid - 1;                     // target in left half
     }
     return -1;  // not found
 }
 
-// FIND LEFTMOST (first occurrence of target)
-int FindFirst(int[] arr, int target) {
-    int left = 0, right = arr.Length - 1, result = -1;
-    while (left <= right) {
-        int mid = left + (right - left) / 2;
-        if (arr[mid] == target) {
-            result = mid;   // record but keep searching LEFT
-            right = mid - 1;
-        } else if (arr[mid] < target) left = mid + 1;
-        else right = mid - 1;
-    }
-    return result;
-}
-
-// FIND RIGHTMOST (last occurrence of target)
-int FindLast(int[] arr, int target) {
-    int left = 0, right = arr.Length - 1, result = -1;
-    while (left <= right) {
-        int mid = left + (right - left) / 2;
-        if (arr[mid] == target) {
-            result = mid;   // record but keep searching RIGHT
-            left = mid + 1;
-        } else if (arr[mid] < target) left = mid + 1;
-        else right = mid - 1;
-    }
-    return result;
-}
-
-// LOWER BOUND — first index where arr[i] >= target
+// ═══ LOWER BOUND (first position where arr[i] >= target) ═══
+// KEY USE: "find first occurrence", "count elements >= x"
 int LowerBound(int[] arr, int target) {
-    int left = 0, right = arr.Length;  // right = arr.Length (exclusive)
-    while (left < right) {             // < not <= (because right is exclusive)
+    int left = 0, right = arr.Length;  // WHY arr.Length (not -1)? Answer might be arr.Length
+    while (left < right) {             // WHY strict <? right=arr.Length is a valid (sentinel) answer
         int mid = left + (right - left) / 2;
-        if (arr[mid] < target) left = mid + 1;
-        else right = mid;              // arr[mid] >= target: narrow from right
+        if (arr[mid] < target) left = mid + 1;  // arr[mid] too small → go right
+        else right = mid;                         // arr[mid] >= target → go left (keep mid)
     }
-    return left;  // first index >= target (arr.Length if all < target)
+    return left;  // first position where arr[i] >= target
 }
 
-// UPPER BOUND — first index where arr[i] > target
+// ═══ UPPER BOUND (first position where arr[i] > target) ═══
+// KEY USE: "find last occurrence" (upperBound - 1), "count elements <= x"
 int UpperBound(int[] arr, int target) {
     int left = 0, right = arr.Length;
     while (left < right) {
         int mid = left + (right - left) / 2;
-        if (arr[mid] <= target) left = mid + 1;
-        else right = mid;
+        if (arr[mid] <= target) left = mid + 1;  // arr[mid] <= target → go right
+        else right = mid;                          // arr[mid] > target → go left
     }
-    return left;  // first index > target
+    return left;  // first position where arr[i] > target
 }
+// Count of target in sorted array: UpperBound(arr,t) - LowerBound(arr,t)
 
-// .NET BUILT-IN
-int idx = Array.BinarySearch(arr, target);   // returns idx if found, ~idx if not
-// If not found: returns bitwise complement of insertion point (~idx = -(idx+1))
-if (idx < 0) idx = ~idx;  // convert to insertion point
+// ═══ BINARY SEARCH ON ANSWER (powerful generalization) ═══
+// When: "find minimum/maximum X such that condition(X) is true"
+// Example: "find minimum capacity to ship packages in D days"
+int BinarySearchOnAnswer(int lo, int hi, Func<int, bool> feasible) {
+    while (lo < hi) {
+        int mid = lo + (hi - lo) / 2;
+        if (feasible(mid)) hi = mid;      // mid works → try smaller
+        else lo = mid + 1;                // mid doesn't work → need larger
+    }
+    return lo;
+}
 ```
+
+---
 
 ### 🔴 Practice Problem: Search in Rotated Sorted Array (LeetCode #33 — Medium)
 
-**Problem:** Array was sorted then rotated at unknown pivot. Find target. O(log n).
+**Problem:** Array was sorted, then rotated at an unknown pivot. Search for target in O(log n).
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: SEARCH IN ROTATED SORTED ARRAY              ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 LINEAR   │ Linear scan O(n)        │ O(n)      │ O(1) sp  ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟡 FIND     │ Find pivot then binary  │ O(log n)  │ O(1) sp  ║
+║  PIVOT FIRST │ search in correct half  │ 2 passes  │          ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 ONE PASS │ Modified binary search: │ O(log n)  │ O(1) sp  ║
+║  (OPTIMAL)   │ one half always sorted  │ 1 pass    │          ║
+╚══════════════════════════════════════════════════════════════════╝
+
+KEY INSIGHT: In a rotated array, one half is ALWAYS sorted.
+             Left half sorted if arr[left] <= arr[mid]
+             Right half sorted otherwise
+             Use the sorted half to decide which half contains target.
+```
+
+```
+VISUALIZATION: [4,5,6,7,0,1,2], target=0
+═══════════════════════════════════════════════════════════════
+  left=0,right=6: mid=3, arr[3]=7
+  arr[left]=4 <= arr[mid]=7 → LEFT HALF [4,5,6,7] is sorted
+  target=0: is 0 in [4..7]? No → search right: left=4
+
+  left=4,right=6: mid=5, arr[5]=1
+  arr[left]=0 <= arr[mid]=1 → LEFT HALF [0,1] is sorted
+  target=0: is 0 in [0..1]? Yes → search left: right=5
+
+  left=4,right=5: mid=4, arr[4]=0 == target → return 4 ✅
+═══════════════════════════════════════════════════════════════
+```
 
 ```csharp
 public int Search(int[] nums, int target) {
@@ -2573,87 +3794,114 @@ public int Search(int[] nums, int target) {
         int mid = left + (right - left) / 2;
         if (nums[mid] == target) return mid;
 
-        // Determine which half is sorted
+        // DETERMINE which half is sorted
         if (nums[left] <= nums[mid]) {
-            // LEFT half is sorted [left..mid]
+            // LEFT half [left..mid] is sorted (no rotation in this half)
+            // Check if target falls within the sorted left half's range
             if (nums[left] <= target && target < nums[mid])
-                right = mid - 1;     // target in sorted left half
+                right = mid - 1;  // target must be in left half
             else
-                left = mid + 1;      // target in right half
+                left = mid + 1;   // target is in right half (contains rotation)
         } else {
-            // RIGHT half is sorted [mid..right]
+            // RIGHT half [mid..right] is sorted
             if (nums[mid] < target && target <= nums[right])
-                left = mid + 1;      // target in sorted right half
+                left = mid + 1;   // target must be in right half
             else
-                right = mid - 1;     // target in left half
+                right = mid - 1;  // target is in left half (contains rotation)
         }
     }
-    return -1;
+    return -1;  // not found
 }
-// Time: O(log n) | Space: O(1)
-// Key: one of the two halves is ALWAYS sorted after rotation — identify which, then check if target falls in it
+// Time: O(log n) — halve search space each iteration
+// Space: O(1)
 ```
+
+> **🎯 Key Insight:** The key observation for all rotated array problems: **at least one half of the array around any midpoint is always sorted**. Use this to determine which half to search. Check if the target falls within the sorted half's range → if yes, go there; if no, go to the other half.
 
 ---
 
 ## Section 28 — Interpolation & Exponential Search
 
-> **🧠 Mental Model: Smarter Phone Book Search**
+> **🧠 Mental Model: Phone Book Search**
 >
-> Binary search always checks the MIDDLE. But if you're looking for "Smith" in a phone book, you'd open near the END (S is toward the end). Interpolation search uses the VALUE to estimate position — more intuitive guessing. Exponential search starts with small jumps (1, 2, 4, 8, 16...) to find the RANGE, then binary searches within it — great for unbounded/infinite arrays.
+> Binary search always checks the middle. But if you're looking for a name starting with 'Z' in a phone book, you'd open near the END, not the middle. Interpolation search does exactly this — estimates position based on value distribution.
 
 ```csharp
-// INTERPOLATION SEARCH — O(log log n) avg for uniform distribution, O(n) worst
+// INTERPOLATION SEARCH — O(log log n) average for uniform distribution
 int InterpolationSearch(int[] arr, int target) {
-    int left = 0, right = arr.Length - 1;
-    while (left <= right && target >= arr[left] && target <= arr[right]) {
-        if (left == right) return arr[left] == target ? left : -1;
+    int low = 0, high = arr.Length - 1;
+    while (low <= high && target >= arr[low] && target <= arr[high]) {
+        if (low == high) return arr[low] == target ? low : -1;
 
-        // Estimate position based on value distribution
-        int pos = left + (int)((long)(target - arr[left]) * (right - left)
-                               / (arr[right] - arr[left]));
-
+        // Estimate position proportionally (not just middle)
+        // WHY this formula? If values are uniformly distributed,
+        // target is approximately at (target-arr[low])/(arr[high]-arr[low]) fraction
+        int pos = low + (int)((long)(target - arr[low]) * (high - low)
+                               / (arr[high] - arr[low]));
         if (arr[pos] == target) return pos;
-        if (arr[pos] < target) left = pos + 1;
-        else right = pos - 1;
+        if (arr[pos] < target) low = pos + 1;
+        else high = pos - 1;
     }
     return -1;
 }
-// Works best when values are uniformly distributed
-// Danger: integer overflow in formula — use (long) cast
 
-// EXPONENTIAL SEARCH — O(log n) — good for unbounded arrays or when target is near front
+// EXPONENTIAL SEARCH — O(log n), useful for unbounded/infinite arrays
 int ExponentialSearch(int[] arr, int target) {
     if (arr[0] == target) return 0;
     int i = 1;
-    // Double i until we find a range where target might be
+    // Double i until we exceed target or array bounds
     while (i < arr.Length && arr[i] <= target) i *= 2;
-    // Binary search in [i/2, min(i, n-1)]
-    return BinarySearch(arr, target, i / 2, Math.Min(i, arr.Length - 1));
-}
-
-int BinarySearch(int[] arr, int target, int left, int right) {
-    while (left <= right) {
-        int mid = left + (right - left) / 2;
-        if (arr[mid] == target) return mid;
-        if (arr[mid] < target) left = mid + 1;
-        else right = mid - 1;
-    }
-    return -1;
+    // Binary search in range [i/2, min(i, arr.Length-1)]
+    return Array.BinarySearch(arr, i / 2, Math.Min(i, arr.Length - 1) - i/2, target);
 }
 ```
+
+---
 
 ### 🔴 Practice Problem: Search for a Range (LeetCode #34 — Medium)
 
-**Problem:** Given sorted array and target, find [first, last] positions. O(log n).
+**Problem:** Find first and last positions of target in sorted array. Must be O(log n).
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: SEARCH FOR A RANGE                          ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 LINEAR   │ Scan left/right from    │ O(n)      │ O(1) sp  ║
+║              │ found index             │            │          ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 TWO BIN  │ LowerBound for first,   │ O(log n)  │ O(1) sp  ║
+║  SEARCHES    │ UpperBound-1 for last   │            │          ║
+╚══════════════════════════════════════════════════════════════════╝
+```
 
 ```csharp
 public int[] SearchRange(int[] nums, int target) {
-    return new[] { FindFirst(nums, target), FindLast(nums, target) };
+    // First position: lowest index where nums[i] == target
+    int first = LowerBound(nums, target);
+
+    // Check if target actually exists
+    if (first == nums.Length || nums[first] != target)
+        return new[] { -1, -1 };
+
+    // Last position: (first index where nums[i] > target) - 1
+    int last = UpperBound(nums, target) - 1;
+
+    return new[] { first, last };
 }
-// Use the FindFirst and FindLast implementations from Section 27
-// Time: O(log n) — two binary searches | Space: O(1)
+// Using LowerBound and UpperBound from Section 27
+// Time: O(log n), Space: O(1)
 ```
+
+```
+TRACE: nums=[5,7,7,8,8,10], target=8
+═══════════════════════════════════════════════════════════════
+  LowerBound(8): finds first index where nums[i] >= 8 → index 3
+  UpperBound(8): finds first index where nums[i] > 8 → index 5
+  Result: [3, 5-1] = [3, 4] ✅ (nums[3]=8, nums[4]=8)
+═══════════════════════════════════════════════════════════════
+```
+
+> **🎯 Key Insight:** Lower/upper bound binary searches are more powerful than the basic "find any occurrence" search. Mastering these two variants unlocks: first/last occurrence, count of element, floor/ceiling in sorted array, and many range query problems.
 
 ---
 
@@ -2663,619 +3911,713 @@ public int[] SearchRange(int[] nums, int target) {
 
 ## Section 29 — Recursion & the Recursion Tree
 
-> **🧠 Mental Model: Russian Nesting Dolls (Matryoshka)**
+> **🧠 Mental Model: Russian Nesting Dolls**
 >
-> Recursion is like opening a Russian doll — each doll contains a smaller identical doll, until you reach the tiny solid doll (base case). When you open the tiny doll, you start "returning" back: close the tiny doll inside the second-smallest, etc. The CALL STACK is the stack of open dolls on your table. Too many nested calls → stack overflow (too many dolls on the table).
+> Recursion is like opening a Russian nesting doll. Each doll contains a smaller version of itself. You keep opening dolls (recursive calls) until you reach the tiniest doll (base case) — which you return without opening. Then each doll "closes back" as returns propagate upward. The call stack IS the stack of dolls waiting to close.
 
-### Recursion Template
+```
+RECURSION TREE for Fibonacci(4):
+═══════════════════════════════════════════════════════════════
+                    fib(4)
+                   /      \
+               fib(3)     fib(2)
+              /     \     /    \
+          fib(2)  fib(1) fib(1) fib(0)
+          /    \
+       fib(1) fib(0)
+
+  Total calls: 9 for fib(4) → exponential O(2^n) ← very wasteful!
+  Same subproblems computed multiple times: fib(2) computed TWICE
+  Solution: MEMOIZATION — cache results to avoid recomputation
+═══════════════════════════════════════════════════════════════
+
+CALL STACK VISUALIZATION for factorial(3):
+═══════════════════════════════════════════════════════════════
+  factorial(3) → calls factorial(2)
+    factorial(2) → calls factorial(1)
+      factorial(1) → calls factorial(0)
+        factorial(0) → returns 1 ← BASE CASE
+      factorial(1) returns 1*1 = 1
+    factorial(2) returns 2*1 = 2
+  factorial(3) returns 3*2 = 6
+
+  Stack depth = n → O(n) space for call stack
+═══════════════════════════════════════════════════════════════
+```
+
+### Recursion Patterns
 
 ```csharp
-// RECURSION TEMPLATE — every recursive function follows this pattern:
-ReturnType Solve(params) {
-    // 1. BASE CASE(S) — when to stop recursing
-    if (baseCondition) return baseValue;
-
-    // 2. RECURSIVE CASE — break into smaller subproblem(s)
-    ReturnType subResult = Solve(smallerParams);
-
-    // 3. COMBINE — combine subresult with current state
-    return combine(currentValue, subResult);
-}
-
-// EXAMPLES:
-// Factorial — O(n) time, O(n) space
+// PATTERN 1: REDUCE AND CONQUER (reduce by 1 each call)
 int Factorial(int n) {
-    if (n <= 1) return 1;          // base case
-    return n * Factorial(n - 1);   // recursive case + combine
+    if (n <= 1) return 1;             // base case: factorial(0)=factorial(1)=1
+    return n * Factorial(n - 1);      // recursive case: n * (n-1)!
 }
+// T(n) = T(n-1) + O(1) → O(n) time, O(n) stack space
 
-// Fibonacci — O(2^n) naive, O(n) with memoization
+// PATTERN 2: DIVIDE AND CONQUER (halve each call)
+int Power(int base_, int exp) {
+    if (exp == 0) return 1;           // base case: anything^0 = 1
+    int half = Power(base_, exp / 2); // compute base^(exp/2) ONCE
+    if (exp % 2 == 0) return half * half;         // even exp
+    else return half * half * base_;              // odd exp: one extra factor
+    // WHY compute half only once? Avoids O(n) → achieves O(log n)!
+}
+// T(n) = T(n/2) + O(1) → O(log n) — much faster than naive O(n)
+
+// PATTERN 3: TREE RECURSION (two recursive calls)
 int Fib(int n) {
     if (n <= 1) return n;
-    return Fib(n-1) + Fib(n-2);   // two recursive calls
+    return Fib(n-1) + Fib(n-2);     // two calls per level → O(2^n) trees
 }
+// Fix: memoize! See Section 32.
 
-// Power function — O(log n) with divide & conquer
-double Power(double x, int n) {
-    if (n == 0) return 1;
-    if (n < 0) return 1.0 / Power(x, -n);  // handle negative exponent
-    if (n % 2 == 0) {
-        double half = Power(x, n / 2);
-        return half * half;                  // square the half-result
-    }
-    return x * Power(x, n - 1);
-}
-// O(log n) because we halve n each time with even exponent
+// THE RECURSION TEMPLATE:
+// 1. Base case(s): smallest valid input(s) → return directly
+// 2. Recursive case: call with SMALLER input, build answer from result
+// 3. Trust the recursion: assume recursive call works correctly!
 ```
 
-### Recursion Tree Analysis
-
-```
-Fib(4)
-├── Fib(3)
-│   ├── Fib(2)
-│   │   ├── Fib(1) = 1
-│   │   └── Fib(0) = 0
-│   └── Fib(1) = 1
-└── Fib(2)
-    ├── Fib(1) = 1  ← DUPLICATE WORK!
-    └── Fib(0) = 0  ← DUPLICATE WORK!
-
-Nodes in tree = O(2^n) → exponential time
-Height of tree = n → O(n) space (call stack)
-Fix: memoize already-computed values → O(n) time (see Section 32)
-```
+---
 
 ### 🔴 Practice Problem: Merge Two Sorted Lists (LeetCode #21 — Easy)
 
-```csharp
-public ListNode MergeTwoLists(ListNode l1, ListNode l2) {
-    // Base cases
-    if (l1 == null) return l2;
-    if (l2 == null) return l1;
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: MERGE TWO SORTED LISTS                      ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 COPY     │ Copy both to array,     │ O(n+m)    │ O(n+m)  ║
+║  TO ARRAY    │ sort, rebuild list      │            │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟡 ITERATIVE│ Two-pointer merge with  │ O(n+m)    │ O(1) sp ║
+║              │ dummy head              │            │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 RECURSIVE│ Elegant: smaller head   │ O(n+m)    │ O(n+m)  ║
+║              │ + merged rest           │            │ stack   ║
+╚══════════════════════════════════════════════════════════════════╝
+```
 
-    // Compare heads and recurse on the rest
-    if (l1.Val <= l2.Val) {
-        l1.Next = MergeTwoLists(l1.Next, l2);  // l1 head wins, recurse rest of l1 with l2
+```csharp
+// ITERATIVE — O(n+m) time, O(1) space (PREFERRED)
+public ListNode MergeTwoLists(ListNode l1, ListNode l2) {
+    var dummy = new ListNode(0);  // dummy head simplifies edge cases
+    var curr = dummy;
+
+    while (l1 != null && l2 != null) {
+        if (l1.val <= l2.val) {   // take from l1 if smaller/equal
+            curr.next = l1;
+            l1 = l1.next;
+        } else {
+            curr.next = l2;
+            l2 = l2.next;
+        }
+        curr = curr.next;
+    }
+    curr.next = l1 ?? l2;  // attach remaining non-null list (one will be null)
+    return dummy.next;
+}
+
+// RECURSIVE — elegant but O(n+m) stack space
+public ListNode MergeTwoListsRecursive(ListNode l1, ListNode l2) {
+    if (l1 == null) return l2;  // base case: one list exhausted
+    if (l2 == null) return l1;
+    if (l1.val <= l2.val) {
+        l1.next = MergeTwoListsRecursive(l1.next, l2); // l1 is smaller, attach merged rest
         return l1;
     } else {
-        l2.Next = MergeTwoLists(l1, l2.Next);  // l2 head wins, recurse l1 with rest of l2
+        l2.next = MergeTwoListsRecursive(l1, l2.next); // l2 is smaller
         return l2;
     }
 }
-// Time: O(m + n) | Space: O(m + n) recursion stack
-// Iterative version uses O(1) space — prefer that for very long lists
 ```
+
+```
+TRACE: l1=[1→3→5], l2=[2→4→6]
+═══════════════════════════════════════════════════════════════
+  dummy→ curr
+  1<=2: curr→1, l1=[3→5]     dummy→[1]→ curr
+  3>2:  curr→2, l2=[4→6]     dummy→[1→2]→ curr
+  3<=4: curr→3, l1=[5]        dummy→[1→2→3]→ curr
+  5>4:  curr→4, l2=[6]        dummy→[1→2→3→4]→ curr
+  5<=6: curr→5, l1=null       dummy→[1→2→3→4→5]→ curr
+  l1 null → curr.next=l2=[6]
+  Result: [1→2→3→4→5→6] ✅
+═══════════════════════════════════════════════════════════════
+```
+
+> **🎯 Key Insight:** The dummy head node eliminates special-casing the first node. Without it, you'd need to handle "which list's head becomes the result head?" separately. Dummy head + curr pointer is the standard pattern for building linked lists.
 
 ---
 
 ## Section 30 — Backtracking
 
-> **🧠 Mental Model: A Decision Tree with an Eraser**
+> **🧠 Mental Model: Decision Tree with Pruning**
 >
-> Backtracking is like solving a maze with a pencil and eraser. At every junction, you pick a direction (make a choice), follow it, and if it leads to a dead end (invalid state), you erase your path and try the next option. The KEY operations are: **choose** (make a decision), **explore** (recurse), **unchoose** (undo the decision — this is what makes it "backtracking"). Pruning (skipping bad paths early) is what makes backtracking efficient.
+> Backtracking is like navigating a decision tree — at each node, you try all possible choices. If a choice leads to a dead end (violates constraints), you **backtrack** (undo the choice) and try the next option. Like a maze: go forward, hit a wall, back up, try another direction. The KEY optimization: **pruning** — don't explore paths you know will fail.
 
-### Backtracking Template
+```
+BACKTRACKING TEMPLATE:
+═══════════════════════════════════════════════════════════════
+  backtrack(state, choices):
+    if isComplete(state):
+        add state to results
+        return
+    for choice in choices:
+        if isValid(state, choice):
+            makeChoice(state, choice)      // CHOOSE
+            backtrack(state, choices)      // EXPLORE
+            undoChoice(state, choice)      // UN-CHOOSE (backtrack!)
+
+DECISION TREE for permutations of [1,2,3]:
+                    []
+              /      |      \
+           [1]      [2]      [3]
+          /   \    /   \    /   \
+       [1,2] [1,3][2,1][2,3][3,1][3,2]
+         |     |    |    |    |    |
+      [1,2,3][1,3,2]... etc. (6 total)
+═══════════════════════════════════════════════════════════════
+```
+
+### Backtracking Templates
 
 ```csharp
-void Backtrack(state, choices, results) {
-    // 1. Is this a complete solution?
-    if (isSolution(state)) {
-        results.Add(state.Clone());  // add a copy, not reference!
+// ═══ TEMPLATE 1: GENERATE ALL PERMUTATIONS ═══
+void Permutations(int[] nums, List<int> current, bool[] used, List<IList<int>> result) {
+    if (current.Count == nums.Length) {   // complete permutation found
+        result.Add(new List<int>(current)); // add COPY (not reference!)
         return;
     }
+    for (int i = 0; i < nums.Length; i++) {
+        if (used[i]) continue;            // skip already-chosen elements
+        used[i] = true;                   // CHOOSE: mark as used
+        current.Add(nums[i]);
+        Permutations(nums, current, used, result); // EXPLORE
+        current.RemoveAt(current.Count - 1); // UN-CHOOSE: remove last element
+        used[i] = false;                  // UN-CHOOSE: mark as available again
+    }
+}
 
-    foreach (choice in getChoices(state)) {
-        if (isValid(state, choice)) {
-            // Choose
-            makeChoice(state, choice);
-            // Explore
-            Backtrack(state, choices, results);
-            // Unchoose (backtrack)
-            undoChoice(state, choice);
-        }
+// ═══ TEMPLATE 2: GENERATE ALL SUBSETS ═══
+void Subsets(int[] nums, int start, List<int> current, List<IList<int>> result) {
+    result.Add(new List<int>(current)); // add current subset (including empty set!)
+    for (int i = start; i < nums.Length; i++) {
+        current.Add(nums[i]);            // CHOOSE nums[i]
+        Subsets(nums, i + 1, current, result); // EXPLORE (i+1: no reuse)
+        current.RemoveAt(current.Count - 1);   // UN-CHOOSE
     }
 }
 ```
 
-### Classic Backtracking Problems
-
-```csharp
-// PERMUTATIONS — generate all orderings of nums
-IList<IList<int>> Permute(int[] nums) {
-    var result = new List<IList<int>>();
-    bool[] used = new bool[nums.Length];
-    var current = new List<int>();
-
-    void Backtrack() {
-        if (current.Count == nums.Length) {
-            result.Add(new List<int>(current));  // copy! not reference
-            return;
-        }
-        for (int i = 0; i < nums.Length; i++) {
-            if (used[i]) continue;               // skip used elements
-            used[i] = true;   current.Add(nums[i]);      // choose
-            Backtrack();                                   // explore
-            used[i] = false;  current.RemoveAt(current.Count - 1); // unchoose
-        }
-    }
-
-    Backtrack();
-    return result;
-}
-// Time: O(n! × n) | Space: O(n) recursion + O(n! × n) output
-
-// N-QUEENS — place n queens on n×n board, no two attack each other
-IList<IList<string>> SolveNQueens(int n) {
-    var result = new List<IList<string>>();
-    int[] queens = new int[n];  // queens[row] = column of queen in that row
-    bool[] cols = new bool[n], diag1 = new bool[2*n], diag2 = new bool[2*n];
-
-    void Place(int row) {
-        if (row == n) {
-            result.Add(BuildBoard(queens, n));
-            return;
-        }
-        for (int col = 0; col < n; col++) {
-            if (cols[col] || diag1[row-col+n] || diag2[row+col]) continue;
-            cols[col] = diag1[row-col+n] = diag2[row+col] = true;
-            queens[row] = col;
-            Place(row + 1);
-            cols[col] = diag1[row-col+n] = diag2[row+col] = false;
-        }
-    }
-    Place(0);
-    return result;
-}
-
-IList<string> BuildBoard(int[] queens, int n) {
-    return Enumerable.Range(0, n).Select(r => {
-        char[] row = new string('.', n).ToCharArray();
-        row[queens[r]] = 'Q';
-        return new string(row);
-    }).ToList();
-}
-```
+---
 
 ### 🔴 Practice Problem: Letter Combinations of a Phone Number (LeetCode #17 — Medium)
 
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: LETTER COMBINATIONS                         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 BRUTE    │ Nested loops (one per   │ O(4^n)    │ O(4^n)  ║
+║              │ digit) — not generaliz- │            │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟡 BFS/ITER │ Build combos iteratively│ O(4^n×n)  │ O(4^n×n)║
+║              │ append chars to each    │            │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 BACKTRACK│ Recursion per digit,    │ O(4^n×n)  │ O(n)    ║
+║  (CANONICAL) │ O(n) stack space        │            │ stack   ║
+╚══════════════════════════════════════════════════════════════════╝
+```
+
+```
+DECISION TREE for "23":
+  2→[a,b,c], 3→[d,e,f]
+  ""
+  ├─ a → [ad, ae, af]
+  ├─ b → [bd, be, bf]
+  └─ c → [cd, ce, cf]
+  Result: [ad,ae,af,bd,be,bf,cd,ce,cf]
+```
+
 ```csharp
 public IList<string> LetterCombinations(string digits) {
-    if (string.IsNullOrEmpty(digits)) return new List<string>();
+    if (digits.Length == 0) return new List<string>();
 
-    var phone = new Dictionary<char, string> {
-        {'2',"abc"},{'3',"def"},{'4',"ghi"},{'5',"jkl"},
-        {'6',"mno"},{'7',"pqrs"},{'8',"tuv"},{'9',"wxyz"}
+    var phoneMap = new Dictionary<char, string> {
+        ['2']="abc", ['3']="def", ['4']="ghi", ['5']="jkl",
+        ['6']="mno", ['7']="pqrs", ['8']="tuv", ['9']="wxyz"
     };
 
     var result = new List<string>();
     var sb = new StringBuilder();
 
     void Backtrack(int idx) {
-        if (idx == digits.Length) { result.Add(sb.ToString()); return; }
-        foreach (char c in phone[digits[idx]]) {
-            sb.Append(c);          // choose
-            Backtrack(idx + 1);    // explore
-            sb.Length--;           // unchoose (remove last char)
+        if (idx == digits.Length) {  // used all digits → complete combination
+            result.Add(sb.ToString());
+            return;
+        }
+        foreach (char c in phoneMap[digits[idx]]) {
+            sb.Append(c);           // CHOOSE: add this letter
+            Backtrack(idx + 1);     // EXPLORE: move to next digit
+            sb.Length--;            // UN-CHOOSE: remove last letter (backtrack)
         }
     }
 
     Backtrack(0);
     return result;
 }
-// Time: O(4^n × n) worst case (digit '7' has 4 letters) | Space: O(n) recursion
+// Time: O(4^n × n) — 4^n combinations, each takes O(n) to build
+// Space: O(n) recursion depth + O(4^n × n) for results
 ```
+
+> **🎯 Key Insight:** Backtracking's power comes from the **un-choose step** — it undoes the choice, allowing you to try the next option from a clean state. The StringBuilder append/length-- pattern is efficient: it modifies in-place instead of creating new strings at each step.
 
 ---
 
 ## Section 31 — Divide & Conquer
 
-> **🧠 Mental Model: The Army General's Strategy**
+> **🧠 Mental Model: Tax Filing Delegation**
 >
-> Divide and conquer is the general who never fights a massive battle directly. Instead: DIVIDE the enemy into smaller armies, CONQUER each small army separately, then COMBINE victories into overall victory. The power: if dividing in half each time, you get O(log n) levels. If each level does O(n) work, total is O(n log n). Master Theorem formalizes this.
-
-### Master Theorem (Quick Reference)
+> A manager with 1000 employees doesn't file taxes one by one. They split the team in half, delegate each half to a sub-manager, and combine the results. Each sub-manager does the same recursively. With D&C, a problem of size n becomes two problems of size n/2, and you combine in O(n) → T(n) = 2T(n/2) + O(n) → O(n log n).
 
 ```
-Recurrence: T(n) = aT(n/b) + f(n)
-where: a = subproblems, b = size reduction factor, f(n) = work at current level
+MASTER THEOREM (for T(n) = aT(n/b) + O(n^c)):
+═══════════════════════════════════════════════════════════════
+  Compare n^(log_b a) vs n^c:
+  - If n^c LARGER:   T(n) = O(n^c)              [combine dominates]
+  - If EQUAL:        T(n) = O(n^c × log n)       [balanced]
+  - If n^(log_b a) LARGER: T(n) = O(n^(log_b a)) [recursion dominates]
 
-Case 1: f(n) = O(n^(log_b(a) - ε))  → T(n) = O(n^log_b(a))    [subproblem work dominates]
-Case 2: f(n) = O(n^log_b(a))        → T(n) = O(n^log_b(a) × log n) [work at each level equal]
-Case 3: f(n) = Ω(n^(log_b(a) + ε)) → T(n) = O(f(n))            [current level work dominates]
-
-Examples:
-Merge sort: T(n) = 2T(n/2) + O(n) → a=2, b=2, n^log2(2)=n → Case 2 → O(n log n)
-Binary search: T(n) = T(n/2) + O(1) → a=1, b=2, n^log2(1)=1 → Case 2 → O(log n)
+  Examples:
+  Merge Sort: T(n)=2T(n/2)+O(n) → a=2,b=2,c=1 → log_2(2)=1=c → O(n log n)
+  Binary Search: T(n)=T(n/2)+O(1) → a=1,b=2,c=0 → log_2(1)=0=c → O(log n)
+  Strassen Matrix: T(n)=7T(n/2)+O(n²) → log_2(7)≈2.81>2 → O(n^2.81)
+═══════════════════════════════════════════════════════════════
 ```
 
-```csharp
-// MAXIMUM SUBARRAY — divide & conquer approach (not optimal but educational)
-int MaxSubArray(int[] nums, int left, int right) {
-    if (left == right) return nums[left];  // base case: single element
-
-    int mid = (left + right) / 2;
-    int leftMax = MaxSubArray(nums, left, mid);        // max in left half
-    int rightMax = MaxSubArray(nums, mid + 1, right);  // max in right half
-    int crossMax = MaxCrossing(nums, left, mid, right); // max spanning mid
-
-    return Math.Max(Math.Max(leftMax, rightMax), crossMax);
-}
-
-int MaxCrossing(int[] nums, int left, int mid, int right) {
-    // Max sum from mid going LEFT
-    int leftSum = int.MinValue, sum = 0;
-    for (int i = mid; i >= left; i--) {
-        sum += nums[i];
-        leftSum = Math.Max(leftSum, sum);
-    }
-    // Max sum from mid+1 going RIGHT
-    int rightSum = int.MinValue; sum = 0;
-    for (int i = mid + 1; i <= right; i++) {
-        sum += nums[i];
-        rightSum = Math.Max(rightSum, sum);
-    }
-    return leftSum + rightSum;
-}
-// Time: O(n log n) — Kadane's algorithm is O(n) and simpler, but this shows D&C
-```
+---
 
 ### 🔴 Practice Problem: Maximum Subarray (LeetCode #53 — Medium)
 
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: MAXIMUM SUBARRAY                            ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 BRUTE    │ Try all subarrays O(n²) │ O(n²)     │ O(1) sp ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟡 D&C      │ Split in half, max in   │ O(n log n)│ O(log n)║
+║              │ left/right/crossing     │            │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 KADANE'S │ Greedy: extend or       │ O(n)      │ O(1) sp ║
+║  (OPTIMAL)   │ restart at each element │            │         ║
+╚══════════════════════════════════════════════════════════════════╝
+
+KADANE'S KEY INSIGHT: At each position, the max subarray ending HERE
+  is max(current element alone, current element + best ending at prev).
+  If extending the previous subarray makes it worse, start fresh here.
+```
+
 ```csharp
-// KADANE'S ALGORITHM — O(n) time, O(1) space (the production solution)
+// KADANE'S ALGORITHM — O(n) time, O(1) space
 public int MaxSubArray(int[] nums) {
-    int maxSum = nums[0], currentSum = nums[0];
+    // currentMax: best subarray sum ENDING at current position
+    // globalMax: best subarray sum seen ANYWHERE so far
+    int currentMax = nums[0], globalMax = nums[0];
 
     for (int i = 1; i < nums.Length; i++) {
-        // Either extend previous subarray or start fresh from current element
-        currentSum = Math.Max(nums[i], currentSum + nums[i]);
-        maxSum = Math.Max(maxSum, currentSum);
+        // KEY DECISION: should we extend the previous subarray or start fresh?
+        // Extend if adding current element improves the sum (currentMax > 0)
+        // Start fresh if previous subarray sum is negative (it would only hurt)
+        currentMax = Math.Max(nums[i], currentMax + nums[i]);
+        globalMax = Math.Max(globalMax, currentMax);
     }
-    return maxSum;
+    return globalMax;
 }
-// Key insight: if currentSum goes negative, starting fresh is always better
 ```
+
+```
+TRACE: nums = [-2, 1, -3, 4, -1, 2, 1, -5, 4]
+═══════════════════════════════════════════════════════════════
+  i=0: curr=-2,  global=-2
+  i=1: curr=max(1,-2+1)=1,   global=1
+  i=2: curr=max(-3,1-3)=-2,  global=1
+  i=3: curr=max(4,-2+4)=4,   global=4
+  i=4: curr=max(-1,4-1)=3,   global=4
+  i=5: curr=max(2,3+2)=5,    global=5
+  i=6: curr=max(1,5+1)=6,    global=6   ← max subarray [4,-1,2,1]=6
+  i=7: curr=max(-5,6-5)=1,   global=6
+  i=8: curr=max(4,1+4)=5,    global=6
+  Answer: 6 ✅
+═══════════════════════════════════════════════════════════════
+```
+
+> **🎯 Key Insight:** Kadane's algorithm is the canonical example of DP disguised as a simple linear scan. The recurrence: `dp[i] = max(nums[i], dp[i-1] + nums[i])` is O(1) space because dp[i] only depends on dp[i-1].
 
 ---
 
 ## Section 32 — Dynamic Programming: Memoization
 
-> **🧠 Mental Model: The Student with a Notebook**
+> **🧠 Mental Model: A Notebook for Repeated Work**
 >
-> Imagine a student solving math problems. Without a notebook (pure recursion), they solve the same sub-problems from scratch every time — wasteful. With a notebook (memoization), they write down each answer the first time: "Fib(10) = 55". Next time Fib(10) is needed, just look up the notebook — O(1). Memoization = recursion + a lookup table (notebook). Top-down: start from the big problem, recurse down, save results.
+> Memoization is like keeping a notebook of answers you've already computed. When the same question comes up again, look it up instead of recomputing. The recursive structure stays the same — you just cache results. "Top-down DP" = recursion + memo.
 
-### Memoization Pattern
+```
+FIBONACCI WITH MEMOIZATION:
+═══════════════════════════════════════════════════════════════
+  Without memo: fib(5) makes 15 calls (recomputes fib(2) 3 times!)
+  With memo: each fib(n) computed ONCE, stored, reused
+
+  fib(5)
+   ├─ fib(4)
+   │   ├─ fib(3)
+   │   │   ├─ fib(2) ── computed, stored in memo[2]
+   │   │   └─ fib(1) ── base case
+   │   └─ fib(2) ────── LOOKUP from memo[2], O(1)!
+   └─ fib(3) ────────── LOOKUP from memo[3], O(1)!
+
+  Total: O(n) calls vs O(2^n) without memo
+═══════════════════════════════════════════════════════════════
+```
 
 ```csharp
-// FIBONACCI with memoization — O(n) time, O(n) space
-int[] memo = new int[n + 1];
-Array.Fill(memo, -1);  // -1 = not computed yet
+// MEMOIZATION TEMPLATE
+int[] memo;
+
+int FibMemo(int n) {
+    memo = new int[n + 1];
+    Array.Fill(memo, -1);   // -1 = not computed yet
+    return Fib(n);
+}
 
 int Fib(int n) {
-    if (n <= 1) return n;
-    if (memo[n] != -1) return memo[n];  // already computed — O(1) lookup
-    memo[n] = Fib(n-1) + Fib(n-2);     // compute and SAVE
+    if (n <= 1) return n;           // base case
+    if (memo[n] != -1) return memo[n]; // already computed? return cached!
+    memo[n] = Fib(n-1) + Fib(n-2);    // compute and STORE in memo
     return memo[n];
 }
-// Without memo: O(2^n) time. With memo: O(n) time — same problem!
-
-// GENERAL MEMOIZATION TEMPLATE with Dictionary (for non-integer keys)
-var cache = new Dictionary<string, int>();
-
-int SolveDP(string state) {
-    if (IsBaseCase(state)) return BaseValue(state);
-    if (cache.ContainsKey(state)) return cache[state];
-
-    int result = ComputeFromSubproblems(state);
-    cache[state] = result;
-    return result;
-}
-
-// CLIMBING STAIRS — O(n) time, O(n) space with memo
-int[] dp;
-int ClimbStairs(int n) {
-    dp = new int[n + 1];
-    return Climb(n);
-}
-int Climb(int n) {
-    if (n <= 1) return 1;
-    if (dp[n] != 0) return dp[n];
-    dp[n] = Climb(n-1) + Climb(n-2);  // can take 1 or 2 steps
-    return dp[n];
-}
+// Time: O(n) — each subproblem computed once
+// Space: O(n) — memo array + O(n) call stack
 ```
+
+---
 
 ### 🔴 Practice Problem: Climbing Stairs (LeetCode #70 — Easy)
 
-**Problem:** To climb n stairs, you can take 1 or 2 steps at a time. How many distinct ways?
+**Problem:** To reach the top, you can climb 1 or 2 steps at a time. How many distinct ways to climb n stairs?
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: CLIMBING STAIRS                             ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 BRUTE    │ Recursion: ways(n) =    │ O(2^n)    │ O(n)sp  ║
+║              │ ways(n-1)+ways(n-2)     │ (no memo) │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟡 MEMO     │ Recursion + cache       │ O(n)      │ O(n) sp ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 TABUL.   │ Bottom-up DP table      │ O(n)      │ O(n) sp ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🏆 SPACE    │ Only keep last 2 values │ O(n)      │ O(1) sp ║
+║  OPTIMIZED   │ (Fibonacci pattern)     │            │         ║
+╚══════════════════════════════════════════════════════════════════╝
+
+KEY INSIGHT: ways(n) = ways(n-1) + ways(n-2)  ← this IS the Fibonacci recurrence!
+             To reach step n: either came from n-1 (1-step) or n-2 (2-step)
+```
 
 ```csharp
-// MEMOIZED RECURSION
 public int ClimbStairs(int n) {
-    int[] memo = new int[n + 1];
-    return Helper(n, memo);
-}
-int Helper(int n, int[] memo) {
-    if (n <= 1) return 1;                          // 0 or 1 stair: 1 way
-    if (memo[n] != 0) return memo[n];
-    memo[n] = Helper(n-1, memo) + Helper(n-2, memo);
-    return memo[n];
-}
+    if (n <= 2) return n;
+    // WHY only two variables? dp[i] = dp[i-1] + dp[i-2]
+    // We only ever need the last two values — no need for full array
+    int prev2 = 1;  // ways to reach step 1
+    int prev1 = 2;  // ways to reach step 2
 
-// BOTTOM-UP (tabulation — see Section 33 for full explanation)
-public int ClimbStairsDP(int n) {
-    if (n <= 1) return 1;
-    int prev2 = 1, prev1 = 1;
-    for (int i = 2; i <= n; i++) {
-        int curr = prev1 + prev2;
-        prev2 = prev1;
-        prev1 = curr;
+    for (int i = 3; i <= n; i++) {
+        int curr = prev1 + prev2;  // ways to reach step i
+        prev2 = prev1;             // slide window: old prev1 becomes prev2
+        prev1 = curr;              // new value becomes prev1
     }
     return prev1;
 }
-// Time: O(n) | Space: O(1) — notice it's the same as Fibonacci!
+// Time: O(n), Space: O(1)
 ```
 
-> **🎯 Key Insight:** Climbing stairs with 1 or 2 steps = Fibonacci sequence. stairs(n) = stairs(n-1) + stairs(n-2). This pattern "number of ways to reach state n = sum of ways to reach previous states" appears constantly in DP problems.
+```
+TRACE: n=5
+  Base: prev2=1(step1), prev1=2(step2)
+  i=3: curr=2+1=3, prev2=2, prev1=3
+  i=4: curr=3+2=5, prev2=3, prev1=5
+  i=5: curr=5+3=8, prev2=5, prev1=8
+  Answer: 8 ✅ (ways: 1+1+1+1+1, 2+1+1+1, 1+2+1+1, 1+1+2+1, 1+1+1+2, 2+2+1, 2+1+2, 1+2+2)
+```
+
+> **🎯 Key Insight:** Climbing Stairs teaches two critical DP lessons: (1) identify the recurrence relation from the problem structure, (2) optimize space by keeping only what you actually need (here: last 2 values). This pattern of "dp[i] depends on last k values → use k variables" recurs constantly.
 
 ---
 
 ## Section 33 — Dynamic Programming: Tabulation
 
-> **🧠 Mental Model: Filling a Spreadsheet Bottom-Up**
+> **🧠 Mental Model: Filling a Table Bottom-Up**
 >
-> Tabulation (bottom-up DP) is like filling a spreadsheet from cell A1 upward. You start with known base values, then compute each cell using already-computed cells. No recursion — just iteration. The DP table explicitly stores all subproblem answers. Advantage over memoization: no recursion overhead, no stack overflow, easier to optimize space by keeping only recent rows.
+> Tabulation is bottom-up DP — fill a table from the smallest subproblems up to the answer. Like building a brick wall: lay the foundation first, then each brick rests on the ones below. No recursion, no stack overflow risk, often easier to optimize space.
 
-### Tabulation Pattern
-
-```csharp
-// FIBONACCI — tabulation (contrast with memoization in Section 32)
-int FibTabulation(int n) {
-    if (n <= 1) return n;
-    int[] dp = new int[n + 1];
-    dp[0] = 0; dp[1] = 1;                      // base cases
-    for (int i = 2; i <= n; i++)
-        dp[i] = dp[i-1] + dp[i-2];             // build up from base
-    return dp[n];
-}
-
-// SPACE OPTIMIZED — only keep last 2 values (O(1) space)
-int FibOptimized(int n) {
-    if (n <= 1) return n;
-    int prev2 = 0, prev1 = 1;
-    for (int i = 2; i <= n; i++) {
-        int curr = prev1 + prev2;
-        prev2 = prev1; prev1 = curr;
-    }
-    return prev1;
-}
-
-// 0/1 KNAPSACK — classic 2D DP table
-// items[i] = (weight, value), capacity = max weight
-int Knapsack(int[] weights, int[] values, int capacity) {
-    int n = weights.Length;
-    // dp[i][w] = max value using first i items with capacity w
-    int[,] dp = new int[n + 1, capacity + 1];
-
-    for (int i = 1; i <= n; i++) {
-        for (int w = 0; w <= capacity; w++) {
-            // Option 1: don't take item i
-            dp[i, w] = dp[i-1, w];
-            // Option 2: take item i (if it fits)
-            if (weights[i-1] <= w)
-                dp[i, w] = Math.Max(dp[i, w],
-                    dp[i-1, w - weights[i-1]] + values[i-1]);
-        }
-    }
-    return dp[n, capacity];
-}
-// Time: O(n × capacity) | Space: O(n × capacity)
-// Space optimization: use 1D rolling array O(capacity)
 ```
+TABULATION vs MEMOIZATION:
+═══════════════════════════════════════════════════════════════
+  MEMOIZATION (top-down):          TABULATION (bottom-up):
+  - Recursive structure             - Iterative loops
+  - Computes only needed states     - Computes ALL states
+  - O(n) stack space overhead       - No stack overhead
+  - Easier to think about           - Often more cache-friendly
+  - Natural for tree-structure DP   - Better for linear/2D DPs
+
+  BOTH have same time/space complexity for the DP table itself.
+═══════════════════════════════════════════════════════════════
+```
+
+---
 
 ### 🔴 Practice Problem: Coin Change (LeetCode #322 — Medium)
 
-**Problem:** Given coins of different denominations and an amount, find minimum coins needed.
+**Problem:** Given coins of different denominations and amount, find fewest coins to make amount. Return -1 if impossible.
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: COIN CHANGE                                 ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 GREEDY   │ Always pick largest     │ O(amount) │ O(1) sp ║
+║  (WRONG!)    │ coin first              │ WRONG for │         ║
+║              │ e.g. coins=[1,3,4]amt=6 │ some inputs│        ║
+║              │ Greedy: 4+1+1=3 coins   │            │         ║
+║              │ Optimal: 3+3=2 coins ✓  │            │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟡 RECURSE  │ Try all coin choices at │ O(S^n)    │ O(n)sp  ║
+║  NO MEMO     │ each step (exponential) │            │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 DP TABLE │ dp[i] = min coins for   │ O(S×n)    │ O(S) sp ║
+║  (OPTIMAL)   │ amount i                │            │         ║
+╚══════════════════════════════════════════════════════════════════╝
+
+RECURRENCE: dp[i] = min(dp[i - coin] + 1) for each coin <= i
+BASE CASE: dp[0] = 0 (zero coins needed for amount 0)
+```
+
+```
+DP TABLE VISUALIZATION: coins=[1,2,5], amount=11
+═══════════════════════════════════════════════════════════════
+  dp[0]=0  (base case: no coins needed for 0)
+  dp[1]=min(dp[1-1]+1)=1            → 1 coin (1)
+  dp[2]=min(dp[2-1]+1,dp[2-2]+1)=1  → 1 coin (2)
+  dp[3]=min(dp[2]+1,dp[1]+1)=2      → 2 coins (1+2)
+  dp[4]=min(dp[3]+1,dp[2]+1)=2      → 2 coins (2+2)
+  dp[5]=min(dp[4]+1,dp[3]+1,dp[0]+1)=1 → 1 coin (5)
+  dp[6]=min(dp[5]+1,dp[4]+1,dp[1]+1)=2 → 2 coins (1+5)
+  ...
+  dp[11]=3  → 3 coins (1+5+5)
+═══════════════════════════════════════════════════════════════
+```
 
 ```csharp
 public int CoinChange(int[] coins, int amount) {
-    // dp[i] = minimum coins to make amount i
+    // dp[i] = minimum coins needed to make amount i
     int[] dp = new int[amount + 1];
-    Array.Fill(dp, amount + 1);  // initialize with impossible large value
-    dp[0] = 0;                   // base case: 0 coins to make amount 0
+    // WHY amount+1? We need dp[0] through dp[amount]
 
-    for (int i = 1; i <= amount; i++) {
+    // WHY fill with amount+1? It acts as "infinity" — any valid answer
+    // will be ≤ amount (using all 1-cent coins). amount+1 signals impossible.
+    Array.Fill(dp, amount + 1);
+    dp[0] = 0;  // base case: 0 coins to make amount 0
+
+    for (int i = 1; i <= amount; i++) {          // for each amount from 1 to target
         foreach (int coin in coins) {
-            if (coin <= i) {
-                // Option: use this coin + min coins for (i - coin)
+            if (coin <= i) {                      // coin can contribute to this amount
+                // dp[i-coin]+1 = use this coin + optimal solution for remaining amount
                 dp[i] = Math.Min(dp[i], dp[i - coin] + 1);
             }
         }
     }
 
-    return dp[amount] > amount ? -1 : dp[amount];  // -1 if impossible
+    // WHY check > amount? If dp[amount] is still amount+1, no solution exists
+    return dp[amount] > amount ? -1 : dp[amount];
 }
-// Time: O(amount × coins.Length) | Space: O(amount)
-
-// TRACE for coins=[1,2,5], amount=11:
-// dp[0]=0, dp[1]=1, dp[2]=1, dp[3]=2, dp[4]=2, dp[5]=1, dp[6]=2, ..., dp[11]=3
-// Answer: 11 = 5+5+1 → 3 coins
+// Time: O(S × n) where S=amount, n=number of coins
+// Space: O(S) for dp array
 ```
 
-> **🎯 Key Insight:** The key DP recurrence is: `dp[i] = min(dp[i - coin] + 1)` for all coins ≤ i. "Use this coin" means solve a smaller subproblem (amount - coin) and add 1 coin. Always initialize the DP table to an "impossible" sentinel (amount+1 or int.MaxValue/2) to distinguish reachable from unreachable states.
+```
+TRACE: coins=[2,3,7], amount=10
+════════════════════════════════════════════════════════════════
+  dp = [0, ∞, ∞, ∞, ∞, ∞, ∞, ∞, ∞, ∞, ∞]   (∞ = amount+1=11)
+  i=2: coin=2: dp[2]=min(∞,dp[0]+1)=1    dp=[0,∞,1,∞,...]
+  i=3: coin=2: dp[1]+1=∞; coin=3: dp[0]+1=1  dp[3]=1
+  i=4: coin=2: dp[2]+1=2; coin=3: dp[1]+1=∞  dp[4]=2
+  i=5: coin=2: dp[3]+1=2; coin=3: dp[2]+1=2  dp[5]=2
+  i=6: coin=2: dp[4]+1=3; coin=3: dp[3]+1=2  dp[6]=2
+  i=7: coin=2: dp[5]+1=3; coin=3: dp[4]+1=3; coin=7: dp[0]+1=1  dp[7]=1
+  i=9: coin=2: dp[7]+1=2; coin=3: dp[6]+1=3; coin=7: dp[2]+1=2  dp[9]=2
+  i=10:coin=2: dp[8]+1; coin=3: dp[7]+1=2; coin=7: dp[3]+1=2    dp[10]=2
+  Answer: 2 (7+3 or 3+7) ✅
+════════════════════════════════════════════════════════════════
+```
+
+> **🎯 Key Insight:** Coin Change is the archetype for unbounded knapsack DP. The recurrence `dp[i] = min(dp[i-coin]+1)` tries all coins at each amount. "Infinity" initialization ensures unachievable amounts stay marked. This pattern solves: "ways to make change," "minimum jumps," "word break."
 
 ---
 
 ## Section 34 — Classic DP Problems
 
-> **🧠 Mental Model: Building Blocks — Each State Uses Previous States**
+> **🧠 Mental Model: Building Blocks**
 >
-> Every DP problem has the same soul: "the answer to the current state is a function of previously computed states." The art is identifying WHAT the state represents, WHAT the transition is, and WHAT the base cases are.
+> Classic DP problems follow recurring patterns. Master these 6 and you can solve 80% of interview DP problems by recognizing which pattern applies.
 
-### Longest Common Subsequence (LCS)
+### 🔴 Practice Problem: Longest Common Subsequence (LeetCode #1143 — Medium)
 
-```csharp
-// dp[i][j] = LCS length of s1[0..i-1] and s2[0..j-1]
-public int LongestCommonSubsequence(string s1, string s2) {
-    int m = s1.Length, n = s2.Length;
-    int[,] dp = new int[m + 1, n + 1];  // extra row/col for empty string base case
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: LONGEST COMMON SUBSEQUENCE                  ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 BRUTE    │ Generate all subsequences│ O(2^n × m)│ O(n)sp ║
+║              │ of s1, check in s2       │            │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟡 MEMO     │ Recursion + 2D memo      │ O(n×m)    │ O(n×m)  ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 2D DP    │ dp[i][j]=LCS of first    │ O(n×m)    │ O(n×m)  ║
+║  TABLE       │ i chars of s1, j of s2  │            │         ║
+╚══════════════════════════════════════════════════════════════════╝
 
-    for (int i = 1; i <= m; i++) {
-        for (int j = 1; j <= n; j++) {
-            if (s1[i-1] == s2[j-1])
-                dp[i, j] = dp[i-1, j-1] + 1;  // characters match: extend LCS
-            else
-                dp[i, j] = Math.Max(dp[i-1, j], dp[i, j-1]);  // skip one char
-        }
-    }
-    return dp[m, n];
-}
-// Time: O(m × n) | Space: O(m × n), optimizable to O(min(m,n))
+RECURRENCE:
+  If s1[i-1] == s2[j-1]: dp[i][j] = dp[i-1][j-1] + 1  (chars match: extend)
+  Else:                   dp[i][j] = max(dp[i-1][j], dp[i][j-1])  (skip one char)
 ```
 
-### Longest Increasing Subsequence (LIS)
-
-```csharp
-// O(n²) DP: dp[i] = LIS ending at index i
-public int LengthOfLIS(int[] nums) {
-    int n = nums.Length;
-    int[] dp = new int[n];
-    Array.Fill(dp, 1);  // each element is a subsequence of length 1
-
-    for (int i = 1; i < n; i++)
-        for (int j = 0; j < i; j++)
-            if (nums[j] < nums[i])
-                dp[i] = Math.Max(dp[i], dp[j] + 1);
-
-    return dp.Max();
-}
-// Time: O(n²) | Space: O(n)
-
-// O(n log n) — patience sorting with binary search
-public int LengthOfLISOpt(int[] nums) {
-    var tails = new List<int>();  // tails[i] = smallest tail of IS of length i+1
-
-    foreach (int num in nums) {
-        int pos = tails.BinarySearch(num);
-        if (pos < 0) pos = ~pos;          // insertion point
-        if (pos == tails.Count) tails.Add(num);   // extend LIS
-        else tails[pos] = num;                      // replace to keep tails small
-    }
-    return tails.Count;
-}
-// Time: O(n log n) | Space: O(n)
+```
+2D DP TABLE: s1="ABCBDAB", s2="BDCAB"
+═══════════════════════════════════════════════════════════════
+       ""  B  D  C  A  B
+  ""  [ 0  0  0  0  0  0]
+   A  [ 0  0  0  0  1  1]
+   B  [ 0  1  1  1  1  2]
+   C  [ 0  1  1  2  2  2]
+   B  [ 0  1  1  2  2  3]
+   D  [ 0  1  2  2  2  3]
+   A  [ 0  1  2  2  3  3]
+   B  [ 0  1  2  2  3  4] ← LCS = 4 ("BCAB" or "BDAB")
+═══════════════════════════════════════════════════════════════
 ```
 
-### Edit Distance
-
 ```csharp
-// dp[i][j] = min edits to convert s1[0..i-1] to s2[0..j-1]
-public int MinDistance(string word1, string word2) {
-    int m = word1.Length, n = word2.Length;
+public int LongestCommonSubsequence(string text1, string text2) {
+    int m = text1.Length, n = text2.Length;
+    // dp[i][j] = LCS of text1[0..i-1] and text2[0..j-1]
+    // WHY +1 size? dp[0][...] and dp[...][0] = 0 (empty string base cases)
     int[,] dp = new int[m + 1, n + 1];
 
-    // Base cases: convert to/from empty string
-    for (int i = 0; i <= m; i++) dp[i, 0] = i;  // delete all of word1
-    for (int j = 0; j <= n; j++) dp[0, j] = j;  // insert all of word2
-
     for (int i = 1; i <= m; i++) {
         for (int j = 1; j <= n; j++) {
-            if (word1[i-1] == word2[j-1]) {
-                dp[i, j] = dp[i-1, j-1];          // no edit needed
+            if (text1[i-1] == text2[j-1]) {
+                // Characters MATCH: LCS extends the LCS without these characters
+                dp[i, j] = dp[i-1, j-1] + 1;
             } else {
-                dp[i, j] = 1 + Math.Min(dp[i-1, j-1],    // replace
-                               Math.Min(dp[i-1, j],        // delete from word1
-                                        dp[i, j-1]));       // insert into word1
+                // No match: take the best of skipping one char from either string
+                dp[i, j] = Math.Max(dp[i-1, j], dp[i, j-1]);
             }
         }
     }
     return dp[m, n];
 }
-// Time: O(m × n) | Space: O(m × n)
+// Time: O(m×n), Space: O(m×n) — can optimize to O(min(m,n)) with 1D DP
 ```
 
-### 🔴 Practice Problem: Longest Common Subsequence (LeetCode #1143 — Medium)
-
-The `LongestCommonSubsequence` method above is the solution.
-
-```csharp
-// Time: O(m × n) | Space: O(m × n)
-// TRACE: s1="abcde", s2="ace"
-// LCS = "ace" → length 3
-// dp[i][j] table shows how LCS grows character by character
-```
+> **🎯 Key Insight:** LCS is the foundation for: diff tools (git diff), DNA sequence alignment, edit distance. The 2D DP table is the standard approach. The recurrence encodes two cases: characters match (extend) or don't match (skip one from either string — take the max).
 
 ---
 
 ## Section 35 — Greedy Algorithms
 
-> **🧠 Mental Model: The Backpacker's Knapsack (Fractional)**
+> **🧠 Mental Model: Packing a Backpack**
 >
-> A greedy algorithm makes the LOCALLY OPTIMAL choice at each step, hoping it leads to a globally optimal solution. Like a hiker choosing trails: always take the path with the best scenery now (no backtracking). Greedy works when the problem has "greedy choice property" — locally optimal choices lead to globally optimal. Greedy DOESN'T work for 0/1 knapsack (you can't take fraction of item) but DOES work for fractional knapsack and interval scheduling.
-
-### When Greedy Works
+> Greedy always makes the locally optimal choice, hoping it leads to a globally optimal solution. Like packing a backpack: always grab the most valuable/lightest item first. CAUTION: greedy doesn't always work — you must PROVE the greedy choice is safe. When greedy works, it's elegant and fast.
 
 ```
-Greedy works when:
-1. Greedy choice property: local optimal → global optimal
-2. Optimal substructure: optimal solution contains optimal sub-solutions
+GREEDY vs DP:
+═══════════════════════════════════════════════════════════════
+  Greedy works when: optimal substructure + greedy choice property
+  (making locally best choice never worsens the global optimum)
 
-Classic greedy problems:
-- Activity selection / interval scheduling
-- Huffman encoding
-- Dijkstra's algorithm (greedy shortest path)
-- Kruskal's / Prim's MST
-- Fractional knapsack
-- Jump Game
+  GREEDY SUCCEEDS:
+  - Activity selection (pick event ending earliest)
+  - Huffman coding (always merge two lowest-frequency trees)
+  - Fractional knapsack (sort by value/weight ratio)
+  - Dijkstra's SSSP (always expand nearest node)
+
+  GREEDY FAILS (need DP):
+  - 0/1 Knapsack (can't take fractions)
+  - Coin change (greedy picks largest coin, may miss optimal)
+  - Longest common subsequence
+═══════════════════════════════════════════════════════════════
 ```
 
-### Interval Scheduling (Activity Selection)
-
-```csharp
-// Maximize number of non-overlapping activities
-// Greedy: always pick the activity that ENDS EARLIEST
-int MaxActivities(int[,] intervals) {
-    // Sort by end time
-    int n = intervals.GetLength(0);
-    var sorted = Enumerable.Range(0, n)
-        .OrderBy(i => intervals[i, 1])
-        .Select(i => (start: intervals[i, 0], end: intervals[i, 1]))
-        .ToArray();
-
-    int count = 1;
-    int lastEnd = sorted[0].end;
-
-    for (int i = 1; i < n; i++) {
-        if (sorted[i].start >= lastEnd) {  // non-overlapping
-            count++;
-            lastEnd = sorted[i].end;
-        }
-    }
-    return count;
-}
-```
+---
 
 ### 🔴 Practice Problem: Jump Game (LeetCode #55 — Medium)
 
-**Problem:** Given array where nums[i] = max jump length at position i, can you reach the last index?
+**Problem:** Given array where `nums[i]` is max jump length from position i, can you reach the last index?
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: JUMP GAME                                   ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 BRUTE    │ DFS/BFS try all paths   │ O(2^n)    │ O(n) sp ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟡 DP       │ dp[i]=can reach i from  │ O(n²)     │ O(n) sp ║
+║              │ any j where dp[j] true  │            │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 GREEDY   │ Track max reachable pos │ O(n)      │ O(1) sp ║
+║  (OPTIMAL)   │ at each step            │            │         ║
+╚══════════════════════════════════════════════════════════════════╝
+
+KEY INSIGHT: We don't need to know HOW we reach each position — just
+             WHETHER we can. Track the furthest reachable index.
+             If current position > furthest reachable → stuck!
+```
 
 ```csharp
 public bool CanJump(int[] nums) {
-    int maxReach = 0;  // furthest index we can reach so far
+    int maxReach = 0;  // furthest index reachable from positions 0..i
 
     for (int i = 0; i < nums.Length; i++) {
-        if (i > maxReach) return false;           // can't reach position i
-        maxReach = Math.Max(maxReach, i + nums[i]); // update furthest reach
+        // If i > maxReach: we CAN'T reach position i (stuck before it)
+        if (i > maxReach) return false;
+
+        // Update maxReach: from position i, we can jump nums[i] steps
+        maxReach = Math.Max(maxReach, i + nums[i]);
+
+        // Early exit: can already reach the end
+        if (maxReach >= nums.Length - 1) return true;
     }
     return true;
 }
-// Time: O(n) | Space: O(1)
-// Greedy choice: at each position, extend our reach as far as possible
-// If we ever find a position we CAN'T reach → return false
+// Time: O(n), Space: O(1)
 ```
 
-> **🎯 Key Insight:** Proving greedy works requires showing the "exchange argument": swapping any non-greedy choice with the greedy choice doesn't make things worse. For Jump Game: the greedy "maximize reach" choice is optimal because covering more ground can only help — never hurts.
+```
+TRACE: nums=[2,3,1,1,4]
+═══════════════════════════════════════════════════════════════
+  i=0: maxReach=max(0,0+2)=2  → can reach idx 0,1,2
+  i=1: maxReach=max(2,1+3)=4  → can reach up to idx 4 ✅
+  i=2: maxReach=max(4,2+1)=4  (no change)
+  maxReach=4 >= last idx=4 → return true ✅
+
+TRACE: nums=[3,2,1,0,4]
+═══════════════════════════════════════════════════════════════
+  i=0: maxReach=max(0,0+3)=3
+  i=1: maxReach=max(3,1+2)=3
+  i=2: maxReach=max(3,2+1)=3
+  i=3: maxReach=max(3,3+0)=3
+  i=4: 4 > maxReach=3 → return false ❌
+═══════════════════════════════════════════════════════════════
+```
+
+> **🎯 Key Insight:** The greedy insight is subtle: you don't need to simulate actual jumps. Just track the maximum reachable index. If you ever find yourself at a position beyond what's reachable, you're stuck. This "track frontier" greedy pattern appears in "Jump Game II" (min jumps), "Video Stitching," and similar problems.
 
 ---
 
@@ -3287,40 +4629,952 @@ public bool CanJump(int[] nums) {
 
 > **🧠 Mental Model: Squeezing a Water Balloon**
 >
-> Two pointers is like two hands squeezing a water balloon from both ends toward the middle. One pointer starts at the left, one at the right. They move toward each other based on logic (e.g., "sum too small → move left pointer right; sum too big → move right pointer left"). Works perfectly on SORTED arrays because the sorted order gives directional information — moving a pointer is a meaningful decision, not a random guess.
+> Two Pointers places one pointer at each end of a sorted structure. Like squeezing a balloon from both ends — as you move them toward each other, you cover all combinations without redundancy. Works on SORTED arrays where moving one pointer in a direction has a predictable effect.
 
-### Two Pointers Patterns
+```
+TWO POINTER PATTERNS:
+═══════════════════════════════════════════════════════════════
+  OPPOSITE ENDS (sorted array, find pair):
+    left=0 ──────────────────► ◄──────────── right=n-1
+    sum too small → move left right
+    sum too large → move right left
+
+  SAME DIRECTION (fast/slow, sliding window variant):
+    slow=0 ──► fast=k ──►
+    Use for: partition, remove duplicates
+
+  EXAMPLE: Two Sum II (sorted array):
+  [2, 7, 11, 15], target=9
+  left=0(2), right=3(15): 2+15=17>9 → right--
+  left=0(2), right=2(11): 2+11=13>9 → right--
+  left=0(2), right=1(7):  2+7=9==9 → FOUND [1,2] ✅
+═══════════════════════════════════════════════════════════════
+```
+
+---
+
+### 🔴 Practice Problem: 3Sum (LeetCode #15 — Medium)
+
+**Problem:** Find all unique triplets that sum to zero.
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: 3SUM                                        ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 BRUTE    │ 3 nested loops check    │ O(n³)     │ O(1) sp ║
+║              │ all triplets            │            │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟡 HASHSET  │ Fix 2, find 3rd in set  │ O(n²)     │ O(n) sp ║
+║              │ (dedup is tricky)       │            │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 SORT +   │ Sort, fix first element,│ O(n²)     │ O(1) sp ║
+║  TWO PTR     │ two-pointer for rest    │            │ (excl.  ║
+║  (OPTIMAL)   │ skip duplicates cleanly │            │ output) ║
+╚══════════════════════════════════════════════════════════════════╝
+```
 
 ```csharp
-// PATTERN 1: OPPOSITE ENDS — find pair with target sum in sorted array
-bool TwoSum_Sorted(int[] arr, int target) {
-    int left = 0, right = arr.Length - 1;
-    while (left < right) {
-        int sum = arr[left] + arr[right];
-        if (sum == target) return true;
-        if (sum < target) left++;      // need bigger sum → move left right
-        else right--;                  // need smaller sum → move right left
-    }
-    return false;
-}
-// Time: O(n) | Space: O(1)
+public IList<IList<int>> ThreeSum(int[] nums) {
+    Array.Sort(nums);  // MUST sort first — enables two-pointer + easy deduplication
+    var result = new List<IList<int>>();
 
-// PATTERN 2: SAME DIRECTION — remove duplicates from sorted array
-int RemoveDuplicates(int[] nums) {
-    int slow = 0;  // boundary of unique elements
-    for (int fast = 1; fast < nums.Length; fast++) {
-        if (nums[fast] != nums[slow]) {
-            slow++;
-            nums[slow] = nums[fast];  // place unique element
+    for (int i = 0; i < nums.Length - 2; i++) {
+        // SKIP DUPLICATE: if nums[i] same as previous, would produce same triplets
+        if (i > 0 && nums[i] == nums[i-1]) continue;
+
+        // EARLY EXIT: if smallest possible sum > 0, no solution possible
+        if (nums[i] > 0) break;
+
+        int left = i + 1, right = nums.Length - 1;
+        while (left < right) {
+            int sum = nums[i] + nums[left] + nums[right];
+            if (sum == 0) {
+                result.Add(new List<int> { nums[i], nums[left], nums[right] });
+                // SKIP DUPLICATES at both pointers after finding a valid triplet
+                while (left < right && nums[left] == nums[left+1]) left++;
+                while (left < right && nums[right] == nums[right-1]) right--;
+                left++; right--;
+            } else if (sum < 0) {
+                left++;   // need larger sum → move left pointer right
+            } else {
+                right--;  // need smaller sum → move right pointer left
+            }
         }
     }
-    return slow + 1;  // length of unique portion
+    return result;
+}
+// Time: O(n²) — O(n log n) sort + O(n²) two-pointer scans
+// Space: O(1) extra (excluding result)
+```
+
+```
+TRACE: nums=[-1,0,1,2,-1,-4] → sorted: [-4,-1,-1,0,1,2]
+════════════════════════════════════════════════════════════
+  i=0(-4): left=1,right=5: -4-1+2=-3<0→left++
+           left=2,right=5: -4-1+2=-3<0→left++  ... eventually no match
+
+  i=1(-1): left=2,right=5: -1-1+2=0 → add[-1,-1,2] ✅
+           skip dup at right(no dup); left=3,right=4
+           left=3,right=4: -1+0+1=0 → add[-1,0,1] ✅
+           left=4,right=3: loop ends
+
+  i=2(-1): nums[2]==nums[1]=-1 → SKIP (duplicate i)
+
+  i=3(0):  left=4,right=5: 0+1+2=3>0→right--; right=4==left → end
+
+  Result: [[-1,-1,2],[-1,0,1]] ✅
+════════════════════════════════════════════════════════════
+```
+
+> **🎯 Key Insight:** 3Sum reduces to multiple TwoSum calls. Sort first to enable two-pointer AND make deduplication straightforward (identical elements are adjacent). The dedup logic: skip same `i` value (outer loop), skip same `left`/`right` values after finding a valid triplet (inner loop).
+
+---
+
+## Section 37 — Sliding Window
+
+> **🧠 Mental Model: A Moving Spotlight**
+>
+> Sliding Window is like a spotlight moving across a stage. The spotlight (window) has a fixed or variable width and slides right. At each position, you can see everything lit by the spotlight. Instead of recomputing the entire window each step, you add the new right edge and remove the old left edge — O(1) update per step.
+
+```
+FIXED-SIZE WINDOW (size k=3):
+═══════════════════════════════════════════════════════════════
+  Array: [2, 1, 5, 1, 3, 2], k=3
+
+  Window 1: [2,1,5] sum=8
+  Window 2:   [1,5,1] sum=7  (remove 2, add 1)
+  Window 3:     [5,1,3] sum=9  (remove 1, add 3)
+  Window 4:       [1,3,2] sum=6  (remove 5, add 2)
+  Max = 9 ✅  — O(n) total instead of O(n×k)
+
+VARIABLE-SIZE WINDOW (expand right, contract left as needed):
+  Goal: Longest substring with at most k distinct chars
+  "araaci", k=2:
+  expand: a→r→a (2 distinct) → a→r→a→a (2 distinct) → a→r→a→a→c (3 distinct!)
+  contract left until 2 distinct: remove 'a'→'r'→ window="aac" (2 distinct) ✓
+═══════════════════════════════════════════════════════════════
+```
+
+### Sliding Window Templates
+
+```csharp
+// FIXED SIZE WINDOW — Maximum sum subarray of size k
+int MaxSumSubarrayK(int[] arr, int k) {
+    int windowSum = 0;
+    for (int i = 0; i < k; i++) windowSum += arr[i]; // build initial window
+    int maxSum = windowSum;
+
+    for (int i = k; i < arr.Length; i++) {
+        windowSum += arr[i] - arr[i - k]; // ADD new right element, REMOVE old left element
+        maxSum = Math.Max(maxSum, windowSum);
+    }
+    return maxSum;
 }
 
-// PATTERN 3: PARTITION — Dutch flag, quicksort partition
-// (See Section 22 — Sort Colors for example)
+// VARIABLE SIZE WINDOW — Longest subarray with sum ≤ target
+int LongestSubarraySumAtMostTarget(int[] arr, int target) {
+    int left = 0, windowSum = 0, maxLen = 0;
+    for (int right = 0; right < arr.Length; right++) {
+        windowSum += arr[right];  // EXPAND: include right element
 
-// IS PALINDROME — two pointers from both ends
+        // SHRINK: while constraint violated, move left pointer right
+        while (windowSum > target) {
+            windowSum -= arr[left];  // remove left element
+            left++;
+        }
+        maxLen = Math.Max(maxLen, right - left + 1);
+    }
+    return maxLen;
+}
+```
+
+---
+
+### 🔴 Practice Problem: Longest Substring Without Repeating Characters (LeetCode #3 — Medium)
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: LONGEST SUBSTRING NO REPEAT                 ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 BRUTE    │ Check all O(n²) substr- │ O(n³)     │ O(min(n,m))║
+║              │ ings for uniqueness     │            │            ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟡 SLIDING  │ HashSet window, O(2n)   │ O(n)      │ O(min(n,m))║
+║  WINDOW SET  │ shrink one-by-one       │            │            ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 SLIDING  │ HashMap: char → last    │ O(n)      │ O(min(n,m))║
+║  WINDOW MAP  │ seen index → jump left  │            │            ║
+║  (OPTIMAL)   │ directly (no shrinking) │            │            ║
+╚══════════════════════════════════════════════════════════════════╝
+
+KEY INSIGHT: Instead of slowly shrinking the window when a duplicate is found,
+             use a HashMap to jump left directly to (duplicate's last index + 1).
+             This avoids O(k) shrinking per step.
+```
+
+```csharp
+public int LengthOfLongestSubstring(string s) {
+    // Map each character to its most recent index seen in the string
+    var lastSeen = new Dictionary<char, int>();
+    int left = 0, maxLen = 0;
+
+    for (int right = 0; right < s.Length; right++) {
+        char c = s[right];
+
+        // If char was seen AND its last occurrence is within current window
+        // (left <= lastSeen[c]): jump left past the duplicate
+        if (lastSeen.TryGetValue(c, out int prevIdx) && prevIdx >= left) {
+            // WHY prevIdx >= left? If last occurrence is before window start,
+            // it's already outside the window — no need to move left
+            left = prevIdx + 1;  // jump: exclude the duplicate character
+        }
+
+        lastSeen[c] = right;  // update most recent index of this character
+        maxLen = Math.Max(maxLen, right - left + 1);
+    }
+    return maxLen;
+}
+// Time: O(n) — each character processed once
+// Space: O(min(n, m)) where m = alphabet size (at most 128 for ASCII)
+```
+
+```
+TRACE: s = "abcabcbb"
+════════════════════════════════════════════════════════════
+  r=0(a): left=0, lastSeen={a:0}, len=1
+  r=1(b): left=0, lastSeen={a:0,b:1}, len=2
+  r=2(c): left=0, lastSeen={a:0,b:1,c:2}, len=3
+  r=3(a): prevIdx=0>=left=0 → left=1; lastSeen={a:3,b:1,c:2}, len=3
+  r=4(b): prevIdx=1>=left=1 → left=2; lastSeen={a:3,b:4,c:2}, len=3
+  r=5(c): prevIdx=2>=left=2 → left=3; lastSeen={a:3,b:4,c:5}, len=3
+  r=6(b): prevIdx=4>=left=3 → left=5; lastSeen={a:3,b:6,c:5}, len=2
+  r=7(b): prevIdx=6>=left=5 → left=7; len=1
+  maxLen = 3 ("abc") ✅
+════════════════════════════════════════════════════════════
+```
+
+> **🎯 Key Insight:** The HashMap optimization transforms "shrink by 1 per step" into "jump left in O(1)." Trigger: `prevIdx >= left` — only jump if the previous occurrence is actually inside our current window. If it's outside, there's no duplicate in the window (we can just update the map).
+
+---
+
+## Section 38 — Fast & Slow Pointers
+
+> **🧠 Mental Model: Two Runners on a Circular Track**
+>
+> If a slow runner and a fast runner run on a circular track, they WILL meet — the fast runner laps the slow one. If the track is linear (no cycle), the fast runner simply reaches the end. This insight powers Floyd's Cycle Detection Algorithm.
+
+```
+FLOYD'S CYCLE DETECTION:
+═══════════════════════════════════════════════════════════════
+  List with cycle: 1→2→3→4→5→3 (cycle at 3)
+
+  slow: 1→2→3→4→5→3→4→5→3...
+  fast: 1→3→5→4→3→5→4→3...
+
+  They WILL meet inside the cycle.
+  Meeting point: depends on list structure.
+
+  TO FIND CYCLE START:
+  After meeting, move one pointer to head, keep other at meeting point.
+  Both move ONE step at a time.
+  They meet at the CYCLE START ← mathematical proof based on distances!
+
+  MIDDLE OF LIST (no cycle):
+  slow=1 step, fast=2 steps
+  When fast reaches end → slow is at middle
+  Length 5: [1,2,3,4,5] → slow at 3 (middle) ✅
+  Length 4: [1,2,3,4]   → slow at 2 (first middle) or 3 (second)
+═══════════════════════════════════════════════════════════════
+```
+
+---
+
+### 🔴 Practice Problem: Linked List Cycle II (LeetCode #142 — Medium)
+
+**Problem:** Find the node where the cycle begins (return null if no cycle).
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: LINKED LIST CYCLE II                        ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 HASHSET  │ Store visited nodes,    │ O(n)      │ O(n) sp ║
+║              │ return first revisited  │            │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 FLOYD'S  │ Fast/slow detect cycle, │ O(n)      │ O(1) sp ║
+║  (OPTIMAL)   │ then find start         │            │         ║
+╚══════════════════════════════════════════════════════════════════╝
+
+MATHEMATICAL PROOF:
+  F = distance from head to cycle start
+  C = cycle length
+  slow traveled: F + a (a = distance inside cycle before meeting)
+  fast traveled: F + a + nC (n full laps extra)
+  fast = 2 × slow: F+a+nC = 2(F+a) → F = nC - a
+  → After meeting: reset one pointer to head, move both 1 step.
+    They meet at cycle start (both travel F steps to get there).
+```
+
+```csharp
+public ListNode DetectCycle(ListNode head) {
+    ListNode slow = head, fast = head;
+
+    // PHASE 1: Detect if cycle exists
+    while (fast != null && fast.next != null) {
+        slow = slow.next;
+        fast = fast.next.next;
+        if (slow == fast) {       // they met inside the cycle!
+            // PHASE 2: Find cycle entry point
+            // Reset slow to head; fast stays at meeting point
+            slow = head;
+            // Both move at same speed (1 step each)
+            while (slow != fast) {
+                slow = slow.next;
+                fast = fast.next;  // WHY 1 step now? Mathematical proof says they meet at start
+            }
+            return slow;  // cycle start node
+        }
+    }
+    return null;  // no cycle
+}
+// Time: O(n), Space: O(1) — no extra data structures!
+```
+
+> **🎯 Key Insight:** Floyd's algorithm is beautiful because Phase 2 works due to the mathematical relationship F = nC - a. After meeting, slow travels F steps from head to cycle start; fast also travels F steps from meeting point (going around the cycle). They arrive at the same node — the cycle start.
+
+---
+
+## Section 39 — Merge Intervals
+
+> **🧠 Mental Model: Calendar Merging**
+>
+> Given a list of meeting time ranges, find the total time blocked out. Merge overlapping meetings. Sort by start time, then greedily merge: if next meeting starts before current one ends, extend the current meeting. Otherwise, the current meeting is finalized.
+
+```
+MERGE INTERVALS VISUALIZATION:
+═══════════════════════════════════════════════════════════════
+  Input: [[1,3],[2,6],[8,10],[15,18]]
+
+  Sorted: [[1,3],[2,6],[8,10],[15,18]]
+
+  current=[1,3], next=[2,6]: 2<=3 → OVERLAP → merge to [1,6]
+  current=[1,6], next=[8,10]: 8>6 → NO overlap → add [1,6], current=[8,10]
+  current=[8,10], next=[15,18]: 15>10 → NO overlap → add [8,10], current=[15,18]
+  End: add [15,18]
+
+  Result: [[1,6],[8,10],[15,18]] ✅
+═══════════════════════════════════════════════════════════════
+```
+
+---
+
+### 🔴 Practice Problem: Merge Intervals (LeetCode #56 — Medium)
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: MERGE INTERVALS                             ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 BRUTE    │ For each interval check │ O(n²)     │ O(n) sp ║
+║              │ all others for overlap  │            │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 SORT +   │ Sort by start, greedy   │ O(n log n)│ O(n) sp ║
+║  MERGE       │ merge sweep             │            │         ║
+╚══════════════════════════════════════════════════════════════════╝
+```
+
+```csharp
+public int[][] Merge(int[][] intervals) {
+    // MUST sort by start time — otherwise can't greedily process
+    Array.Sort(intervals, (a, b) => a[0] - b[0]);
+    var result = new List<int[]>();
+    result.Add(intervals[0]);  // start with first interval
+
+    foreach (int[] interval in intervals.Skip(1)) {
+        int[] last = result[^1]; // C# index-from-end: last element
+
+        if (interval[0] <= last[1]) {
+            // OVERLAP: current interval starts before last one ends
+            // Merge by extending the end if needed
+            last[1] = Math.Max(last[1], interval[1]);
+        } else {
+            // NO OVERLAP: start a new interval group
+            result.Add(interval);
+        }
+    }
+    return result.ToArray();
+}
+// Time: O(n log n) for sort + O(n) merge sweep = O(n log n)
+// Space: O(n) for result
+```
+
+> **🎯 Key Insight:** Sort first (by start time), then a single linear sweep merges everything. The key condition: `interval[0] <= last[1]` (new interval starts before current one ends = overlap). Merge by taking the maximum end: `Max(last[1], interval[1])` handles fully-contained intervals too.
+
+---
+
+## Section 40 — Cyclic Sort
+
+> **🧠 Mental Model: Returning Library Books**
+>
+> Given n books numbered 1 to n in random order, return each to its correct shelf. Put book i at position i-1. After one pass, every book is either in place or you can detect which ones are missing/duplicated.
+
+```
+CYCLIC SORT on [3,1,2,5,4]:
+═══════════════════════════════════════════════════════════════
+  i=0: arr[0]=3, correct pos=2. arr[0]!=arr[2]? swap → [2,1,3,5,4]
+  i=0: arr[0]=2, correct pos=1. arr[0]!=arr[1]? swap → [1,2,3,5,4]
+  i=0: arr[0]=1, correct pos=0. Already correct! move i++
+  i=1: arr[1]=2, pos=1. Correct → i++
+  i=2: arr[2]=3, pos=2. Correct → i++
+  i=3: arr[3]=5, pos=4. swap → [1,2,3,4,5]
+  i=3: arr[3]=4, pos=3. Correct → i++
+  Result: [1,2,3,4,5] — sorted! Now scan for missing/duplicates
+═══════════════════════════════════════════════════════════════
+```
+
+---
+
+### 🔴 Practice Problem: Find All Duplicates in Array (LeetCode #442 — Medium)
+
+**Problem:** Array of n integers in range [1,n]. Each integer appears once or twice. Find all duplicates in O(n) time and O(1) extra space.
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: FIND ALL DUPLICATES                         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 HASHSET  │ Store seen values       │ O(n)      │ O(n) sp ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 NEGATIVE │ Use array as hash: mark │ O(n)      │ O(1) sp ║
+║  MARKING     │ visited by negating     │            │         ║
+╚══════════════════════════════════════════════════════════════════╝
+
+KEY INSIGHT: Values are in [1,n], so use value as index.
+             When visiting value v, negate arr[v-1].
+             If arr[v-1] is already negative → v was seen before → duplicate!
+```
+
+```csharp
+public IList<int> FindDuplicates(int[] nums) {
+    var result = new List<int>();
+
+    foreach (int num in nums) {
+        // WHY Math.Abs? The value might already be negated from a previous visit
+        int idx = Math.Abs(num) - 1;  // map value to index (1-indexed → 0-indexed)
+
+        if (nums[idx] < 0) {
+            // Already negated → we've seen this value before → it's a duplicate!
+            result.Add(Math.Abs(num));
+        } else {
+            nums[idx] = -nums[idx];  // negate to mark "I've seen value idx+1"
+        }
+    }
+    return result;
+}
+// Time: O(n), Space: O(1) extra (modifies input array)
+```
+
+> **🎯 Key Insight:** "Use the value as an index and negate to mark visited" is the classic O(1) space trick for arrays with values in [1,n]. It piggybacks on the input array itself as a visited marker. Restore the array by taking absolute values afterward if needed.
+
+---
+
+## Section 41 — In-place Linked List Reversal
+
+> **🧠 Mental Model: Flipping Playing Cards**
+>
+> Reverse a hand of cards by flipping them group by group. For k-group reversal, flip k cards at a time, then move to the next group. The challenge: track where each group starts/ends and reconnect groups after flipping.
+
+---
+
+### 🔴 Practice Problem: Reverse Nodes in k-Group (LeetCode #25 — Hard)
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: REVERSE NODES IN K-GROUP                    ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 ARRAY    │ Copy to array, reverse  │ O(n)      │ O(n) sp ║
+║              │ in chunks, rebuild      │            │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 IN-PLACE │ Reverse k nodes at a    │ O(n)      │ O(1) sp ║
+║  REVERSAL    │ time, reconnect groups  │            │ (O(n/k) ║
+║  (OPTIMAL)   │                         │            │ recursion)║
+╚══════════════════════════════════════════════════════════════════╝
+
+VISUALIZATION: [1→2→3→4→5], k=2
+  Group 1: [1→2] → reverse → [2→1], connect to reversed Group 2
+  Group 2: [3→4] → reverse → [4→3], connect to remaining [5]
+  Group 3: [5] → less than k, leave as-is
+  Result: [2→1→4→3→5] ✅
+```
+
+```csharp
+public ListNode ReverseKGroup(ListNode head, int k) {
+    // Count if k nodes exist from current position
+    int count = 0;
+    ListNode curr = head;
+    while (curr != null && count < k) { curr = curr.next; count++; }
+
+    if (count < k) return head;  // fewer than k nodes remaining → don't reverse
+
+    // Reverse k nodes starting from head
+    ListNode prev = null, node = head;
+    for (int i = 0; i < k; i++) {
+        ListNode next = node.next;
+        node.next = prev;
+        prev = node;
+        node = next;
+    }
+    // After reversal: prev = new head of this group, head = old head (now tail)
+    // node = start of the next group (unconsumed)
+
+    // Recursively reverse the next group and attach to current group's tail
+    // head is now the TAIL of the reversed group (was the head before reversal)
+    head.next = ReverseKGroup(node, k);
+
+    return prev;  // prev is the new head of this reversed group
+}
+// Time: O(n), Space: O(n/k) recursion stack
+```
+
+> **🎯 Key Insight:** After reversing k nodes, the old head becomes the new tail of this group. Connect it to the recursively-reversed next group. This is why we pass `head` (old head = new tail) to the next recursive call connection.
+
+---
+
+## Section 42 — Modified Binary Search
+
+> **🧠 Mental Model: Searching a Twisted Sorted Array**
+>
+> Standard binary search needs a fully sorted array. Modified binary search handles arrays with a twist: rotated, bitonic (up then down), or unknown-length. The key: always determine which half is "normal" (sorted/predictable) and use that to decide which half to search.
+
+---
+
+### 🔴 Practice Problem: Find Minimum in Rotated Sorted Array (LeetCode #153 — Medium)
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: FIND MINIMUM IN ROTATED ARRAY               ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 LINEAR   │ Scan all elements       │ O(n)      │ O(1) sp ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 BINARY   │ Compare mid to right to │ O(log n)  │ O(1) sp ║
+║  SEARCH      │ determine which half    │            │         ║
+║  (OPTIMAL)   │ contains the minimum    │            │         ║
+╚══════════════════════════════════════════════════════════════════╝
+
+KEY INSIGHT: The minimum is always at the "rotation point" where sorted
+             order breaks. If arr[mid] > arr[right], min is in RIGHT half.
+             If arr[mid] <= arr[right], min is in LEFT half (including mid).
+```
+
+```csharp
+public int FindMin(int[] nums) {
+    int left = 0, right = nums.Length - 1;
+
+    while (left < right) {   // WHY strict < ? When left==right, we found the min
+        int mid = left + (right - left) / 2;
+
+        if (nums[mid] > nums[right]) {
+            // RIGHT half contains the rotation point (and the minimum)
+            // nums[mid] > nums[right] means the "dip" is in the right half
+            left = mid + 1;
+        } else {
+            // LEFT half contains the minimum (mid might BE the minimum)
+            right = mid;  // WHY not mid-1? mid itself could be the answer
+        }
+    }
+    return nums[left];  // left == right == minimum index
+}
+```
+
+```
+TRACE: nums=[4,5,6,7,0,1,2]
+════════════════════════════════════════════════════════════
+  left=0,right=6: mid=3, nums[3]=7>nums[6]=2 → left=4
+  left=4,right=6: mid=5, nums[5]=1<=nums[6]=2 → right=5
+  left=4,right=5: mid=4, nums[4]=0<=nums[5]=1 → right=4
+  left=4==right=4 → return nums[4]=0 ✅
+════════════════════════════════════════════════════════════
+```
+
+> **🎯 Key Insight:** Compare `nums[mid]` to `nums[right]` (not `nums[left]`). If mid > right, the sorted order broke in the right half — min is there. Otherwise, right half is already in order relative to left — min is in left half. Never compare to `nums[left]` because the pivot complicates that comparison.
+
+---
+
+## Section 43 — Top K Elements & K-way Merge
+
+> **🧠 Mental Model: Sports Tournament Seeding**
+>
+> Top K problems are like tournament seeding — you want the top k players without sorting all n players. A min-heap of size k maintains the current top-k, efficiently replacing the smallest when a better candidate arrives.
+
+---
+
+### 🔴 Practice Problem: Top K Frequent Elements (LeetCode #347 — Medium)
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: TOP K FREQUENT ELEMENTS                     ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 SORT     │ Count freq, sort by     │ O(n log n)│ O(n) sp ║
+║              │ frequency, take top k   │            │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟡 MIN HEAP │ Count freq, min-heap    │ O(n log k)│ O(n) sp ║
+║  SIZE K      │ of size k               │            │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 BUCKET   │ Bucket sort by freq     │ O(n)      │ O(n) sp ║
+║  SORT        │ index = frequency       │            │         ║
+╚══════════════════════════════════════════════════════════════════╝
+```
+
+```csharp
+public int[] TopKFrequent(int[] nums, int k) {
+    // Step 1: Count frequencies
+    var freq = new Dictionary<int, int>();
+    foreach (int n in nums)
+        freq[n] = freq.GetValueOrDefault(n, 0) + 1;
+
+    // Step 2: BUCKET SORT by frequency
+    // bucket[i] = list of numbers with frequency i
+    // Max possible frequency = nums.Length
+    var buckets = new List<int>[nums.Length + 1];
+    foreach (var (num, count) in freq) {
+        if (buckets[count] == null) buckets[count] = new List<int>();
+        buckets[count].Add(num);
+    }
+
+    // Step 3: Collect top k from highest-frequency buckets
+    var result = new List<int>();
+    for (int i = buckets.Length - 1; i >= 0 && result.Count < k; i--) {
+        if (buckets[i] != null) result.AddRange(buckets[i]);
+    }
+    return result.Take(k).ToArray();
+}
+// Time: O(n), Space: O(n)
+```
+
+> **🎯 Key Insight:** Bucket sort by frequency achieves O(n) because frequencies are bounded by array length (at most n distinct frequencies). The bucket index IS the frequency, enabling direct placement.
+
+---
+
+## Section 44 — Monotonic Stack & Queue
+
+> **🧠 Mental Model: A One-Way Conveyor Belt**
+>
+> A monotonic stack maintains elements in strictly increasing or decreasing order. Like a conveyor belt where larger items push smaller ones off: when a new larger item arrives, all smaller items in front get discarded (they'll never be the answer for future queries).
+
+```
+NEXT GREATER ELEMENT visualization: [2,1,5,3,6]
+═══════════════════════════════════════════════════════════════
+  Process 2: stack=[] → push 2    → stack=[2]
+  Process 1: 1<2 → push 1         → stack=[2,1]
+  Process 5: 5>1 → pop 1(answer=5), 5>2 → pop 2(answer=5)
+             → stack=[], push 5   → stack=[5]
+  Process 3: 3<5 → push 3         → stack=[5,3]
+  Process 6: 6>3 → pop 3(answer=6), 6>5 → pop 5(answer=6)
+             → stack=[], push 6   → stack=[6]
+  End: remaining stack elements have no greater → answer=-1
+
+  Result: [2→5, 1→5, 5→6, 3→6, 6→-1]
+═══════════════════════════════════════════════════════════════
+```
+
+---
+
+### 🔴 Practice Problem: Daily Temperatures (LeetCode #739 — Medium)
+
+**Problem:** Given daily temperatures, return array where `answer[i]` = days until warmer temperature.
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: DAILY TEMPERATURES                          ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 BRUTE    │ For each day scan       │ O(n²)     │ O(1) sp ║
+║              │ forward for warmer day  │            │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 MONO.    │ Decreasing stack of     │ O(n)      │ O(n) sp ║
+║  STACK       │ indices; pop when warmer│            │         ║
+║  (OPTIMAL)   │ day found               │            │         ║
+╚══════════════════════════════════════════════════════════════════╝
+```
+
+```csharp
+public int[] DailyTemperatures(int[] temperatures) {
+    int[] answer = new int[temperatures.Length];
+    // Stack stores INDICES of temperatures waiting for their "warmer day"
+    var stack = new Stack<int>(); // monotonically decreasing temperatures
+
+    for (int i = 0; i < temperatures.Length; i++) {
+        // WHY pop while stack top is cooler than current?
+        // Current day (i) is the FIRST warmer day for all popped indices
+        while (stack.Count > 0 && temperatures[stack.Peek()] < temperatures[i]) {
+            int prevIdx = stack.Pop();
+            answer[prevIdx] = i - prevIdx;  // days waited = current index - previous index
+        }
+        stack.Push(i);  // push current index (it's waiting for its warmer day)
+    }
+    // Remaining stack indices never found a warmer day → answer stays 0
+    return answer;
+}
+// Time: O(n) — each index pushed/popped at most once
+// Space: O(n) — stack stores at most n indices
+```
+
+```
+TRACE: temperatures=[73,74,75,71,69,72,76,73]
+════════════════════════════════════════════════════════════
+  i=0(73): stack=[] → push 0.   stack=[0]
+  i=1(74): 74>73 → pop 0: ans[0]=1-0=1. stack=[] → push 1.   stack=[1]
+  i=2(75): 75>74 → pop 1: ans[1]=2-1=1. stack=[] → push 2.   stack=[2]
+  i=3(71): 71<75 → push 3.   stack=[2,3]
+  i=4(69): 69<71 → push 4.   stack=[2,3,4]
+  i=5(72): 72>69 → pop 4: ans[4]=5-4=1. 72>71 → pop 3: ans[3]=5-3=2.
+           72<75 → stop. push 5.   stack=[2,5]
+  i=6(76): 76>72 → pop 5: ans[5]=6-5=1. 76>75 → pop 2: ans[2]=6-2=4.
+           stack=[] → push 6.   stack=[6]
+  i=7(73): 73<76 → push 7.   stack=[6,7]
+  End: indices 6,7 in stack → ans[6]=ans[7]=0
+  Result: [1,1,4,2,1,1,0,0] ✅
+════════════════════════════════════════════════════════════
+```
+
+> **🎯 Key Insight:** Monotonic stack solves "next greater/smaller element" in O(n). The stack maintains a "waiting list" of indices that haven't found their answer yet. When a new element is larger, it's the answer for everything smaller in the stack. This pattern appears in: stock span, largest rectangle in histogram, trapping rain water.
+
+---
+
+## Section 45 — Bit Manipulation
+
+> **🧠 Mental Model: Light Switches on a Panel**
+>
+> Bits are binary switches: 0=off, 1=on. Bit operations work on ALL switches simultaneously in one CPU instruction — incredibly fast. XOR is especially powerful: `a XOR a = 0` (self-cancel) and `a XOR 0 = a` (identity). These properties power many O(n) time, O(1) space solutions.
+
+```
+BIT OPERATIONS CHEAT SHEET:
+═══════════════════════════════════════════════════════════════
+  n  = ...0101 0110  (binary representation)
+  n-1= ...0101 0101  (flips last set bit and all below)
+  n&(n-1) clears the lowest set bit of n
+  n&(-n)  isolates the lowest set bit of n
+
+  COMMON TRICKS:
+  n & 1        → check if n is odd (last bit)
+  n >> 1       → divide by 2 (right shift)
+  n << 1       → multiply by 2 (left shift)
+  n & (n-1)==0 → n is a power of 2 (only one bit set)
+  a ^ b ^ a    → b  (XOR is self-inverse: a cancels itself)
+  a ^ 0        → a  (XOR with 0 is identity)
+
+  XOR MAGIC for finding single unique number:
+  2 XOR 2 = 0, 3 XOR 3 = 0, 5 XOR 0 = 5
+  [2,2,3,3,5] → 2^2^3^3^5 = 0^0^5 = 5 ← the unique one!
+═══════════════════════════════════════════════════════════════
+```
+
+---
+
+### 🔴 Practice Problem: Single Number (LeetCode #136 — Easy)
+
+**Problem:** Every element appears twice except one. Find that element in O(n) time and O(1) space.
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: SINGLE NUMBER                               ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 HASHSET  │ Track seen values,      │ O(n)      │ O(n) sp ║
+║              │ return the unmatched    │            │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟡 SORT     │ Sort, scan pairs        │ O(n log n)│ O(1) sp ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 XOR      │ XOR all: pairs cancel   │ O(n)      │ O(1) sp ║
+║  (OPTIMAL)   │ leaving single element  │            │         ║
+╚══════════════════════════════════════════════════════════════════╝
+```
+
+```csharp
+public int SingleNumber(int[] nums) {
+    int result = 0;
+    foreach (int n in nums)
+        result ^= n;  // XOR each number: pairs cancel (n^n=0), single remains
+    return result;
+}
+// Time: O(n), Space: O(1) — the most elegant solution in DSA!
+```
+
+```
+TRACE: nums=[4,1,2,1,2]
+════════════════════════════════════════════════════════════
+  result=0
+  result^=4 → result=4    (binary: 100)
+  result^=1 → result=5    (binary: 101)
+  result^=2 → result=7    (binary: 111)
+  result^=1 → result=6    (binary: 110)  (1^1=0 cancels)
+  result^=2 → result=4    (binary: 100)  (2^2=0 cancels)
+  Answer: 4 ✅
+════════════════════════════════════════════════════════════
+```
+
+> **🎯 Key Insight:** XOR's two magic properties — self-inverse (a^a=0) and identity (a^0=a) — mean XORing all numbers cancels all duplicates, leaving only the unique element. No extra space needed. This is a rare problem where the bitwise trick gives a clean, provably correct O(1) space solution.
+
+---
+
+## Section 46 — Subsets & Combinations
+
+> **🧠 Mental Model: Binary Choice Tree**
+>
+> For each element, you have a binary choice: include it or exclude it. A set of n elements has 2ⁿ subsets. Backtracking explores this binary choice tree systematically.
+
+---
+
+### 🔴 Practice Problem: Subsets II (LeetCode #90 — Medium)
+
+**Problem:** Return all possible subsets of an array that MAY contain duplicates. No duplicate subsets in result.
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: SUBSETS II (WITH DUPLICATES)                ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 GENERATE │ Generate all subsets,   │ O(2^n×n)  │ O(2^n×n)║
+║  ALL + DEDUP │ add to set to dedup     │            │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 BACKTRACK│ Sort first; skip dup    │ O(2^n×n)  │ O(n) sp ║
+║  + SKIP DUP  │ values at same level    │            │         ║
+╚══════════════════════════════════════════════════════════════════╝
+
+KEY INSIGHT: Sort first, then SKIP an element if it's the same as the
+             previous element AT THE SAME RECURSION LEVEL (not same as
+             parent level). This prevents generating duplicate subsets.
+```
+
+```csharp
+public IList<IList<int>> SubsetsWithDup(int[] nums) {
+    Array.Sort(nums);  // MUST sort to group duplicates together
+    var result = new List<IList<int>>();
+    var current = new List<int>();
+    Backtrack(0);
+    return result;
+
+    void Backtrack(int start) {
+        result.Add(new List<int>(current)); // add current subset (snapshot!)
+        for (int i = start; i < nums.Length; i++) {
+            // SKIP DUPLICATE: if nums[i] == nums[i-1] and we're at the same
+            // recursion level (i > start, not i > 0!), it would produce duplicate subset
+            // WHY i > start? If i == start, this is the FIRST time we pick from this level
+            // — it's OK. Only skip if it's not the first choice at this level.
+            if (i > start && nums[i] == nums[i-1]) continue;
+
+            current.Add(nums[i]);
+            Backtrack(i + 1);
+            current.RemoveAt(current.Count - 1);
+        }
+    }
+}
+// Time: O(2^n × n) — 2^n subsets, each takes O(n) to copy
+// Space: O(n) recursion + O(2^n × n) for output
+```
+
+> **🎯 Key Insight:** The dedup condition is `i > start` (not `i > 0`). This means "skip if same as previous AND we're not at the very first pick for this level." At `start`, we must try the element even if it's a duplicate of what came before (that was a DIFFERENT level). This subtle distinction prevents over-skipping.
+
+---
+
+## Section 47 — Math & Number Theory
+
+> **🧠 Mental Model: The Sieve of Eratosthenes — Crossing Out Multiples**
+>
+> To find all primes up to n: start with 2 (first prime), cross out all its multiples. Move to next uncrossed number (3), cross out ITS multiples. Continue. Every uncrossed number is prime. O(n log log n) — each number is crossed out at most once per prime factor.
+
+```
+SIEVE VISUALIZATION (n=30):
+═══════════════════════════════════════════════════════════════
+  2 3 [4] 5 [6] 7 [8] [9] [10] 11 [12] 13 [14] [15] [16]
+  17 [18] 19 [20] [21] [22] 23 [24] [25] [26] [27] [28] 29 [30]
+  [crossed out = composite]
+
+  Primes: 2,3,5,7,11,13,17,19,23,29 ✅
+  WHY only sieve up to √n? If n=p×q and p≤q, then p≤√n.
+  So any composite n has a prime factor ≤ √n.
+═══════════════════════════════════════════════════════════════
+```
+
+---
+
+### 🔴 Practice Problem: Count Primes (LeetCode #204 — Medium)
+
+**Problem:** Count primes strictly less than n.
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: COUNT PRIMES                                ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 TRIAL    │ For each i, check if    │ O(n√n)    │ O(1) sp ║
+║  DIVISION    │ prime by trial division │            │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 SIEVE    │ Sieve of Eratosthenes   │ O(n log   │ O(n) sp ║
+║  (OPTIMAL)   │ mark composites in bulk │  log n)   │         ║
+╚══════════════════════════════════════════════════════════════════╝
+```
+
+```csharp
+public int CountPrimes(int n) {
+    if (n < 2) return 0;
+    bool[] isComposite = new bool[n]; // isComposite[i]=true means i is NOT prime
+    // 0 and 1 are not prime, but we count starting from 2
+
+    // WHY i*i <= n? Optimization: if i is prime, its smallest composite multiple
+    // is i*i (all smaller multiples already marked by smaller primes)
+    for (int i = 2; (long)i * i < n; i++) {
+        if (!isComposite[i]) {           // i is prime
+            // Mark all multiples of i as composite
+            // WHY start from i*i? Multiples i*2, i*3, ... i*(i-1) already marked
+            for (int j = i * i; j < n; j += i)
+                isComposite[j] = true;
+        }
+    }
+
+    int count = 0;
+    for (int i = 2; i < n; i++)
+        if (!isComposite[i]) count++;
+    return count;
+}
+// Time: O(n log log n), Space: O(n)
+```
+
+> **🎯 Key Insight:** Two optimizations make the sieve fast: (1) outer loop only to √n — larger factors already covered; (2) inner loop starts at i×i — smaller multiples already marked by previous primes. These aren't just small speedups — they determine whether the algorithm is practical for large n.
+
+---
+
+# PART 10 — STRING ALGORITHMS
+
+---
+
+## Section 48 — String Patterns (Anagram, Palindrome, Rolling Hash)
+
+> **🧠 Mental Model: Fingerprinting Documents**
+>
+> A hash is like a document fingerprint — a compact representation that's easy to compare. Two documents with the same fingerprint are (almost certainly) identical. Rolling hash updates the fingerprint as a window slides right in O(1) — adding the new right character and removing the old left character arithmetically.
+
+```
+ROLLING HASH CONCEPT:
+═══════════════════════════════════════════════════════════════
+  Window "abc" has hash = a×p² + b×p + c
+  Next window "bcd": remove 'a', add 'd'
+  new_hash = (old_hash - a×p²) × p + d
+           = b×p² + c×p + d
+  → O(1) update! Used in Rabin-Karp string search.
+
+  ANAGRAM CHECK using frequency array:
+  "anagram" and "nagaram" are anagrams ↔ same char frequencies
+  [1,0,0,0,0,...,1,1,2,0,...] = [1,0,0,0,0,...,1,1,2,0,...]  ✓
+═══════════════════════════════════════════════════════════════
+```
+
+### Key String Patterns in C#
+
+```csharp
+// ═══ ANAGRAM CHECK ═══
+bool IsAnagram(string s, string t) {
+    if (s.Length != t.Length) return false;
+    int[] count = new int[26];
+    foreach (char c in s) count[c - 'a']++;  // increment for s
+    foreach (char c in t) count[c - 'a']--;  // decrement for t
+    return count.All(x => x == 0);           // all should balance to 0
+}
+
+// ═══ PALINDROME CHECK ═══
 bool IsPalindrome(string s) {
     int left = 0, right = s.Length - 1;
     while (left < right) {
@@ -3329,971 +5583,237 @@ bool IsPalindrome(string s) {
     }
     return true;
 }
-```
 
-### 🔴 Practice Problem: 3Sum (LeetCode #15 — Medium)
-
-**Problem:** Find all unique triplets that sum to zero.
-
-```csharp
-public IList<IList<int>> ThreeSum(int[] nums) {
-    Array.Sort(nums);  // sort first — enables two-pointer + skip duplicates
-    var result = new List<IList<int>>();
-
-    for (int i = 0; i < nums.Length - 2; i++) {
-        if (i > 0 && nums[i] == nums[i-1]) continue;  // skip duplicate first elements
-        if (nums[i] > 0) break;                        // sorted: if first > 0, no triplet sums to 0
-
-        int left = i + 1, right = nums.Length - 1;
-        while (left < right) {
-            int sum = nums[i] + nums[left] + nums[right];
-            if (sum == 0) {
-                result.Add(new List<int> { nums[i], nums[left], nums[right] });
-                while (left < right && nums[left] == nums[left+1]) left++;   // skip dupes
-                while (left < right && nums[right] == nums[right-1]) right--; // skip dupes
-                left++; right--;
-            } else if (sum < 0) left++;
-            else right--;
-        }
-    }
-    return result;
-}
-// Time: O(n²) | Space: O(1) extra (output not counted)
-```
-
-> **🎯 Key Insight:** Two pointers requires SORTED input to make directional decisions meaningful. Always sort first if not sorted (O(n log n) prefix). Duplicate-skipping logic is the trickiest part — skip after finding a valid triplet to avoid duplicate output.
-
----
-
-## Section 37 — Sliding Window
-
-> **🧠 Mental Model: A Moving Spotlight on a Stage**
->
-> Imagine a spotlight on a theater stage. It illuminates a fixed-width section (window), then slides right. At each position, you can see the actors (elements) in the spotlight. Adding the rightmost actor: O(1). Removing the leftmost when sliding: O(1). The entire scan is O(n) because every actor enters and exits the spotlight exactly once. Fixed window = window size never changes. Variable window = expand right until invalid, then shrink from left.
-
-### Fixed & Variable Window
-
-```csharp
-// FIXED-SIZE WINDOW — max sum of subarray of size k
-int MaxSumSubarray(int[] arr, int k) {
-    int windowSum = 0, maxSum = 0;
-    // Build initial window
-    for (int i = 0; i < k; i++) windowSum += arr[i];
-    maxSum = windowSum;
-    // Slide: add right element, remove left element
-    for (int i = k; i < arr.Length; i++) {
-        windowSum += arr[i] - arr[i - k];  // O(1): add new, remove old
-        maxSum = Math.Max(maxSum, windowSum);
-    }
-    return maxSum;
-}
-
-// VARIABLE-SIZE WINDOW — smallest subarray with sum >= target
-int MinSubarrayLen(int target, int[] nums) {
-    int minLen = int.MaxValue, windowSum = 0, left = 0;
-
-    for (int right = 0; right < nums.Length; right++) {
-        windowSum += nums[right];                // expand window right
-
-        while (windowSum >= target) {            // shrink from left while valid
-            minLen = Math.Min(minLen, right - left + 1);
-            windowSum -= nums[left++];
-        }
-    }
-    return minLen == int.MaxValue ? 0 : minLen;
-}
-// Time: O(n) — right moves n times, left moves at most n times total
-```
-
-### 🔴 Practice Problem: Longest Substring Without Repeating (LeetCode #3 — Medium)
-
-```csharp
-public int LengthOfLongestSubstring(string s) {
-    var charIndex = new Dictionary<char, int>();  // char → last seen index
-    int maxLen = 0, left = 0;
-
-    for (int right = 0; right < s.Length; right++) {
-        char c = s[right];
-
-        // If char seen before AND it's inside current window → shrink left
-        if (charIndex.TryGetValue(c, out int prevIdx) && prevIdx >= left)
-            left = prevIdx + 1;  // move left past the duplicate
-
-        charIndex[c] = right;    // update last seen position
-        maxLen = Math.Max(maxLen, right - left + 1);
-    }
-    return maxLen;
-}
-// Time: O(n) | Space: O(min(n, charset)) — dictionary size bounded by alphabet size
-
-// OPTIMIZATION with int[128] for ASCII:
-int LengthOptimized(string s) {
-    int[] lastSeen = new int[128];  // ASCII char → last seen index
-    Array.Fill(lastSeen, -1);
-    int maxLen = 0, left = 0;
-    for (int right = 0; right < s.Length; right++) {
-        int c = s[right];
-        if (lastSeen[c] >= left) left = lastSeen[c] + 1;
-        lastSeen[c] = right;
-        maxLen = Math.Max(maxLen, right - left + 1);
-    }
-    return maxLen;
-}
-```
-
----
-
-## Section 38 — Fast & Slow Pointers
-
-> **🧠 Mental Model: The Tortoise and the Hare**
->
-> Fast pointer moves 2 steps at a time; slow pointer moves 1 step. If there's a cycle (loop), the hare eventually laps the tortoise and they meet inside the cycle — like runners on a circular track. If no cycle, the hare reaches the end first. This "differential speed" technique is magical: it detects cycles in O(1) space (no visited set needed) and finds the MIDDLE of a list (when hare reaches end, tortoise is at middle).
-
-```csharp
-// DETECT CYCLE — Floyd's Tortoise and Hare
-bool HasCycle(ListNode head) {
-    ListNode slow = head, fast = head;
-    while (fast?.Next != null) {         // fast needs 2 nodes ahead
-        slow = slow.Next;
-        fast = fast.Next.Next;
-        if (slow == fast) return true;   // they met → cycle!
-    }
-    return false;
-}
-
-// FIND CYCLE START — where does the cycle begin?
-ListNode DetectCycle(ListNode head) {
-    ListNode slow = head, fast = head;
-    // Phase 1: detect cycle
-    while (fast?.Next != null) {
-        slow = slow.Next; fast = fast.Next.Next;
-        if (slow == fast) break;
-    }
-    if (fast?.Next == null) return null;  // no cycle
-
-    // Phase 2: find cycle start
-    // Mathematical proof: distance from head to cycle start = distance from meeting point to cycle start
-    slow = head;
-    while (slow != fast) { slow = slow.Next; fast = fast.Next; }
-    return slow;  // cycle start node
-}
-
-// FIND MIDDLE OF LINKED LIST
-ListNode FindMiddle(ListNode head) {
-    ListNode slow = head, fast = head;
-    while (fast?.Next != null) {
-        slow = slow.Next;
-        fast = fast.Next.Next;
-    }
-    return slow;  // when fast reaches end, slow is at middle
-    // For even length: slow points to second middle (use fast.Next != null for first middle)
-}
-```
-
-### 🔴 Practice Problem: Linked List Cycle II (LeetCode #142 — Medium)
-
-**Problem:** Return the node where the cycle begins. If no cycle, return null.
-
-The `DetectCycle` method above IS the solution.
-
-```csharp
-// Why does slow=head + both advance at speed 1 find cycle start?
-// Let: F = distance from head to cycle start
-//      C = cycle length
-//      a = distance from cycle start to meeting point
-// When they meet: slow traveled F+a, fast traveled F+a+C (one extra loop)
-// Fast = 2 × Slow: F+a+C = 2(F+a) → C = F+a → F = C-a
-// So: head → cycle_start = cycle_start+a → cycle_start (wrapping)
-// Moving both at speed 1, they MUST meet at cycle_start!
-```
-
----
-
-## Section 39 — Merge Intervals
-
-> **🧠 Mental Model: Combining Overlapping Calendar Appointments**
->
-> Given a calendar with overlapping appointments [1,3], [2,6], [8,10] — you want to merge [1,3] and [2,6] into [1,6] because they overlap. Sort all appointments by start time, then greedily merge: if current appointment starts before the previous one ends, extend the previous end. Otherwise, start a new merged interval.
-
-```csharp
-// MERGE INTERVALS
-public int[][] Merge(int[][] intervals) {
-    if (intervals.Length <= 1) return intervals;
-
-    // Sort by start time
-    Array.Sort(intervals, (a, b) => a[0].CompareTo(b[0]));
-
-    var result = new List<int[]>();
-    result.Add(intervals[0]);
-
-    for (int i = 1; i < intervals.Length; i++) {
-        int[] last = result[^1];         // last merged interval
-        if (intervals[i][0] <= last[1]) {
-            // Overlapping: extend the end of last interval if needed
-            last[1] = Math.Max(last[1], intervals[i][1]);
-        } else {
-            // Non-overlapping: add as new interval
-            result.Add(intervals[i]);
-        }
-    }
-    return result.ToArray();
-}
-// Time: O(n log n) for sort + O(n) merge = O(n log n) | Space: O(n)
-
-// INSERT INTERVAL — insert into sorted non-overlapping list
-public int[][] Insert(int[][] intervals, int[] newInterval) {
-    var result = new List<int[]>();
-    int i = 0, n = intervals.Length;
-
-    // Add all intervals ending before newInterval starts
-    while (i < n && intervals[i][1] < newInterval[0])
-        result.Add(intervals[i++]);
-
-    // Merge all overlapping intervals with newInterval
-    while (i < n && intervals[i][0] <= newInterval[1]) {
-        newInterval[0] = Math.Min(newInterval[0], intervals[i][0]);
-        newInterval[1] = Math.Max(newInterval[1], intervals[i][1]);
-        i++;
-    }
-    result.Add(newInterval);
-
-    // Add remaining non-overlapping intervals
-    while (i < n) result.Add(intervals[i++]);
-    return result.ToArray();
-}
-// Time: O(n) — single pass | Space: O(n)
-```
-
-### 🔴 Practice Problem: Merge Intervals (LeetCode #56 — Medium)
-
-The `Merge` method above is the complete solution.
-
-> **🎯 Key Insight:** Sorting by start time is the key pre-step. After sorting, you only need to compare each interval with the LAST merged interval (not all previous ones). The merge condition is `intervals[i].start <= last.end` (not `< last.end` — touching intervals should merge).
-
----
-
-## Section 40 — Cyclic Sort
-
-> **🧠 Mental Model: Putting Books in Their Numbered Slots**
->
-> You have books numbered 1 to n, placed randomly on a shelf. Cyclic sort: look at the book in position i — if it belongs in slot X, swap it to slot X. Repeat until the book in position i IS in its correct slot. Each book is placed at most ONCE, so the total is O(n). Perfect for "numbers 1 to n with duplicates or missing values."
-
-```csharp
-// CYCLIC SORT — O(n) time, O(1) space
-// Works when numbers are in range [1, n] or [0, n-1]
-void CyclicSort(int[] nums) {
-    int i = 0;
-    while (i < nums.Length) {
-        int j = nums[i] - 1;  // correct index for nums[i] (1-indexed: value 3 → index 2)
-        if (nums[i] != nums[j]) {
-            (nums[i], nums[j]) = (nums[j], nums[i]);  // swap to correct position
-        } else {
-            i++;  // element is in correct position or is a duplicate
-        }
-    }
-}
-
-// FIND MISSING NUMBER — after cyclic sort, find index where nums[i] != i+1
-int FindMissingNumber(int[] nums) {
-    CyclicSort(nums);
-    for (int i = 0; i < nums.Length; i++)
-        if (nums[i] != i + 1) return i + 1;
-    return nums.Length + 1;
-}
-```
-
-### 🔴 Practice Problem: Find All Duplicates in Array (LeetCode #442 — Medium)
-
-**Problem:** Array of n integers where 1 ≤ a[i] ≤ n. Some appear twice. Find all duplicates.
-
-```csharp
-public IList<int> FindDuplicates(int[] nums) {
-    var result = new List<int>();
-    // Cyclic sort: place each num at index (num-1)
-    int i = 0;
-    while (i < nums.Length) {
-        int correct = nums[i] - 1;
-        if (nums[i] != nums[correct]) {
-            (nums[i], nums[correct]) = (nums[correct], nums[i]);
-        } else {
-            i++;
-        }
-    }
-    // Any number not at its correct index is a duplicate
-    for (int j = 0; j < nums.Length; j++)
-        if (nums[j] != j + 1) result.Add(nums[j]);
-    return result;
-}
-// Time: O(n) | Space: O(1) extra
-```
-
----
-
-## Section 41 — In-place Linked List Reversal
-
-> **🧠 Mental Model: Reversing a Chain of Paperclips**
->
-> Each paperclip (node) has a hook pointing right (Next pointer). To reverse, unhook each clip from the right and reattach it to the left. The 3-variable dance: save the next clip (nextTemp), reattach current clip leftward (curr.Next = prev), advance both pointers. Reverse in groups: reverse k clips at a time, then reconnect the groups.
-
-```csharp
-// REVERSE ENTIRE LIST — O(n) time, O(1) space
-ListNode ReverseList(ListNode head) {
-    ListNode prev = null, curr = head;
-    while (curr != null) {
-        ListNode next = curr.Next;  // 1. save next
-        curr.Next = prev;           // 2. reverse pointer
-        prev = curr;                // 3. advance prev
-        curr = next;                // 4. advance curr
-    }
-    return prev;  // new head
-}
-
-// REVERSE SUBLIST [left, right] — 1-indexed
-ListNode ReverseBetween(ListNode head, int left, int right) {
-    var dummy = new ListNode(0, head);
-    ListNode prev = dummy;
-
-    // Advance prev to node just before 'left'
-    for (int i = 1; i < left; i++) prev = prev.Next;
-
-    ListNode curr = prev.Next;  // first node of sublist to reverse
-    for (int i = 0; i < right - left; i++) {
-        ListNode next = curr.Next;
-        curr.Next = next.Next;   // disconnect next from its position
-        next.Next = prev.Next;   // attach next at the front of reversed portion
-        prev.Next = next;        // update prev's next to the newly inserted node
-    }
-    return dummy.Next;
-}
-```
-
-### 🔴 Practice Problem: Reverse Nodes in k-Group (LeetCode #25 — Hard)
-
-```csharp
-public ListNode ReverseKGroup(ListNode head, int k) {
-    // Check if there are at least k nodes remaining
-    ListNode check = head;
-    for (int i = 0; i < k; i++) {
-        if (check == null) return head;  // fewer than k nodes — don't reverse
-        check = check.Next;
-    }
-
-    // Reverse k nodes
-    ListNode prev = null, curr = head;
-    for (int i = 0; i < k; i++) {
-        ListNode next = curr.Next;
-        curr.Next = prev;
-        prev = curr;
-        curr = next;
-    }
-
-    // head is now the tail of reversed group — connect to recursively reversed rest
-    head.Next = ReverseKGroup(curr, k);
-    return prev;  // prev is new head of reversed group
-}
-// Time: O(n) | Space: O(n/k) recursion stack (one frame per group)
-```
-
----
-
-## Section 42 — Modified Binary Search
-
-> **🧠 Mental Model: Binary Search with a Twist**
->
-> Standard binary search requires a fully sorted array. Modified binary search applies when the array has STRUCTURE but not perfect sorting — rotated arrays (sorted then rotated), bitonic arrays (first increasing then decreasing), or finding the boundary between two conditions. The key question at each step: "which half has the property I need?" — based on comparing array values, not just index.
-
-```csharp
-// FIND MINIMUM IN ROTATED SORTED ARRAY
-public int FindMin(int[] nums) {
-    int left = 0, right = nums.Length - 1;
+// ═══ PALINDROME CHECK — only alphanumeric ═══
+bool IsPalindromeAlnum(string s) {
+    int left = 0, right = s.Length - 1;
     while (left < right) {
-        int mid = left + (right - left) / 2;
-        if (nums[mid] > nums[right])
-            left = mid + 1;   // min is in right half (rotation happened here)
-        else
-            right = mid;      // min is in left half (including mid)
-    }
-    return nums[left];
-}
-
-// SEARCH IN BITONIC ARRAY (first ascending then descending)
-int SearchBitonic(int[] arr, int target) {
-    // Find peak index
-    int left = 0, right = arr.Length - 1;
-    while (left < right) {
-        int mid = left + (right - left) / 2;
-        if (arr[mid] > arr[mid + 1]) right = mid;
-        else left = mid + 1;
-    }
-    int peak = left;
-    // Binary search on ascending part
-    int result = BinarySearchAscending(arr, target, 0, peak);
-    if (result != -1) return result;
-    // Binary search on descending part
-    return BinarySearchDescending(arr, target, peak + 1, arr.Length - 1);
-}
-
-// BINARY SEARCH ON CONDITION (generalized)
-// Find leftmost index where condition(index) is true
-// (assumes: false false ... false TRUE TRUE ... true)
-int FirstTrue(int n, Func<int, bool> condition) {
-    int left = 0, right = n - 1, result = -1;
-    while (left <= right) {
-        int mid = left + (right - left) / 2;
-        if (condition(mid)) { result = mid; right = mid - 1; }
-        else left = mid + 1;
-    }
-    return result;
-}
-```
-
-### 🔴 Practice Problem: Find Minimum in Rotated Sorted Array (LeetCode #153 — Medium)
-
-The `FindMin` method above is the complete solution.
-
-```csharp
-// Key insight: compare nums[mid] with nums[right] (NOT nums[left])
-// If nums[mid] > nums[right]: minimum is in right half (nums[right] would be max otherwise)
-// If nums[mid] <= nums[right]: minimum is in left half (including mid)
-// Time: O(log n) | Space: O(1)
-```
-
----
-
-## Section 43 — Top K Elements & K-way Merge
-
-> **🧠 Mental Model: Finding the K Fastest Runners**
->
-> To find the k fastest runners from n competitors, you don't need to rank all n — just maintain a "tracking sheet" of the k fastest seen so far. When a new result comes in, if it's faster than the SLOWEST on the tracking sheet, swap it in. A min-heap of size k does this in O(log k) per element. K-way merge: merge k sorted lists using a heap — always extract the minimum, add from same list.
-
-```csharp
-// TOP K FREQUENT ELEMENTS
-public int[] TopKFrequent(int[] nums, int k) {
-    // Count frequencies
-    var freq = new Dictionary<int, int>();
-    foreach (int n in nums) freq[n] = freq.GetValueOrDefault(n, 0) + 1;
-
-    // Min-heap of size k: keep k most frequent
-    var minHeap = new PriorityQueue<int, int>();  // (element, frequency)
-    foreach (var (num, count) in freq) {
-        minHeap.Enqueue(num, count);
-        if (minHeap.Count > k) minHeap.Dequeue();  // remove least frequent
-    }
-
-    return Enumerable.Range(0, k).Select(_ => minHeap.Dequeue()).ToArray();
-}
-// Time: O(n log k) | Space: O(n) for freq map + O(k) for heap
-
-// K-WAY MERGE — merge k sorted arrays
-int[] MergeKSorted(int[][] arrays) {
-    // Min-heap stores (value, arrayIndex, elementIndex)
-    var heap = new PriorityQueue<(int val, int arr, int idx), int>();
-    var result = new List<int>();
-
-    // Initialize heap with first element from each array
-    for (int i = 0; i < arrays.Length; i++)
-        if (arrays[i].Length > 0)
-            heap.Enqueue((arrays[i][0], i, 0), arrays[i][0]);
-
-    while (heap.Count > 0) {
-        var (val, arr, idx) = heap.Dequeue();
-        result.Add(val);
-        // Add next element from same array
-        if (idx + 1 < arrays[arr].Length)
-            heap.Enqueue((arrays[arr][idx+1], arr, idx+1), arrays[arr][idx+1]);
-    }
-    return result.ToArray();
-}
-// Time: O(N log k) where N = total elements, k = number of arrays
-```
-
-### 🔴 Practice Problem: Top K Frequent Elements (LeetCode #347 — Medium)
-
-The `TopKFrequent` method above is the complete solution.
-
-> **🎯 Key Insight:** Min-heap of size k maintains the "top k" efficiently. Keep the MINIMUM of the top-k at the heap top — when a new element is larger than the min (should be in top-k), pop the min and push the new element. O(n log k) total, which beats sorting O(n log n) when k << n.
-
----
-
-## Section 44 — Monotonic Stack & Queue
-
-> **🧠 Mental Model: The Impatient Queue at the Bank**
->
-> A monotonic stack maintains elements in increasing (or decreasing) order. When a new element arrives, all "weaker" elements (smaller for decreasing, larger for increasing) are evicted — they can never be the answer for future queries. Like an impatient queue: new VIP customer evicts all regular customers who arrived before them (they're "dominated"). Each element is pushed and popped at most once → O(n) total.
-
-```csharp
-// NEXT GREATER ELEMENT — monotonic decreasing stack
-int[] NextGreaterElement(int[] arr) {
-    int n = arr.Length;
-    int[] result = new int[n];
-    Array.Fill(result, -1);
-    var stack = new Stack<int>();  // stores INDICES
-
-    for (int i = 0; i < n; i++) {
-        // Pop all elements smaller than current — their next greater is arr[i]
-        while (stack.Count > 0 && arr[stack.Peek()] < arr[i]) {
-            result[stack.Pop()] = arr[i];
-        }
-        stack.Push(i);
-    }
-    return result;
-}
-
-// LARGEST RECTANGLE IN HISTOGRAM
-public int LargestRectangleArea(int[] heights) {
-    var stack = new Stack<int>();  // stores indices, monotonic increasing heights
-    int maxArea = 0;
-    int n = heights.Length;
-
-    for (int i = 0; i <= n; i++) {
-        int h = (i == n) ? 0 : heights[i];  // sentinel 0 at end flushes remaining
-
-        while (stack.Count > 0 && heights[stack.Peek()] > h) {
-            int height = heights[stack.Pop()];
-            int width = stack.Count == 0 ? i : i - stack.Peek() - 1;
-            maxArea = Math.Max(maxArea, height * width);
-        }
-        stack.Push(i);
-    }
-    return maxArea;
-}
-// Time: O(n) — each element pushed and popped at most once
-```
-
-### 🔴 Practice Problem: Daily Temperatures (LeetCode #739 — Medium)
-
-**Problem:** For each day, how many days until a warmer temperature? Return array of waits.
-
-```csharp
-public int[] DailyTemperatures(int[] temps) {
-    int n = temps.Length;
-    int[] result = new int[n];
-    var stack = new Stack<int>();  // indices of days awaiting a warmer day
-
-    for (int i = 0; i < n; i++) {
-        // Found a warmer day for all days in stack with lower temp
-        while (stack.Count > 0 && temps[stack.Peek()] < temps[i]) {
-            int idx = stack.Pop();
-            result[idx] = i - idx;  // days waited = current index - waiting index
-        }
-        stack.Push(i);
-    }
-    // Remaining in stack: no warmer day found → result stays 0 (default)
-    return result;
-}
-// Time: O(n) | Space: O(n)
-```
-
----
-
-## Section 45 — Bit Manipulation
-
-> **🧠 Mental Model: Light Switches**
->
-> Bits are on/off light switches. XOR is the "toggle switch" — flipping a switch twice returns to original state. AND is "both must be on." OR is "at least one on." Left shift `<< 1` doubles the value (like adding a zero at the end in binary). Right shift `>> 1` halves it. The XOR trick: `a ^ a = 0` and `a ^ 0 = a` — XOR-ing a value with itself cancels out. XOR all numbers: duplicates cancel, leaving the unique one.
-
-### Bit Operations Cheatsheet
-
-```csharp
-// FUNDAMENTALS
-int a = 0b1010;  // binary literal = 10
-a & b            // AND: 1 only if both 1
-a | b            // OR: 1 if either 1
-a ^ b            // XOR: 1 if different, 0 if same
-~a               // NOT: flip all bits
-a << n           // left shift: multiply by 2^n
-a >> n           // right shift: divide by 2^n (arithmetic, preserves sign)
-a >>> n          // unsigned right shift (C# 11+)
-
-// COMMON TRICKS
-n & 1            // check if odd (last bit is 1)
-n & (n - 1)      // clear lowest set bit (if result==0: n is power of 2!)
-n & (-n)         // isolate lowest set bit (used in Fenwick tree)
-n ^ n == 0       // XOR with itself = 0
-n ^ 0 == n       // XOR with 0 = unchanged
-
-// SET/CLEAR/TOGGLE bit i
-n |= (1 << i)    // set bit i
-n &= ~(1 << i)   // clear bit i
-n ^= (1 << i)    // toggle bit i
-(n >> i) & 1     // check bit i
-
-// COUNT SET BITS (Brian Kernighan's algorithm)
-int CountBits(int n) {
-    int count = 0;
-    while (n != 0) { n &= (n - 1); count++; }  // clears lowest set bit each iteration
-    return count;
-}
-
-// CHECK POWER OF 2
-bool IsPowerOfTwo(int n) => n > 0 && (n & (n-1)) == 0;
-
-// SWAP WITHOUT TEMP
-a ^= b; b ^= a; a ^= b;  // a and b swapped (works but avoid — clarity matters)
-```
-
-### 🔴 Practice Problem: Single Number (LeetCode #136 — Easy)
-
-**Problem:** Every element in array appears twice except one. Find that one.
-
-```csharp
-public int SingleNumber(int[] nums) {
-    int result = 0;
-    foreach (int n in nums)
-        result ^= n;  // pairs cancel out (a^a=0), unique survives (0^a=a)
-    return result;
-}
-// Time: O(n) | Space: O(1) — the most elegant bit trick!
-// Example: [4,1,2,1,2] → 4^1^2^1^2 = 4^(1^1)^(2^2) = 4^0^0 = 4
-```
-
----
-
-## Section 46 — Subsets & Combinations
-
-> **🧠 Mental Model: The Binary Choice Tree**
->
-> Every subset problem has the same structure: for each element, you make a binary choice — INCLUDE it or EXCLUDE it. The recursion tree has 2^n leaves, one per subset. Combinations extend this with an ordering constraint (choose k from n without replacement). Backtracking with a "start index" prevents revisiting earlier elements and avoids duplicate combinations.
-
-```csharp
-// ALL SUBSETS — O(n × 2^n) time
-IList<IList<int>> Subsets(int[] nums) {
-    var result = new List<IList<int>>();
-    void Backtrack(int start, List<int> current) {
-        result.Add(new List<int>(current));  // add current subset (including empty)
-        for (int i = start; i < nums.Length; i++) {
-            current.Add(nums[i]);            // include nums[i]
-            Backtrack(i + 1, current);       // explore subsets including nums[i]
-            current.RemoveAt(current.Count - 1);  // exclude nums[i] (backtrack)
-        }
-    }
-    Backtrack(0, new List<int>());
-    return result;
-}
-
-// COMBINATIONS — choose k from n
-IList<IList<int>> Combine(int n, int k) {
-    var result = new List<IList<int>>();
-    void Backtrack(int start, List<int> current) {
-        if (current.Count == k) { result.Add(new List<int>(current)); return; }
-        // Pruning: if not enough elements left to fill k, stop
-        for (int i = start; i <= n - (k - current.Count) + 1; i++) {
-            current.Add(i);
-            Backtrack(i + 1, current);
-            current.RemoveAt(current.Count - 1);
-        }
-    }
-    Backtrack(1, new List<int>());
-    return result;
-}
-
-// BFS APPROACH — generate subsets iteratively
-IList<IList<int>> SubsetsBFS(int[] nums) {
-    var result = new List<IList<int>> { new List<int>() };  // start with empty set
-    foreach (int num in nums) {
-        int size = result.Count;
-        for (int i = 0; i < size; i++) {
-            var newSubset = new List<int>(result[i]) { num };  // add num to existing
-            result.Add(newSubset);
-        }
-    }
-    return result;
-}
-```
-
-### 🔴 Practice Problem: Subsets II (LeetCode #90 — Medium)
-
-**Problem:** Array may contain duplicates. Return all unique subsets.
-
-```csharp
-public IList<IList<int>> SubsetsWithDup(int[] nums) {
-    Array.Sort(nums);  // sort to group duplicates together
-    var result = new List<IList<int>>();
-
-    void Backtrack(int start, List<int> current) {
-        result.Add(new List<int>(current));
-        for (int i = start; i < nums.Length; i++) {
-            // Skip duplicate elements at the same recursion level
-            if (i > start && nums[i] == nums[i-1]) continue;
-            current.Add(nums[i]);
-            Backtrack(i + 1, current);
-            current.RemoveAt(current.Count - 1);
-        }
-    }
-
-    Backtrack(0, new List<int>());
-    return result;
-}
-// Time: O(n × 2^n) | Space: O(n) recursion depth
-// Key: sort first, then skip duplicates with `i > start && nums[i] == nums[i-1]`
-```
-
----
-
-## Section 47 — Math & Number Theory
-
-> **🧠 Mental Model: Ancient Greek Mathematical Tools**
->
-> Number theory gives us elegant shortcuts: Sieve of Eratosthenes eliminates composite numbers like a sieve eliminates small rocks. GCD (Euclid's algorithm) divides by remainders until zero — incredibly efficient. Modular arithmetic keeps numbers from overflowing in combinatorics problems.
-
-```csharp
-// SIEVE OF ERATOSTHENES — find all primes up to n in O(n log log n)
-bool[] SievePrimes(int n) {
-    bool[] isPrime = new bool[n + 1];
-    Array.Fill(isPrime, true);
-    isPrime[0] = isPrime[1] = false;
-
-    for (int i = 2; i * i <= n; i++) {
-        if (isPrime[i]) {
-            // Mark all multiples of i as composite
-            for (int j = i * i; j <= n; j += i)
-                isPrime[j] = false;
-        }
-    }
-    return isPrime;  // isPrime[i] = true means i is prime
-}
-
-// GCD — Euclidean algorithm O(log(min(a,b)))
-int Gcd(int a, int b) => b == 0 ? a : Gcd(b, a % b);
-int Lcm(int a, int b) => a / Gcd(a, b) * b;  // avoid overflow: divide first
-
-// FAST POWER (modular exponentiation)
-long PowerMod(long base, long exp, long mod) {
-    long result = 1;
-    base %= mod;
-    while (exp > 0) {
-        if ((exp & 1) == 1) result = result * base % mod;  // odd exponent
-        base = base * base % mod;                          // square the base
-        exp >>= 1;                                          // halve the exponent
-    }
-    return result;
-}
-// Time: O(log exp) | Space: O(1)
-
-// COMBINATIONS (n choose k) with modular arithmetic
-long nCk(int n, int k, long mod = 1_000_000_007L) {
-    if (k > n) return 0;
-    long[] fact = new long[n + 1];
-    fact[0] = 1;
-    for (int i = 1; i <= n; i++) fact[i] = fact[i-1] * i % mod;
-
-    long inv_k = PowerMod(fact[k], mod - 2, mod);     // Fermat's little theorem
-    long inv_nk = PowerMod(fact[n-k], mod - 2, mod);
-    return fact[n] * inv_k % mod * inv_nk % mod;
-}
-```
-
-### 🔴 Practice Problem: Count Primes (LeetCode #204 — Medium)
-
-**Problem:** Count all primes less than n.
-
-```csharp
-public int CountPrimes(int n) {
-    if (n < 2) return 0;
-    bool[] notPrime = new bool[n];  // notPrime[i] = true means composite
-
-    for (int i = 2; (long)i * i < n; i++) {  // cast to long to prevent i*i overflow
-        if (!notPrime[i]) {
-            for (int j = i * i; j < n; j += i)
-                notPrime[j] = true;
-        }
-    }
-
-    int count = 0;
-    for (int i = 2; i < n; i++)
-        if (!notPrime[i]) count++;
-    return count;
-}
-// Time: O(n log log n) — sieve complexity | Space: O(n)
-```
-
----
-
-# PART 10 — STRING ALGORITHMS
-
----
-
-## Section 48 — String Patterns
-
-> **🧠 Mental Model: The Fingerprint Approach**
->
-> Many string problems need a "fingerprint" — a compact representation that identifies a string's properties without comparing character by character. Sorted characters are the fingerprint for anagrams. Frequency arrays are the fingerprint for character counts. Rolling hash is a fingerprint that can SLIDE along the string in O(1) per step — enabling O(n) pattern matching.
-
-### Anagram & Palindrome Patterns
-
-```csharp
-// CHECK ANAGRAM — same character frequencies
-bool IsAnagram(string s, string t) {
-    if (s.Length != t.Length) return false;
-    int[] count = new int[26];
-    foreach (char c in s) count[c - 'a']++;
-    foreach (char c in t) count[c - 'a']--;
-    return count.All(x => x == 0);
-}
-
-// PALINDROME CHECK — two pointer
-bool IsPalindrome(string s) {
-    int l = 0, r = s.Length - 1;
-    while (l < r) { if (s[l++] != s[r--]) return false; }
-    return true;
-}
-
-// VALID PALINDROME II (can delete at most 1 char)
-bool ValidPalindrome(string s) {
-    int l = 0, r = s.Length - 1;
-    while (l < r) {
-        if (s[l] != s[r])
-            return IsPalindromeRange(s, l+1, r) || IsPalindromeRange(s, l, r-1);
-        l++; r--;
+        while (left < right && !char.IsLetterOrDigit(s[left])) left++;
+        while (left < right && !char.IsLetterOrDigit(s[right])) right--;
+        if (char.ToLower(s[left]) != char.ToLower(s[right])) return false;
+        left++; right--;
     }
     return true;
 }
-bool IsPalindromeRange(string s, int l, int r) {
-    while (l < r) { if (s[l++] != s[r--]) return false; }
-    return true;
-}
-
-// ROLLING HASH — check if substring is anagram of pattern (O(n) sliding window)
-IList<int> FindAnagrams(string s, string p) {
-    var result = new List<int>();
-    if (s.Length < p.Length) return result;
-
-    int[] pCount = new int[26], wCount = new int[26];
-    for (int i = 0; i < p.Length; i++) { pCount[p[i]-'a']++; wCount[s[i]-'a']++; }
-
-    if (pCount.SequenceEqual(wCount)) result.Add(0);
-
-    for (int i = p.Length; i < s.Length; i++) {
-        wCount[s[i] - 'a']++;                    // add right
-        wCount[s[i - p.Length] - 'a']--;         // remove left
-        if (pCount.SequenceEqual(wCount)) result.Add(i - p.Length + 1);
-    }
-    return result;
-}
-// Time: O(n × 26) = O(n) since alphabet is constant | Space: O(1) for fixed-size arrays
 ```
+
+---
 
 ### 🔴 Practice Problem: Minimum Window Substring (LeetCode #76 — Hard)
 
-**Problem:** Find minimum window in string s that contains all characters of string t.
+**Problem:** Given strings `s` and `t`, find the minimum window in `s` containing all characters of `t`.
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: MINIMUM WINDOW SUBSTRING                    ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 BRUTE    │ Check all O(n²) substr- │ O(n²×m)   │ O(m) sp ║
+║              │ ings for containing t   │            │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 SLIDING  │ Expand right until      │ O(n+m)    │ O(m) sp ║
+║  WINDOW      │ valid; contract left    │            │         ║
+║  (OPTIMAL)   │ while still valid       │            │         ║
+╚══════════════════════════════════════════════════════════════════╝
+
+KEY INSIGHT: Two-phase sliding window:
+  PHASE 1: Expand right until window contains all chars of t
+  PHASE 2: Contract left as much as possible while still valid
+  Repeat, tracking minimum valid window seen
+```
+
+```
+VISUALIZATION: s="ADOBECODEBANC", t="ABC"
+═══════════════════════════════════════════════════════════════
+  Expand until contains A,B,C:
+  ADOBEC  → has A,B,C ✓ → start contracting
+
+  Contract: remove A → DOBEC → missing A
+  Expand right: DOBECOD → DOBECODE → DOBECODEN → DOBECODEBAN → has A,B,C ✓
+  Contract: OBECODEBAN → ... → BANC → has A,B,C ✓ and length=4 (minimum!)
+  Continue expanding but can't do better
+  Answer: "BANC"
+═══════════════════════════════════════════════════════════════
+```
 
 ```csharp
 public string MinWindow(string s, string t) {
     if (s.Length < t.Length) return "";
 
-    int[] need = new int[128];   // how many of each char we still need
-    foreach (char c in t) need[c]++;
-    int required = t.Length;     // total characters still needed
+    // Count required characters from t
+    var need = new Dictionary<char, int>();
+    foreach (char c in t) need[c] = need.GetValueOrDefault(c, 0) + 1;
 
-    int left = 0, minStart = 0, minLen = int.MaxValue;
+    int have = 0;              // how many chars from t are satisfied in current window
+    int required = need.Count; // how many DISTINCT chars from t we need to satisfy
+    var window = new Dictionary<char, int>(); // counts in current window
+
+    int minLen = int.MaxValue, minStart = 0;
+    int left = 0;
 
     for (int right = 0; right < s.Length; right++) {
-        // Add right character to window
-        if (need[s[right]] > 0) required--;  // satisfied one requirement
-        need[s[right]]--;
+        char c = s[right];
+        window[c] = window.GetValueOrDefault(c, 0) + 1;
 
-        // Shrink from left while window is valid
-        while (required == 0) {
+        // Check if this char's frequency in window satisfies t's requirement
+        if (need.ContainsKey(c) && window[c] == need[c])
+            have++;  // one more distinct char fully satisfied
+
+        // While window is valid (all t's chars satisfied), try to shrink from left
+        while (have == required) {
+            // Update minimum window
             if (right - left + 1 < minLen) {
                 minLen = right - left + 1;
                 minStart = left;
             }
-            need[s[left]]++;
-            if (need[s[left]] > 0) required++;  // removing this char breaks requirement
+
+            // Remove leftmost character and potentially invalidate window
+            char leftChar = s[left];
+            window[leftChar]--;
+            if (need.ContainsKey(leftChar) && window[leftChar] < need[leftChar])
+                have--;  // window no longer satisfies this char's requirement
             left++;
         }
     }
+
     return minLen == int.MaxValue ? "" : s.Substring(minStart, minLen);
 }
-// Time: O(|s| + |t|) | Space: O(1) — fixed-size array for ASCII
+// Time: O(n + m) — each char in s is added/removed from window at most once
+// Space: O(m) — window and need dictionaries (bounded by distinct chars in t)
+```
+
+```
+TRACE: s="ADOBECODEBANC", t="ABC", need={A:1,B:1,C:1}, required=3
+════════════════════════════════════════════════════════════
+  Expand right=0..4: window builds up, have<3
+  right=5('C'): window={A:1,D:1,O:1,B:1,E:1,C:1}, have=3 ✓
+    Contract: left=0('A'): window[A]=0 < need[A]=1 → have=2, left=1
+    minLen=6("ADOBEC"), minStart=0
+
+  Expand right=6..9: have<3
+  right=10('A'): have=3 ✓
+    Contract: ... eventually left="B" position
+    minLen=7, then keep comparing
+
+  right=11..12: found "BANC" as minimum ✅
+  Answer: "BANC" (length=4)
+════════════════════════════════════════════════════════════
+```
+
+> **🎯 Key Insight:** Minimum window is the hardest sliding window problem. The key data structure: track `have` (satisfied distinct chars) vs `required` (total distinct chars needed). The window is valid exactly when `have == required`. Only then do we try to shrink — this ensures we always have the minimum valid window.
+
+---
+
+## Section 49 — Advanced String Matching (KMP, Rabin-Karp)
+
+> **🧠 Mental Model: Never Repeat Work**
+>
+> Naive string matching is O(n×m) — slide pattern one position at a time, restart from beginning on mismatch. KMP eliminates this redundancy: when a mismatch occurs, use partial matches already done to skip ahead. The LPS (Longest Proper Prefix that is also Suffix) array is the key pre-computation.
+
+```
+KMP — LPS ARRAY CONSTRUCTION for pattern "AABAAB":
+═══════════════════════════════════════════════════════════════
+  pattern: A  A  B  A  A  B
+  index:   0  1  2  3  4  5
+  lps:     0  1  0  1  2  3
+
+  lps[i] = length of longest proper prefix of pattern[0..i]
+           that is also a suffix of pattern[0..i]
+  "A"    → lps=0 (no proper prefix)
+  "AA"   → lps=1 ("A" is both prefix and suffix)
+  "AAB"  → lps=0 (no match)
+  "AABA" → lps=1 ("A")
+  "AABAA"→ lps=2 ("AA")
+  "AABAAB"→lps=3 ("AAB")
+
+  MISMATCH USE: if mismatch at pattern index j, don't restart from 0.
+  Jump to lps[j-1] — you've already matched that much!
+═══════════════════════════════════════════════════════════════
 ```
 
 ---
 
-## Section 49 — Advanced String Matching
-
-> **🧠 Mental Model: The Smart Bookmark**
->
-> Naive string matching (check pattern at every position): O(n × m). KMP uses a "failure function" — when a mismatch occurs, instead of restarting from scratch, it consults the failure function to know how far BACK to backtrack in the pattern (not the text). The text pointer never moves backward — O(n + m) total. Rabin-Karp uses rolling hash: slide the hash window O(1) per step, only verify character-by-character on hash collision.
-
-### KMP Algorithm
-
-```csharp
-// KMP — O(n + m) string search
-public int StrStr(string haystack, string needle) {
-    if (needle.Length == 0) return 0;
-    int[] lps = BuildLPS(needle);  // longest proper prefix = suffix
-
-    int i = 0  // haystack index
-      , j = 0; // needle index
-    while (i < haystack.Length) {
-        if (haystack[i] == needle[j]) {
-            i++; j++;
-            if (j == needle.Length) return i - j;  // found!
-        } else if (j > 0) {
-            j = lps[j - 1];  // DON'T advance i — jump j using failure function
-        } else {
-            i++;  // mismatch at j=0, advance i
-        }
-    }
-    return -1;
-}
-
-// BUILD LPS (Longest Proper Prefix that is also Suffix) table
-int[] BuildLPS(string pattern) {
-    int[] lps = new int[pattern.Length];
-    int len = 0, i = 1;
-    while (i < pattern.Length) {
-        if (pattern[i] == pattern[len]) {
-            lps[i++] = ++len;
-        } else if (len > 0) {
-            len = lps[len - 1];  // fallback using previously computed lps
-        } else {
-            lps[i++] = 0;
-        }
-    }
-    return lps;
-}
-// Time: O(n + m) | Space: O(m) for LPS table
-
-// RABIN-KARP — rolling hash O(n + m) avg, O(nm) worst (hash collisions)
-int RabinKarp(string text, string pattern) {
-    int n = text.Length, m = pattern.Length;
-    if (n < m) return -1;
-
-    long mod = 1_000_000_007L, base_val = 31;
-    long patHash = 0, textHash = 0, power = 1;
-
-    for (int i = 0; i < m; i++) {
-        patHash = (patHash * base_val + (pattern[i] - 'a' + 1)) % mod;
-        textHash = (textHash * base_val + (text[i] - 'a' + 1)) % mod;
-        if (i > 0) power = power * base_val % mod;
-    }
-
-    for (int i = 0; i <= n - m; i++) {
-        if (patHash == textHash) {
-            if (text.Substring(i, m) == pattern) return i;  // verify (avoid false positive)
-        }
-        if (i < n - m) {
-            textHash = (textHash - (text[i] - 'a' + 1) * power % mod + mod) % mod;
-            textHash = (textHash * base_val + (text[i + m] - 'a' + 1)) % mod;
-        }
-    }
-    return -1;
-}
-```
-
 ### 🔴 Practice Problem: Find Index of First Occurrence (LeetCode #28 — Easy)
 
-```csharp
-public int StrStr(string haystack, string needle) {
-    // Use the KMP implementation above
-    return KmpSearch(haystack, needle);
-}
-// Or simply: return haystack.IndexOf(needle); — but KMP shows you know the algorithm!
+**Problem:** Find first occurrence of `needle` in `haystack`. Return -1 if not found.
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  APPROACH EVOLUTION: STRING SEARCH                               ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🔴 BUILT-IN │ haystack.IndexOf(needle)│ O(n×m)    │ O(1) sp ║
+║  / NAIVE     │ or naive sliding window │ avg O(n)  │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟡 RABIN-   │ Rolling hash comparison │ O(n+m)    │ O(1) sp ║
+║  KARP        │ O(n×m) worst case       │ avg case  │         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  🟢 KMP      │ LPS array + linear scan │ O(n+m)    │ O(m) sp ║
+║  (OPTIMAL)   │ guaranteed O(n+m)       │            │         ║
+╚══════════════════════════════════════════════════════════════════╝
 ```
 
-> **🎯 Key Insight:** In interviews, implementing KMP demonstrates mastery of string algorithms. The key insight: the LPS table precomputes "if mismatch at pattern[j], how far back can we jump in the pattern without missing any potential match?" — avoiding redundant comparisons in the text string.
+```csharp
+public int StrStr(string haystack, string needle) {
+    if (needle.Length == 0) return 0;
+    if (haystack.Length < needle.Length) return -1;
+
+    // KMP STEP 1: Build LPS (Longest Proper Prefix-Suffix) array for needle
+    int m = needle.Length;
+    int[] lps = new int[m];
+    // lps[0] always = 0 (single char has no proper prefix)
+
+    int len = 0, i = 1;   // len = current match length
+    while (i < m) {
+        if (needle[i] == needle[len]) {
+            lps[i++] = ++len;  // extend the matching prefix
+        } else if (len > 0) {
+            len = lps[len - 1]; // mismatch: fall back to previous match
+            // WHY not i--? We already know needle[i] doesn't match needle[len]
+            // Trying needle[lps[len-1]] might work — don't advance i yet
+        } else {
+            lps[i++] = 0;  // no match possible, move to next char
+        }
+    }
+
+    // KMP STEP 2: Search using LPS to avoid backtracking
+    int n = haystack.Length;
+    i = 0;       // index in haystack
+    int j = 0;   // index in needle
+
+    while (i < n) {
+        if (haystack[i] == needle[j]) {
+            i++; j++;
+            if (j == m) return i - m;  // full match found! return start index
+        } else if (j > 0) {
+            j = lps[j - 1];  // mismatch after some matches: use LPS to skip
+            // WHY not i--? We don't move back in haystack! That's KMP's power.
+        } else {
+            i++;  // needle[0] didn't match haystack[i], advance haystack
+        }
+    }
+    return -1;
+}
+// Time: O(n+m) — O(m) to build LPS, O(n) to search
+// Space: O(m) for LPS array
+```
+
+```
+TRACE: haystack="AAACAAAB", needle="AAAB"
+  LPS for "AAAB": [0,1,2,0]
+
+  i=0,j=0: A==A → i=1,j=1
+  i=1,j=1: A==A → i=2,j=2
+  i=2,j=2: A==A → i=3,j=3
+  i=3,j=3: C!=B → j=lps[2]=2 (backtrack to length 2, haystack stays at 3)
+  i=3,j=2: C!=A → j=lps[1]=1
+  i=3,j=1: C!=A → j=lps[0]=0
+  i=3,j=0: C!=A → i=4
+  i=4,j=0: A==A → i=5,j=1
+  i=5,j=1: A==A → i=6,j=2
+  i=6,j=2: A==A → i=7,j=3
+  i=7,j=3: B==B → i=8,j=4 → j==m=4 → return 8-4=4 ✅
+```
+
+> **🎯 Key Insight:** KMP's genius is the LPS array — it tells you how much of the pattern you've "pre-matched" at any mismatch point, so you never restart from zero. The haystack index i NEVER goes backward. This guarantees O(n) traversal of the haystack regardless of mismatches.
 
 ---
 
@@ -4303,369 +5823,305 @@ public int StrStr(string haystack, string needle) {
 
 ## Section 50 — Product Company Cheat Sheet & Interview Guide
 
----
-
-### BIG O COMPLEXITY REFERENCE CARD
+### Big O Complexity Reference
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    COMPLETE COMPLEXITY REFERENCE                            │
-├─────────────────┬──────────────┬──────────────────────────────────────────┤
-│  Data Structure │  Operations  │  Time Complexity                         │
-├─────────────────┼──────────────┼──────────────────────────────────────────┤
-│  Array          │  Access      │  O(1)                                    │
-│                 │  Search      │  O(n) unsorted / O(log n) sorted        │
-│                 │  Insert/Del  │  O(n) shift                             │
-├─────────────────┼──────────────┼──────────────────────────────────────────┤
-│  LinkedList     │  Access      │  O(n)                                   │
-│                 │  Search      │  O(n)                                   │
-│                 │  Insert/Del  │  O(1) at known node                    │
-├─────────────────┼──────────────┼──────────────────────────────────────────┤
-│  Stack/Queue    │  Push/Pop    │  O(1)                                   │
-│                 │  Peek        │  O(1)                                   │
-│                 │  Search      │  O(n)                                   │
-├─────────────────┼──────────────┼──────────────────────────────────────────┤
-│  HashMap        │  Get/Put     │  O(1) avg / O(n) worst                 │
-│  HashSet        │  Contains    │  O(1) avg / O(n) worst                 │
-├─────────────────┼──────────────┼──────────────────────────────────────────┤
-│  BST (balanced) │  Search      │  O(log n)                               │
-│                 │  Insert/Del  │  O(log n)                               │
-├─────────────────┼──────────────┼──────────────────────────────────────────┤
-│  Heap           │  Push/Pop    │  O(log n)                               │
-│                 │  Peek        │  O(1)                                   │
-│                 │  Build       │  O(n)                                   │
-├─────────────────┼──────────────┼──────────────────────────────────────────┤
-│  Trie           │  Insert/Find │  O(L) — word length                    │
-├─────────────────┼──────────────┼──────────────────────────────────────────┤
-│  Graph (V,E)    │  DFS/BFS     │  O(V + E)                               │
-│                 │  Dijkstra    │  O((V+E) log V)                         │
-│                 │  Bellman-Ford│  O(V × E)                               │
-│                 │  Floyd-W     │  O(V³)                                  │
-└─────────────────┴──────────────┴──────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                      SORTING COMPLEXITY REFERENCE                          │
-├──────────────┬──────────────┬──────────────┬──────────────┬───────────────┤
-│  Algorithm   │  Best        │  Average     │  Worst       │  Space/Stable │
-├──────────────┼──────────────┼──────────────┼──────────────┼───────────────┤
-│  Bubble      │  O(n)        │  O(n²)       │  O(n²)       │  O(1) / Yes  │
-│  Selection   │  O(n²)       │  O(n²)       │  O(n²)       │  O(1) / No   │
-│  Insertion   │  O(n)        │  O(n²)       │  O(n²)       │  O(1) / Yes  │
-│  Merge       │  O(n log n)  │  O(n log n)  │  O(n log n)  │  O(n) / Yes  │
-│  Quick       │  O(n log n)  │  O(n log n)  │  O(n²)       │  O(log n)/No │
-│  Heap        │  O(n log n)  │  O(n log n)  │  O(n log n)  │  O(1) / No   │
-│  Counting    │  O(n+k)      │  O(n+k)      │  O(n+k)      │  O(k) / Yes  │
-│  Radix       │  O(nk)       │  O(nk)       │  O(nk)       │  O(n+k)/Yes  │
-└──────────────┴──────────────┴──────────────┴──────────────┴───────────────┘
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                    BIG O CHEAT SHEET                                      ║
+╠══════════════════╦══════════════════════════════════════════════════════╣
+║ DATA STRUCTURE   ║ Access  Search  Insert  Delete  Space                 ║
+╠══════════════════╬══════════════════════════════════════════════════════╣
+║ Array            ║ O(1)    O(n)    O(n)    O(n)    O(n)                  ║
+║ Dynamic Array    ║ O(1)    O(n)    O(1)†   O(n)    O(n)  †amortized      ║
+║ Linked List      ║ O(n)    O(n)    O(1)*   O(1)*   O(n)  *with reference ║
+║ Stack/Queue      ║ O(n)    O(n)    O(1)    O(1)    O(n)                  ║
+║ HashMap          ║ N/A     O(1)†   O(1)†   O(1)†   O(n)  †average       ║
+║ HashSet          ║ N/A     O(1)†   O(1)†   O(1)†   O(n)  †average       ║
+║ BST (balanced)   ║ O(logn) O(logn) O(logn) O(logn) O(n)                  ║
+║ BST (unbalanced) ║ O(n)    O(n)    O(n)    O(n)    O(n)  worst case     ║
+║ Heap             ║ N/A     O(n)    O(logn) O(logn) O(n)                  ║
+║ Trie             ║ O(m)    O(m)    O(m)    O(m)    O(n×m) m=key length   ║
+╠══════════════════╬══════════════════════════════════════════════════════╣
+║ ALGORITHM        ║ Best    Average  Worst   Space                         ║
+╠══════════════════╬══════════════════════════════════════════════════════╣
+║ Bubble Sort      ║ O(n)    O(n²)    O(n²)   O(1)                         ║
+║ Selection Sort   ║ O(n²)   O(n²)    O(n²)   O(1)                         ║
+║ Insertion Sort   ║ O(n)    O(n²)    O(n²)   O(1)   best for small/sorted ║
+║ Merge Sort       ║ O(nlogn)O(nlogn) O(nlogn)O(n)   stable               ║
+║ Quick Sort       ║ O(nlogn)O(nlogn) O(n²)   O(logn)unstable, in-place   ║
+║ Heap Sort        ║ O(nlogn)O(nlogn) O(nlogn)O(1)   unstable             ║
+║ Counting Sort    ║ O(n+k)  O(n+k)   O(n+k)  O(k)   k=range              ║
+║ Radix Sort       ║ O(nk)   O(nk)    O(nk)   O(n+k) k=digits             ║
+║ Binary Search    ║ O(1)    O(logn)  O(logn) O(1)                         ║
+║ DFS/BFS          ║ O(V+E)  O(V+E)   O(V+E)  O(V)                         ║
+║ Dijkstra         ║ O(ElogV)O(ElogV) O(ElogV)O(V)                         ║
+╚══════════════════╩══════════════════════════════════════════════════════╝
 ```
 
----
-
-## Coding Problem-Solving Approach (Non-DSA)
-
-### Framework: UCCEE Method
-
-**1. UNDERSTAND the Problem**
-- Read the problem twice
-- Identify inputs and outputs
-- Ask clarifying questions
-- Understand constraints
-
-Example questions:
-- "What's the expected input format?"
-- "Should I handle null inputs?"
-- "What's the expected behavior for edge cases?"
-- "Are there performance requirements?"
-
-**2. CLARIFY Requirements**
-- Functional requirements
-- Non-functional requirements (performance, security)
-- Edge cases and error handling
-
-**3. COMMUNICATE Your Approach**
-- Explain your solution before coding
-- Discuss trade-offs
-- Mention alternatives
-
-**4. EXECUTE with Quality Code**
-- Write clean, readable code
-- Use meaningful variable names
-- Follow SOLID principles
-- Add comments for complex logic
-
-**5. EVALUATE and Test**
-- Walk through your code
-- Test with sample inputs
-- Consider edge cases
-- Discuss improvements
-
-### UMPIRE CHECKLIST (Print this for every interview)
+### The UMPIRE Problem-Solving Checklist
 
 ```
-□  U — UNDERSTAND
-   □ Restate the problem in your own words
-   □ Identify input/output types, constraints, edge cases
-   □ Ask: sorted? duplicates? null? empty? negative? size?
-
-□  M — MATCH
-   □ What data structure matches? (array→pointers, LL→fast/slow, tree→DFS/BFS)
-   □ What pattern matches? (optimal→DP/greedy, all combos→backtrack, K elements→heap)
-
-□  P — PLAN
-   □ Write 3–5 lines of pseudocode BEFORE coding
-   □ Identify any tricky sub-problems
-   □ Estimate time/space complexity of your plan
-
-□  I — IMPLEMENT
-   □ Code the solution cleanly
-   □ Handle edge cases at the top
-   □ Use descriptive variable names
-   □ Use int.MaxValue/2 for infinity (avoids overflow)
-
-□  R — REVIEW
-   □ Trace through with simplest non-trivial example
-   □ Test edge cases: empty, single element, all same, negative
-   □ Check for off-by-one errors (< vs <=, length vs length-1)
-
-□  E — EVALUATE
-   □ State time complexity with justification
-   □ State space complexity (include recursion stack!)
-   □ Discuss trade-offs and alternative approaches
+╔══════════════════════════════════════════════════════════════════╗
+║  INTERVIEW CHECKLIST (use this for EVERY problem)                ║
+╠══════════════════════════════════════════════════════════════════╣
+║  □ Read problem statement twice                                  ║
+║  □ Write 2-3 concrete examples (including edge cases)            ║
+║  □ State constraints: array size? value range? sorted? dupes?    ║
+║  □ Identify which of the 14 patterns this matches               ║
+║  □ State your approach BEFORE coding ("I'll use sliding window") ║
+║  □ Write brute force approach first if stuck                     ║
+║  □ State time and space complexity BEFORE coding                 ║
+║  □ Code solution with clear variable names                       ║
+║  □ Test with your examples step by step                         ║
+║  □ Test edge cases: empty input, single element, all same        ║
+║  □ Optimize if brute force won't pass                            ║
+╚══════════════════════════════════════════════════════════════════╝
 ```
 
----
-
-### PATTERN RECOGNITION QUICK GUIDE
+### Pattern Recognition Flowchart
 
 ```
-Problem says...                      Use...
-────────────────────────────────────────────────────────────────
-"sorted array + find target"       → Binary Search
-"sorted array + pair/triplet sum"  → Two Pointers
-"subarray/substring max/min"       → Sliding Window
-"linked list cycle/middle"         → Fast & Slow Pointers
-"overlapping intervals"            → Merge Intervals (sort by start)
-"numbers 1 to n, missing/dupe"     → Cyclic Sort
-"reverse linked list"              → In-place Reversal
-"level-by-level tree"              → BFS (Queue)
-"tree path/depth"                  → DFS (recursion)
-"all combinations/subsets"         → Backtracking
-"top K / K largest / K smallest"   → Heap (size K)
-"K sorted lists/streams"           → K-way Merge (heap)
-"dependencies, order of tasks"     → Topological Sort
-"optimal value exists"             → DP or Greedy
-"count/frequency lookup"           → HashMap
-"membership test O(1)"             → HashSet
-"prefix/autocomplete"              → Trie
-"connectivity of nodes"            → Union-Find
-"next greater/smaller element"     → Monotonic Stack
-"only 2 different values in array" → Bit manipulation (XOR)
-"max sum contiguous subarray"      → Kadane's (DP/Greedy)
+START: What does the problem ask for?
+═══════════════════════════════════════════════════════════════
+  "Find two elements that..." + sorted array → TWO POINTERS
+  "Subarray/substring with property..." → SLIDING WINDOW
+  "Detect cycle / find middle" in linked list → FAST & SLOW
+  "Overlapping intervals..." → MERGE INTERVALS
+  "Find missing/duplicate in [1..n]" → CYCLIC SORT
+  "Reverse linked list or part of it" → LL REVERSAL
+  "Search in rotated/sorted-variant array" → MODIFIED BINARY SEARCH
+  "Top K / Kth largest/smallest" → HEAP (SIZE K)
+  "Next greater/smaller element" → MONOTONIC STACK
+  "Single unique number / bit tricks" → BIT MANIPULATION
+  "All subsets/combinations/permutations" → BACKTRACKING
+  "Count primes / GCD" → MATH / NUMBER THEORY
+  "Shortest path (unweighted)" → BFS
+  "Shortest path (weighted)" → DIJKSTRA
+  "Cycle in directed graph / dependency order" → DFS + TOPO SORT
+  "Connected components" → UNION-FIND or DFS/BFS
+  "Minimum/maximum count/cost of..." + subproblems → DP
+  "Greedy choice provably optimal" → GREEDY
+═══════════════════════════════════════════════════════════════
 ```
 
----
-
-### FAANG COMPANY FOCUS AREAS
+### FAANG Company-Specific Focus Areas
 
 ```
-┌────────────┬─────────────────────────────────────────────────────────────┐
-│  Company   │  Primary DSA Focus                                         │
-├────────────┼─────────────────────────────────────────────────────────────┤
-│  Google    │  Graphs, DP, String algorithms, Math, Advanced data structs │
-│            │  Expect: BFS/DFS, shortest path, substring matching        │
-├────────────┼─────────────────────────────────────────────────────────────┤
-│  Amazon    │  Arrays, Trees, OOP + DSA combined, System design          │
-│            │  Expect: sliding window, tree traversals, design patterns  │
-├────────────┼─────────────────────────────────────────────────────────────┤
-│  Microsoft │  Trees, Linked Lists, DP, Recursion, System design        │
-│            │  Expect: BST operations, LCA, DP on trees                 │
-├────────────┼─────────────────────────────────────────────────────────────┤
-│  Meta (FB) │  Graphs (social network), Arrays, String manipulation      │
-│            │  Expect: BFS, two pointers, sliding window                │
-├────────────┼─────────────────────────────────────────────────────────────┤
-│  Apple     │  Arrays, Strings, Optimization, Low-level efficiency       │
-│            │  Expect: in-place algorithms, space optimization           │
-└────────────┴─────────────────────────────────────────────────────────────┘
+╔══════════════════════════════════════════════════════════════════╗
+║  COMPANY       │ FOCUS AREAS                                     ║
+╠══════════════════════════════════════════════════════════════════╣
+║  Google        │ Graphs (all types), DP (complex multi-dim),    ║
+║                │ String algorithms, System design integration   ║
+╠══════════════════════════════════════════════════════════════════╣
+║  Amazon        │ Arrays/Strings (heavy), Trees, OOP + DSA,      ║
+║                │ Leadership principles in behavioral             ║
+╠══════════════════════════════════════════════════════════════════╣
+║  Microsoft     │ Trees (especially BST), DP, Arrays,            ║
+║                │ System design for senior roles                  ║
+╠══════════════════════════════════════════════════════════════════╣
+║  Meta/Facebook │ Arrays (sliding window), Graphs (BFS/DFS),     ║
+║                │ Recursion, Design questions                     ║
+╠══════════════════════════════════════════════════════════════════╣
+║  Apple         │ Arrays, Strings, Optimization, Algorithms,     ║
+║                │ Focus on code quality and elegance              ║
+╠══════════════════════════════════════════════════════════════════╣
+║  Netflix       │ System design (heavy), Distributed systems,    ║
+║                │ Streaming algorithms, Scalability              ║
+╚══════════════════════════════════════════════════════════════════╝
 ```
 
----
+### Top 20 Must-Know Problems
 
-### TOP 20 MUST-KNOW PROBLEMS (With Approach)
-
-| # | Problem | LeetCode | Pattern | Key Insight |
-|---|---------|----------|---------|-------------|
+| # | Problem | LeetCode | Pattern | Key Trick |
+|---|---------|----------|---------|-----------|
 | 1 | Two Sum | 1 | HashMap | complement = target - num |
-| 2 | Best Time to Buy/Sell | 121 | Greedy | track min price so far |
-| 3 | Valid Parentheses | 20 | Stack | push open, match close |
-| 4 | Merge Intervals | 56 | Sort + Greedy | sort by start, merge overlaps |
-| 5 | Reverse Linked List | 206 | In-place reversal | prev/curr/next 3 pointers |
-| 6 | Max Depth Binary Tree | 104 | Tree DFS | 1 + max(left, right) |
-| 7 | Level Order Traversal | 102 | BFS | snapshot queue.Count per level |
-| 8 | Climbing Stairs | 70 | DP | dp[n] = dp[n-1] + dp[n-2] |
-| 9 | Coin Change | 322 | DP tabulation | dp[i] = min(dp[i-coin]+1) |
-| 10 | Number of Islands | 200 | DFS/BFS | sink visited land |
-| 11 | Longest Substring No Repeat | 3 | Sliding Window | shrink on duplicate |
-| 12 | Validate BST | 98 | Tree DFS | pass (min,max) range |
-| 13 | Search Rotated Array | 33 | Binary Search | identify sorted half |
-| 14 | 3Sum | 15 | Two Pointers | sort + fix one + two pointers |
-| 15 | Kth Largest | 215 | Heap | min-heap size k |
-| 16 | Course Schedule | 207 | Graph DFS | 3-state cycle detection |
-| 17 | Word Search | 79 | Backtracking | DFS + visited marking |
-| 18 | LCS | 1143 | 2D DP | dp[i][j] = match or max skip |
-| 19 | Implement Trie | 208 | Trie | children[26] + IsEnd |
-| 20 | Median of Stream | 295 | Two Heaps | max-heap left + min-heap right |
+| 2 | Best Time to Buy Stock | 121 | Greedy | track min price so far |
+| 3 | Contains Duplicate | 217 | HashSet | set size < array size |
+| 4 | Maximum Subarray | 53 | Kadane's DP | extend or restart |
+| 5 | Longest Substring No Repeat | 3 | Sliding Window | map char to last index |
+| 6 | Valid Parentheses | 20 | Stack | LIFO matches nesting |
+| 7 | Reverse Linked List | 206 | LL + 3 ptrs | prev/curr/next |
+| 8 | Binary Search | 704 | Binary Search | left + (right-left)/2 |
+| 9 | Number of Islands | 200 | Graph DFS | sink islands |
+| 10 | Coin Change | 322 | DP | dp[i] = min coins |
+| 11 | Product of Array Except Self | 238 | Prefix/Suffix | left × right products |
+| 12 | 3Sum | 15 | Sort + 2 ptr | sort + skip dups |
+| 13 | Climbing Stairs | 70 | DP Fibonacci | prev1 + prev2 |
+| 14 | Merge Intervals | 56 | Sort + Merge | sort by start |
+| 15 | Lowest Common Ancestor BST | 235 | BST | branch left/right by val |
+| 16 | Word Search | 79 | Backtracking | DFS + visited marking |
+| 17 | Course Schedule | 207 | Topo Sort | 3-color DFS cycle detect |
+| 18 | LRU Cache | 146 | HashMap + DLL | O(1) get & put |
+| 19 | Find Median from Data Stream | 295 | Two Heaps | max-heap + min-heap |
+| 20 | Serialize/Deserialize Binary Tree | 297 | BFS/DFS | level-order encode |
 
----
-
-### C# GOTCHAS IN INTERVIEWS
+### C# Gotchas for Interviews
 
 ```csharp
-// 1. INTEGER OVERFLOW
-int mid = (left + right) / 2;      // ❌ overflows if both large
-int mid = left + (right - left) / 2; // ✅ safe
+// ⚠️ GOTCHA 1: Integer Overflow
+int a = int.MaxValue;
+int b = a + 1;           // OVERFLOW! Use long or checked{}
+long c = (long)a + 1;    // CORRECT
 
-// 2. NULL REFERENCE
-node.Next.Val      // ❌ crashes if Next is null
-node?.Next?.Val    // ✅ null-conditional
+// ⚠️ GOTCHA 2: Mid calculation overflow
+int mid = (left + right) / 2;    // WRONG: left+right may overflow!
+int mid2 = left + (right - left) / 2;  // CORRECT
 
-// 3. OFF-BY-ONE — most common bug
-arr[arr.Length]     // ❌ IndexOutOfRange
-arr[arr.Length - 1] // ✅ last element
-
-// 4. STRING CONCATENATION IN LOOP
+// ⚠️ GOTCHA 3: String concatenation in loops
 string s = "";
-for (int i = 0; i < n; i++) s += chars[i];  // ❌ O(n²)
+for (int i = 0; i < n; i++) s += i;  // O(n²)! Creates new string each time
 var sb = new StringBuilder();
-for (int i = 0; i < n; i++) sb.Append(chars[i]); // ✅ O(n)
+for (int i = 0; i < n; i++) sb.Append(i);  // O(n) CORRECT
 
-// 5. DICTIONARY ACCESS
-dict[key]                    // ❌ throws KeyNotFoundException
-dict.TryGetValue(key, out v) // ✅ safe
+// ⚠️ GOTCHA 4: Array vs List modification during iteration
+foreach (var item in list) list.Remove(item);  // InvalidOperationException!
+for (int i = list.Count - 1; i >= 0; i--)  // iterate backwards when removing
 
-// 6. MODIFYING WHILE ITERATING
-foreach (var item in list) list.Remove(item); // ❌ InvalidOperationException
-for (int i = list.Count-1; i >= 0; i--)       // ✅ iterate backwards
+// ⚠️ GOTCHA 5: Dictionary KeyNotFoundException
+dict["missing"];                            // THROWS!
+dict.GetValueOrDefault("missing", 0);       // SAFE: returns 0
+dict.TryGetValue("key", out int val);       // SAFE: returns false if missing
 
-// 7. SHALLOW VS DEEP COPY
-int[] copy = arr;           // ❌ same reference!
-int[] copy = (int[])arr.Clone(); // ✅ shallow copy (fine for primitives)
+// ⚠️ GOTCHA 6: Default values in arrays
+int[] arr = new int[5];           // all zeros
+bool[] visited = new bool[5];     // all false — CORRECT for visited array!
+string[] strs = new string[5];    // all null (not ""!)
 
-// 8. INT.MAXVALUE ADDITION OVERFLOW
-int dist = int.MaxValue;
-dist + weight;              // ❌ overflows to negative!
-int.MaxValue / 2 + weight;  // ✅ safe
+// ⚠️ GOTCHA 7: Char to int conversion
+int idx = 'a' - 'a';   // 0
+int idx2 = 'z' - 'a';  // 25
+// NOT: (int)'a' == 97 (ASCII value, not 0-25 index!)
 
-// 9. NEGATIVE MODULO
-(-7) % 3 = -1               // in C# — can be negative!
-(((-7) % 3) + 3) % 3 = 2   // ✅ always positive result
+// ⚠️ GOTCHA 8: Null reference in linked list problems
+ListNode next = curr.next;        // if curr is null → NullReferenceException!
+ListNode next = curr?.next;       // null-safe: returns null if curr is null
 
-// 10. LINQ DEFERRED EXECUTION
-var q = list.Where(x => x > 0);  // not executed yet!
-var r = q.ToList();               // ← executed here; always materialize
+// ⚠️ GOTCHA 9: Off-by-one in binary search
+while (left < right) { ... }     // vs
+while (left <= right) { ... }    // different semantics — be consistent!
+// Rule: left < right for lower/upper bound; left <= right for classic search
+
+// ⚠️ GOTCHA 10: Comparing strings
+string a = "hello", b = "hel" + "lo";
+bool eq1 = a == b;           // true (C# overloads == for value comparison)
+bool eq2 = object.ReferenceEquals(a, b); // may be false (different objects)
+// Always use == for string value comparison in C#
 ```
 
----
-
-### STUDY PLAN — 12 WEEKS TO PRODUCT COMPANY READINESS
+### 12-Week Interview Preparation Plan
 
 ```
-WEEKS 1–2: FOUNDATIONS (Sections 1–4, 10–11)
-  □ Master UMPIRE framework — apply to every practice problem
-  □ Arrays, Strings, HashMap, HashSet — cold
-  □ Big O analysis — justify every solution
-  □ Daily: 2 easy problems on LeetCode
-
-WEEKS 3–4: LINEAR STRUCTURES (Sections 5–9)
-  □ Linked Lists — implement from scratch, reverse, detect cycle
-  □ Stacks & Queues — monotonic stack, BFS template
-  □ Two Pointers & Sliding Window patterns
-  □ Daily: 1 easy + 1 medium problem
-
-WEEKS 5–6: TREES & GRAPHS (Sections 12–21)
-  □ All 4 tree traversals — recursive AND iterative
-  □ BST operations — insert, delete, validate
-  □ DFS + BFS on graphs — both iterative and recursive
-  □ Dijkstra's algorithm — implement from scratch
-  □ Daily: 2 medium problems
-
-WEEKS 7–8: DYNAMIC PROGRAMMING (Sections 32–35)
-  □ Fibonacci → climbing stairs → coin change progression
-  □ LCS, LIS, edit distance — build DP table by hand
-  □ Backtracking: subsets, permutations, N-Queens
-  □ Daily: 2 medium + 1 hard
-
-WEEKS 9–10: PATTERNS (Sections 36–47)
-  □ All 12 patterns — one day each, 2 problems per pattern
-  □ Heaps, Union-Find, Trie — implement from scratch
-  □ Bit manipulation tricks — memorize XOR properties
-  □ Daily: 3 medium problems
-
-WEEKS 11–12: MOCK INTERVIEWS & HARD PROBLEMS
-  □ LeetCode hard problems — 1 per day
-  □ Timed mock interviews (45 min, no hints)
-  □ Review Section 50 cheat sheet weekly
-  □ System design + DSA combination problems
-  □ Company-specific practice (see FAANG focus areas)
-
-THROUGHOUT:
-  □ Explain every solution out loud (rubber duck method)
-  □ After solving: look at top solutions for alternative approaches
-  □ Track personal weak areas — revisit those sections
-  □ Aim for: 100 unique problems solved before any interview
+╔══════════════════════════════════════════════════════════════════╗
+║  WEEK 1-2:  FOUNDATIONS                                          ║
+║  □ Big O analysis (Section 2-3)                                  ║
+║  □ Arrays & Strings (Sections 5-6)                               ║
+║  □ LeetCode Easy: Two Sum, Valid Parens, Reverse String          ║
+╠══════════════════════════════════════════════════════════════════╣
+║  WEEK 3-4:  LINEAR DATA STRUCTURES                               ║
+║  □ Linked Lists, Stacks, Queues (Sections 7-9)                   ║
+║  □ HashMap & HashSet (Sections 10-11)                            ║
+║  □ LeetCode Medium: 3Sum, Group Anagrams, LRU Cache              ║
+╠══════════════════════════════════════════════════════════════════╣
+║  WEEK 5-6:  TREES & GRAPHS                                       ║
+║  □ Binary Trees, BST, Heaps, Tries (Sections 12-15)              ║
+║  □ Graph DFS/BFS, Shortest Path (Sections 17-19)                 ║
+║  □ LeetCode Medium: Validate BST, Course Schedule, Num Islands   ║
+╠══════════════════════════════════════════════════════════════════╣
+║  WEEK 7-8:  ALGORITHMS                                           ║
+║  □ Sorting & Binary Search (Sections 22-27)                      ║
+║  □ Recursion & Backtracking (Sections 29-30)                     ║
+║  □ LeetCode Medium: Merge Sort, Search Rotated, Letter Combos    ║
+╠══════════════════════════════════════════════════════════════════╣
+║  WEEK 9-10: DYNAMIC PROGRAMMING                                  ║
+║  □ DP Memoization & Tabulation (Sections 32-34)                  ║
+║  □ Classic DP: Knapsack, LCS, Edit Distance                      ║
+║  □ LeetCode Medium/Hard: Coin Change, LCS, Word Break            ║
+╠══════════════════════════════════════════════════════════════════╣
+║  WEEK 11-12: PATTERNS & MOCK INTERVIEWS                          ║
+║  □ All 14 patterns (Part 9 Sections 36-47)                       ║
+║  □ 2 mock interviews/week (pramp.com, interviewing.io)           ║
+║  □ LeetCode Hard: Trapping Rain Water, Word Ladder, Median Stream║
+╚══════════════════════════════════════════════════════════════════╝
 ```
 
----
+### LRU Cache — Bonus Problem (LeetCode #146 — Medium/Hard)
 
-### MEDIAN OF DATA STREAM (Two Heaps Pattern — Bonus)
-
-> This classic problem uses TWO HEAPS and is asked by every major company.
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  LRU CACHE DESIGN                                                ║
+║  get(key): O(1) — return value or -1                             ║
+║  put(key,val): O(1) — insert/update; evict LRU if over capacity  ║
+║                                                                  ║
+║  DATA STRUCTURE: HashMap + Doubly Linked List                    ║
+║  HashMap: key → DLL node (O(1) lookup)                          ║
+║  DLL: ordered by recency (head=MRU, tail=LRU)                   ║
+╚══════════════════════════════════════════════════════════════════╝
+```
 
 ```csharp
-// MEDIAN FINDER — LeetCode #295 — Hard
-// Mental model: two piles of sorted numbers split at median
-// Left pile (max-heap): smaller half | Right pile (min-heap): larger half
-// Invariant: |left| - |right| ∈ {0, 1} (left can have at most 1 extra)
+public class LRUCache {
+    private class Node { public int key, val; public Node prev, next; }
 
-public class MedianFinder {
-    private PriorityQueue<int,int> _left  = new(); // max-heap (negate priority)
-    private PriorityQueue<int,int> _right = new(); // min-heap
+    private Dictionary<int, Node> map = new();
+    private Node head, tail;  // sentinel nodes (dummy head/tail)
+    private int capacity;
 
-    public void AddNum(int num) {
-        // Always add to left first
-        _left.Enqueue(num, -num);  // negate for max-heap behavior
+    public LRUCache(int capacity) {
+        this.capacity = capacity;
+        head = new Node(); tail = new Node();
+        head.next = tail; tail.prev = head;  // empty DLL
+    }
 
-        // Balance: right's min must be >= left's max
-        if (_right.Count > 0 && _left.Peek() > _right.Peek()) {
-            int top = _left.Dequeue();
-            _right.Enqueue(top, top);
-        }
+    public int Get(int key) {
+        if (!map.ContainsKey(key)) return -1;
+        MoveToFront(map[key]);  // mark as recently used
+        return map[key].val;
+    }
 
-        // Rebalance sizes: left can have at most 1 more than right
-        if (_left.Count > _right.Count + 1) {
-            int top = _left.Dequeue();
-            _right.Enqueue(top, top);
-        } else if (_right.Count > _left.Count) {
-            int top = _right.Dequeue();
-            _left.Enqueue(top, -top);
+    public void Put(int key, int value) {
+        if (map.ContainsKey(key)) {
+            map[key].val = value;
+            MoveToFront(map[key]);
+        } else {
+            var node = new Node { key = key, val = value };
+            map[key] = node;
+            InsertFront(node);
+            if (map.Count > capacity) {    // over capacity → evict LRU (tail)
+                var lru = tail.prev;
+                Remove(lru);
+                map.Remove(lru.key);
+            }
         }
     }
 
-    public double FindMedian() {
-        if (_left.Count > _right.Count) return _left.Peek();
-        return (_left.Peek() + (double)_right.Peek()) / 2.0;
+    void Remove(Node n) {
+        n.prev.next = n.next;
+        n.next.prev = n.prev;
     }
+
+    void InsertFront(Node n) {
+        n.next = head.next; n.prev = head;
+        head.next.prev = n; head.next = n;
+    }
+
+    void MoveToFront(Node n) { Remove(n); InsertFront(n); }
 }
-// Time: O(log n) per AddNum, O(1) FindMedian | Space: O(n)
+// Time: O(1) for both get and put — HashMap lookup + DLL pointer manipulation
+// Space: O(capacity)
 ```
 
 ---
 
-> **🎯 Final Key Insight: The Meta-Pattern**
->
-> After solving hundreds of problems, you'll notice: most HARD problems are just MEDIUM patterns applied in clever combinations. A hard graph problem = BFS + heap + state compression. A hard DP problem = 2D DP + binary search optimization. The path from intermediate to expert is not learning new patterns — it's recognizing how to COMBINE and ADAPT the patterns you already know. Practice with intention: after each problem, ask "what PATTERN is this?" and "how would I recognize this pattern in a new problem?"
+```
+═══════════════════════════════════════════════════════════════════════
+  DSA COMPLETE STUDY GUIDE — C# EDITION
+  Sections 1–50 · Parts 1–11 · 50 Practice Problems · FAANG Ready
 
----
+  Master the 14 patterns. Understand the WHY behind every approach.
+  Brute Force → Better → Optimal for every problem.
+  You're ready when you can explain the solution before you code it.
+═══════════════════════════════════════════════════════════════════════
+```
 
-*DSA Complete Study Guide — C# Edition*
-*Sections 1–50 · Parts 1–11 · 50 Practice Problems · FAANG Ready*
+
 
