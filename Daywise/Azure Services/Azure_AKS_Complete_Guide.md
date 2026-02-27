@@ -691,10 +691,22 @@ affinity:
 # ─────────────────────────────────────────────────────────────────
 az version
 
+# Sample Output:
+# {
+#   "azure-cli": "2.61.0",
+#   "azure-cli-core": "2.61.0",
+#   "azure-cli-telemetry": "1.1.0",
+#   "extensions": {}
+# }
+
 # ─────────────────────────────────────────────────────────────────
 # 2. Install kubectl and kubelogin
 # ─────────────────────────────────────────────────────────────────
 az aks install-cli
+
+# Sample Output:
+# Downloading client to "/usr/local/bin/kubectl" from "https://storage.googleapis.com/kubernetes-release/release/v1.31.2/bin/linux/amd64/kubectl"
+# Downloading client to "/usr/local/bin/kubelogin" from "https://github.com/Azure/kubelogin/releases/download/v0.1.3/kubelogin-linux-amd64.zip"
 
 # ─────────────────────────────────────────────────────────────────
 # 3. Register required resource providers
@@ -709,12 +721,25 @@ az provider register --namespace Microsoft.OperationalInsights
 # Check registration (wait until state = Registered):
 az provider show -n Microsoft.ContainerService --query registrationState -o tsv
 
+# Sample Output:
+# Registered
+
 # ─────────────────────────────────────────────────────────────────
 # 4. Login and set subscription
 # ─────────────────────────────────────────────────────────────────
 az login
 az account set --subscription "My Subscription"
 az account show
+
+# Sample Output:
+# {
+#   "environmentName": "AzureCloud",
+#   "id": "abc12345-1234-1234-1234-abcdef123456",
+#   "name": "My Subscription",
+#   "state": "Enabled",
+#   "tenantId": "tenant-guid-here",
+#   "user": { "name": "user@example.com", "type": "user" }
+# }
 ```
 
 ### Create a Production-Ready AKS Cluster
@@ -804,6 +829,15 @@ az aks get-credentials \
 # Verify connection:
 kubectl cluster-info
 kubectl get nodes -o wide
+# Sample Output (kubectl cluster-info):
+# Kubernetes control plane is running at https://myaks-abc123.hcp.eastus.azmk8s.io:443
+# CoreDNS is running at https://myaks-abc123.hcp.eastus.azmk8s.io:443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
+#
+# Sample Output (kubectl get nodes -o wide):
+# NAME                                STATUS   ROLES   AGE   VERSION   INTERNAL-IP   OS-IMAGE
+# aks-nodepool1-12345678-vmss000000   Ready    agent   5d    v1.31.2   10.240.0.4    Ubuntu 22.04.3
+# aks-nodepool1-12345678-vmss000001   Ready    agent   5d    v1.31.2   10.240.0.5    Ubuntu 22.04.3
+# aks-nodepool1-12345678-vmss000002   Ready    agent   5d    v1.31.2   10.240.0.6    Ubuntu 22.04.3
 
 # ─────────────────────────────────────────────────────────────────
 # STEP 5: Add user node pool for application workloads
@@ -1819,40 +1853,64 @@ kubectl set image deployment/simpleapi1 \
   simpleapi1=myacr.azurecr.io/simpleapi1:2.0.0 \
   -n production \
   --record   # records the command in revision history
+# Output: deployment.apps/simpleapi1 image updated
 
 # Watch the rollout progress:
 kubectl rollout status deployment/simpleapi1 -n production
+# Sample Output:
+# Waiting for deployment "simpleapi1" rollout to finish: 1 out of 3 new replicas updated...
+# Waiting for deployment "simpleapi1" rollout to finish: 2 out of 3 new replicas updated...
+# Waiting for deployment "simpleapi1" rollout to finish: 1 old replicas pending termination...
+# deployment "simpleapi1" successfully rolled out
 
 # View rollout history:
 kubectl rollout history deployment/simpleapi1 -n production
+# Sample Output:
+# REVISION  CHANGE-CAUSE
+# 1         kubectl apply --filename=deployment.yaml --record=true
+# 2         kubectl set image deployment/simpleapi1 simpleapi1=myacr.azurecr.io/simpleapi1:2.0.0 --record=true
 
 # View details of a specific revision:
 kubectl rollout history deployment/simpleapi1 -n production --revision=2
+# Sample Output:
+# deployment.apps/simpleapi1 with revision #2
+# Pod Template:
+#   Labels: app=simpleapi1, pod-template-hash=6c5d7b8e9
+#   Annotations: kubernetes.io/change-cause: kubectl set image ... simpleapi1:2.0.0
+#   Containers:
+#    simpleapi1:
+#     Image: myacr.azurecr.io/simpleapi1:2.0.0
 
 # ─────────────────────────────────────────────────────────────────
 # ROLLBACK: something broke in v2.0.0, roll back to previous version
 # ─────────────────────────────────────────────────────────────────
 kubectl rollout undo deployment/simpleapi1 -n production
+# Output: deployment.apps/simpleapi1 rolled back
 
 # Rollback to a specific revision:
 kubectl rollout undo deployment/simpleapi1 -n production --to-revision=1
+# Output: deployment.apps/simpleapi1 rolled back
 
 # ─────────────────────────────────────────────────────────────────
 # Pause a rollout (e.g., to validate partial rollout)
 # ─────────────────────────────────────────────────────────────────
 kubectl rollout pause deployment/simpleapi1 -n production
+# Output: deployment.apps/simpleapi1 paused
 # ... inspect, test ...
 kubectl rollout resume deployment/simpleapi1 -n production
+# Output: deployment.apps/simpleapi1 resumed
 
 # ─────────────────────────────────────────────────────────────────
 # Scale manually
 # ─────────────────────────────────────────────────────────────────
 kubectl scale deployment/simpleapi1 --replicas=5 -n production
+# Output: deployment.apps/simpleapi1 scaled
 
 # ─────────────────────────────────────────────────────────────────
 # Restart all pods (rolling restart, useful when ConfigMap changes)
 # ─────────────────────────────────────────────────────────────────
 kubectl rollout restart deployment/simpleapi1 -n production
+# Output: deployment.apps/simpleapi1 restarted
 ```
 
 ---
@@ -2254,24 +2312,44 @@ spec:
 ```bash
 # View all jobs and their status:
 kubectl get jobs -n production
+# Sample Output:
+# NAME                          COMPLETIONS   DURATION   AGE
+# simpleapi1-db-migrate-v2      1/1           38s        10m
+# nightly-report-28500000       1/1           2m15s      8h
+# nightly-report-28499940       1/1           2m08s      14h
 
 # Watch a job's pods:
 kubectl get pods -n production -l task=migration -w
+# Sample Output:
+# NAME                                   READY   STATUS      RESTARTS   AGE
+# simpleapi1-db-migrate-v2-xkj2p         0/1     Pending     0          2s
+# simpleapi1-db-migrate-v2-xkj2p         0/1     Init:0/1    0          4s
+# simpleapi1-db-migrate-v2-xkj2p         0/1     Running     0          8s
+# simpleapi1-db-migrate-v2-xkj2p         0/1     Completed   0          38s
 
 # Get job logs:
 kubectl logs -n production -l task=migration
+# Sample Output:
+# [2024-01-15 10:05:12] Starting database migration for simpleapi1 v2.0.0
+# [2024-01-15 10:05:13] Applying migration: 20240115_AddUserTable
+# [2024-01-15 10:05:14] Applying migration: 20240115_AddIndexes
+# [2024-01-15 10:05:18] All migrations applied successfully. Total: 2
 
 # Delete a completed job:
 kubectl delete job simpleapi1-db-migrate-v2 -n production
+# Output: job.batch/simpleapi1-db-migrate-v2 deleted
 
 # Trigger a CronJob manually (creates a one-off Job from the CronJob template):
 kubectl create job --from=cronjob/nightly-report manual-run-$(date +%s) -n production
+# Output: job.batch/manual-run-1705312800 created
 
 # Suspend a CronJob (pause future runs):
 kubectl patch cronjob nightly-report -n production -p '{"spec":{"suspend":true}}'
+# Output: cronjob.batch/nightly-report patched
 
 # Resume a suspended CronJob:
 kubectl patch cronjob nightly-report -n production -p '{"spec":{"suspend":false}}'
+# Output: cronjob.batch/nightly-report patched
 ```
 
 ---
@@ -3121,6 +3199,7 @@ kubectl create configmap simpleapi1-config \
   --from-literal=log-level="Information" \
   --from-literal=api-timeout="30" \
   -n production
+# Output: configmap/simpleapi1-config created
 
 # ─────────────────────────────────────────────────────────────────
 # From a file (key = filename, value = file contents):
@@ -3128,6 +3207,7 @@ kubectl create configmap simpleapi1-config \
 kubectl create configmap simpleapi1-appsettings \
   --from-file=appsettings.Production.json \
   -n production
+# Output: configmap/simpleapi1-appsettings created
 
 # ─────────────────────────────────────────────────────────────────
 # From an env file (.env format: KEY=VALUE per line):
@@ -3135,6 +3215,7 @@ kubectl create configmap simpleapi1-appsettings \
 kubectl create configmap simpleapi1-env \
   --from-env-file=production.env \
   -n production
+# Output: configmap/simpleapi1-env created
 ```
 
 ### ConfigMap YAML Definition
@@ -3243,6 +3324,7 @@ kubectl create secret generic simpleapi1-secrets \
   --from-literal=db-connection-string="Server=myserver;Database=mydb;User=admin;Password=mypassword" \
   --from-literal=jwt-secret-key="super-secret-key-do-not-commit" \
   -n production
+# Output: secret/simpleapi1-secrets created
 
 # ─────────────────────────────────────────────────────────────────
 # TLS secret from certificate files:
@@ -3251,6 +3333,7 @@ kubectl create secret tls tls-api-mycompany-com \
   --cert=./tls.crt \
   --key=./tls.key \
   -n production
+# Output: secret/tls-api-mycompany-com created
 
 # ─────────────────────────────────────────────────────────────────
 # Docker registry secret (for pulling from private ACR):
@@ -3260,6 +3343,7 @@ kubectl create secret docker-registry acr-credentials \
   --docker-username=myacr \
   --docker-password="$(az acr credential show -n myacr --query passwords[0].value -o tsv)" \
   -n production
+# Output: secret/acr-credentials created
 ```
 
 ### Secret YAML (Base64 encoded values)
@@ -3617,19 +3701,32 @@ roleRef:
 
 # Can I list pods in production?
 kubectl auth can-i list pods -n production
+# yes
 
 # Can service account cicd-sa create deployments in production?
 kubectl auth can-i create deployments \
   --as=system:serviceaccount:production:cicd-sa \
   -n production
+# yes
 
 # Show ALL permissions for a service account:
 kubectl auth can-i --list \
   --as=system:serviceaccount:production:cicd-sa \
   -n production
+# Sample Output:
+# Resources                                    Non-Resource URLs   Resource Names   Verbs
+# deployments.apps                             []                  []               [get list watch create update patch delete]
+# pods                                         []                  []               [get list watch]
+# services                                     []                  []               [get list watch]
+# configmaps                                   []                  []               [get list]
+# secrets                                      []                  []               [get]
 
 # Get all role bindings in a namespace:
 kubectl get rolebindings,clusterrolebindings -n production -o wide
+# Sample Output:
+# NAME                                        ROLE                           AGE   USERS   GROUPS   SERVICEACCOUNTS
+# rolebinding.rbac.../cicd-deploy-binding     Role/cicd-deploy               5d                     production/cicd-sa
+# rolebinding.rbac.../developer-binding       Role/developer-read-only       5d            devs
 ```
 
 ---
@@ -3888,15 +3985,18 @@ kubectl label namespace production \
   pod-security.kubernetes.io/enforce-version=latest \
   pod-security.kubernetes.io/audit=restricted \
   pod-security.kubernetes.io/warn=restricted
+# Output: namespace/production labeled
 
 # Dev: just warn (don't block, but educate developers):
 kubectl label namespace development \
   pod-security.kubernetes.io/warn=restricted \
   pod-security.kubernetes.io/audit=baseline
+# Output: namespace/development labeled
 
 # System namespaces: privileged (needed for system pods):
 kubectl label namespace kube-system \
   pod-security.kubernetes.io/enforce=privileged
+# Output: namespace/kube-system labeled
 ```
 
 ### OPA Gatekeeper — Custom Policy Engine
@@ -5638,15 +5738,31 @@ If you’d like, I can next:
 
 ```bash
 kubectl create namespace argocd
+# Output: namespace/argocd created
+
 kubectl apply -n argocd \
   -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+# Sample Output:
+# customresourcedefinition.apiextensions.k8s.io/applications.argoproj.io created
+# customresourcedefinition.apiextensions.k8s.io/applicationsets.argoproj.io created
+# customresourcedefinition.apiextensions.k8s.io/appprojects.argoproj.io created
+# serviceaccount/argocd-application-controller created
+# serviceaccount/argocd-server created
+# clusterrole.rbac.authorization.k8s.io/argocd-application-controller created
+# clusterrolebinding.rbac.authorization.k8s.io/argocd-application-controller created
+# service/argocd-server created
+# deployment.apps/argocd-server created
+# deployment.apps/argocd-application-controller created
 
 # Get ArgoCD initial admin password:
 kubectl -n argocd get secret argocd-initial-admin-secret \
   -o jsonpath="{.data.password}" | base64 -d
+# Output: Abc1defGH2ijklMN
 
 # Port-forward to access UI:
 kubectl port-forward svc/argocd-server -n argocd 8080:443
+# Forwarding from 127.0.0.1:8080 -> 443
+# Forwarding from [::1]:8080 -> 443
 # Open: https://localhost:8080
 ```
 
@@ -5784,12 +5900,20 @@ istioctl install --set profile=default -y
 
 # Enable automatic sidecar injection in production namespace:
 kubectl label namespace production istio-injection=enabled
+# Output: namespace/production labeled
 
 # ─────────────────────────────────────────────────────────────────
 # Verify Istio is working:
 # ─────────────────────────────────────────────────────────────────
 istioctl analyze -n production          # Check for misconfigurations
+# Output: ✔ No validation issues found when analyzing namespace: production.
+
 kubectl get pods -n istio-system        # All Istio control plane pods
+# Sample Output:
+# NAME                                    READY   STATUS    RESTARTS   AGE
+# istiod-6b9f5d8c7-xkj2p                 1/1     Running   0          3d
+# istio-ingressgateway-7d4b8c9f6-abc12   1/1     Running   0          3d
+# istio-egressgateway-5c6d7b8e9-def34    1/1     Running   0          3d
 ```
 
 ### Traffic Splitting — Canary Deployment
@@ -6053,7 +6177,15 @@ az aks nodepool add \
 # The NVIDIA device plugin DaemonSet is auto-installed on GPU nodes by AKS
 # Verify:
 kubectl get nodes -l accelerator=nvidia
+# Sample Output:
+# NAME                               STATUS   ROLES   AGE   VERSION
+# aks-gpupool-12345678-vmss000000    Ready    agent   2d    v1.31.2
+
 kubectl describe node <gpu-node> | grep nvidia
+# Sample Output:
+# nvidia.com/gpu:     1                          (capacity)
+# nvidia.com/gpu:     1                          (allocatable)
+# nvidia-device-plugin-daemonset   DaemonSet      nvidia/k8s-device-plugin:v0.14.5
 ```
 
 ```yaml
@@ -6380,7 +6512,43 @@ kubectl get nodes -o wide                        # Nodes with IPs and AZ
 kubectl get namespaces                           # All namespaces
 kubectl top nodes                                # Node CPU/Memory usage
 kubectl top pods -n production --sort-by=cpu     # Pod CPU usage, sorted
-```
+# Sample Outputs:
+# kubectl config get-contexts:
+# CURRENT   NAME        CLUSTER     AUTHINFO    NAMESPACE
+# *         myAKS       myAKS       myAKS       production
+#           myAKS-dev   myAKS-dev   myAKS-dev   default
+#
+# kubectl config current-context:
+# myAKS
+#
+# kubectl config use-context myAKS:
+# Switched to context "myAKS".
+#
+# kubectl cluster-info:
+# Kubernetes control plane is running at https://myaks-abc123.hcp.eastus.azmk8s.io:443
+#
+# kubectl get nodes -o wide:
+# NAME                               STATUS  ROLES  AGE  VERSION   INTERNAL-IP  OS-IMAGE
+# aks-nodepool1-12345678-vmss000000  Ready   agent  5d   v1.31.2   10.240.0.4   Ubuntu 22.04.3
+# aks-nodepool1-12345678-vmss000001  Ready   agent  5d   v1.31.2   10.240.0.5   Ubuntu 22.04.3
+#
+# kubectl get namespaces:
+# NAME              STATUS   AGE
+# default           Active   30d
+# kube-system       Active   30d
+# production        Active   25d
+# ingress-nginx     Active   20d
+#
+# kubectl top nodes:
+# NAME                                CPU(cores)   CPU%   MEMORY(bytes)   MEMORY%
+# aks-nodepool1-12345678-vmss000000   312m         8%     2847Mi          21%
+# aks-nodepool1-12345678-vmss000001   248m         6%     3102Mi          23%
+#
+# kubectl top pods -n production --sort-by=cpu:
+# NAME                          CPU(cores)   MEMORY(bytes)
+# simpleapi1-7d4b8c9f6-2xkpq   18m          45Mi
+# simpleapi2-6c5d7b8e9-4vwxy   12m          38Mi
+# simpleapi1-7d4b8c9f6-8mnlr   8m           42Mi
 
 ### Pods
 
@@ -6409,7 +6577,24 @@ kubectl exec <pod-name> -n production -- wget -qO- http://simpleapi2-svc/health 
 kubectl port-forward pod/<pod-name> 8080:80 -n production   # pod port 80 → local 8080
 kubectl port-forward svc/simpleapi1-svc 8080:80 -n production  # via service
 kubectl port-forward deploy/simpleapi1 8080:80 -n production   # via deployment
-```
+# Sample Outputs:
+# kubectl get pods -n production:
+# NAME                          READY   STATUS    RESTARTS   AGE
+# simpleapi1-7d4b8c9f6-2xkpq   1/1     Running   0          2h
+# simpleapi1-7d4b8c9f6-8mnlr   1/1     Running   0          2h
+# simpleapi2-6c5d7b8e9-4vwxy   1/1     Running   0          2h
+#
+# kubectl get pods -n production -o wide:
+# NAME                          READY  STATUS   RESTARTS  AGE  IP            NODE
+# simpleapi1-7d4b8c9f6-2xkpq   1/1    Running  0         2h   10.244.1.15   aks-nodepool1-...-000000
+# simpleapi1-7d4b8c9f6-8mnlr   1/1    Running  0         2h   10.244.2.8    aks-nodepool1-...-000001
+#
+# kubectl exec <pod> -n production -- wget -qO- http://simpleapi2-svc/health:
+# {"status":"healthy","service":"simpleapi2"}
+#
+# kubectl port-forward svc/simpleapi1-svc 8080:80 -n production:
+# Forwarding from 127.0.0.1:8080 -> 80
+# Forwarding from [::1]:8080 -> 80
 
 ### Deployments
 
@@ -6424,7 +6609,32 @@ kubectl rollout status deployment/simpleapi1 -n production
 kubectl rollout history deployment/simpleapi1 -n production
 kubectl rollout undo deployment/simpleapi1 -n production
 kubectl rollout restart deployment/simpleapi1 -n production
-```
+# Sample Outputs:
+# kubectl get deployments -n production:
+# NAME         READY   UP-TO-DATE   AVAILABLE   AGE
+# simpleapi1   3/3     3            3           5d
+# simpleapi2   3/3     3            3           5d
+#
+# kubectl scale deployment simpleapi1 --replicas=5 -n production:
+# deployment.apps/simpleapi1 scaled
+#
+# kubectl set image deployment/simpleapi1 ...:
+# deployment.apps/simpleapi1 image updated
+#
+# kubectl rollout status deployment/simpleapi1 -n production:
+# Waiting for deployment "simpleapi1" rollout to finish: 2 out of 3 new replicas updated...
+# deployment "simpleapi1" successfully rolled out
+#
+# kubectl rollout history deployment/simpleapi1 -n production:
+# REVISION  CHANGE-CAUSE
+# 1         Initial deployment v1
+# 2         Update to v2.0.0
+#
+# kubectl rollout undo deployment/simpleapi1 -n production:
+# deployment.apps/simpleapi1 rolled back
+#
+# kubectl rollout restart deployment/simpleapi1 -n production:
+# deployment.apps/simpleapi1 restarted
 
 ### Services & Networking
 
@@ -6437,7 +6647,24 @@ kubectl get endpoints simpleapi1-svc -n production     # Pod IPs in service
 # ── DNS debugging (test from inside a pod) ─────────────────────────
 kubectl run dns-test --image=busybox -it --rm --restart=Never -- nslookup simpleapi1-svc.production
 kubectl run curl-test --image=curlimages/curl -it --rm --restart=Never -- curl http://simpleapi1-svc.production/health
-```
+# Sample Outputs:
+# kubectl get services -n production -o wide:
+# NAME             TYPE           CLUSTER-IP    EXTERNAL-IP      PORT(S)   AGE   SELECTOR
+# simpleapi1-svc   ClusterIP      10.0.42.18    <none>           80/TCP    5d    app=simpleapi1
+# simpleapi2-svc   ClusterIP      10.0.15.42    <none>           80/TCP    5d    app=simpleapi2
+#
+# kubectl get endpoints simpleapi1-svc -n production:
+# NAME             ENDPOINTS                               AGE
+# simpleapi1-svc   10.244.1.15:80,10.244.2.8:80           5d
+#
+# kubectl run dns-test ... -- nslookup simpleapi1-svc.production:
+# Server:    10.0.0.10
+# Address 1: 10.0.0.10 kube-dns.kube-system.svc.cluster.local
+# Name:      simpleapi1-svc.production.svc.cluster.local
+# Address 1: 10.0.42.18 simpleapi1-svc.production.svc.cluster.local
+#
+# kubectl run curl-test ... -- curl http://simpleapi1-svc.production/health:
+# {"status":"healthy","service":"simpleapi1"}
 
 ### Apply, Diff & Delete
 
@@ -6455,7 +6682,33 @@ kubectl diff -f deployment.yaml                  # Shows diff vs cluster state
 kubectl delete -f deployment.yaml                # Delete by manifest
 kubectl delete deployment simpleapi1 -n production  # Delete by name
 kubectl delete all -l app=simpleapi1 -n production  # Delete all resources with label
-```
+# Sample Outputs:
+# kubectl apply -f deployment.yaml:
+# deployment.apps/simpleapi1 configured
+#
+# kubectl apply -f ./manifests/:
+# deployment.apps/simpleapi1 configured
+# service/simpleapi1-svc unchanged
+# configmap/simpleapi1-config configured
+# horizontalpodautoscaler.autoscaling/simpleapi1-hpa unchanged
+#
+# kubectl diff -f deployment.yaml:
+# diff -u -N /tmp/LIVE-1234/apps.v1.Deployment.production.simpleapi1 /tmp/MERGED-1234/...
+# --- /tmp/LIVE-1234/... 2024-01-15 10:00:00
+# +++ /tmp/MERGED-1234/... 2024-01-15 10:05:00
+# @@ -35,7 +35,7 @@
+#    spec:
+#      containers:
+# -      image: acrdemo.azurecr.io/simpleapi1:v1
+# +      image: acrdemo.azurecr.io/simpleapi1:v2
+#
+# kubectl delete deployment simpleapi1 -n production:
+# deployment.apps/simpleapi1 deleted
+#
+# kubectl delete all -l app=simpleapi1 -n production:
+# pod/simpleapi1-7d4b8c9f6-2xkpq deleted
+# service/simpleapi1-svc deleted
+# deployment.apps/simpleapi1 deleted
 
 ### Useful Aliases (add to ~/.bashrc or ~/.zshrc)
 
@@ -6520,25 +6773,37 @@ kubectl get pods -n production
 # ─────────────────────────────────────────────────────────────────
 # 1. Check service selector matches pod labels:
 kubectl get svc simpleapi1-svc -n production -o yaml | grep selector
+# selector: {app: simpleapi1}
 kubectl get pods -n production --show-labels | grep simpleapi1
+# simpleapi1-7d4b8c9f6-2xkpq  1/1  Running  0  2h  app=simpleapi1,pod-template-hash=7d4b8c9f6
 
 # 2. Check endpoints (should list pod IPs):
 kubectl get endpoints simpleapi1-svc -n production
+# NAME             ENDPOINTS                        AGE
+# simpleapi1-svc   10.244.1.15:80,10.244.2.8:80    5d
 # If no endpoints: selector doesn't match any pod labels
 
 # 3. Test from inside cluster:
 kubectl run test --rm -it --image=curlimages/curl --restart=Never -- \
   curl http://simpleapi1-svc.production.svc.cluster.local/health
+# {"status":"healthy","service":"simpleapi1"}
 
 # ─────────────────────────────────────────────────────────────────
 # ISSUE: DNS resolution failure
 # ─────────────────────────────────────────────────────────────────
 # Check CoreDNS is running:
 kubectl get pods -n kube-system -l k8s-app=kube-dns
+# NAME                       READY   STATUS    RESTARTS   AGE
+# coredns-789d4b5c76-abc12   1/1     Running   0          30d
+# coredns-789d4b5c76-def34   1/1     Running   0          30d
 
 # Test DNS from pod:
 kubectl run dns-test --rm -it --image=busybox --restart=Never -- \
   nslookup kubernetes.default
+# Server:    10.0.0.10
+# Address 1: 10.0.0.10 kube-dns.kube-system.svc.cluster.local
+# Name:      kubernetes.default.svc.cluster.local
+# Address 1: 10.0.0.1 kubernetes.default.svc.cluster.local
 # If this fails: CoreDNS is broken
 # If service lookup fails but kubernetes.default works: NetworkPolicy blocking DNS
 
@@ -6561,6 +6826,8 @@ az aks nodepool show --resource-group myRG --cluster-name myAKS --name apppool \
 # ─────────────────────────────────────────────────────────────────
 # 1. Check Ingress controller pod is running:
 kubectl get pods -n ingress-nginx
+# NAME                                        READY   STATUS    RESTARTS   AGE
+# ingress-nginx-controller-6b9df5c5fd-xkj2p   1/1     Running   0          10d
 
 # 2. Check Ingress resource:
 kubectl describe ingress apps-ingress -n production
@@ -6568,6 +6835,8 @@ kubectl describe ingress apps-ingress -n production
 
 # 3. Check the backend service and endpoints:
 kubectl get endpoints simpleapi1-svc -n production
+# NAME             ENDPOINTS                        AGE
+# simpleapi1-svc   10.244.1.15:80,10.244.2.8:80    5d
 
 # 4. Check NGINX logs:
 kubectl logs -n ingress-nginx -l app.kubernetes.io/component=controller -f
@@ -6578,7 +6847,12 @@ kubectl logs -n ingress-nginx -l app.kubernetes.io/component=controller -f
 kubectl describe hpa simpleapi1-hpa -n production
 # Look for: "unable to get metrics" → metrics-server not working
 kubectl get pods -n kube-system -l k8s-app=metrics-server
+# NAME                              READY   STATUS    RESTARTS   AGE
+# metrics-server-6d96f5b9d8-p8rzs   1/1     Running   0          25d
 kubectl top pods -n production  # If this fails, metrics-server is broken
+# NAME                          CPU(cores)   MEMORY(bytes)
+# simpleapi1-7d4b8c9f6-2xkpq   5m           28Mi
+# simpleapi2-6c5d7b8e9-4vwxy   6m           31Mi
 
 # ─────────────────────────────────────────────────────────────────
 # ISSUE: PVC stuck in Pending
@@ -6604,6 +6878,7 @@ kubectl debug -it <pod-name> \
 # Copy a debugging tool into a running pod:
 # ─────────────────────────────────────────────────────────────────
 kubectl cp ./debugtool.sh production/<pod-name>:/tmp/debugtool.sh
+# (no output on success)
 kubectl exec -it <pod-name> -n production -- sh /tmp/debugtool.sh
 
 # ─────────────────────────────────────────────────────────────────
@@ -6612,6 +6887,10 @@ kubectl exec -it <pod-name> -n production -- sh /tmp/debugtool.sh
 kubectl get events -n production \
   --sort-by='.lastTimestamp' \
   --field-selector type=Warning         # Only show Warning events
+# Sample Output:
+# LAST SEEN   TYPE      REASON      OBJECT                      MESSAGE
+# 2m          Warning   BackOff     Pod/simpleapi1-crash-...    Back-off restarting failed container
+# 5m          Warning   Failed      Pod/simpleapi1-crash-...    Failed to pull image: unauthorized
 
 # ─────────────────────────────────────────────────────────────────
 # Network debugging from inside cluster:
@@ -6772,19 +7051,46 @@ spec:
 ```bash
 # Get everything in a namespace:
 kubectl get all -n production
+# Sample Output:
+# NAME                               READY   STATUS    RESTARTS   AGE
+# pod/simpleapi1-7d4b8c9f6-2xkpq    1/1     Running   0          2h
+# pod/simpleapi1-7d4b8c9f6-8mnlr    1/1     Running   0          2h
+# pod/simpleapi2-6c5d7b8e9-4vwxy    1/1     Running   0          2h
+# NAME                    TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE
+# service/simpleapi1-svc  ClusterIP   10.0.42.18   <none>        80/TCP    5d
+# service/simpleapi2-svc  ClusterIP   10.0.15.42   <none>        80/TCP    5d
+# NAME                        READY   UP-TO-DATE   AVAILABLE   AGE
+# deployment.apps/simpleapi1  3/3     3            3           5d
+# deployment.apps/simpleapi2  3/3     3            3           5d
+# NAME                                   DESIRED   CURRENT   READY   AGE
+# replicaset.apps/simpleapi1-7d4b8c9f6   3         3         3       2h
 
 # Get pod logs and follow:
 kubectl logs -f deployment/simpleapi1 -n production
+# Sample Output:
+# info: Microsoft.Hosting.Lifetime[14]
+#       Now listening on: http://[::]:80
+# info: Microsoft.Hosting.Lifetime[0]
+#       Application started. Press Ctrl+C to shut down.
+# info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+#       Request starting HTTP/1.1 GET http://10.244.0.1/health
 
 # Debug a pod:
 kubectl exec -it deployment/simpleapi1 -n production -- sh
+# (opens interactive shell — no output displayed)
 
 # Apply and watch rollout:
 kubectl apply -f manifests/ -n production && \
   kubectl rollout status deployment/simpleapi1 -n production
+# deployment.apps/simpleapi1 configured
+# service/simpleapi1-svc unchanged
+# configmap/simpleapi1-config configured
+# Waiting for deployment "simpleapi1" rollout to finish: 1 out of 3 new replicas updated...
+# deployment "simpleapi1" successfully rolled out
 
 # Emergency: scale down a misbehaving deployment:
 kubectl scale deployment simpleapi1 --replicas=0 -n production
+# deployment.apps/simpleapi1 scaled
 
 # Quick AKS cluster creation for testing:
 az aks create -g myRG -n test --node-count 1 --generate-ssh-keys
@@ -9893,9 +10199,24 @@ This section walks through the complete journey: local development → container
 ```bash
 # Build SimpleApi1 image locally
 docker build -t simpleapi1:local -f SimpleApi1/Dockerfile SimpleApi1/
+# Sample Output:
+# [+] Building 12.4s (12/12) FINISHED
+# => [internal] load build definition from Dockerfile           0.1s
+# => [internal] load .dockerignore                              0.1s
+# => [1/4] FROM mcr.microsoft.com/dotnet/aspnet:10.0           3.2s
+# => [2/4] WORKDIR /app                                         0.0s
+# => [3/4] COPY . .                                             0.1s
+# => [4/4] RUN dotnet publish -c Release -o /app/publish        7.8s
+# => exporting to image                                         1.1s
+# => naming to docker.io/library/simpleapi1:local               0.0s
 
 # Test locally
 docker run -p 8080:80 simpleapi1:local
+# Sample Output:
+# info: Microsoft.Hosting.Lifetime[14]
+#       Now listening on: http://[::]:80
+# info: Microsoft.Hosting.Lifetime[0]
+#       Application started. Press Ctrl+C to shut down.
 curl http://localhost:8080/health
 # Output: {"status":"healthy","service":"simpleapi1"}
 
@@ -9936,10 +10257,22 @@ az acr login --name acrdemoaks
 
 # Tag and push
 docker tag simpleapi1:local acrdemoaks.azurecr.io/simpleapi1:v1
+# (no output on success)
 docker push acrdemoaks.azurecr.io/simpleapi1:v1
+# Sample Output:
+# The push refers to repository [acrdemoaks.azurecr.io/simpleapi1]
+# abc123ef: Pushed
+# def456ab: Layer already exists
+# v1: digest: sha256:abc123def456789abcdef0123456789abcdef0123456789abcdef0123456789 size: 1234
 
 docker tag simpleapi2:local acrdemoaks.azurecr.io/simpleapi2:v1
+# (no output on success)
 docker push acrdemoaks.azurecr.io/simpleapi2:v1
+# Sample Output:
+# The push refers to repository [acrdemoaks.azurecr.io/simpleapi2]
+# bcd234ef: Pushed
+# def456ab: Layer already exists
+# v1: digest: sha256:bcd234ef5678901bcdef1234567890bcdef1234567890bcdef1234567890bc size: 1232
 
 # Verify images in ACR
 az acr repository list --name acrdemoaks --output table
@@ -10516,6 +10849,12 @@ eval $(minikube docker-env)
 cd ~/aks-local
 docker build -t simpleapi1:v1 -f SimpleApi1/Dockerfile SimpleApi1/
 docker build -t simpleapi2:v1 -f SimpleApi2/Dockerfile SimpleApi2/
+# Sample Output (docker build -t simpleapi1:v1 ...):
+# [+] Building 11.2s (12/12) FINISHED
+# => [1/4] FROM mcr.microsoft.com/dotnet/aspnet:10.0    0.0s (cached)
+# => [4/4] RUN dotnet publish -c Release -o /app/publish  6.9s
+# => exporting to image                                    0.9s
+# => naming to docker.io/library/simpleapi1:v1             0.0s
 
 # Verify images exist inside minikube
 docker images | grep simpleapi
@@ -11839,7 +12178,17 @@ minikube start --driver=docker --cpus=4 --memory=8192 \
 # 2. Build images inside minikube
 eval $(minikube docker-env)
 docker build -t simpleapi1:v1 -f SimpleApi1/Dockerfile SimpleApi1/
+# Sample Output:
+# [+] Building 11.2s (12/12) FINISHED
+# => [1/4] FROM mcr.microsoft.com/dotnet/aspnet:10.0    0.0s (cached)
+# => [4/4] RUN dotnet publish -c Release -o /app/publish  6.9s
+# => naming to docker.io/library/simpleapi1:v1             0.0s
 docker build -t simpleapi2:v1 -f SimpleApi2/Dockerfile SimpleApi2/
+# Sample Output:
+# [+] Building 10.8s (12/12) FINISHED
+# => [1/4] FROM mcr.microsoft.com/dotnet/aspnet:10.0    0.0s (cached)
+# => [4/4] RUN dotnet publish -c Release -o /app/publish  6.6s
+# => naming to docker.io/library/simpleapi2:v1             0.0s
 eval $(minikube docker-env -u)
 
 # 3. Create namespace and deploy
