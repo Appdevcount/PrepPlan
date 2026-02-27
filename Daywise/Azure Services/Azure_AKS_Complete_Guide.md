@@ -10601,7 +10601,7 @@ kubectl top nodes
 │  │  minikube                                                        │    │
 │  │  ✓ Multi-node support (--nodes 3)                               │    │
 │  │  ✓ Many addons: ingress, dashboard, metrics-server, registry    │    │
-│  │  ✓ Works on Docker, Hyper-V, VirtualBox driver                  │    │
+│  │  ✓ Works with Docker, Podman, Hyper-V, VirtualBox driver        │    │
 │  │  ✓ minikube tunnel exposes LoadBalancer services                │    │
 │  │  ✗ Slightly heavier than kind                                   │    │
 │  │  Recommended for: full feature practice, addons                 │    │
@@ -10618,6 +10618,8 @@ kubectl top nodes
 │  └─────────────────────────────────────────────────────────────────┘    │
 │                                                                          │
 │  ► This guide uses minikube (best for feature coverage on Windows)      │
+│  ► You can use either Docker or Podman — both are fully supported       │
+│  ► Podman is a lightweight, rootless alternative to Docker              │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -10626,6 +10628,8 @@ kubectl top nodes
 ### 21.2 — Prerequisites Installation (Windows)
 
 **Install in this order — each depends on the previous:**
+
+#### Option A: Using Docker Desktop (Most Common)
 
 ```powershell
 # ── Step 1: Install Chocolatey package manager (run as Administrator) ──
@@ -10665,7 +10669,74 @@ dotnet --version
 
 ---
 
+#### Option B: Using Podman (Open-Source, Rootless Alternative)
+
+```powershell
+# ── Step 1: Install Chocolatey package manager (run as Administrator) ──
+# (Same as above if not already installed)
+Set-ExecutionPolicy Bypass -Scope Process -Force
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+
+# ── Step 2: Install Podman and other tools ────────────────────────────
+choco install -y `
+  podman-desktop `          # Podman Desktop (includes podman CLI + GUI)
+  minikube `                # Local Kubernetes
+  kubernetes-cli `          # kubectl
+  helm `                    # Helm package manager
+  git `                     # Git (for GitOps)
+  dotnet-sdk `              # .NET SDK 10
+  vscode                    # VS Code
+
+# ── Alternative: Install Podman CLI only (without GUI) ────────────────
+# choco install -y podman
+
+# ── Step 3: Initialize Podman machine ──────────────────────────────────
+# Podman on Windows runs containers in a lightweight Linux VM
+podman machine init --cpus 4 --memory 8192 --disk-size 50
+# Sample Output:
+# Extracting compressed file: podman-machine-default-arm64.raw.gz
+# Machine init complete
+
+podman machine start
+# Sample Output:
+# Starting machine "podman-machine-default"
+# Machine "podman-machine-default" started successfully
+
+# ── Step 4: Verify installations ───────────────────────────────────────
+podman --version
+# podman version 5.x.x
+
+podman info | Select-String "rootless"
+# rootless: true  ← Podman runs without root privileges!
+
+kubectl version --client
+# Client Version: v1.31.x
+
+minikube version
+# minikube version: v1.34.x
+
+helm version
+# version.BuildInfo{Version:"v3.16.x"}
+
+dotnet --version
+# 10.0.x
+```
+
+> **Key Differences:**
+> - **Docker Desktop:** Single daemon, requires WSL2, GUI-focused, commercial licensing
+> - **Podman:** Daemonless (rootless), open-source, CLI-first, OCI-compliant, drop-in replacement
+> - **Compatibility:** Podman commands are identical to Docker: `podman build`, `podman run`, etc.
+> - **Alias Tip:** Run `Set-Alias docker podman` in PowerShell to use `docker` command with Podman
+
+> **WSL2 Still Recommended for Podman:** While Podman can run natively on Windows using Hyper-V,
+> WSL2 provides better performance and integration. Install with `wsl --install`, then reboot.
+
+---
+
 ### 21.3 — Start minikube with Production-Like Settings
+
+#### Option A: Using Docker Driver
 
 ```bash
 # ── Start minikube — sized like a real dev cluster ─────────────────────
@@ -10705,6 +10776,55 @@ kubectl cluster-info
 # WHY metrics-server: Required for HPA (Horizontal Pod Autoscaler)
 # WHY ingress: NGINX Ingress Controller — replaces Azure App Gateway locally
 ```
+
+---
+
+#### Option B: Using Podman Driver
+
+```bash
+# ── Start minikube with Podman driver ───────────────────────────────────
+minikube start \
+  --driver=podman \         # Use Podman as the container driver
+  --cpus=4 \                # Allocate 4 CPUs to minikube VM
+  --memory=8192 \           # 8GB RAM (Prometheus + Grafana need ~2GB)
+  --nodes=2 \               # 2 nodes — simulates node pool (1 control-plane, 1 worker)
+  --kubernetes-version=v1.31.0 \
+  --container-runtime=containerd \   # Matches AKS default runtime
+  --addons=ingress,metrics-server,dashboard
+
+# Sample Output:
+# 😄  minikube v1.34.0 on Windows 11
+# ✨  Using the podman driver based on user configuration
+# 👍  Starting "minikube" primary control-plane node in "minikube" cluster
+# 🚜  Pulling base image v0.0.45 ...
+# 🔥  Creating podman container (CPUs=4, Memory=8192MB) ...
+# 🐳  Preparing Kubernetes v1.31.0 on Docker ...
+# 🔎  Verifying Kubernetes components...
+# 🌟  Enabled addons: ingress, metrics-server, dashboard, storage-provisioner
+# 🏄  Done! kubectl is now configured to use "minikube" cluster
+
+# Verify nodes
+kubectl get nodes
+# NAME           STATUS   ROLES           AGE   VERSION
+# minikube       Ready    control-plane   2m    v1.31.0
+# minikube-m02   Ready    <none>          90s   v1.31.0
+
+# View full cluster info
+kubectl cluster-info
+# Kubernetes control plane is running at https://127.0.0.1:57987
+# CoreDNS is running at https://127.0.0.1:57987/api/v1/namespaces/kube-system/...
+
+# WHY --nodes=2: Simulates AKS node pool — practice pod scheduling,
+# anti-affinity, DaemonSets running on both nodes
+# WHY metrics-server: Required for HPA (Horizontal Pod Autoscaler)
+# WHY ingress: NGINX Ingress Controller — replaces Azure App Gateway locally
+```
+
+> **Podman Driver Notes:**
+> - Requires Podman 4.0+ installed and podman machine running (`podman machine start`)
+> - Fully compatible with all Kubernetes features used in this guide
+> - Rootless by default — better security isolation
+> - If you get "driver not found" error: `minikube config set driver podman`
 
 ---
 
@@ -10834,14 +10954,20 @@ sed -i 's/SimpleApi1.dll/SimpleApi2.dll/' SimpleApi2/Dockerfile
 ### 21.5 — Build & Load Images into minikube
 
 ```bash
-# KEY INSIGHT: minikube runs in its own Docker context.
-# Images built with your regular "docker build" are NOT visible inside minikube.
+# KEY INSIGHT: minikube runs in its own container/Docker context.
+# Images built with your regular "docker/podman build" are NOT visible inside minikube.
 # You must either:
-#   A) Build directly inside minikube's Docker daemon (eval $(minikube docker-env))
+#   A) Build directly inside minikube's daemon (eval $(minikube docker-env))
 #   B) Use minikube image load after building
 #   C) Use a local registry
+```
 
-# ── Option A (Recommended): Build directly in minikube's Docker ──────
+---
+
+#### Option A: Using Docker
+
+```bash
+# ── Recommended: Build directly in minikube's Docker daemon ───────────
 eval $(minikube docker-env)
 # This command sets DOCKER_HOST, DOCKER_CERT_PATH etc to point at minikube's daemon
 # All subsequent docker commands go INTO minikube
@@ -10867,7 +10993,7 @@ docker images | grep simpleapi
 # Reset your terminal to use host Docker again
 eval $(minikube docker-env -u)
 
-# ── Option B: Build locally then load into minikube ──────────────────
+# ── Alternative: Build locally then load into minikube ────────────────
 docker build -t simpleapi1:v1 -f SimpleApi1/Dockerfile SimpleApi1/
 minikube image load simpleapi1:v1
 
@@ -10876,6 +11002,78 @@ minikube image load simpleapi1:v1
 # 📤  Loading image from path 'simpleapi1:v1'...
 # ✅  Loaded image: simpleapi1:v1
 ```
+
+---
+
+#### Option B: Using Podman
+
+```bash
+# ── Option 1 (Recommended): Build directly in minikube's context ──────
+# Set environment to use minikube's Podman/Docker daemon
+eval $(minikube -p minikube podman-env)
+# OR for PowerShell:
+# & minikube -p minikube podman-env --shell powershell | Invoke-Expression
+
+# This points Podman to minikube's container runtime
+cd ~/aks-local
+podman build -t simpleapi1:v1 -f SimpleApi1/Dockerfile SimpleApi1/
+podman build -t simpleapi2:v1 -f SimpleApi2/Dockerfile SimpleApi2/
+# Sample Output (podman build -t simpleapi1:v1 ...):
+# STEP 1/8: FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+# STEP 2/8: WORKDIR /src
+# STEP 3/8: COPY SimpleApi1.csproj .
+# ...
+# STEP 8/8: ENTRYPOINT ["dotnet", "SimpleApi1.dll"]
+# COMMIT simpleapi1:v1
+# Successfully tagged localhost/simpleapi1:v1
+
+# Verify images exist inside minikube
+podman images | grep simpleapi
+# localhost/simpleapi1  v1  abc123  2 minutes ago  210MB
+# localhost/simpleapi2  v1  def456  2 minutes ago  210MB
+
+# CRITICAL: Set imagePullPolicy: Never in your deployments!
+# (tells Kubernetes: don't try to pull from registry — use local image)
+
+# Reset your terminal to use host Podman again
+eval $(minikube podman-env -u)
+# OR for PowerShell:
+# & minikube podman-env -u --shell powershell | Invoke-Expression
+
+# ── Option 2: Build locally then load into minikube ───────────────────
+podman build -t simpleapi1:v1 -f SimpleApi1/Dockerfile SimpleApi1/
+podman build -t simpleapi2:v1 -f SimpleApi2/Dockerfile SimpleApi2/
+
+# Save image as tar archive
+podman save simpleapi1:v1 -o simpleapi1.tar
+podman save simpleapi2:v1 -o simpleapi2.tar
+
+# Load into minikube
+minikube image load simpleapi1.tar
+minikube image load simpleapi2.tar
+# OR use minikube's newer syntax:
+minikube image load simpleapi1:v1
+minikube image load simpleapi2:v1
+
+# Sample Output:
+# 📤  Loading image from path 'simpleapi1:v1'...
+# ✅  Loaded image: simpleapi1:v1
+
+# Verify images in minikube
+minikube ssh -- crictl images | grep simpleapi
+# localhost/simpleapi1  v1  abc123..  210MB
+# localhost/simpleapi2  v1  def456..  210MB
+
+# Clean up tar files
+rm simpleapi1.tar simpleapi2.tar
+```
+
+> **Podman-Specific Tips:**
+> - Podman stores images locally in your user context (rootless)
+> - The `podman-env` command works similarly to `docker-env`
+> - If using Docker alias (`Set-Alias docker podman`), you can use same commands as Docker
+> - Images are OCI-compliant — fully compatible with Kubernetes/containerd
+> - For PowerShell: Use `& minikube podman-env --shell powershell | Invoke-Expression`
 
 ---
 

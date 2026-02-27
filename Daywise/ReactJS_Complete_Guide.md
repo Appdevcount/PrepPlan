@@ -11,6 +11,12 @@ This comprehensive guide covers React from fundamentals to advanced patterns, wi
 3. [Components & Props](#3-components--props)
 4. [State Management](#4-state-management)
 5. [Hooks In-Depth](#5-hooks-in-depth)
+   - [useImperativeHandle + forwardRef](#useimperativehandle--forwardref--exposing-component-apis)
+   - [useSyncExternalStore](#usesyncexternalstore--subscribe-to-external-stores)
+   - [useDebugValue](#usedebugvalue--label-custom-hooks-in-devtools)
+   - [React 19 — New APIs & Features](#react-19--new-apis--features)
+   - [Portals (createPortal)](#portals--render-outside-the-parent-dom)
+   - [React 18 — Automatic Batching & flushSync](#react-18--automatic-batching--flushsync)
 6. [Component Lifecycle](#6-component-lifecycle)
 7. [Event Handling](#7-event-handling)
 8. [Forms & Controlled Components](#8-forms--controlled-components)
@@ -20,8 +26,12 @@ This comprehensive guide covers React from fundamentals to advanced patterns, wi
 12. [Error Handling](#12-error-handling)
 13. [Testing React Applications](#13-testing-react-applications)
 14. [Advanced Patterns](#14-advanced-patterns)
+    - [Container / Presentational Pattern](#container--presentational-pattern)
+    - [Observer Pattern — Event Bus / Pub-Sub](#observer-pattern--event-bus--pub-sub)
+    - [Builder Pattern — Fluent API](#builder-pattern--fluent-api-for-complex-components)
 15. [State Management Libraries](#15-state-management-libraries)
 16. [Server-Side Rendering](#16-server-side-rendering)
+    - [Next.js App Router — Deep Dive](#nextjs-app-router--deep-dive)
 17. [Real-World Scenarios](#17-real-world-scenarios)
 18. [Interview Questions & Answers](#18-interview-questions--answers)
 19. [Formik - Complete Form Management](#19-formik---complete-form-management)
@@ -29,6 +39,14 @@ This comprehensive guide covers React from fundamentals to advanced patterns, wi
 21. [React-Bootstrap - UI Component Library](#21-react-bootstrap---ui-component-library)
 22. [Common Useful Libraries](#22-common-useful-libraries)
 23. [Jest Unit Testing - Mental Model & Samples](#23-jest-unit-testing---mental-model--samples)
+24. [Styling in React — Complete Guide](#24-styling-in-react--complete-guide)
+    - [CSS Modules](#css-modules--scoped-css)
+    - [Styled Components](#styled-components--css-in-js)
+    - [Tailwind CSS](#tailwind-css-with-react)
+25. [Accessibility (a11y) in React](#25-accessibility-a11y-in-react)
+    - [Semantic HTML & ARIA](#semantic-html--aria)
+    - [Focus Management](#focus-management)
+    - [Keyboard Navigation](#keyboard-navigation)
 
 ---
 
@@ -2168,6 +2186,180 @@ function AnimatedBox({ isExpanded }) {
 
 ---
 
+### useImperativeHandle + forwardRef — Exposing Component APIs
+
+> **Mental Model:** `forwardRef` lets a parent component "reach into" a child and use its DOM node or exposed methods. `useImperativeHandle` lets the child decide *exactly* what the parent can access — instead of exposing the raw DOM node, you expose a clean API.
+
+```jsx
+import { useRef, useImperativeHandle, forwardRef, useState } from 'react';
+
+// ═══════════════════════════════════════════════════════════════
+// forwardRef — Pass ref through a component to a DOM node
+// ═══════════════════════════════════════════════════════════════
+
+// Without forwardRef: parent can't pass ref to child's DOM node
+// With forwardRef: parent CAN get the DOM node
+
+// ✅ PATTERN 1: Forward ref to a DOM element
+const FancyInput = forwardRef(function FancyInput({ label, ...props }, ref) {
+  //                                                                    ↑ ref comes as 2nd argument
+  return (
+    <div className="fancy-input">
+      <label>{label}</label>
+      <input ref={ref} {...props} />  {/* ← ref wired to actual DOM input */}
+    </div>
+  );
+});
+
+// Parent usage:
+function LoginForm() {
+  const inputRef = useRef(null);
+
+  const focusInput = () => {
+    inputRef.current.focus();  // ← directly focuses the child's input DOM node
+  };
+
+  return (
+    <div>
+      <FancyInput ref={inputRef} label="Email" type="email" />
+      <button onClick={focusInput}>Focus Email</button>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// useImperativeHandle — Expose a custom API instead of raw DOM
+//
+// Problem: forwardRef exposes the entire DOM node — parent can
+// call any DOM method. That's too much power.
+//
+// Solution: useImperativeHandle lets you expose ONLY what you want.
+// The component stays encapsulated.
+// ═══════════════════════════════════════════════════════════════
+
+// ✅ PATTERN 2: Custom imperative API with useImperativeHandle
+const VideoPlayer = forwardRef(function VideoPlayer({ src }, ref) {
+  const videoRef = useRef(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  // useImperativeHandle(ref, () => object, [deps])
+  // ↑ ref: the forwarded ref
+  // ↑ factory: returns the object exposed to the parent
+  useImperativeHandle(ref, () => ({
+    // Parent can call these methods:
+    play() {
+      videoRef.current.play();
+      setIsPlaying(true);
+    },
+    pause() {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    },
+    seek(seconds) {
+      videoRef.current.currentTime = seconds;
+    },
+    get duration() {
+      return videoRef.current?.duration ?? 0;
+    },
+    get isPlaying() {
+      return isPlaying;
+    }
+    // Parent CANNOT access: videoRef.current.volume, .src, .load(), etc.
+    // The DOM node is completely hidden — clean API!
+  }), [isPlaying]);  // ← re-create exposed object when isPlaying changes
+
+  return (
+    <video
+      ref={videoRef}
+      src={src}
+      onPlay={() => setIsPlaying(true)}
+      onPause={() => setIsPlaying(false)}
+    />
+  );
+});
+
+// Parent usage — clean, controlled API:
+function PlayerControls() {
+  const playerRef = useRef(null);
+
+  return (
+    <div>
+      <VideoPlayer ref={playerRef} src="/movie.mp4" />
+
+      <button onClick={() => playerRef.current.play()}>▶ Play</button>
+      <button onClick={() => playerRef.current.pause()}>⏸ Pause</button>
+      <button onClick={() => playerRef.current.seek(30)}>+30s</button>
+      <p>Duration: {playerRef.current?.duration}s</p>
+    </div>
+  );
+}
+
+// ✅ PATTERN 3: forwardRef with TypeScript
+interface InputHandle {
+  focus: () => void;
+  clear: () => void;
+  getValue: () => string;
+}
+
+interface InputProps {
+  placeholder?: string;
+  defaultValue?: string;
+}
+
+const SmartInput = forwardRef<InputHandle, InputProps>(
+  function SmartInput({ placeholder, defaultValue }, ref) {
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    useImperativeHandle(ref, () => ({
+      focus: () => inputRef.current?.focus(),
+      clear: () => {
+        if (inputRef.current) inputRef.current.value = '';
+      },
+      getValue: () => inputRef.current?.value ?? '',
+    }));
+
+    return (
+      <input
+        ref={inputRef}
+        placeholder={placeholder}
+        defaultValue={defaultValue}
+      />
+    );
+  }
+);
+
+// TypeScript usage — fully typed API:
+function Form() {
+  const inputRef = useRef<InputHandle>(null);
+
+  const handleSubmit = () => {
+    const value = inputRef.current?.getValue();  // ← typed!
+    console.log(value);
+    inputRef.current?.clear();
+  };
+
+  return (
+    <>
+      <SmartInput ref={inputRef} placeholder="Search..." />
+      <button onClick={handleSubmit}>Submit</button>
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+// When to use forwardRef + useImperativeHandle:
+// ✅ Building reusable UI components (Input, Modal, VideoPlayer)
+// ✅ Focus management (programmatic focus for accessibility)
+// ✅ Triggering animations imperatively
+// ✅ Integrating with third-party imperative APIs (charts, maps)
+//
+// ❌ Avoid for data passing — use props and callbacks instead
+// ❌ Avoid as a workaround for lifting state up
+// ─────────────────────────────────────────────────────────────────
+```
+
+---
+
 ### React 18 Hooks — useTransition, useDeferredValue, useId
 
 React 18 introduced **Concurrent Mode hooks** that let you separate urgent updates from non-urgent (deferred) ones, preventing UI blocking.
@@ -2345,6 +2537,196 @@ function SignupForm() {
 
 ---
 
+### useSyncExternalStore — Subscribe to External Stores
+
+> **Mental Model:** `useSyncExternalStore` is how you safely read from *external* state stores (Redux, Zustand internals, browser APIs like `navigator.onLine`) in a Concurrent React world. It ensures your component always sees a consistent snapshot of external state — no "tearing" between renders.
+
+```jsx
+import { useSyncExternalStore } from 'react';
+
+// ═══════════════════════════════════════════════════════════════
+// EXAMPLE 1: Subscribe to browser online/offline status
+// ═══════════════════════════════════════════════════════════════
+function useOnlineStatus() {
+  const isOnline = useSyncExternalStore(
+    // 1. subscribe(callback): subscribe to changes, return unsubscribe
+    (callback) => {
+      window.addEventListener('online', callback);
+      window.addEventListener('offline', callback);
+      return () => {
+        window.removeEventListener('online', callback);
+        window.removeEventListener('offline', callback);
+      };
+    },
+    // 2. getSnapshot(): return current value from the external store
+    () => navigator.onLine,
+    // 3. getServerSnapshot(): value during SSR (optional)
+    () => true,  // assume online on server
+  );
+
+  return isOnline;
+}
+
+// Usage:
+function StatusBar() {
+  const isOnline = useOnlineStatus();
+  return (
+    <div className={isOnline ? 'online' : 'offline'}>
+      {isOnline ? '🟢 Online' : '🔴 Offline'}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// EXAMPLE 2: Simple external store (like a mini Zustand/Redux)
+// ═══════════════════════════════════════════════════════════════
+// Build a tiny external store:
+function createStore(initialState) {
+  let state = initialState;
+  const listeners = new Set();
+
+  return {
+    getState: () => state,
+    setState: (newState) => {
+      state = typeof newState === 'function' ? newState(state) : newState;
+      listeners.forEach(l => l());  // notify all subscribers
+    },
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);  // return unsubscribe
+    }
+  };
+}
+
+// Create a shared store:
+const cartStore = createStore({ items: [], total: 0 });
+
+// Hook that subscribes to the cart store:
+function useCart() {
+  return useSyncExternalStore(
+    cartStore.subscribe,            // subscribe
+    cartStore.getState,             // getSnapshot
+  );
+}
+
+// Any component that uses useCart() will re-render when cart changes:
+function CartIcon() {
+  const cart = useCart();
+  return <span>🛒 {cart.items.length}</span>;
+}
+
+function CartTotal() {
+  const cart = useCart();
+  return <span>Total: ${cart.total}</span>;
+}
+
+// Update from anywhere:
+function AddToCartButton({ product }) {
+  const addItem = () => {
+    cartStore.setState(prev => ({
+      items: [...prev.items, product],
+      total: prev.total + product.price
+    }));
+  };
+  return <button onClick={addItem}>Add to Cart</button>;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// useSyncExternalStore vs useState/useEffect pattern:
+//
+// ❌ Old way (prone to tearing in Concurrent React):
+// const [value, setValue] = useState(externalStore.getState());
+// useEffect(() => externalStore.subscribe(() => setValue(externalStore.getState())), []);
+//
+// ✅ New way (React's official API, tear-free):
+// const value = useSyncExternalStore(store.subscribe, store.getState);
+// ─────────────────────────────────────────────────────────────────
+```
+
+### useDebugValue — Label Custom Hooks in DevTools
+
+> **Mental Model:** `useDebugValue` adds a label to your custom hook that appears in React DevTools. When debugging, instead of seeing an opaque value, you see a meaningful description of your hook's state.
+
+```jsx
+import { useDebugValue, useState, useEffect } from 'react';
+
+// ═══════════════════════════════════════════════════════════════
+// EXAMPLE 1: Simple debug label
+// ═══════════════════════════════════════════════════════════════
+function useOnlineStatus() {
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  // In DevTools, this hook will show:
+  // useOnlineStatus: "Online"  or  "Offline"
+  useDebugValue(isOnline ? 'Online' : 'Offline');
+  //            ↑ This label only appears in React DevTools — no runtime cost
+
+  useEffect(() => {
+    const handler = () => setIsOnline(navigator.onLine);
+    window.addEventListener('online', handler);
+    window.addEventListener('offline', handler);
+    return () => {
+      window.removeEventListener('online', handler);
+      window.removeEventListener('offline', handler);
+    };
+  }, []);
+
+  return isOnline;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// EXAMPLE 2: Deferred formatting (performance optimization)
+// Only compute the display value if DevTools is open
+// ═══════════════════════════════════════════════════════════════
+function useUser(userId) {
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    fetchUser(userId).then(setUser);
+  }, [userId]);
+
+  // Second arg: format function — only called when DevTools inspects this
+  // Avoids expensive formatting on every render
+  useDebugValue(
+    user,
+    (u) => u ? `${u.name} (${u.role}) — loaded` : 'Loading...'
+    //          ↑ Only called if React DevTools are open and inspecting
+  );
+
+  return user;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// EXAMPLE 3: Structured debug info
+// ═══════════════════════════════════════════════════════════════
+function useFormField(initialValue) {
+  const [value, setValue] = useState(initialValue);
+  const [touched, setTouched] = useState(false);
+  const [error, setError] = useState(null);
+
+  // DevTools shows: { value: "john@", touched: true, valid: false }
+  useDebugValue({ value, touched, valid: !error });
+
+  return {
+    value,
+    touched,
+    error,
+    onChange: (e) => setValue(e.target.value),
+    onBlur: () => setTouched(true),
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Rules for useDebugValue:
+// ✅ Only use in custom hooks (not in components)
+// ✅ Only for hooks you share with others (libraries, shared code)
+// ✅ Use the format function for expensive computations
+// ❌ Don't use in simple hooks (adds noise with no benefit)
+// ─────────────────────────────────────────────────────────────────
+```
+
+---
+
 ### Rules of Hooks — Why They Exist
 
 ```jsx
@@ -2402,6 +2784,420 @@ function useCounter(initial = 0) {
 // It doesn't use names or identifiers — just "1st hook, 2nd hook, 3rd hook..."
 // If order changes (due to conditions/loops), React can't match calls
 // to their stored state → bug or crash.
+```
+
+---
+
+---
+
+### React 19 — New APIs & Features
+
+React 19 (released December 2024) introduced major new APIs focused on server integration, optimistic UI, and simplifying common patterns.
+
+#### `use()` Hook — Unwrap Promises and Context
+
+> **Mental Model:** `use()` is like `await` but inside components. It lets you "unwrap" a Promise or Context value directly in render — React will automatically suspend while waiting.
+
+```jsx
+import { use, Suspense, createContext } from 'react';
+
+// ═══════════════════════════════════════════════════════════════
+// use() with Promises — "async components" without useEffect
+// ═══════════════════════════════════════════════════════════════
+
+// Create a promise (usually from a data fetching library)
+const userPromise = fetch('/api/user/1').then(r => r.json());
+
+// Component that "awaits" the promise — React suspends until resolved
+function UserProfile() {
+  // use() suspends the component until the promise resolves
+  const user = use(userPromise);
+  //    ↑ Like await, but in render — no useEffect/useState needed!
+
+  return (
+    <div>
+      <h1>{user.name}</h1>
+      <p>{user.email}</p>
+    </div>
+  );
+}
+
+// MUST wrap with Suspense to handle the loading state:
+function App() {
+  return (
+    <Suspense fallback={<p>Loading user...</p>}>
+      <UserProfile />
+    </Suspense>
+  );
+}
+
+// ✅ Can be called conditionally (unlike other hooks!)
+function ConditionalFetch({ shouldFetch, promise }) {
+  if (!shouldFetch) return <p>Skipping fetch</p>;
+
+  // use() CAN be inside a conditional — major difference from other hooks
+  const data = use(promise);
+  return <div>{data.value}</div>;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// use() with Context — alternative to useContext
+// ═══════════════════════════════════════════════════════════════
+const ThemeContext = createContext('light');
+
+function Button({ children }) {
+  // use() can read context too — same as useContext but can be conditional
+  const theme = use(ThemeContext);
+  //    ↑ use(Context) is identical to useContext(Context)
+  //    but can be called inside if/else/loops
+
+  return (
+    <button className={`btn-${theme}`}>{children}</button>
+  );
+}
+```
+
+#### `useActionState` — Form Actions with State
+
+> **Mental Model:** `useActionState` replaces the `useState + async handler` pattern for forms. It gives you the form's pending state, last result, and wires everything to React 19 Server Actions or client async functions.
+
+```jsx
+import { useActionState } from 'react';
+
+// ═══════════════════════════════════════════════════════════════
+// EXAMPLE 1: Client-side form with async action
+// ═══════════════════════════════════════════════════════════════
+
+// The "action" function: receives previous state + FormData
+async function submitContactForm(prevState, formData) {
+  const name = formData.get('name');
+  const email = formData.get('email');
+  const message = formData.get('message');
+
+  try {
+    await fetch('/api/contact', {
+      method: 'POST',
+      body: JSON.stringify({ name, email, message }),
+      headers: { 'Content-Type': 'application/json' }
+    });
+    return { success: true, message: 'Message sent! We\'ll be in touch.' };
+  } catch (error) {
+    return { success: false, message: 'Failed to send. Please try again.' };
+  }
+}
+
+function ContactForm() {
+  const [state, submitAction, isPending] = useActionState(
+    //   ↑ last return value    ↑ wrapped action   ↑ true while action runs
+    submitContactForm,
+    null,  // initial state
+  );
+
+  return (
+    <form action={submitAction}>  {/* ← pass action directly to form */}
+      <input name="name" placeholder="Your name" required />
+      <input name="email" type="email" placeholder="Email" required />
+      <textarea name="message" placeholder="Message" required />
+
+      {/* Show result message */}
+      {state && (
+        <p className={state.success ? 'success' : 'error'}>
+          {state.message}
+        </p>
+      )}
+
+      <button type="submit" disabled={isPending}>
+        {isPending ? 'Sending...' : 'Send Message'}
+      </button>
+    </form>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// EXAMPLE 2: Login form with validation errors
+// ═══════════════════════════════════════════════════════════════
+async function loginAction(prevState, formData) {
+  const email = formData.get('email');
+  const password = formData.get('password');
+
+  if (!email || !password) {
+    return { errors: { email: !email ? 'Required' : null, password: !password ? 'Required' : null } };
+  }
+
+  const result = await authenticate(email, password);
+  if (!result.ok) {
+    return { errors: { general: 'Invalid credentials' } };
+  }
+
+  // Redirect on success
+  redirect('/dashboard');
+}
+
+function LoginForm() {
+  const [state, formAction, isPending] = useActionState(loginAction, { errors: {} });
+
+  return (
+    <form action={formAction}>
+      <input name="email" type="email" />
+      {state.errors?.email && <span className="error">{state.errors.email}</span>}
+
+      <input name="password" type="password" />
+      {state.errors?.password && <span className="error">{state.errors.password}</span>}
+
+      {state.errors?.general && <p className="error">{state.errors.general}</p>}
+
+      <button disabled={isPending}>{isPending ? 'Signing in...' : 'Sign In'}</button>
+    </form>
+  );
+}
+```
+
+#### `useFormStatus` — Pending State for Nested Form Elements
+
+> **Mental Model:** `useFormStatus` lets *child components* inside a form know if the form is submitting — without prop drilling. The submit button doesn't need the pending state passed as a prop.
+
+```jsx
+import { useFormStatus } from 'react-dom';
+
+// ═══════════════════════════════════════════════════════════════
+// BEFORE React 19: prop drilling for loading state
+// ═══════════════════════════════════════════════════════════════
+function SubmitButton({ isPending }) {  // ← had to pass isPending as prop
+  return (
+    <button disabled={isPending}>
+      {isPending ? 'Saving...' : 'Save'}
+    </button>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// AFTER React 19: useFormStatus reads from parent form
+// ═══════════════════════════════════════════════════════════════
+function SubmitButton() {
+  const { pending, data, method, action } = useFormStatus();
+  //      ↑ true while parent form is submitting
+  //             ↑ FormData submitted
+  //                    ↑ 'get' or 'post'
+  //                           ↑ action URL or function
+
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      aria-busy={pending}
+    >
+      {pending ? (
+        <>
+          <Spinner /> Saving...
+        </>
+      ) : 'Save Changes'}
+    </button>
+  );
+}
+
+// SubmitButton auto-detects its parent form's state — no props needed!
+function ProfileForm() {
+  return (
+    <form action={saveProfileAction}>
+      <input name="name" />
+      <input name="bio" />
+      <SubmitButton />  {/* ← No isPending prop needed! */}
+    </form>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+// IMPORTANT: useFormStatus only works for components INSIDE a <form>
+// It must be a direct or indirect child of the form element.
+// ─────────────────────────────────────────────────────────────────
+```
+
+#### `useOptimistic` — Instant UI Feedback
+
+> **Mental Model:** `useOptimistic` lets you show the *result* of an action immediately in the UI, before the server confirms it. If the action succeeds, React seamlessly transitions to the real data. If it fails, it automatically reverts.
+
+```jsx
+import { useOptimistic, useState } from 'react';
+
+// ═══════════════════════════════════════════════════════════════
+// EXAMPLE: Like button with optimistic update
+// ═══════════════════════════════════════════════════════════════
+function LikeButton({ postId, initialLikes, initialLiked }) {
+  const [post, setPost] = useState({
+    likes: initialLikes,
+    liked: initialLiked
+  });
+
+  // useOptimistic(currentState, updateFn)
+  // → returns [optimisticState, addOptimistic]
+  const [optimisticPost, setOptimisticPost] = useOptimistic(
+    post,
+    // Merge function: how to apply the optimistic update
+    (currentPost, optimisticValue) => ({
+      ...currentPost,
+      likes: currentPost.liked
+        ? currentPost.likes - 1   // un-like: remove one
+        : currentPost.likes + 1,  // like: add one
+      liked: !currentPost.liked,  // toggle
+    })
+  );
+
+  const handleLike = async () => {
+    // Step 1: Immediately show optimistic update (no await!)
+    setOptimisticPost({});  // triggers the merge function above
+
+    // Step 2: Actually call the server
+    try {
+      const result = await toggleLike(postId);
+      // Step 3: Update real state with server response
+      setPost(result);
+    } catch {
+      // If server fails, optimistic update automatically reverts
+      console.error('Failed to like post');
+    }
+  };
+
+  return (
+    <button onClick={handleLike} className={optimisticPost.liked ? 'liked' : ''}>
+      {optimisticPost.likes}
+      {/* Shows instantly, syncs with server in background */}
+    </button>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// EXAMPLE: Optimistic todo list (add items instantly)
+// ═══════════════════════════════════════════════════════════════
+function TodoList({ initialTodos }) {
+  const [todos, setTodos] = useState(initialTodos);
+
+  const [optimisticTodos, addOptimisticTodo] = useOptimistic(
+    todos,
+    (state, newTodo) => [...state, { ...newTodo, pending: true }]
+    //                                                  ↑ mark as pending for visual indicator
+  );
+
+  const addTodo = async (formData) => {
+    const text = formData.get('text');
+    const tempTodo = { id: `temp-${Date.now()}`, text, completed: false };
+
+    // Optimistically add (shows immediately with loading indicator)
+    addOptimisticTodo(tempTodo);
+
+    // Actually save to server
+    const savedTodo = await createTodo(text);
+    setTodos(prev => [...prev, savedTodo]);
+  };
+
+  return (
+    <div>
+      <ul>
+        {optimisticTodos.map(todo => (
+          <li key={todo.id} style={{ opacity: todo.pending ? 0.6 : 1 }}>
+            {todo.text}
+            {todo.pending && ' (saving...)'}
+          </li>
+        ))}
+      </ul>
+      <form action={addTodo}>
+        <input name="text" placeholder="Add todo..." />
+        <button type="submit">Add</button>
+      </form>
+    </div>
+  );
+}
+```
+
+#### `ref` as a Prop (React 19 — No More `forwardRef`)
+
+```jsx
+// React 19: ref is now a regular prop — forwardRef is no longer needed!
+
+// ─────────────────────────────────────────────────────────────────
+// BEFORE React 19 (still works, but deprecated):
+// ─────────────────────────────────────────────────────────────────
+const Input = forwardRef(function Input({ label }, ref) {
+  return <input ref={ref} />;
+});
+
+// ─────────────────────────────────────────────────────────────────
+// AFTER React 19 (simpler — ref is just a prop!):
+// ─────────────────────────────────────────────────────────────────
+function Input({ label, ref }) {  // ← ref received as regular prop
+  return (
+    <div>
+      <label>{label}</label>
+      <input ref={ref} />
+    </div>
+  );
+}
+
+// Usage stays the same:
+function Form() {
+  const inputRef = useRef(null);
+  return <Input label="Email" ref={inputRef} />;
+}
+
+// TypeScript:
+interface InputProps {
+  label: string;
+  ref?: React.Ref<HTMLInputElement>;
+}
+
+function Input({ label, ref }: InputProps) {
+  return <input ref={ref} />;
+}
+```
+
+#### React Compiler (React 19) — Automatic Memoization
+
+> **Mental Model:** The React Compiler analyzes your code at build time and automatically adds `useMemo`, `useCallback`, and `memo` where needed. You write plain React — the compiler optimizes it.
+
+```jsx
+// BEFORE React Compiler: manually add memoization everywhere
+const Component = memo(function Component({ user, onUpdate }) {
+  const processedUser = useMemo(
+    () => processUser(user),
+    [user]
+  );
+  const handleClick = useCallback(
+    () => onUpdate(user.id),
+    [onUpdate, user.id]
+  );
+
+  return <div onClick={handleClick}>{processedUser.name}</div>;
+});
+
+// AFTER React Compiler: write plain code — compiler handles it!
+function Component({ user, onUpdate }) {
+  // Compiler automatically detects that processUser(user) is expensive
+  // and memoizes it — NO useMemo needed!
+  const processedUser = processUser(user);
+
+  // Compiler sees this function only needs to change when onUpdate/user.id changes
+  // and automatically stabilizes it — NO useCallback needed!
+  const handleClick = () => onUpdate(user.id);
+
+  return <div onClick={handleClick}>{processedUser.name}</div>;
+}
+
+// Enable React Compiler in vite.config.ts:
+// import reactCompiler from 'babel-plugin-react-compiler';
+// plugins: [react({ babel: { plugins: [reactCompiler] } })]
+
+// ─────────────────────────────────────────────────────────────────
+// React 19 Summary:
+// ┌─────────────────────────────────────────────────────────────┐
+// │  New Hook/API    │  Replaces / Improves                     │
+// ├─────────────────────────────────────────────────────────────┤
+// │  use()           │  useEffect + useState for async data     │
+// │  useActionState  │  useState + async handler for forms      │
+// │  useFormStatus   │  Prop drilling pending state to buttons  │
+// │  useOptimistic   │  Manual optimistic state management      │
+// │  ref as prop     │  forwardRef() wrapper                    │
+// │  React Compiler  │  Manual useMemo/useCallback/memo         │
+// └─────────────────────────────────────────────────────────────┘
+// ─────────────────────────────────────────────────────────────────
 ```
 
 ---
@@ -4333,6 +5129,258 @@ function DataComponent() {
 
 ---
 
+---
+
+## Portals — Render Outside the Parent DOM
+
+> **Mental Model:** A Portal is a "teleporter" for React components. The component lives in the React tree (inherits context, events bubble up normally), but its DOM output appears *somewhere else* in the HTML — like `document.body`. Essential for modals, tooltips, and dropdowns that need to escape CSS `overflow: hidden` or `z-index` stacking contexts.
+
+```jsx
+import { createPortal } from 'react-dom';
+import { useState, useEffect, useRef } from 'react';
+
+// ═══════════════════════════════════════════════════════════════
+// EXAMPLE 1: Basic Modal with Portal
+// ═══════════════════════════════════════════════════════════════
+function Modal({ isOpen, onClose, title, children }) {
+  // ESC key to close
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  // createPortal(jsx, domNode)
+  // → Renders jsx into domNode, but keeps it in React's component tree
+  return createPortal(
+    // The JSX to render:
+    <div
+      className="modal-overlay"
+      onClick={onClose}                   // Click backdrop to close
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
+    >
+      <div
+        className="modal-content"
+        onClick={e => e.stopPropagation()}  // Don't close when clicking inside
+      >
+        <div className="modal-header">
+          <h2 id="modal-title">{title}</h2>
+          <button onClick={onClose} aria-label="Close modal">X</button>
+        </div>
+        <div className="modal-body">
+          {children}
+        </div>
+      </div>
+    </div>,
+    // Where to render it in the actual DOM:
+    document.body
+    // ↑ Renders directly in <body>, outside any nested div with overflow:hidden!
+  );
+}
+
+// Usage:
+function App() {
+  const [showModal, setShowModal] = useState(false);
+
+  return (
+    // Even if this div has overflow: hidden, the modal escapes it!
+    <div style={{ overflow: 'hidden', position: 'relative' }}>
+      <button onClick={() => setShowModal(true)}>Open Modal</button>
+
+      {/* Modal renders in document.body — NOT inside the overflow:hidden div */}
+      <Modal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        title="Confirm Delete"
+      >
+        <p>Are you sure you want to delete this item?</p>
+        <button onClick={() => { /* delete */ setShowModal(false); }}>
+          Yes, Delete
+        </button>
+        <button onClick={() => setShowModal(false)}>Cancel</button>
+      </Modal>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// EXAMPLE 2: Tooltip Portal
+// ═══════════════════════════════════════════════════════════════
+function Tooltip({ children, text }) {
+  const [visible, setVisible] = useState(false);
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const targetRef = useRef(null);
+
+  const showTooltip = () => {
+    const rect = targetRef.current.getBoundingClientRect();
+    setPosition({
+      top: rect.bottom + window.scrollY + 8,
+      left: rect.left + window.scrollX + rect.width / 2,
+    });
+    setVisible(true);
+  };
+
+  return (
+    <>
+      <span
+        ref={targetRef}
+        onMouseEnter={showTooltip}
+        onMouseLeave={() => setVisible(false)}
+      >
+        {children}
+      </span>
+
+      {visible && createPortal(
+        <div
+          style={{
+            position: 'absolute',
+            top: position.top,
+            left: position.left,
+            transform: 'translateX(-50%)',
+            background: '#333',
+            color: 'white',
+            padding: '4px 8px',
+            borderRadius: '4px',
+            zIndex: 9999,
+            pointerEvents: 'none',
+          }}
+        >
+          {text}
+        </div>,
+        document.body
+      )}
+    </>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// KEY FACTS ABOUT PORTALS:
+// ─────────────────────────────────────────────────────────────────
+// ✅ Events bubble through React tree, NOT through DOM tree
+//    → Clicking inside a portal modal DOES trigger onClick on React parent
+// ✅ Context works across portals (Context.Provider in parent works in portal)
+// ✅ React lifecycle works normally (effects, state, etc.)
+// ✅ Can render into any DOM node: document.body, document.getElementById('modal-root')
+// ❌ Portal DOM output is in a different place in HTML than React tree
+// ─────────────────────────────────────────────────────────────────
+```
+
+---
+
+## React 18 — Automatic Batching & `flushSync`
+
+> **Mental Model:** React 18 batches *all* state updates — even inside `setTimeout`, Promises, and native event listeners — into a single re-render. This is a free performance win. `flushSync` is the escape hatch to force an immediate update when batching is wrong for your use case.
+
+```jsx
+import { useState, flushSync } from 'react';
+
+// ═══════════════════════════════════════════════════════════════
+// AUTOMATIC BATCHING (React 18 default)
+// ═══════════════════════════════════════════════════════════════
+
+function Counter() {
+  const [count, setCount] = useState(0);
+  const [flag, setFlag] = useState(false);
+
+  // React 17: Inside event handlers — already batched (1 re-render)
+  // React 18: ALL of these scenarios are now batched:
+
+  // ✅ SCENARIO 1: React event handler (batched in both 17 and 18)
+  const handleClick = () => {
+    setCount(c => c + 1);  // ┐
+    setFlag(f => !f);      // ┘ → 1 re-render (was already batched)
+  };
+
+  // ✅ SCENARIO 2: setTimeout (NEW in React 18 — was NOT batched in React 17!)
+  const handleTimeout = () => {
+    setTimeout(() => {
+      setCount(c => c + 1);  // ┐
+      setFlag(f => !f);      // ┘ → 1 re-render in React 18
+                              //     2 re-renders in React 17!
+    }, 1000);
+  };
+
+  // ✅ SCENARIO 3: Promise/async (NEW in React 18)
+  const handleAsync = async () => {
+    await fetchData();
+    setCount(c => c + 1);  // ┐
+    setFlag(f => !f);      // ┘ → 1 re-render in React 18
+  };
+
+  // ✅ SCENARIO 4: Native event listeners (NEW in React 18)
+  useEffect(() => {
+    const el = document.getElementById('my-btn');
+    el.addEventListener('click', () => {
+      setCount(c => c + 1);  // ┐
+      setFlag(f => !f);      // ┘ → 1 re-render in React 18
+    });
+  }, []);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// flushSync — Force synchronous (unbatched) update
+// Use when you NEED the DOM to update before the next line
+// ═══════════════════════════════════════════════════════════════
+function ScrollToBottom() {
+  const [messages, setMessages] = useState([]);
+  const listRef = useRef(null);
+
+  const addMessage = (text) => {
+    // ❌ Without flushSync: DOM hasn't updated yet when we try to scroll
+    // setMessages(prev => [...prev, text]);
+    // listRef.current.scrollTop = listRef.current.scrollHeight; // wrong height!
+
+    // ✅ With flushSync: forces React to update the DOM synchronously first
+    flushSync(() => {
+      setMessages(prev => [...prev, text]);
+    });
+    // At this point, the DOM is updated — scroll works correctly!
+    listRef.current.scrollTop = listRef.current.scrollHeight;
+  };
+
+  return (
+    <div>
+      <ul ref={listRef} style={{ height: '200px', overflow: 'auto' }}>
+        {messages.map((msg, i) => <li key={i}>{msg}</li>)}
+      </ul>
+      <button onClick={() => addMessage('New message')}>Send</button>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Batching Quick Reference:
+// ┌─────────────────────────────┬──────────┬──────────┐
+// │ Context                     │ React 17 │ React 18 │
+// ├─────────────────────────────┼──────────┼──────────┤
+// │ React event handlers        │ Batched  │ Batched  │
+// │ setTimeout / setInterval    │ NOT      │ Batched  │
+// │ Promise .then / async-await │ NOT      │ Batched  │
+// │ Native addEventListener      │ NOT      │ Batched  │
+// └─────────────────────────────┴──────────┴──────────┘
+// flushSync: opts out of batching for a specific update
+// ─────────────────────────────────────────────────────────────────
+```
+
+---
+
 ## Common Pitfalls & Best Practices
 
 ### Pitfall #1: Stale Closures in Effects
@@ -4976,6 +6024,229 @@ function withData(WrappedComponent, fetchData) {
 // Note: Custom hooks are often preferred over HOCs in modern React
 ```
 
+### Container / Presentational Pattern
+
+> **Mental Model:** Split every feature component into two: a "smart" container that fetches data and manages state, and a "dumb" presentational component that just renders props. The presentational component is reusable and easy to test.
+
+```tsx
+// ─────────────────────────────────────────────────────────────────
+// Presentational Component — only cares about HOW things look
+// Props in, JSX out. No API calls, no state (or minimal UI state)
+// ─────────────────────────────────────────────────────────────────
+interface UserListProps {
+  users: User[];
+  loading: boolean;
+  error: string | null;
+  onUserSelect: (id: string) => void;
+  onLoadMore: () => void;
+  hasMore: boolean;
+}
+
+function UserList({ users, loading, error, onUserSelect, onLoadMore, hasMore }: UserListProps) {
+  if (loading && users.length === 0) return <Skeleton count={5} />;
+  if (error) return <ErrorMessage message={error} />;
+  if (users.length === 0) return <EmptyState message="No users found" />;
+
+  return (
+    <div className="user-list">
+      {users.map(user => (
+        <UserCard
+          key={user.id}
+          user={user}
+          onClick={() => onUserSelect(user.id)}
+        />
+      ))}
+      {hasMore && (
+        <button onClick={onLoadMore} disabled={loading}>
+          {loading ? 'Loading...' : 'Load More'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Container Component — only cares about WHERE data comes from
+// Fetches data, manages state, passes props to presentational
+// ─────────────────────────────────────────────────────────────────
+function UserListContainer() {
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    setLoading(true);
+    fetchUsers({ page, pageSize: 20 })
+      .then(data => {
+        setUsers(prev => page === 1 ? data.users : [...prev, ...data.users]);
+        setHasMore(data.hasNextPage);
+      })
+      .catch(err => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [page]);
+
+  const handleUserSelect = (id: string) => {
+    navigate(`/users/${id}`);
+  };
+
+  const handleLoadMore = () => {
+    setPage(p => p + 1);
+  };
+
+  // Delegates ALL rendering to the presentational component:
+  return (
+    <UserList
+      users={users}
+      loading={loading}
+      error={error}
+      onUserSelect={handleUserSelect}
+      onLoadMore={handleLoadMore}
+      hasMore={hasMore}
+    />
+  );
+}
+```
+
+### Observer Pattern — Event Bus / Pub-Sub
+
+> **Mental Model:** An event bus lets completely unrelated components communicate without props or context. Component A publishes an event; Component B subscribes and reacts — they don't know each other exist.
+
+```tsx
+// ─────────────────────────────────────────────────────────────────
+// Simple EventBus implementation:
+// ─────────────────────────────────────────────────────────────────
+class EventBus {
+  private listeners = new Map<string, Set<Function>>();
+
+  on(event: string, callback: Function) {
+    if (!this.listeners.has(event)) {
+      this.listeners.set(event, new Set());
+    }
+    this.listeners.get(event)!.add(callback);
+    return () => this.off(event, callback);  // Return unsubscribe
+  }
+
+  off(event: string, callback: Function) {
+    this.listeners.get(event)?.delete(callback);
+  }
+
+  emit(event: string, data?: unknown) {
+    this.listeners.get(event)?.forEach(cb => cb(data));
+  }
+}
+
+export const eventBus = new EventBus();
+
+// ─────────────────────────────────────────────────────────────────
+// Custom hook to subscribe to events:
+// ─────────────────────────────────────────────────────────────────
+function useEventBus<T>(event: string, callback: (data: T) => void) {
+  const callbackRef = useRef(callback);
+  callbackRef.current = callback;
+
+  useEffect(() => {
+    const unsubscribe = eventBus.on(event, (data: T) => {
+      callbackRef.current(data);
+    });
+    return unsubscribe;
+  }, [event]);
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Usage: Components that don't share a common parent
+// ─────────────────────────────────────────────────────────────────
+
+// Shopping cart (publisher):
+function ProductPage({ product }) {
+  const addToCart = () => {
+    eventBus.emit('cart:add', { product, quantity: 1 });
+  };
+  return <button onClick={addToCart}>Add to Cart</button>;
+}
+
+// Cart icon in header (subscriber — no shared parent with ProductPage):
+function CartIcon() {
+  const [count, setCount] = useState(0);
+
+  useEventBus('cart:add', ({ product, quantity }) => {
+    setCount(prev => prev + quantity);
+    showToast(`${product.name} added to cart!`);
+  });
+
+  return <span>{count}</span>;
+}
+
+// Analytics tracker (another subscriber — completely separate):
+function AnalyticsTracker() {
+  useEventBus('cart:add', ({ product }) => {
+    trackEvent('add_to_cart', { productId: product.id, price: product.price });
+  });
+
+  return null;  // No UI, just a side-effect component
+}
+```
+
+### Builder Pattern — Fluent API for Complex Components
+
+> **Mental Model:** The Builder pattern lets you construct complex UI configurations step-by-step with a fluent (chainable) API — like assembling a pizza, topping by topping.
+
+```tsx
+// Table builder — configure columns declaratively:
+class TableBuilder<T> {
+  private config: any = { columns: [], sortable: false, paginated: false, selectable: false };
+
+  addColumn(key: keyof T, label: string, options?: { sortable?: boolean; render?: (val: any) => ReactNode }) {
+    this.config.columns.push({ key, label, ...options });
+    return this;  // ← return this for chaining
+  }
+
+  withSorting() {
+    this.config.sortable = true;
+    return this;
+  }
+
+  withPagination(pageSize = 10) {
+    this.config.paginated = true;
+    this.config.pageSize = pageSize;
+    return this;
+  }
+
+  withRowSelection(onSelect: (rows: T[]) => void) {
+    this.config.selectable = true;
+    this.config.onSelect = onSelect;
+    return this;
+  }
+
+  build() {
+    return this.config;
+  }
+}
+
+// Usage — fluent, readable:
+const userTableConfig = new TableBuilder<User>()
+  .addColumn('name', 'Name', { sortable: true })
+  .addColumn('email', 'Email', { sortable: true })
+  .addColumn('role', 'Role', {
+    render: (role) => <Badge variant={role === 'admin' ? 'warning' : 'default'}>{role}</Badge>
+  })
+  .addColumn('createdAt', 'Joined', {
+    render: (date) => new Date(date).toLocaleDateString()
+  })
+  .withSorting()
+  .withPagination(20)
+  .withRowSelection((rows) => console.log('Selected:', rows))
+  .build();
+
+function UsersPage() {
+  const { data } = useQuery({ queryKey: ['users'], queryFn: fetchUsers });
+
+  return <DataTable data={data} config={userTableConfig} />;
+}
+```
+
 ---
 
 ## 15. State Management Libraries
@@ -5390,6 +6661,250 @@ async function Home() {
       <Counter />  {/* Client component */}
     </div>
   );
+}
+```
+
+### Next.js App Router — Deep Dive
+
+#### Server vs Client Components Decision Tree
+
+```
+Is this component interactive?
+(uses onClick, onChange, useState, useEffect, browser APIs)
+         |
+    YES -+- NO
+         |       |
+    'use client' |
+         |       v
+         |  Does it fetch data or access server resources?
+         |  (databases, file system, environment secrets)
+         |         |
+         |    YES -+- NO
+         |         |       |
+         |    Server        |
+         |    Component     |
+         |    (default)     v
+         |             Shared Component
+         |             (no special marker needed)
+```
+
+```tsx
+// app/layout.tsx — Root layout (Server Component)
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body>
+        <header>
+          <nav>...</nav>
+          <UserMenu />  {/* Client Component */}
+        </header>
+        <main>{children}</main>
+      </body>
+    </html>
+  );
+}
+
+// app/products/page.tsx — Server Component (data fetching)
+// Runs on server — can access database directly, no API route needed!
+import { db } from '@/lib/database';
+
+export default async function ProductsPage({
+  searchParams
+}: {
+  searchParams: { category?: string; page?: string }
+}) {
+  const category = searchParams.category ?? 'all';
+  const page = Number(searchParams.page ?? 1);
+
+  // Direct DB query in a component — no useEffect, no loading state!
+  const products = await db.products.findMany({
+    where: category !== 'all' ? { category } : undefined,
+    skip: (page - 1) * 20,
+    take: 20,
+    orderBy: { createdAt: 'desc' },
+  });
+
+  return (
+    <div>
+      <h1>Products</h1>
+
+      {/* Client component for interactivity */}
+      <CategoryFilter currentCategory={category} />
+
+      {/* Server Component renders product list */}
+      <ProductGrid products={products} />
+    </div>
+  );
+}
+
+// app/components/CategoryFilter.tsx — Client Component
+'use client';
+import { useRouter, useSearchParams } from 'next/navigation';
+
+export function CategoryFilter({ currentCategory }: { currentCategory: string }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const handleChange = (category: string) => {
+    const params = new URLSearchParams(searchParams);
+    params.set('category', category);
+    params.set('page', '1');
+    router.push(`/products?${params.toString()}`);
+  };
+
+  return (
+    <div>
+      {['all', 'electronics', 'clothing', 'books'].map(cat => (
+        <button
+          key={cat}
+          onClick={() => handleChange(cat)}
+          className={currentCategory === cat ? 'active' : ''}
+        >
+          {cat}
+        </button>
+      ))}
+    </div>
+  );
+}
+```
+
+#### Server Actions — Mutate Data Without API Routes
+
+```tsx
+// app/products/[id]/page.tsx
+
+// Server Action — runs on the server, called from client:
+async function updateProduct(productId: string, formData: FormData) {
+  'use server';  // ← This entire function runs on the server
+
+  const name = formData.get('name') as string;
+  const price = Number(formData.get('price'));
+
+  // Direct DB access — no fetch() to an API route!
+  await db.products.update({
+    where: { id: productId },
+    data: { name, price, updatedAt: new Date() },
+  });
+
+  // Invalidate the cached page:
+  revalidatePath(`/products/${productId}`);
+
+  // Optionally redirect:
+  redirect(`/products/${productId}`);
+}
+
+// Server Component that uses the Server Action:
+export default async function ProductDetailPage({
+  params
+}: {
+  params: { id: string }
+}) {
+  const product = await db.products.findUnique({ where: { id: params.id } });
+
+  if (!product) notFound();
+
+  // Bind the action to this specific product:
+  const updateThisProduct = updateProduct.bind(null, product.id);
+
+  return (
+    <div>
+      <h1>{product.name}</h1>
+
+      {/* form action wired directly to server function — no API route! */}
+      <form action={updateThisProduct}>
+        <input name="name" defaultValue={product.name} />
+        <input name="price" type="number" defaultValue={product.price} />
+        <button type="submit">Update Product</button>
+      </form>
+    </div>
+  );
+}
+```
+
+#### Caching in Next.js App Router
+
+```tsx
+// 1. Default: cached forever (static)
+const data = await fetch('https://api.example.com/data');
+
+// 2. Revalidate every N seconds (ISR):
+const data2 = await fetch('https://api.example.com/data', {
+  next: { revalidate: 60 }  // Fresh data every 60 seconds
+});
+
+// 3. Never cache (dynamic):
+const data3 = await fetch('https://api.example.com/data', {
+  cache: 'no-store'
+});
+
+// 4. Tag-based revalidation:
+const data4 = await fetch('https://api.example.com/products', {
+  next: { tags: ['products'] }
+});
+
+// Invalidate all 'products' caches on demand:
+import { revalidateTag } from 'next/cache';
+async function deleteProduct(id: string) {
+  'use server';
+  await db.products.delete({ where: { id } });
+  revalidateTag('products');  // All pages fetching 'products' tag are refreshed
+}
+
+// 5. Loading UI with Suspense (app/products/loading.tsx):
+// export default function Loading() {
+//   return <ProductGridSkeleton />;
+// }
+
+// 6. Error handling (app/products/error.tsx):
+'use client';  // Error boundaries must be client components
+export default function Error({
+  error,
+  reset,
+}: {
+  error: Error;
+  reset: () => void;
+}) {
+  return (
+    <div>
+      <h2>Something went wrong!</h2>
+      <p>{error.message}</p>
+      <button onClick={reset}>Try again</button>
+    </div>
+  );
+}
+```
+
+#### Metadata & SEO in App Router
+
+```tsx
+// app/products/[id]/page.tsx — Dynamic metadata
+import { Metadata } from 'next';
+
+// Static metadata:
+export const metadata: Metadata = {
+  title: 'Products | My Store',
+  description: 'Browse our collection of products',
+};
+
+// Dynamic metadata (based on route params):
+export async function generateMetadata({
+  params
+}: {
+  params: { id: string }
+}): Promise<Metadata> {
+  const product = await db.products.findUnique({ where: { id: params.id } });
+
+  if (!product) return { title: 'Product Not Found' };
+
+  return {
+    title: `${product.name} | My Store`,
+    description: product.description,
+    openGraph: {
+      title: product.name,
+      description: product.description,
+      images: [{ url: product.imageUrl }],
+    },
+  };
 }
 ```
 
@@ -6315,6 +7830,506 @@ This guide covered React comprehensively:
 - Know when NOT to use certain patterns (snapshots, over-mocking)
 - Testing: test behavior not implementation — prefer `getByRole` over `getByTestId`
 - Performance: always measure first
+
+---
+
+## 24. Styling in React — Complete Guide
+
+React doesn't dictate how you style components. Here are the four main approaches with their trade-offs.
+
+### CSS Modules — Scoped CSS
+
+> **Mental Model:** CSS Modules solve the global CSS naming collision problem. Every class is locally scoped by default — `.button` in one module never clashes with `.button` in another.
+
+```jsx
+// Button.module.css
+// .button { padding: 8px 16px; border-radius: 4px; font-size: 14px; }
+// .primary { background: #0070f3; color: white; }
+// .secondary { background: #eaeaea; color: #333; }
+// .button:hover { opacity: 0.9; }
+
+// Button.jsx
+import styles from './Button.module.css';
+
+// styles.button becomes something like: "Button_button__3xyz" (unique hash)
+// → no collision with other components' .button class!
+export function Button({ variant = 'primary', children, onClick }) {
+  return (
+    <button
+      // Combine multiple CSS Modules classes:
+      className={`${styles.button} ${styles[variant]}`}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
+
+// Using clsx or classnames library for complex class logic:
+import clsx from 'clsx';
+
+export function ButtonClsx({ variant, disabled, loading, children }) {
+  return (
+    <button
+      className={clsx(
+        styles.button,
+        styles[variant],
+        { [styles.disabled]: disabled },
+        { [styles.loading]: loading },
+      )}
+      disabled={disabled}
+    >
+      {children}
+    </button>
+  );
+}
+```
+
+### Styled Components — CSS-in-JS
+
+> **Mental Model:** Styled Components lets you write real CSS inside JavaScript template literals, producing fully encapsulated components. The style *is* the component.
+
+```jsx
+import styled from 'styled-components';
+
+// Create a styled component (like a div with baked-in CSS):
+const Container = styled.div`
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+`;
+
+// Extend existing components:
+const PrimaryButton = styled.button`
+  padding: 8px 16px;
+  background: ${props => props.theme.colors.primary};  /* Theme access */
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: ${props => props.size === 'lg' ? '18px' : '14px'};
+
+  &:hover {
+    background: ${props => props.theme.colors.primaryHover};
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+`;
+
+// Extend an existing styled component:
+const DangerButton = styled(PrimaryButton)`
+  background: #dc3545;
+  &:hover { background: #c82333; }
+`;
+
+// Dynamic styles based on props:
+const Badge = styled.span`
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  background: ${({ variant }) => ({
+    success: '#d4edda',
+    warning: '#fff3cd',
+    error: '#f8d7da',
+  }[variant])};
+`;
+
+// Global styles:
+import { createGlobalStyle } from 'styled-components';
+
+const GlobalStyle = createGlobalStyle`
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; }
+`;
+
+// Theme provider:
+import { ThemeProvider } from 'styled-components';
+
+const theme = {
+  colors: {
+    primary: '#0070f3',
+    primaryHover: '#0051ab',
+  },
+  spacing: (n) => `${n * 8}px`,
+};
+
+function App() {
+  return (
+    <ThemeProvider theme={theme}>
+      <GlobalStyle />
+      <Container>
+        <PrimaryButton>Click me</PrimaryButton>
+        <DangerButton>Delete</DangerButton>
+        <Badge variant="success">Active</Badge>
+      </Container>
+    </ThemeProvider>
+  );
+}
+```
+
+### Tailwind CSS with React
+
+> **Mental Model:** Tailwind provides utility classes (`flex`, `p-4`, `text-blue-500`) that you compose directly in JSX. No context switching between JS and CSS files.
+
+```jsx
+// Installation: npm install -D tailwindcss
+// npx tailwindcss init -p
+// tailwind.config.js: content: ["./src/**/*.{js,jsx,ts,tsx}"]
+// main.css: @tailwind base; @tailwind components; @tailwind utilities;
+
+// Basic usage:
+function Card({ title, description }) {
+  return (
+    <div className="bg-white rounded-lg shadow-md p-6 max-w-sm hover:shadow-lg transition-shadow">
+      <h2 className="text-xl font-semibold text-gray-800 mb-2">{title}</h2>
+      <p className="text-gray-600 text-sm">{description}</p>
+    </div>
+  );
+}
+
+// Conditional classes with clsx + Tailwind:
+import clsx from 'clsx';
+
+function Button({ variant = 'primary', size = 'md', disabled, children }) {
+  return (
+    <button
+      disabled={disabled}
+      className={clsx(
+        // Base styles — always applied:
+        'rounded font-medium transition-colors focus:outline-none focus:ring-2',
+        // Size variants:
+        {
+          'px-3 py-1 text-sm': size === 'sm',
+          'px-4 py-2 text-base': size === 'md',
+          'px-6 py-3 text-lg': size === 'lg',
+        },
+        // Color variants:
+        {
+          'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500': variant === 'primary',
+          'bg-gray-200 text-gray-800 hover:bg-gray-300 focus:ring-gray-400': variant === 'secondary',
+          'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500': variant === 'danger',
+        },
+        // Disabled state:
+        { 'opacity-50 cursor-not-allowed': disabled }
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+// Responsive design with breakpoint prefixes:
+function ResponsiveGrid({ items }) {
+  return (
+    // 1 col on mobile, 2 on tablet, 3 on desktop
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {items.map(item => (
+        <Card key={item.id} {...item} />
+      ))}
+    </div>
+  );
+}
+
+// Dark mode:
+function Theme() {
+  return (
+    <div className="bg-white dark:bg-gray-900 text-gray-900 dark:text-white p-4">
+      <p>Adapts to system dark mode automatically</p>
+    </div>
+  );
+}
+```
+
+### Styling Approach Decision Matrix
+
+| Approach | Bundle Size | Scoping | DX | SSR | Best For |
+|----------|------------|---------|-----|-----|---------|
+| CSS Modules | Minimal | Auto | Good | Yes | Most projects |
+| Styled Components | ~12KB | Auto | Excellent | Yes (with setup) | Design systems |
+| Tailwind CSS | ~few KB (purged) | Auto | Good | Yes | Rapid prototyping |
+| Inline Styles | Zero | Auto | Poor | Yes | Dynamic values only |
+| Global CSS | Minimal | Global | Good | Yes | Legacy / simple apps |
+
+---
+
+## 25. Accessibility (a11y) in React
+
+> Building accessible React apps ensures your UI works for all users — including those using screen readers, keyboard navigation, or assistive technologies.
+
+### Semantic HTML & ARIA
+
+```jsx
+// ✅ Use semantic HTML first — it's already accessible
+function Navigation() {
+  return (
+    <nav aria-label="Main navigation">  {/* nav announces itself as navigation */}
+      <ul>
+        <li><a href="/">Home</a></li>
+        <li><a href="/about">About</a></li>
+      </ul>
+    </nav>
+  );
+}
+
+// ✅ ARIA roles when semantic HTML isn't enough:
+function CustomDropdown({ label, options, value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const listId = useId();
+
+  return (
+    <div>
+      <button
+        aria-haspopup="listbox"          // Announces this button opens a list
+        aria-expanded={open}             // Announces open/closed state
+        aria-controls={listId}           // Links button to the list it controls
+        onClick={() => setOpen(o => !o)}
+      >
+        {label}: {value}
+      </button>
+
+      {open && (
+        <ul
+          id={listId}
+          role="listbox"                 // Semantic role for dropdown list
+          aria-label={label}
+        >
+          {options.map(opt => (
+            <li
+              key={opt.value}
+              role="option"              // Each item is an "option"
+              aria-selected={opt.value === value}
+              onClick={() => { onChange(opt.value); setOpen(false); }}
+            >
+              {opt.label}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// ✅ Live regions — announce dynamic content changes to screen readers:
+function NotificationBanner({ message }) {
+  return (
+    <div
+      role="status"             // Polite: waits for current speech to finish
+      aria-live="polite"        // 'polite' | 'assertive' | 'off'
+      aria-atomic="true"        // Read entire region as one unit
+    >
+      {message}  {/* Screen reader announces this when it changes */}
+    </div>
+  );
+}
+
+// For urgent alerts (like errors):
+function AlertBanner({ error }) {
+  return (
+    <div role="alert" aria-live="assertive">
+      {error}  {/* Interrupts current speech — use sparingly! */}
+    </div>
+  );
+}
+```
+
+### Focus Management
+
+```jsx
+import { useEffect, useRef } from 'react';
+
+// ✅ Move focus to modal when it opens:
+function Modal({ isOpen, onClose, children }) {
+  const modalRef = useRef(null);
+  const previousFocusRef = useRef(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      // Save where focus was before modal opened
+      previousFocusRef.current = document.activeElement;
+      // Move focus into modal
+      modalRef.current?.focus();
+    } else {
+      // Restore focus when modal closes
+      previousFocusRef.current?.focus();
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  return createPortal(
+    <div
+      ref={modalRef}
+      role="dialog"
+      aria-modal="true"
+      tabIndex={-1}         // Makes div focusable programmatically
+      className="modal"
+    >
+      {children}
+      <button onClick={onClose}>Close</button>
+    </div>,
+    document.body
+  );
+}
+
+// ✅ Focus trap inside modal (Tab stays within modal):
+function useFocusTrap(containerRef, isActive) {
+  useEffect(() => {
+    if (!isActive) return;
+
+    const container = containerRef.current;
+    const focusableElements = container.querySelectorAll(
+      'a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    const firstEl = focusableElements[0];
+    const lastEl = focusableElements[focusableElements.length - 1];
+
+    const handleTab = (e) => {
+      if (e.key !== 'Tab') return;
+      if (e.shiftKey) {
+        if (document.activeElement === firstEl) {
+          e.preventDefault();
+          lastEl.focus();  // Wrap backward
+        }
+      } else {
+        if (document.activeElement === lastEl) {
+          e.preventDefault();
+          firstEl.focus();  // Wrap forward
+        }
+      }
+    };
+
+    container.addEventListener('keydown', handleTab);
+    return () => container.removeEventListener('keydown', handleTab);
+  }, [containerRef, isActive]);
+}
+
+// ✅ Skip link (keyboard users skip to main content):
+function SkipLink() {
+  return (
+    <a
+      href="#main-content"
+      className="sr-only focus:not-sr-only"
+      // sr-only: visually hidden but accessible
+      // focus:not-sr-only: visible when focused via Tab
+    >
+      Skip to main content
+    </a>
+  );
+}
+
+// Usage at top of layout:
+function Layout({ children }) {
+  return (
+    <>
+      <SkipLink />
+      <header>...</header>
+      <main id="main-content" tabIndex={-1}>
+        {children}
+      </main>
+    </>
+  );
+}
+```
+
+### Keyboard Navigation
+
+```jsx
+// ✅ Custom keyboard interactions:
+function TabList({ tabs, activeTab, onTabChange }) {
+  const handleKeyDown = (e, index) => {
+    switch (e.key) {
+      case 'ArrowRight':
+        e.preventDefault();
+        onTabChange(Math.min(index + 1, tabs.length - 1));
+        break;
+      case 'ArrowLeft':
+        e.preventDefault();
+        onTabChange(Math.max(index - 1, 0));
+        break;
+      case 'Home':
+        e.preventDefault();
+        onTabChange(0);
+        break;
+      case 'End':
+        e.preventDefault();
+        onTabChange(tabs.length - 1);
+        break;
+    }
+  };
+
+  return (
+    <div role="tablist" aria-label="Content sections">
+      {tabs.map((tab, i) => (
+        <button
+          key={tab.id}
+          role="tab"
+          aria-selected={activeTab === i}
+          aria-controls={`panel-${tab.id}`}
+          tabIndex={activeTab === i ? 0 : -1}  // Only active tab in tab order
+          onClick={() => onTabChange(i)}
+          onKeyDown={(e) => handleKeyDown(e, i)}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ✅ Accessible form with error association:
+function AccessibleForm() {
+  const [errors, setErrors] = useState({});
+  const emailId = useId();
+  const emailErrorId = `${emailId}-error`;
+
+  return (
+    <form noValidate>
+      <div>
+        <label htmlFor={emailId}>
+          Email <span aria-hidden="true">*</span>
+          <span className="sr-only">(required)</span>
+        </label>
+
+        <input
+          id={emailId}
+          type="email"
+          required
+          aria-required="true"
+          aria-invalid={!!errors.email}        // Announces input as invalid
+          aria-describedby={errors.email ? emailErrorId : undefined}
+        />
+
+        {errors.email && (
+          <span
+            id={emailErrorId}
+            role="alert"                       // Screen reader announces error
+            className="error-message"
+          >
+            {errors.email}
+          </span>
+        )}
+      </div>
+    </form>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Accessibility Quick Checklist:
+// ✅ All images have alt text (alt="" for decorative images)
+// ✅ All form inputs have associated <label>
+// ✅ Buttons have descriptive text (not just "Click here")
+// ✅ Color is not the only way to convey information
+// ✅ Text has sufficient contrast ratio (4.5:1 for normal text)
+// ✅ Focus is visible and logical (never hidden with outline: none)
+// ✅ Keyboard users can reach all interactive elements
+// ✅ Dynamic content changes announced via aria-live
+// ✅ Modals trap focus and restore it on close
+// Tools: axe-core, eslint-plugin-jsx-a11y, Lighthouse audit
+// ─────────────────────────────────────────────────────────────────
+```
 
 ---
 

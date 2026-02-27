@@ -25,3 +25,9 @@ React+Portfolio to be hosted showcasing AI Integrations
 Estimation Excel
 
 Ext Visib & Pers Nwking is vry imp, Carrer safety is outside the jb , not inside
+
+
+========
+
+
+I would like to start learning DSA to preparae myself for product companies from beginner to expert level covering all aspects and want to practiceson all topics atleast 1 question on each topic. prepare a plan for this. I want a good mental model to remember the datastructures and algorithms and to solve problems. it should be on c#. create a comprehensive new md file for this as a single greatest source of guide
