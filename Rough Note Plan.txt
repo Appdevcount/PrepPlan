@@ -19,6 +19,7 @@ Prod issues - ADR   2
 SD Sheeet
 DSA Diag - mental model of all concepts
 C#Qstns
+Claude.md setup
 AZ104    AZ305
 AI Integ Initiatives ->Tip Post
 React+Portfolio to be hosted showcasing AI Integrations
@@ -31,3 +32,11 @@ Ext Visib & Pers Nwking is vry imp, Carrer safety is outside the jb , not inside
 
 
 I would like to start learning DSA to preparae myself for product companies from beginner to expert level covering all aspects and want to practiceson all topics atleast 1 question on each topic. prepare a plan for this. I want a good mental model to remember the datastructures and algorithms and to solve problems. it should be on c#. create a comprehensive new md file for this as a single greatest source of guide
+
+=============
+
+create a new md file with AI integration intitative i can do as POC .WHICH IS needed in industry.give technical and use cases-which is really usefull and should be productive. my background dotnet. consider this but still think about whats needed most and list that as well to be future ready employable
+
+===============
+
+i want to create a portfolio website to showcase AI integrations and show my technical expertise in dotnet and react,azure,ai. give me a plan .cost effective way to host and db as well for this  portfolio site. put it in new md file. that should have option to book my appoint for mentoring and more option which can be usefull.think and tell in md file
