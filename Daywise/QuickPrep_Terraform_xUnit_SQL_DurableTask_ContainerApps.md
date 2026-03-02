@@ -2778,6 +2778,1088 @@ SSE:        Server push over HTTP, one-directional, auto-reconnect
 
 ---
 
+---
+
+## Section 8 — Azure Entra ID: OAuth2/OIDC, App Registrations, Scopes, Roles & Managed Identities
+
+> **Lead-level framing:** You don't just "add auth" — you design a trust boundary. Every token has an audience, every claim has a purpose, and every identity (human or workload) should follow least-privilege. Managed Identities eliminate credential rotation entirely for workload-to-Azure-service communication.
+
+---
+
+### 8.1 Mental Model: The Three Identity Planes
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                     AZURE ENTRA ID (formerly AAD)                           │
+│                                                                             │
+│  HUMAN IDENTITIES          WORKLOAD IDENTITIES       EXTERNAL IDENTITIES   │
+│  ┌───────────────┐        ┌───────────────────┐     ┌───────────────────┐  │
+│  │ Users/Groups  │        │ App Registrations │     │ B2C / External    │  │
+│  │ + MFA         │        │ Service Principals│     │ Identity Provider │  │
+│  │ + Conditional │        │ Managed Identities│     │ (Google, GitHub)  │  │
+│  │   Access      │        │ (System/User)     │     │                   │  │
+│  └───────────────┘        └───────────────────┘     └───────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+OAuth2/OIDC: How identities authenticate and get tokens
+App Registrations: How your API/app is registered as a resource in Entra ID
+Scopes & Roles: What the token authorizes (delegated vs application permissions)
+Managed Identities: Pod/VM/Function authenticates to Azure services WITHOUT passwords
+```
+
+---
+
+### 8.2 OAuth2 / OIDC Flows — Which to Use When
+
+| Flow | Use Case | Token Type | Lead Interview Trigger |
+|------|----------|------------|----------------------|
+| **Authorization Code + PKCE** | SPA / Mobile app (public client) | Access + ID + Refresh | "User logs in via browser" |
+| **Client Credentials** | Service-to-service (no user) | Access token only | "Backend calls another API" |
+| **On-Behalf-Of (OBO)** | API calls downstream API on user's behalf | Delegated access token | "Middle-tier API propagates user identity" |
+| **Device Code** | CLI tools, IoT, headless | Access + Refresh | "No browser available" |
+| **Implicit** | Legacy SPAs (deprecated) | Access + ID | "Don't use this — use Auth Code + PKCE" |
+
+```
+Authorization Code + PKCE (most common for user-facing apps):
+
+Browser                  Your API               Entra ID
+   │── GET /login ──────────────────────────────────▶│
+   │   redirect_uri, code_challenge(PKCE), scope     │
+   │◀─ 302 redirect to Entra ID login ───────────────│
+   │── user logs in ──────────────────────────────▶  │
+   │◀─ 302 redirect back with ?code=xyz ──────────── │
+   │── POST /token (code + code_verifier) ─────────▶ │
+   │◀─ { access_token, id_token, refresh_token } ─── │
+   │── GET /api/resource Authorization: Bearer <AT>─▶│
+   │                          validates AT via JWKS   │
+   │◀─ 200 data ──────────────────────────────────── │
+```
+
+---
+
+### 8.3 App Registration: The Complete Picture
+
+An **App Registration** is the identity record of your application in Entra ID. Every API and every client that calls it needs one.
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  App Registration: "MyApp-API"                                   │
+│                                                                  │
+│  Application ID (Client ID): 11111111-aaaa-bbbb-cccc-dddddddddd  │
+│  Tenant ID:                  22222222-aaaa-bbbb-cccc-dddddddddd  │
+│  Application ID URI:         api://11111111-aaaa-bbbb-cccc-ddd   │
+│                                                                  │
+│  EXPOSE AN API (what this app offers to callers):                │
+│  ├── Scope: api://11111111.../Orders.Read    (delegated)         │
+│  ├── Scope: api://11111111.../Orders.Write   (delegated)         │
+│  └── App Role: Order.Admin                  (application)       │
+│                                                                  │
+│  APP ROLES (assigned to users/groups or other apps):            │
+│  ├── Role: "Reader"  → assigned to Group "SalesTeam"            │
+│  └── Role: "Admin"   → assigned to Service Principal "BatchJob" │
+│                                                                  │
+│  CERTIFICATES & SECRETS (for Client Credentials flow):          │
+│  └── Client Secret: xxxxxxxx (or Certificate thumbprint)        │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+**Create via Azure CLI:**
+```bash
+# Register the API app
+az ad app create \
+  --display-name "MyApp-API" \
+  --sign-in-audience AzureADMyOrg
+
+# Get the app ID
+APP_ID=$(az ad app list --display-name "MyApp-API" --query "[0].appId" -o tsv)
+
+# Set the Application ID URI
+az ad app update --id $APP_ID \
+  --identifier-uris "api://$APP_ID"
+
+# Add a scope (delegated permission)
+az ad app update --id $APP_ID --set oauth2Permissions='[{
+  "adminConsentDescription": "Read orders",
+  "adminConsentDisplayName": "Orders.Read",
+  "id": "aaaaaaaa-1111-2222-3333-444444444444",
+  "isEnabled": true,
+  "type": "User",
+  "userConsentDescription": "Read your orders",
+  "userConsentDisplayName": "Read orders",
+  "value": "Orders.Read"
+}]'
+
+# Add an App Role
+az ad app update --id $APP_ID --set appRoles='[{
+  "allowedMemberTypes": ["Application"],
+  "description": "Full admin access to orders",
+  "displayName": "Order.Admin",
+  "id": "bbbbbbbb-1111-2222-3333-444444444444",
+  "isEnabled": true,
+  "value": "Order.Admin"
+}]'
+
+# Create a Service Principal for the app
+az ad sp create --id $APP_ID
+```
+
+---
+
+### 8.4 Scopes vs App Roles — The Lead-Level Distinction
+
+| | **Scopes (Delegated Permissions)** | **App Roles (Application Permissions)** |
+|--|-------------------------------------|----------------------------------------|
+| **Who acts** | User (delegated to client app) | Application itself (no user) |
+| **Token subject** | User's OID | Service Principal's OID |
+| **Claim in token** | `scp: "Orders.Read"` | `roles: ["Order.Admin"]` |
+| **Consent** | User or admin consents | Admin-only consent |
+| **Use case** | User logs in → reads their own orders | Background job → reads ALL orders |
+| **Flow** | Auth Code, OBO | Client Credentials |
+
+**Validating in .NET 8 API:**
+```csharp
+// Program.cs
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
+
+builder.Services.AddAuthorization(options =>
+{
+    // Delegated scope: user called us with their token
+    options.AddPolicy("ReadOrders", policy =>
+        policy.RequireScope("Orders.Read"));          // checks 'scp' claim
+
+    // App role: a service/daemon called us
+    options.AddPolicy("AdminOrders", policy =>
+        policy.RequireRole("Order.Admin"));           // checks 'roles' claim
+
+    // Either human or service can read
+    options.AddPolicy("ReadOrdersAny", policy =>
+        policy.RequireAssertion(ctx =>
+            ctx.User.HasClaim("scp", "Orders.Read") ||
+            ctx.User.IsInRole("Order.Admin")));
+});
+
+// appsettings.json
+{
+  "AzureAd": {
+    "Instance": "https://login.microsoftonline.com/",
+    "TenantId": "22222222-aaaa-bbbb-cccc-dddddddddd",
+    "ClientId": "11111111-aaaa-bbbb-cccc-dddddddddd",   // audience validation
+    "Audience": "api://11111111-aaaa-bbbb-cccc-dddddddddd"
+  }
+}
+```
+
+```csharp
+// Minimal API endpoints with policy enforcement
+app.MapGet("/orders", async (IOrderService svc) => await svc.GetAllAsync())
+   .RequireAuthorization("ReadOrdersAny");
+
+app.MapDelete("/orders/{id}", async (int id, IOrderService svc) => await svc.DeleteAsync(id))
+   .RequireAuthorization("AdminOrders");   // only service principals with Order.Admin role
+```
+
+---
+
+### 8.5 On-Behalf-Of (OBO) — Middle-Tier Propagation
+
+The most misunderstood flow. Used when your API (tier 2) needs to call a downstream API (tier 3) **as the original user**, not as itself.
+
+```
+User ──[User Token for API-A]──▶ API-A
+                                   │
+                                   │ OBO Exchange (POST /oauth2/v2.0/token)
+                                   │ grant_type=urn:ietf:params:oauth2:grant-type:jwt-bearer
+                                   │ assertion=<User Token for API-A>
+                                   │ requested_token_use=on_behalf_of
+                                   │ scope=api://API-B/.default
+                                   ▼
+                                Entra ID issues new token (subject=User, audience=API-B)
+                                   │
+                               API-A ──[User Token for API-B]──▶ API-B
+```
+
+```csharp
+// In API-A: exchange the incoming user token for a downstream token
+public class OrderService
+{
+    private readonly ITokenAcquisition _tokenAcquisition;
+
+    public async Task<IEnumerable<Order>> GetOrdersAsync()
+    {
+        // Acquires token on behalf of the currently authenticated user
+        string downstreamToken = await _tokenAcquisition.GetAccessTokenForUserAsync(
+            new[] { "api://inventory-api-client-id/Inventory.Read" });
+
+        _httpClient.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", downstreamToken);
+
+        return await _httpClient.GetFromJsonAsync<IEnumerable<Order>>("/inventory");
+    }
+}
+
+// appsettings.json — API-A needs its own client secret to do OBO exchange
+{
+  "AzureAd": {
+    "TenantId": "...",
+    "ClientId": "api-a-client-id",
+    "ClientSecret": "..."          // or use Managed Identity + federated credential
+  }
+}
+```
+
+---
+
+### 8.6 Managed Identities — Eliminating Credential Rotation
+
+> **Key Insight:** A Managed Identity is a Service Principal whose credentials are managed entirely by Azure. The app never sees a password. The Azure runtime (VM, AKS node, Function, Container App) acquires tokens from a local metadata endpoint — no secret in config, no KeyVault fetch for the identity itself.
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ WITHOUT Managed Identity:                                                    │
+│   App → reads ClientSecret from config → POST /token → gets access token    │
+│   Problem: secret expires, rotates, leaks in logs, stored in KeyVault       │
+│                                                                              │
+│ WITH Managed Identity:                                                       │
+│   App → GET http://169.254.169.254/metadata/identity/oauth2/token           │
+│          (Azure IMDS — local metadata endpoint, no network call to AAD)     │
+│        → gets access token automatically                                     │
+│   Problem: none. Azure rotates credentials transparently.                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+**System-Assigned vs User-Assigned:**
+```
+System-Assigned:                    User-Assigned:
+├── Tied to one resource            ├── Standalone resource (reusable)
+├── Deleted when resource deleted   ├── Persists independently
+├── One identity per resource       ├── Assign to multiple resources
+└── Use: single-app scenarios       └── Use: shared identity across services
+```
+
+**Enable on AKS (Workload Identity — the modern approach):**
+```bash
+# 1. Enable OIDC issuer and Workload Identity on AKS cluster
+az aks update -g myRG -n myAKS \
+  --enable-oidc-issuer \
+  --enable-workload-identity
+
+# 2. Create a User-Assigned Managed Identity
+az identity create -g myRG -n myapp-identity
+
+IDENTITY_CLIENT_ID=$(az identity show -g myRG -n myapp-identity --query clientId -o tsv)
+OIDC_ISSUER=$(az aks show -g myRG -n myAKS --query oidcIssuerProfile.issuerUrl -o tsv)
+
+# 3. Federate the Kubernetes Service Account with the Managed Identity
+az identity federated-credential create \
+  --name myapp-federated \
+  --identity-name myapp-identity \
+  --resource-group myRG \
+  --issuer $OIDC_ISSUER \
+  --subject "system:serviceaccount:myapp:myapp-sa"   # namespace:serviceaccount
+
+# 4. Grant the identity access to Azure resources
+az role assignment create \
+  --assignee $IDENTITY_CLIENT_ID \
+  --role "Key Vault Secrets User" \
+  --scope /subscriptions/.../resourceGroups/myRG/providers/Microsoft.KeyVault/vaults/myKV
+```
+
+**Kubernetes Service Account + Pod annotation:**
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: myapp-sa
+  namespace: myapp
+  annotations:
+    azure.workload.identity/client-id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"  # Managed Identity client ID
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-deployment
+  namespace: myapp
+spec:
+  template:
+    metadata:
+      labels:
+        azure.workload.identity/use: "true"   # ← inject OIDC token volume
+    spec:
+      serviceAccountName: myapp-sa             # ← linked to Managed Identity above
+      containers:
+      - name: api
+        image: myregistry.io/myapp:1.0
+```
+
+**In .NET — DefaultAzureCredential automatically picks up Workload Identity:**
+```csharp
+// Works locally (dev credentials) AND in AKS (Workload Identity) AND in Azure (Managed Identity)
+// Zero code change needed between environments
+var credential = new DefaultAzureCredential();
+
+// Key Vault
+var kvClient = new SecretClient(
+    new Uri("https://myKV.vault.azure.net"),
+    credential);                               // ← no connection strings, no secrets
+
+// Service Bus
+var sbClient = new ServiceBusClient(
+    "mybus.servicebus.windows.net",
+    credential);                               // ← no SAS keys
+
+// Storage
+var blobClient = new BlobServiceClient(
+    new Uri("https://mystorage.blob.core.windows.net"),
+    credential);
+```
+
+**DefaultAzureCredential resolution order:**
+```
+1. EnvironmentCredential          (AZURE_CLIENT_ID + AZURE_CLIENT_SECRET env vars)
+2. WorkloadIdentityCredential     (AKS Workload Identity — OIDC token file)
+3. ManagedIdentityCredential      (VM/Function/Container App system/user identity)
+4. SharedTokenCacheCredential     (Visual Studio cached token)
+5. VisualStudioCredential
+6. AzureCliCredential             (az login — local dev)
+7. AzurePowerShellCredential
+8. InteractiveBrowserCredential   (last resort)
+```
+
+---
+
+### 8.7 Conditional Access & Token Validation — Lead-Level Checklist
+
+**What your API MUST validate on every token:**
+```csharp
+// These are validated automatically by AddMicrosoftIdentityWebApi:
+// ✔ Signature: verify against Entra ID JWKS endpoint (cached, auto-refreshed)
+// ✔ Expiry (exp claim): token not expired
+// ✔ Audience (aud claim): matches your app's Application ID URI
+// ✔ Issuer (iss claim): matches your tenant's issuer URL
+// ✔ Not Before (nbf claim): token is valid now
+
+// What you must validate YOURSELF in code:
+// ✔ Scope or Role: does token have the right scp/roles claim?
+// ✔ Tenant: is iss from YOUR tenant (multi-tenant apps must check this)
+// ✔ Token version: v1 (iss=.../tenantId/) vs v2 (iss=.../v2.0/) — check manifest
+```
+
+**Token version gotcha (v1 vs v2):**
+```json
+// v1 token (default if accessTokenAcceptedVersion is null):
+{ "iss": "https://sts.windows.net/tenantId/", "aud": "client-id-guid", "scp": "..." }
+
+// v2 token (accessTokenAcceptedVersion: 2 in app manifest):
+{ "iss": "https://login.microsoftonline.com/tenantId/v2.0", "aud": "api://client-id", "scp": "..." }
+```
+```bash
+# Set to v2 in app manifest:
+az ad app update --id $APP_ID --set api.requestedAccessTokenVersion=2
+```
+
+---
+
+### 8.8 Interview Q&A — Azure Entra ID
+
+**Q: What's the difference between a Scope and an App Role?**
+> Scopes are delegated — a user grants a client app permission to act on their behalf. App Roles are application-level — the calling application itself is granted permission, with no user involved. Scopes appear in the `scp` claim, roles in the `roles` claim.
+
+**Q: When would you use OBO vs Client Credentials in a microservices chain?**
+> OBO when you need to propagate user identity downstream for audit trails, per-user data isolation, or user-specific resource access. Client Credentials when the middle-tier API is acting on its own behalf (batch jobs, system operations). OBO requires the middle-tier app to have a client secret or certificate — a Managed Identity with federated credential is a cleaner alternative in AKS.
+
+**Q: What's the advantage of Workload Identity over pod-level Managed Identity (aad-pod-identity)?**
+> `aad-pod-identity` used node-level MSI and annotated pods, with a custom webhook. Workload Identity uses the OIDC standard — the pod gets a projected service account token file, which is exchanged directly with Entra ID. It's more secure (token scoped to pod, short-lived), doesn't require privileged daemonset, and is the officially supported approach from AKS 1.24+.
+
+**Q: DefaultAzureCredential fails in production. How do you debug it?**
+> Enable diagnostic logging: `new DefaultAzureCredential(new DefaultAzureCredentialOptions { Diagnostics = { IsLoggingEnabled = true } })`. Check that `AZURE_CLIENT_ID` env var is set (for User-Assigned MI), that the pod has the `azure.workload.identity/use: "true"` label, that the service account annotation matches the Managed Identity client ID, and that the federated credential subject matches the `system:serviceaccount:namespace:name` exactly.
+
+**Q: How do you handle token caching to avoid throttling Entra ID?**
+> Microsoft.Identity.Web handles in-process token caching automatically. For distributed scenarios (multiple pods), add `builder.Services.AddDistributedTokenCaches().AddStackExchangeRedisCache(...)` to share the MSAL token cache across pod instances. MSAL automatically refreshes tokens before expiry using the refresh token.
+
+---
+
+## Section 9 — CI/CD: Blue-Green & Canary Deployments + SonarCloud Quality Gates
+
+> **Lead-level framing:** Deployment strategy is a risk management decision. Blue-Green eliminates downtime and gives instant rollback but doubles infrastructure cost. Canary reduces blast radius by routing a fraction of traffic to the new version, letting you observe metrics before full rollout. Quality gates ensure neither strategy ships broken code.
+
+---
+
+### 9.1 Blue-Green Deployment
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    BLUE-GREEN — MENTAL MODEL                            │
+│                                                                         │
+│  BLUE (current live)          GREEN (new version, ready)               │
+│  ┌─────────────────┐          ┌─────────────────┐                      │
+│  │  v1.0 Pods      │          │  v2.0 Pods      │                      │
+│  │  (100% traffic) │          │  (0% traffic    │                      │
+│  │                 │          │  — warming up)  │                      │
+│  └─────────────────┘          └─────────────────┘                      │
+│          ↑                            │                                 │
+│    Azure LB / App Gateway             │ SWITCH (one DNS change)        │
+│                                       ↓                                 │
+│  After switch:                                                          │
+│  BLUE  → standby (keep for rollback)                                    │
+│  GREEN → 100% traffic (now "live")                                      │
+│                                                                         │
+│  Rollback: flip the switch back. Zero pod restarts.                    │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Blue-Green on AKS with Kubernetes Services
+
+**Strategy:** Two Deployments (`app-blue`, `app-green`), one Service with a `slot` label selector that you flip.
+
+```yaml
+# blue-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-blue
+  namespace: myapp
+spec:
+  replicas: 3
+  selector:
+    matchLabels: { app: myapp, slot: blue }
+  template:
+    metadata:
+      labels: { app: myapp, slot: blue }
+    spec:
+      containers:
+      - name: api
+        image: myregistry.io/myapp:1.0    # BLUE = current stable version
+
+---
+# green-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-green
+  namespace: myapp
+spec:
+  replicas: 3
+  selector:
+    matchLabels: { app: myapp, slot: green }
+  template:
+    metadata:
+      labels: { app: myapp, slot: green }
+    spec:
+      containers:
+      - name: api
+        image: myregistry.io/myapp:2.0    # GREEN = new version being deployed
+
+---
+# service.yaml — the ONLY thing that changes during a blue-green switch
+apiVersion: v1
+kind: Service
+metadata:
+  name: myapp-service
+  namespace: myapp
+spec:
+  selector:
+    app: myapp
+    slot: blue     # ← CHANGE THIS to "green" to switch traffic
+  ports:
+    - port: 80
+      targetPort: 80
+```
+
+**Switch traffic (the actual deployment):**
+```bash
+# 1. Deploy green (while blue is still live)
+kubectl apply -f green-deployment.yaml
+
+# 2. Wait for green to be fully healthy
+kubectl rollout status deployment/app-green -n myapp
+
+# 3. Run smoke tests against green directly (port-forward or internal service)
+kubectl port-forward deployment/app-green 8081:80 -n myapp &
+curl http://localhost:8081/health   # green health check
+
+# 4. SWITCH — patch the service selector (atomic, instant, no downtime)
+kubectl patch service myapp-service -n myapp \
+  -p '{"spec":{"selector":{"app":"myapp","slot":"green"}}}'
+
+# 5. Verify traffic is on green
+kubectl get endpoints myapp-service -n myapp   # should show green pod IPs
+
+# 6. Keep blue running for 15 mins, then scale down (rollback window)
+sleep 900 && kubectl scale deployment/app-blue --replicas=0 -n myapp
+
+# ROLLBACK (if something goes wrong on green):
+kubectl patch service myapp-service -n myapp \
+  -p '{"spec":{"selector":{"app":"myapp","slot":"blue"}}}'
+```
+
+#### Blue-Green on Azure Container Apps (Revision-based)
+
+```bash
+# Deploy new revision (green) — no traffic yet
+az containerapp revision copy \
+  --name myapp \
+  --resource-group myRG \
+  --image myregistry.io/myapp:2.0 \
+  --revision-suffix green-v2
+
+# Split traffic: 0% green, 100% blue (verify green is healthy first)
+az containerapp ingress traffic set \
+  --name myapp --resource-group myRG \
+  --revision-weight myapp--green-v2=0 myapp--blue-v1=100
+
+# Switch: 100% green
+az containerapp ingress traffic set \
+  --name myapp --resource-group myRG \
+  --revision-weight myapp--green-v2=100 myapp--blue-v1=0
+
+# Rollback: flip back instantly
+az containerapp ingress traffic set \
+  --name myapp --resource-group myRG \
+  --revision-weight myapp--green-v2=0 myapp--blue-v1=100
+```
+
+#### Blue-Green in Azure DevOps Pipeline
+
+```yaml
+# azure-pipelines-blue-green.yml
+trigger:
+  branches:
+    include: [main]
+
+variables:
+  imageTag: $(Build.BuildId)
+  containerRegistry: myregistry.azurecr.io
+
+stages:
+- stage: Build
+  jobs:
+  - job: BuildAndPush
+    pool: { vmImage: ubuntu-latest }
+    steps:
+    - task: Docker@2
+      inputs:
+        command: buildAndPush
+        repository: myapp
+        dockerfile: Dockerfile
+        containerRegistry: myACRServiceConnection
+        tags: $(imageTag)
+
+    - task: SonarCloudPrepare@1          # ← quality gate (see Section 9.3)
+      inputs:
+        SonarCloud: mySonarCloudConnection
+        organization: my-org
+        scannerMode: MSBuild
+        projectKey: my-project
+
+    - script: dotnet build --no-restore
+    - script: dotnet test --no-build --collect:"XPlat Code Coverage"
+
+    - task: SonarCloudAnalyze@1
+    - task: SonarCloudPublish@1
+      inputs:
+        pollingTimeoutSec: 300
+
+- stage: DeployGreen
+  dependsOn: Build
+  condition: succeeded()
+  jobs:
+  - job: DeployToGreen
+    steps:
+    - task: KubernetesManifest@1
+      inputs:
+        action: deploy
+        kubernetesServiceConnection: myAKSConnection
+        namespace: myapp
+        manifests: k8s/green-deployment.yaml
+        containers: myregistry.azurecr.io/myapp:$(imageTag)
+
+    - script: |
+        kubectl rollout status deployment/app-green -n myapp --timeout=5m
+      displayName: Wait for green to be healthy
+
+    - script: |
+        # Smoke test green directly before switching
+        POD=$(kubectl get pod -n myapp -l slot=green -o jsonpath='{.items[0].metadata.name}')
+        kubectl exec $POD -n myapp -- curl -f http://localhost/health
+      displayName: Smoke test green pods
+
+- stage: SwitchTraffic
+  dependsOn: DeployGreen
+  condition: succeeded()
+  jobs:
+  - deployment: SwitchToGreen
+    environment: production         # ← requires manual approval gate in ADO
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - script: |
+              kubectl patch service myapp-service -n myapp \
+                -p '{"spec":{"selector":{"app":"myapp","slot":"green"}}}'
+            displayName: Switch service selector to green
+
+          - script: |
+              sleep 900 && \
+              kubectl scale deployment/app-blue --replicas=0 -n myapp
+            displayName: Scale down blue after 15min rollback window
+```
+
+---
+
+### 9.2 Canary Deployment
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    CANARY — MENTAL MODEL                                │
+│                                                                         │
+│  STABLE (v1.0, 90%)           CANARY (v2.0, 10%)                       │
+│  ┌─────────────────┐          ┌─────────────────┐                      │
+│  │  9 Pods         │          │  1 Pod          │                      │
+│  │                 │◀─────────│                 │                      │
+│  └─────────────────┘  Traffic │ └───────────────┘                      │
+│                         split                                           │
+│  Watch metrics for 10%:                                                 │
+│   • Error rate: < 0.1%?  ✔ promote → 20% → 50% → 100%                 │
+│   • P99 latency: < 500ms? ✗ rollback → scale canary to 0              │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Canary on AKS with NGINX Ingress (header/weight-based)
+
+```yaml
+# stable-deployment.yaml  (existing, stays running)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-stable
+  namespace: myapp
+spec:
+  replicas: 9
+  selector:
+    matchLabels: { app: myapp, track: stable }
+  template:
+    metadata:
+      labels: { app: myapp, track: stable }
+    spec:
+      containers:
+      - name: api
+        image: myregistry.io/myapp:1.0
+
+---
+# canary-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-canary
+  namespace: myapp
+spec:
+  replicas: 1            # 1 canary pod out of 10 total = 10% traffic
+  selector:
+    matchLabels: { app: myapp, track: canary }
+  template:
+    metadata:
+      labels: { app: myapp, track: canary }
+    spec:
+      containers:
+      - name: api
+        image: myregistry.io/myapp:2.0
+
+---
+# stable-ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: stable-ingress
+  namespace: myapp
+  annotations:
+    kubernetes.io/ingress.class: nginx
+spec:
+  rules:
+  - host: api.myapp.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service: { name: stable-service, port: { number: 80 } }
+
+---
+# canary-ingress.yaml — NGINX weight-based canary
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: canary-ingress
+  namespace: myapp
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/canary: "true"          # ← marks as canary
+    nginx.ingress.kubernetes.io/canary-weight: "10"     # ← 10% of traffic
+    # Optional: route specific users to canary via header
+    # nginx.ingress.kubernetes.io/canary-by-header: "X-Canary"
+    # nginx.ingress.kubernetes.io/canary-by-header-value: "always"
+spec:
+  rules:
+  - host: api.myapp.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service: { name: canary-service, port: { number: 80 } }
+```
+
+**Progressive promotion script:**
+```bash
+# Promote canary: 10% → 25% → 50% → 100%
+for WEIGHT in 25 50 100; do
+  kubectl annotate ingress canary-ingress -n myapp \
+    nginx.ingress.kubernetes.io/canary-weight="$WEIGHT" --overwrite
+
+  echo "Canary at $WEIGHT% — watching metrics for 5 minutes..."
+  sleep 300
+
+  # Check error rate (requires Prometheus/metrics-server)
+  ERROR_RATE=$(kubectl exec -n monitoring prometheus-0 -- \
+    promtool query instant 'rate(http_requests_total{status=~"5..",version="2.0"}[5m]) / rate(http_requests_total{version="2.0"}[5m])')
+
+  if (( $(echo "$ERROR_RATE > 0.01" | bc -l) )); then
+    echo "Error rate too high ($ERROR_RATE) — rolling back canary"
+    kubectl delete ingress canary-ingress -n myapp
+    kubectl scale deployment/app-canary --replicas=0 -n myapp
+    exit 1
+  fi
+done
+
+# Full promotion: update stable image, delete canary
+kubectl set image deployment/app-stable api=myregistry.io/myapp:2.0 -n myapp
+kubectl delete ingress canary-ingress -n myapp
+kubectl delete deployment app-canary -n myapp
+```
+
+#### Canary on Azure Container Apps
+
+```bash
+# Deploy canary revision (10% traffic)
+az containerapp revision copy \
+  --name myapp --resource-group myRG \
+  --image myregistry.io/myapp:2.0 \
+  --revision-suffix canary-v2
+
+az containerapp ingress traffic set \
+  --name myapp --resource-group myRG \
+  --revision-weight myapp--stable-v1=90 myapp--canary-v2=10
+
+# After validating metrics, promote to 100%
+az containerapp ingress traffic set \
+  --name myapp --resource-group myRG \
+  --revision-weight myapp--canary-v2=100 myapp--stable-v1=0
+
+# Deactivate old revision
+az containerapp revision deactivate \
+  --name myapp --resource-group myRG \
+  --revision myapp--stable-v1
+```
+
+#### Canary in Azure DevOps Pipeline
+
+```yaml
+# azure-pipelines-canary.yml
+stages:
+- stage: DeployCanary
+  jobs:
+  - job: CanaryRollout
+    steps:
+    - script: |
+        # Deploy canary at 10%
+        kubectl apply -f k8s/canary-deployment.yaml
+        kubectl apply -f k8s/canary-ingress.yaml   # canary-weight=10
+
+    - script: |
+        echo "Waiting 10 minutes — monitoring canary metrics..."
+        sleep 600
+
+        # Query Application Insights for canary error rate
+        ERROR_RATE=$(az monitor metrics list \
+          --resource /subscriptions/.../components/myAppInsights \
+          --metric "requests/failed" \
+          --filter "cloud_RoleName eq 'myapp' and customDimensions/version eq '2.0'" \
+          --interval PT5M \
+          --query "value[0].timeseries[0].data[-1].average" -o tsv)
+
+        if (( $(echo "$ERROR_RATE > 1" | bc -l) )); then
+          echo "##vso[task.logissue type=error]Canary error rate $ERROR_RATE% exceeds threshold"
+          exit 1
+        fi
+
+- stage: PromoteCanary
+  dependsOn: DeployCanary
+  condition: succeeded()
+  jobs:
+  - deployment: FullPromotion
+    environment: production
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - script: |
+              # Update stable to new version, remove canary
+              kubectl set image deployment/app-stable api=$(imageTag) -n myapp
+              kubectl delete ingress canary-ingress -n myapp
+              kubectl delete deployment app-canary -n myapp
+```
+
+---
+
+### 9.3 SonarCloud Quality Gates
+
+> **Mental Model:** SonarCloud is a PR-blocking reviewer that counts bugs, vulnerabilities, code smells, and coverage gaps. A Quality Gate is a pass/fail policy — if new code fails the gate, the PR is blocked and the pipeline fails.
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                 DEFAULT SONARCLOUD QUALITY GATE                          │
+│                                                                          │
+│  On NEW code introduced in this PR:                                      │
+│  ┌─────────────────────────────────────────────────────┐                │
+│  │  Coverage on new code       ≥ 80%        FAIL if < │                │
+│  │  Duplicated lines on new    < 3%         FAIL if > │                │
+│  │  Maintainability Rating     A            FAIL if < │                │
+│  │  Reliability Rating         A            FAIL if < │                │
+│  │  Security Rating            A            FAIL if < │                │
+│  │  Security Hotspots reviewed 100%         FAIL if < │                │
+│  └─────────────────────────────────────────────────────┘                │
+│                                                                          │
+│  Result: PASSED ✔ or FAILED ✗ (PR cannot merge if FAILED)               │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+**Step 1 — Configure .NET project for SonarCloud analysis:**
+```xml
+<!-- Directory.Build.props — enable coverage collection -->
+<PropertyGroup>
+  <CollectCoverage>true</CollectCoverage>
+  <CoverletOutputFormat>opencover</CoverletOutputFormat>
+  <CoverletOutput>./coverage/</CoverletOutput>
+</PropertyGroup>
+```
+
+**Step 2 — Azure DevOps Pipeline with SonarCloud:**
+```yaml
+# azure-pipelines.yml
+trigger:
+  branches:
+    include: [main, develop]
+  paths:
+    exclude: ['**/*.md']
+
+variables:
+  buildConfiguration: Release
+  dotnetVersion: '10.x'
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+- task: UseDotNet@2
+  inputs:
+    version: $(dotnetVersion)
+
+- task: SonarCloudPrepare@1
+  inputs:
+    SonarCloud: mySonarCloudServiceConnection   # Service connection in ADO
+    organization: my-org-key
+    scannerMode: MSBuild
+    projectKey: my-org_my-project
+    projectName: MyProject
+    extraProperties: |
+      sonar.cs.opencover.reportsPaths=**/coverage/*.opencover.xml
+      sonar.coverage.exclusions=**/*Tests*/**,**/Program.cs,**/Migrations/**
+      sonar.exclusions=**/wwwroot/**,**/obj/**
+      sonar.qualitygate.wait=true    # ← BLOCKS pipeline until gate result is known
+
+- script: dotnet restore
+  displayName: Restore
+
+- script: dotnet build --configuration $(buildConfiguration) --no-restore
+  displayName: Build
+
+- script: |
+    dotnet test --no-build \
+      --configuration $(buildConfiguration) \
+      --collect:"XPlat Code Coverage" \
+      --results-directory ./TestResults \
+      -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
+  displayName: Test + Coverage
+
+- task: SonarCloudAnalyze@1
+  displayName: Run SonarCloud Analysis
+
+- task: SonarCloudPublish@1
+  displayName: Publish Quality Gate Result
+  inputs:
+    pollingTimeoutSec: 300    # wait up to 5 min for gate result
+
+# Optional: fail the pipeline explicitly on gate failure
+- script: |
+    GATE_STATUS=$(curl -s -u $(SONAR_TOKEN): \
+      "https://sonarcloud.io/api/qualitygates/project_status?projectKey=my-org_my-project" \
+      | jq -r '.projectStatus.status')
+    echo "Quality Gate: $GATE_STATUS"
+    if [ "$GATE_STATUS" != "OK" ]; then
+      echo "##vso[task.logissue type=error]SonarCloud Quality Gate FAILED"
+      exit 1
+    fi
+  env:
+    SONAR_TOKEN: $(SONAR_TOKEN)
+  displayName: Assert Quality Gate passed
+```
+
+**Step 3 — GitHub Actions equivalent:**
+```yaml
+# .github/workflows/ci.yml
+name: CI + SonarCloud
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0    # ← SonarCloud requires full history for blame info
+
+    - uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.x'
+
+    - name: Install SonarCloud scanner
+      run: dotnet tool install --global dotnet-sonarscanner
+
+    - name: SonarCloud Begin
+      run: |
+        dotnet sonarscanner begin \
+          /k:"my-org_my-project" \
+          /o:"my-org" \
+          /d:sonar.token="${{ secrets.SONAR_TOKEN }}" \
+          /d:sonar.host.url="https://sonarcloud.io" \
+          /d:sonar.cs.opencover.reportsPaths="**/coverage/*.opencover.xml" \
+          /d:sonar.qualitygate.wait=true
+
+    - run: dotnet build --no-restore
+    - run: dotnet test --no-build --collect:"XPlat Code Coverage" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
+
+    - name: SonarCloud End
+      run: dotnet sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+      # Pipeline fails here if Quality Gate fails (/d:sonar.qualitygate.wait=true)
+```
+
+**Step 4 — Custom Quality Gate (stricter for lead-level teams):**
+```
+Custom gate: "Lead Team Gate"
+┌────────────────────────────────────────────────────┐
+│ Coverage on new code        ≥ 90%   (not 80%)      │
+│ No new Blocker issues       = 0                    │
+│ No new Critical issues      = 0                    │
+│ Security Hotspots reviewed  = 100%                 │
+│ Duplicated lines            < 2%   (not 3%)        │
+└────────────────────────────────────────────────────┘
+
+Set via SonarCloud UI: Organization → Quality Gates → Create → Add Conditions → Set as Default
+```
+
+**What SonarCloud catches that your tests don't:**
+```
+Issue Category      Example
+─────────────────   ──────────────────────────────────────────────────────
+Bugs (Reliability)  Null dereference, collection modified during iteration
+Vulnerabilities     Hard-coded credentials, SQL injection risk, insecure random
+Code Smells         Cognitive complexity > 15, dead code, magic numbers
+Security Hotspots   Regex-based HTML parsing, MD5 usage, HTTP not HTTPS
+Duplication         Copy-pasted blocks > 10 lines
+Coverage gaps       Lines never executed by any test
+```
+
+---
+
+### 9.4 Combined Pipeline: Build → Quality Gate → Deploy Blue-Green
+
+```yaml
+# Full pipeline combining all concepts
+stages:
+- stage: Build
+  jobs:
+  - job: BuildTestAnalyze
+    steps:
+    - task: SonarCloudPrepare@1
+      inputs: { ... }               # SonarCloud configured
+
+    - script: dotnet build
+    - script: dotnet test --collect:"XPlat Code Coverage"
+
+    - task: SonarCloudAnalyze@1
+    - task: SonarCloudPublish@1     # ← BLOCKS here if Quality Gate fails
+
+    - task: Docker@2
+      inputs:
+        command: buildAndPush       # only runs if SonarCloud passed
+
+- stage: DeployGreen
+  dependsOn: Build
+  condition: succeeded()            # ← won't deploy if quality gate failed
+  jobs:
+  - job: Green
+    steps:
+    - script: kubectl apply -f k8s/green-deployment.yaml
+    - script: kubectl rollout status deployment/app-green -n myapp
+
+- stage: SwitchAndValidate
+  dependsOn: DeployGreen
+  jobs:
+  - deployment: Switch
+    environment: production         # manual approval gate
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - script: |
+              # Switch traffic
+              kubectl patch service myapp-service -n myapp \
+                -p '{"spec":{"selector":{"slot":"green"}}}'
+
+              # Post-deploy smoke test
+              sleep 60
+              curl -f https://api.myapp.com/health || \
+                (kubectl patch service myapp-service -n myapp \
+                   -p '{"spec":{"selector":{"slot":"blue"}}}' && exit 1)
+```
+
+---
+
+### 9.5 Interview Q&A — CI/CD & Quality Gates
+
+**Q: Blue-Green vs Canary — when do you choose which?**
+> Blue-Green when you need instant, atomic switching with zero-downtime — best when you can't observe partial traffic (database migrations, breaking API changes) or need guaranteed instant rollback. Canary when you want to validate new code against real production traffic before full rollout — best for stateless microservices where you can monitor error rates, latency, and business metrics per version and gradually promote.
+
+**Q: What happens to in-flight requests during a blue-green switch?**
+> The Kubernetes Service selector change is atomic at the control plane, but in-flight TCP connections to Blue pods aren't terminated immediately — they drain naturally. Configure `terminationGracePeriodSeconds` (e.g. 30s) and a `preStop` sleep hook on Blue pods so the LB stops routing new connections while existing ones complete. App Gateway / NGINX Ingress drain connections before removing backend pool members.
+
+**Q: How do you handle database migrations in Blue-Green?**
+> Apply backward-compatible migrations BEFORE the switch. Version N+1 code must run against version N schema. Use the expand/contract pattern: add nullable column → deploy → backfill → add NOT NULL constraint. Never drop or rename columns in the same release as the code change. Feature flags let you decouple schema migration from feature activation.
+
+**Q: SonarCloud Quality Gate failed on a PR. What's your process?**
+> First, check which condition failed (coverage, reliability, security). For coverage: identify uncovered critical paths and add meaningful tests — not just coverage padding. For reliability/vulnerabilities: fix the flagged issue; if it's a false positive, mark it as "Won't Fix" with justification in SonarCloud. Never lower the gate threshold — raise the code quality instead. Blocked PRs are merged only after the gate passes.
+
+**Q: How do you prevent Quality Gate from blocking hotfixes?**
+> Use a separate `hotfix/*` pipeline that skips SonarCloud but still runs all tests. Add a post-merge job that runs the full analysis on the hotfix commit so the tech debt is tracked. Some teams allow "gate bypass" with explicit approval from two lead engineers, logged in the PR.
+
+---
+
 ## Quick Summary Table
 
 | Topic | Most Important Lead Concept | Most Likely Interview Question |
@@ -2789,6 +3871,9 @@ SSE:        Server push over HTTP, one-directional, auto-reconnect
 | **Container Apps** | Revisions + KEDA scaling + Dapr | AKS vs Container Apps? Scale to zero? |
 | **.NET API** | Middleware order + DI lifetimes + Outbox | N+1 queries? Idempotent endpoints? Fallback policy? |
 | **Webhooks** | Queue-first consumer + HMAC + idempotency | Replay attacks? At-least-once delivery? |
+| **Entra ID / Auth** | Scope vs Role + OBO + Workload Identity | Managed Identity vs secret? OBO vs Client Credentials? |
+| **Blue-Green / Canary** | Label selector flip + NGINX canary-weight | DB migrations in Blue-Green? Canary promotion criteria? |
+| **SonarCloud** | Quality Gate = PR blocker + coverage on new code | Gate failed — what do you do? Hotfix bypass strategy? |
 
 ---
 
