@@ -119,6 +119,73 @@ This is not 5 separate tracks. It's one loop — every activity feeds the next.
 
 ---
 
+## The Hybrid Pipeline (.NET + Azure + DSA + AI Integration)
+
+One concept. Four layers. One shippable project per week.
+
+```
+Monday: DSA concept with cloud relevance
+        → e.g., Priority Queue (Min-Heap) — algorithm, time complexity, C# implementation
+    ↓
+Tuesday: .NET implementation + Azure wiring
+         → Minimal API endpoint that uses the algorithm in a real scenario
+         → Wire the Azure service it maps to (Service Bus, CosmosDB, Redis, etc.)
+    ↓
+Wednesday: Brand it as a technical story
+           → Post: "Min-Heap in production — priority task queue in .NET + Azure Service Bus"
+           → Thread: algorithm → C# code → Azure service — one visual, one concrete insight
+    ↓
+Thursday: Network with the artifact
+          → Reach out to 2 .NET/Azure/distributed-systems engineers
+          → Reference your live project or Wed post as the conversation anchor (not cold)
+    ↓
+Friday: Cert-align it
+        → Review AZ-204 / AZ-305 exam questions that cover this week's Azure service
+        → Drill the DSA problem in C# under a 20-min timer (LeetCode-style, timed)
+    ↓
+Saturday: Add the AI layer
+          → Integrate Claude/OpenAI into Tuesday's .NET + Azure project
+          → e.g., LLM classifies task priority, summarizes queue state, or enriches input
+    ↓
+Sunday: Showcase it
+        → Portfolio entry: architecture diagram + .NET code + Azure deployment + AI feature
+        → One project proving .NET depth, Azure fluency, DSA rigor, AI capability — same URL
+```
+
+This is not 4 skill tracks. It's one project, built in layers — DSA is the brain, .NET is the body, Azure is the backbone, AI is the differentiator.
+
+---
+
+### Concrete Instantiation — Week Theme: Intelligent Task Queue
+
+| Day | Domain Layer | What You Build / Do |
+|-----|-------------|---------------------|
+| **Mon** | DSA | Study Priority Queue / Min-Heap: implement `PriorityQueue<T>` in C#, trace heapify, analyze O(log n) insert/extract |
+| **Tue** | .NET + Azure | Build `TaskQueueApi` — Minimal API with `/enqueue` and `/dequeue`; wire Azure Service Bus as the durable queue backend |
+| **Wed** | Branding | Post: "Min-Heap in .NET — and why Azure Service Bus solves what your in-memory queue can't" (screenshot of working API) |
+| **Thu** | Networking | Find 2 engineers posting about .NET or distributed systems — reply with your project insight, then DM with the repo link |
+| **Fri** | Cert + DSA Drill | AZ-204: Service Bus sessions, dead-letter queues, peek-lock. C# drill: re-implement Min-Heap from scratch in 20 min |
+| **Sat** | AI Integration | Add LLM call: POST `/enqueue` sends task description → Claude/OpenAI returns priority tier (high / medium / low) + reasoning |
+| **Sun** | Portfolio | Add `TaskQueueApi` to portfolio: README, architecture diagram, Azure deployment steps, AI feature demo GIF |
+
+**Result by Sunday:** One project that demonstrates Priority Queue mastery (DSA), Minimal API + Service Bus (Azure/.NET), and AI-augmented decision logic — all traceable to a single feature built in layers across 7 days.
+
+---
+
+### Other Viable Week Themes (Plug-and-Play)
+
+| Week Theme | DSA Concept | .NET Layer | Azure Service | AI Layer |
+|------------|-------------|------------|---------------|----------|
+| Search-as-a-Service | Trie / prefix tree | Minimal API search endpoint | Azure Cognitive Search | Semantic reranking with embeddings |
+| Rate Limiter | Sliding window / token bucket | Middleware in .NET pipeline | Azure API Management | AI-based anomaly detection on traffic |
+| Event-Driven Alerts | Graph BFS (dependency traversal) | Azure Functions trigger | Azure Event Grid | LLM-generated alert summaries |
+| Distributed Cache | Hash map / consistent hashing | Cache-aside pattern in .NET | Azure Cache for Redis | AI cache invalidation hints |
+| Config Feature Flags | Binary search / decision tree | Options pattern + IConfiguration | Azure App Configuration | AI-driven gradual rollout scoring |
+
+Each row is a self-contained week. Rotate through them; the pipeline structure stays identical.
+
+---
+
 ## Monthly Macro Cycle
 
 | Week | Cert/Upskilling Focus | AI Integration Focus | Portfolio Focus |
