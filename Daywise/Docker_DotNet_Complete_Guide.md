@@ -995,6 +995,200 @@ When to use:
 
 ---
 
+### Docker Compose YAML — Structure Mind Map
+
+> **Mental Model:** A `docker-compose.yml` file has 4 top-level sections — `services` (what to run), `networks` (how containers talk), `volumes` (what persists), `secrets` (what's sensitive). Everything else is a property of one of these four.
+
+```
+docker-compose.yml
+│
+├── version: '3.8'                         # Compose file format version (3.x for Swarm compat)
+│                                          # Omit in modern Compose v2 CLI (auto-detected)
+│
+├── services:                              # ─── MAIN SECTION: what containers to run ───────────
+│   │
+│   └── <service-name>:                    # Becomes DNS hostname on the shared network
+│       │
+│       ├── ── IMAGE / BUILD ──────────────────────────────────────────────────────────────────
+│       │   ├── image: nginx:alpine        # Use pre-built image (OR use build:, not both)
+│       │   └── build:                     # Build image from Dockerfile
+│       │       ├── context: ./src/Api     # Build root — what gets sent to Docker daemon
+│       │       ├── dockerfile: Dockerfile # Path to Dockerfile (relative to context)
+│       │       ├── target: runtime        # Multi-stage build: stop at this stage
+│       │       ├── args:                  # Build-time ARG values (not available at runtime)
+│       │       │   └── BUILD_ENV: prod
+│       │       └── cache_from:            # Use these images as layer cache
+│       │           └── - myacr.io/api:latest
+│       │
+│       ├── ── IDENTITY ───────────────────────────────────────────────────────────────────────
+│       │   ├── container_name: my-api     # Override auto-generated name (no scaling if set)
+│       │   ├── hostname: api-host         # Hostname inside the container
+│       │   └── user: "1000:1000"          # Run as UID:GID (security: avoid root)
+│       │
+│       ├── ── PORTS ──────────────────────────────────────────────────────────────────────────
+│       │   ├── ports:                     # Publish to HOST machine (external access)
+│       │   │   ├── - "8080:80"            # HOST_PORT:CONTAINER_PORT
+│       │   │   ├── - "127.0.0.1:5000:80" # Bind to specific host IP (security)
+│       │   │   └── - "80"                 # Random host port → container 80
+│       │   └── expose:                    # Internal only — no host binding
+│       │       └── - "80"                 # Documents which port the service uses
+│       │
+│       ├── ── ENVIRONMENT ────────────────────────────────────────────────────────────────────
+│       │   ├── environment:               # Env vars injected into container
+│       │   │   ├── LIST FORM:
+│       │   │   │   └── - ASPNETCORE_ENVIRONMENT=Production
+│       │   │   └── MAP FORM (preferred for clarity):
+│       │   │       └── ASPNETCORE_ENVIRONMENT: Production
+│       │   └── env_file:                  # Load vars from file (keeps secrets out of YAML)
+│       │       └── - .env                 # One KEY=VALUE per line
+│       │
+│       ├── ── VOLUMES / MOUNTS ───────────────────────────────────────────────────────────────
+│       │   └── volumes:
+│       │       ├── - ./src:/app/src        # Bind mount: host path → container path (dev hot-reload)
+│       │       ├── - data:/var/lib/data    # Named volume: persists across restarts
+│       │       ├── - /tmp/cache:/cache     # Absolute host path
+│       │       └── - type: volume          # Long form (explicit driver/options)
+│       │             source: data
+│       │             target: /var/lib/data
+│       │             read_only: true
+│       │
+│       ├── ── NETWORKING ─────────────────────────────────────────────────────────────────────
+│       │   └── networks:                  # Networks this service joins
+│       │       ├── - frontend             # Simple form: join by name
+│       │       └── backend:               # Extended form: set alias, IP
+│       │             aliases:
+│       │               - internal-api
+│       │             ipv4_address: 172.20.0.10
+│       │
+│       ├── ── STARTUP ORDER ──────────────────────────────────────────────────────────────────
+│       │   └── depends_on:
+│       │       ├── BASIC (start order only — does NOT wait for health):
+│       │       │   └── - db
+│       │       └── WITH CONDITION (waits for health check to pass):
+│       │           └── db:
+│       │               condition: service_healthy   # requires healthcheck on db service
+│       │           └── redis:
+│       │               condition: service_started   # just started, no health needed
+│       │
+│       ├── ── HEALTH CHECK ───────────────────────────────────────────────────────────────────
+│       │   └── healthcheck:
+│       │       ├── test: ["CMD", "curl", "-f", "http://localhost/health"]
+│       │       ├── test: ["CMD-SHELL", "pg_isready -U postgres"]  # Shell form
+│       │       ├── interval: 30s          # How often to check
+│       │       ├── timeout: 10s           # Max time per check
+│       │       ├── retries: 3             # Failures before "unhealthy"
+│       │       ├── start_period: 15s      # Grace period at startup before retries count
+│       │       └── disable: true          # Disable inherited healthcheck
+│       │
+│       ├── ── RESTART POLICY ─────────────────────────────────────────────────────────────────
+│       │   └── restart:
+│       │       ├── no                     # Never restart (default)
+│       │       ├── always                 # Always restart (even on clean exit)
+│       │       ├── on-failure             # Restart only on non-zero exit code
+│       │       └── unless-stopped         # Always restart unless manually stopped
+│       │
+│       ├── ── COMMAND / ENTRYPOINT ───────────────────────────────────────────────────────────
+│       │   ├── command: dotnet MyApp.dll  # Override CMD from Dockerfile
+│       │   ├── command: ["dotnet", "MyApp.dll"]  # Exec form (preferred)
+│       │   ├── entrypoint: /entrypoint.sh # Override ENTRYPOINT from Dockerfile
+│       │   └── working_dir: /app          # Set container working directory
+│       │
+│       ├── ── RESOURCE LIMITS ────────────────────────────────────────────────────────────────
+│       │   └── deploy:                    # Resource constraints (also used in Swarm mode)
+│       │       ├── replicas: 2            # Number of containers (Swarm)
+│       │       └── resources:
+│       │           ├── limits:            # Hard cap — container killed if exceeded
+│       │           │   ├── cpus: '0.50'   # Max 50% of one CPU core
+│       │           │   └── memory: 512M   # Max 512 MB RAM
+│       │           └── reservations:      # Guaranteed minimum
+│       │               ├── cpus: '0.25'
+│       │               └── memory: 256M
+│       │
+│       ├── ── LOGGING ────────────────────────────────────────────────────────────────────────
+│       │   └── logging:
+│       │       ├── driver: json-file      # json-file | syslog | journald | none | splunk
+│       │       └── options:
+│       │           ├── max-size: "10m"    # Rotate log file at 10 MB
+│       │           └── max-file: "3"      # Keep 3 rotated files
+│       │
+│       ├── ── LABELS & PROFILES ──────────────────────────────────────────────────────────────
+│       │   ├── labels:                    # Metadata (used by monitoring tools, Traefik, etc.)
+│       │   │   └── - "traefik.enable=true"
+│       │   └── profiles:                  # Only start when profile is active
+│       │       └── - debug                # docker compose --profile debug up
+│       │
+│       └── ── SECRETS & CONFIGS ──────────────────────────────────────────────────────────────
+│           ├── secrets:                   # Mount Docker secrets into container
+│           │   └── - db_password          # Mounted at /run/secrets/db_password
+│           └── configs:                   # Mount config files into container
+│               └── - app_config
+│
+├── networks:                              # ─── NETWORKING ────────────────────────────────────
+│   └── <network-name>:
+│       ├── driver: bridge                 # bridge (default) | host | overlay | none | macvlan
+│       ├── external: true                 # Use a pre-existing network (don't create)
+│       ├── name: my-shared-net            # Explicit network name (overrides auto-prefix)
+│       └── ipam:                          # Custom IP management
+│           └── config:
+│               └── - subnet: 172.20.0.0/16
+│
+├── volumes:                               # ─── STORAGE ───────────────────────────────────────
+│   └── <volume-name>:
+│       ├── driver: local                  # local | nfs | tmpfs | custom plugin
+│       ├── external: true                 # Use pre-existing volume (don't manage lifecycle)
+│       ├── name: my-data-vol              # Override auto-prefixed name
+│       └── driver_opts:                   # Driver-specific config
+│           ├── type: nfs
+│           ├── o: "addr=10.0.0.1,rw"
+│           └── device: ":/nfs/share"
+│
+└── secrets:                               # ─── SECRETS ───────────────────────────────────────
+    └── <secret-name>:
+        ├── file: ./secrets/db_pass.txt    # Load secret value from file
+        └── external: true                 # Use pre-existing Docker secret
+```
+
+---
+
+### Key Property Decision Guide
+
+| Property | Use When | Common Mistake |
+|----------|----------|----------------|
+| `image:` | Using published image | Don't use with `build:` on same service |
+| `build:` | Building from source | Set `context:` to folder with Dockerfile |
+| `ports:` | Host needs to reach service | Omit for internal services (DB, Redis) |
+| `expose:` | Document internal port only | Does NOT publish to host — just documentation |
+| `environment:` | Non-sensitive config | Never put passwords here directly |
+| `env_file:` | Load from `.env` file | `.env` file must NOT be committed to git |
+| `volumes:` bind mount | Dev hot-reload | Path must exist on host |
+| `volumes:` named | DB data persistence | Named volumes survive `docker compose down` |
+| `depends_on:` basic | Start order only | Does NOT wait for app readiness |
+| `depends_on:` + condition | Wait for health | Service must define `healthcheck:` |
+| `healthcheck:` | Signal when ready | Required for `depends_on: condition: service_healthy` |
+| `restart: unless-stopped` | Long-running services | Use `no` during debugging |
+| `deploy.resources.limits` | Prevent runaway usage | Memory limit = hard kill, not graceful |
+| `profiles:` | Optional services | Use `--profile <name>` to activate |
+| `networks:` multiple | Gateway/bridge pattern | Service on 2 nets = can route between them |
+
+---
+
+### docker-compose.yml Property Inheritance & Override
+
+```
+docker-compose.yml          ← base (shared config for all environments)
+      +
+docker-compose.override.yml ← auto-merged in dev (dev-specific overrides)
+      +
+docker-compose.prod.yml     ← explicit: docker compose -f dc.yml -f dc.prod.yml up
+
+Merge rules:
+  ├── scalars (image, command)  → override replaces base value
+  ├── lists (ports, volumes)    → APPENDED (both lists merged)
+  └── maps (environment)        → keys merged, duplicates overridden
+```
+
+---
+
 ### Basic Docker Compose for .NET API
 
 ```yaml
