@@ -13,6 +13,7 @@ Based on real interview experiences from **TCS, Infosys, Wipro, Accenture, Cogni
 5. [Performance Tuning](#performance-tuning)
 6. [Data Migration to Azure](#data-migration-to-azure)
 7. [Scenario-Based Questions](#scenario-based-questions)
+8. [Classic Must-Know SQL Problems](#classic-must-know-sql-problems)
 
 ---
 
@@ -3326,7 +3327,501 @@ END CATCH;
 
 ---
 
-## Interview Tips
+## Classic Must-Know SQL Problems
+
+> These 8 problems appear in **nearly every SQL interview** across all levels. Each one tests a fundamental pattern. Master these and you cover ~80% of real interview queries.
+
+---
+
+### Schema Used Throughout This Section
+
+```sql
+-- Customers(CustomerId, Name, Region, SignupDate)
+-- Orders(OrderId, CustomerId, OrderDate, TotalAmount, Status)
+-- OrderItems(OrderItemId, OrderId, ProductId, Qty, UnitPrice)
+-- Products(ProductId, ProductName, Category, Price)
+-- Employees(EmployeeId, Name, DepartmentId, Salary, ManagerId, HireDate)
+-- Transactions(TxnId, AccountId, TxnDate, TxnType, Amount)  -- 'CR'=credit 'DR'=debit
+-- UserSessions(SessionId, UserId, LoginDate)
+```
+
+---
+
+### Problem 1 — Customers Who Never Placed an Order
+
+**Asked at: Amazon, Microsoft, Google, Meta, TCS, Infosys**
+**Pattern: Anti-join (find rows in A with no match in B)**
+
+```
+┌────────────────────────────────────────────────────────┐
+│  APPROACH EVOLUTION                                    │
+├─────────────┬──────────────────────────────────────────┤
+│ 🔴 BRUTE    │ NOT IN (subquery) — breaks on NULL       │
+├─────────────┼──────────────────────────────────────────┤
+│ 🟡 BETTER   │ LEFT JOIN + IS NULL — works, widely used │
+├─────────────┼──────────────────────────────────────────┤
+│ 🟢 OPTIMAL  │ NOT EXISTS — clearest intent, NULL-safe  │
+└─────────────┴──────────────────────────────────────────┘
+```
+
+#### Option 1 — NOT IN (🔴 Avoid — breaks when subquery has NULLs)
+
+```sql
+-- DANGER: If any CustomerId in Orders is NULL, NOT IN returns no rows at all
+-- NULL comparison in NOT IN makes the entire predicate UNKNOWN
+SELECT CustomerId, Name
+FROM Customers
+WHERE CustomerId NOT IN (SELECT CustomerId FROM Orders);
+-- Fix: SELECT CustomerId FROM Orders WHERE CustomerId IS NOT NULL
+```
+
+#### Option 2 — LEFT JOIN + IS NULL (🟡 Acceptable)
+
+```sql
+SELECT c.CustomerId, c.Name
+FROM Customers c
+LEFT JOIN Orders o ON c.CustomerId = o.CustomerId  -- bring in Orders (or NULL if no match)
+WHERE o.OrderId IS NULL                             -- NULL means no matching order exists
+ORDER BY c.Name;
+```
+
+#### Option 3 — NOT EXISTS (🟢 Best)
+
+```sql
+-- Reads as plain English: "customers for whom no order exists"
+SELECT c.CustomerId, c.Name
+FROM Customers c
+WHERE NOT EXISTS (
+    SELECT 1                              -- value doesn't matter, only existence checked
+    FROM Orders o
+    WHERE o.CustomerId = c.CustomerId     -- correlated: checks per customer
+)
+ORDER BY c.Name;
+
+-- WHY NOT EXISTS beats NOT IN:
+-- • NULL-safe: EXISTS checks row existence, not value equality
+-- • Short-circuits: stops scanning Orders once a match is found
+-- • Optimizer can use index on Orders.CustomerId efficiently
+```
+
+**Edge cases to mention:**
+- What if a customer has cancelled orders only — are they "never ordered"? Clarify with interviewer.
+- Add `AND o.Status != 'Cancelled'` inside NOT EXISTS to filter by status if needed.
+
+---
+
+### Problem 2 — Most Recent Order per Customer
+
+**Asked at: Amazon, Flipkart, Infosys, Cognizant**
+**Pattern: Latest/first record per group**
+
+```
+┌────────────────────────────────────────────────────────┐
+│  APPROACH EVOLUTION                                    │
+├─────────────┬──────────────────────────────────────────┤
+│ 🔴 BRUTE    │ Correlated subquery with MAX — O(N²)     │
+├─────────────┼──────────────────────────────────────────┤
+│ 🟡 BETTER   │ GROUP BY MAX + re-join — two scans       │
+├─────────────┼──────────────────────────────────────────┤
+│ 🟢 OPTIMAL  │ ROW_NUMBER() — single scan, most columns │
+└─────────────┴──────────────────────────────────────────┘
+```
+
+#### Option 1 — Correlated Subquery (🔴 Avoid on large tables)
+
+```sql
+SELECT o.OrderId, o.CustomerId, o.OrderDate, o.TotalAmount
+FROM Orders o
+WHERE o.OrderDate = (
+    SELECT MAX(o2.OrderDate)
+    FROM Orders o2
+    WHERE o2.CustomerId = o.CustomerId  -- runs for every row in Orders
+);
+-- Problem: ties on same date return multiple rows per customer
+```
+
+#### Option 2 — GROUP BY + JOIN (🟡 Acceptable)
+
+```sql
+SELECT o.OrderId, o.CustomerId, o.OrderDate, o.TotalAmount
+FROM Orders o
+INNER JOIN (
+    SELECT CustomerId, MAX(OrderDate) AS LatestDate
+    FROM Orders
+    GROUP BY CustomerId
+) latest ON o.CustomerId = latest.CustomerId
+          AND o.OrderDate = latest.LatestDate;
+-- Problem: still returns multiple rows if two orders share the same max date
+```
+
+#### Option 3 — ROW_NUMBER (🟢 Best — handles ties, gets extra columns)
+
+```sql
+WITH RankedOrders AS (
+    SELECT
+        o.OrderId,
+        o.CustomerId,
+        c.Name,
+        o.OrderDate,
+        o.TotalAmount,
+        ROW_NUMBER() OVER (
+            PARTITION BY o.CustomerId          -- reset per customer
+            ORDER BY o.OrderDate DESC,         -- most recent first
+                     o.OrderId DESC            -- tie-break: higher OrderId wins
+        ) AS rn
+    FROM Orders o
+    INNER JOIN Customers c ON o.CustomerId = c.CustomerId
+)
+SELECT OrderId, CustomerId, Name, OrderDate, TotalAmount
+FROM RankedOrders
+WHERE rn = 1;                                  -- keep only the most recent per customer
+```
+
+> **Variation:** Replace `rn = 1` with `rn <= 3` to get last 3 orders per customer.
+> Replace `ROW_NUMBER` with `FIRST_VALUE(TotalAmount) OVER (PARTITION BY CustomerId ORDER BY OrderDate DESC)` to pull a single column from the latest row without filtering.
+
+---
+
+### Problem 3 — Month-over-Month Revenue Growth
+
+**Asked at: Goldman Sachs, Morgan Stanley, Amazon, Google**
+**Pattern: Period comparison using LAG**
+
+```
+┌────────────────────────────────────────────────────────┐
+│  APPROACH EVOLUTION                                    │
+├─────────────┬──────────────────────────────────────────┤
+│ 🔴 BRUTE    │ Self-join on month — messy date math     │
+├─────────────┼──────────────────────────────────────────┤
+│ 🟡 BETTER   │ Subquery per row for prev month          │
+├─────────────┼──────────────────────────────────────────┤
+│ 🟢 OPTIMAL  │ LAG() window function — single pass      │
+└─────────────┴──────────────────────────────────────────┘
+```
+
+```sql
+WITH MonthlyRevenue AS (
+    SELECT
+        YEAR(OrderDate)  AS yr,
+        MONTH(OrderDate) AS mo,
+        SUM(TotalAmount) AS Revenue
+    FROM Orders
+    WHERE Status != 'Cancelled'
+    GROUP BY YEAR(OrderDate), MONTH(OrderDate)
+),
+WithGrowth AS (
+    SELECT
+        yr,
+        mo,
+        Revenue,
+        LAG(Revenue) OVER (ORDER BY yr, mo) AS PrevMonthRevenue  -- previous row's revenue
+    FROM MonthlyRevenue
+)
+SELECT
+    yr         AS Year,
+    mo         AS Month,
+    Revenue,
+    PrevMonthRevenue,
+    CASE
+        WHEN PrevMonthRevenue IS NULL THEN NULL          -- first month has no prior
+        WHEN PrevMonthRevenue = 0     THEN NULL          -- avoid division by zero
+        ELSE ROUND(
+            (Revenue - PrevMonthRevenue) * 100.0 / PrevMonthRevenue,
+            2
+        )
+    END AS GrowthPct
+FROM WithGrowth
+ORDER BY yr, mo;
+```
+
+**Sample Output:**
+| Year | Month | Revenue | PrevMonthRevenue | GrowthPct |
+|------|-------|---------|-----------------|-----------|
+| 2025 | 1 | 50000 | NULL | NULL |
+| 2025 | 2 | 62000 | 50000 | 24.00 |
+| 2025 | 3 | 58000 | 62000 | -6.45 |
+
+> **Variation:** Use `LAG(Revenue, 12)` to compare to the same month last year (YoY growth).
+> Use `LEAD(Revenue)` instead of LAG to show *next* month's revenue alongside current.
+
+---
+
+### Problem 4 — Conditional Aggregation (Pivot Without PIVOT)
+
+**Asked at: TCS, Wipro, Accenture, Microsoft**
+**Pattern: CASE inside aggregate function**
+
+**Problem:** Show total sales per product category side by side in one row per month.
+
+```sql
+-- Expected output:
+-- Month  | Electronics | Clothing | Books
+-- 2025-01 | 15000       | 8000     | 3000
+-- 2025-02 | 12000       | 9500     | 4200
+
+SELECT
+    FORMAT(o.OrderDate, 'yyyy-MM')                          AS Month,
+
+    -- Each column = SUM filtered to one category via CASE
+    SUM(CASE WHEN p.Category = 'Electronics' THEN oi.Qty * oi.UnitPrice ELSE 0 END) AS Electronics,
+    SUM(CASE WHEN p.Category = 'Clothing'    THEN oi.Qty * oi.UnitPrice ELSE 0 END) AS Clothing,
+    SUM(CASE WHEN p.Category = 'Books'       THEN oi.Qty * oi.UnitPrice ELSE 0 END) AS Books,
+
+    -- Grand total for the month
+    SUM(oi.Qty * oi.UnitPrice)                              AS Total
+
+FROM Orders o
+INNER JOIN OrderItems oi ON o.OrderId = oi.OrderId
+INNER JOIN Products   p  ON oi.ProductId = p.ProductId
+WHERE o.Status != 'Cancelled'
+GROUP BY FORMAT(o.OrderDate, 'yyyy-MM')
+ORDER BY Month;
+```
+
+**Why this beats PIVOT:**
+- No need to hard-code values in `FOR ... IN (...)` clause
+- Works with any number of categories visible in SELECT
+- Easier to add a "Total" column or percentage column alongside
+- Readable without knowing PIVOT syntax
+
+> **Variation:** `COUNT(CASE WHEN Status = 'Shipped' THEN 1 END)` counts rows matching a condition.
+> `AVG(CASE WHEN Region = 'North' THEN Salary END)` averages only the filtered subset.
+
+---
+
+### Problem 5 — Users Active in January but NOT February
+
+**Asked at: Meta, Google, Amazon**
+**Pattern: Set difference — present in one period, absent in another**
+
+```
+┌────────────────────────────────────────────────────────┐
+│  APPROACH EVOLUTION                                    │
+├─────────────┬──────────────────────────────────────────┤
+│ 🔴 BRUTE    │ Two separate subqueries + NOT IN         │
+├─────────────┼──────────────────────────────────────────┤
+│ 🟡 BETTER   │ LEFT JOIN + IS NULL on month filter      │
+├─────────────┼──────────────────────────────────────────┤
+│ 🟢 OPTIMAL  │ EXCEPT set operator — self-documenting   │
+└─────────────┴──────────────────────────────────────────┘
+```
+
+#### Option 1 — LEFT JOIN + IS NULL (🟡 Good)
+
+```sql
+SELECT DISTINCT jan.UserId
+FROM UserSessions jan
+LEFT JOIN UserSessions feb
+    ON jan.UserId = feb.UserId
+    AND MONTH(feb.LoginDate) = 2
+    AND YEAR(feb.LoginDate)  = 2025
+WHERE MONTH(jan.LoginDate) = 1
+  AND YEAR(jan.LoginDate)  = 2025
+  AND feb.UserId IS NULL;         -- no February session found
+```
+
+#### Option 2 — EXCEPT (🟢 Clearest intent)
+
+```sql
+-- "January users" MINUS "February users"
+SELECT DISTINCT UserId
+FROM UserSessions
+WHERE MONTH(LoginDate) = 1 AND YEAR(LoginDate) = 2025
+
+EXCEPT
+
+SELECT DISTINCT UserId
+FROM UserSessions
+WHERE MONTH(LoginDate) = 2 AND YEAR(LoginDate) = 2025;
+
+-- EXCEPT removes rows from the first set that appear in the second set
+-- Automatically deduplicates (like UNION, not UNION ALL)
+```
+
+**INTERSECT / EXCEPT Quick Reference:**
+
+| Operator | Returns | Deduplicates? |
+|----------|---------|---------------|
+| `UNION` | All rows from A + B | Yes |
+| `UNION ALL` | All rows from A + B | No |
+| `INTERSECT` | Rows in BOTH A and B | Yes |
+| `EXCEPT` | Rows in A but NOT in B | Yes |
+
+> **Variation:** Swap EXCEPT for INTERSECT to find users who logged in **both** months.
+
+---
+
+### Problem 6 — Products Frequently Bought Together
+
+**Asked at: Amazon, Flipkart, e-commerce companies**
+**Pattern: Self-join on a bridge/junction table**
+
+**Problem:** Find all pairs of products that appear together in at least 5 orders.
+
+```sql
+-- Self-join OrderItems to itself on the same OrderId
+-- Each row in the result = one product pair from one order
+SELECT
+    p1.ProductName                             AS Product1,
+    p2.ProductName                             AS Product2,
+    COUNT(DISTINCT oi1.OrderId)                AS TimesBoughtTogether
+FROM OrderItems oi1
+INNER JOIN OrderItems oi2
+    ON  oi1.OrderId    = oi2.OrderId           -- same order
+    AND oi1.ProductId  < oi2.ProductId         -- avoid (A,B) and (B,A) duplicates
+                                               -- < ensures we only get each pair once
+INNER JOIN Products p1 ON oi1.ProductId = p1.ProductId
+INNER JOIN Products p2 ON oi2.ProductId = p2.ProductId
+GROUP BY p1.ProductName, p2.ProductName
+HAVING COUNT(DISTINCT oi1.OrderId) >= 5        -- minimum co-occurrence threshold
+ORDER BY TimesBoughtTogether DESC;
+```
+
+**Sample Output:**
+| Product1 | Product2 | TimesBoughtTogether |
+|----------|----------|---------------------|
+| Phone | Phone Case | 142 |
+| Laptop | Mouse | 98 |
+| Headphones | Phone | 67 |
+
+> **Key Insight:** The `oi1.ProductId < oi2.ProductId` condition is the trick that eliminates both
+> self-pairs (A,A) and reverse duplicates (B,A). Always use `<` not `!=` for undirected pairs.
+
+---
+
+### Problem 7 — Running Bank Account Balance
+
+**Asked at: Goldman Sachs, Morgan Stanley, JP Morgan, Barclays**
+**Pattern: Running total with signed values (credits + debits)**
+
+**Problem:** Show the balance after each transaction for account `ACC001`.
+
+```sql
+-- Transactions(TxnId, AccountId, TxnDate, TxnType, Amount)
+-- TxnType: 'CR' = credit (money in), 'DR' = debit (money out)
+
+SELECT
+    TxnId,
+    TxnDate,
+    TxnType,
+    Amount,
+
+    -- Convert to signed amount: CR adds, DR subtracts
+    CASE TxnType
+        WHEN 'CR' THEN  Amount
+        WHEN 'DR' THEN -Amount
+    END AS SignedAmount,
+
+    -- Running sum of signed amounts = current balance
+    SUM(
+        CASE TxnType
+            WHEN 'CR' THEN  Amount
+            WHEN 'DR' THEN -Amount
+        END
+    ) OVER (
+        PARTITION BY AccountId          -- separate balance per account
+        ORDER BY TxnDate, TxnId        -- TxnId breaks ties on same date
+        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW  -- cumulative
+    ) AS RunningBalance
+
+FROM Transactions
+WHERE AccountId = 'ACC001'
+ORDER BY TxnDate, TxnId;
+```
+
+**Sample Output:**
+| TxnId | TxnDate | TxnType | Amount | SignedAmount | RunningBalance |
+|-------|---------|---------|--------|-------------|----------------|
+| 1 | 2025-01-01 | CR | 10000 | 10000 | 10000 |
+| 2 | 2025-01-05 | DR | 2000 | -2000 | 8000 |
+| 3 | 2025-01-10 | CR | 5000 | 5000 | 13000 |
+| 4 | 2025-01-15 | DR | 3000 | -3000 | 10000 |
+
+> **Variation:** Add `HAVING MIN(RunningBalance) < 0` in an outer query to find accounts that went negative.
+> Remove `WHERE AccountId = 'ACC001'` to compute balances for all accounts simultaneously (PARTITION BY handles it).
+
+---
+
+### Problem 8 — Find Employees Who Share the Same Salary
+
+**Asked at: TCS, Cognizant, Wipro, Accenture**
+**Pattern: Find duplicates on a specific column**
+
+```
+┌────────────────────────────────────────────────────────┐
+│  APPROACH EVOLUTION                                    │
+├─────────────┬──────────────────────────────────────────┤
+│ 🔴 BRUTE    │ Self-join ALL pairs — O(N²), many dupes  │
+├─────────────┼──────────────────────────────────────────┤
+│ 🟡 BETTER   │ GROUP BY HAVING + subquery re-join       │
+├─────────────┼──────────────────────────────────────────┤
+│ 🟢 OPTIMAL  │ COUNT() OVER (window) — single scan      │
+└─────────────┴──────────────────────────────────────────┘
+```
+
+#### Option 1 — GROUP BY + HAVING + JOIN (🟡 Good)
+
+```sql
+-- Step 1: find salaries shared by more than one employee
+WITH SharedSalaries AS (
+    SELECT Salary
+    FROM Employees
+    GROUP BY Salary
+    HAVING COUNT(*) > 1          -- salary appears more than once
+)
+-- Step 2: get all employees at those salaries
+SELECT e.EmployeeId, e.Name, e.Salary, e.DepartmentId
+FROM Employees e
+WHERE e.Salary IN (SELECT Salary FROM SharedSalaries)
+ORDER BY e.Salary, e.Name;
+```
+
+#### Option 2 — COUNT OVER Window (🟢 Best — single scan)
+
+```sql
+WITH SalaryCount AS (
+    SELECT
+        EmployeeId,
+        Name,
+        Salary,
+        DepartmentId,
+        COUNT(*) OVER (PARTITION BY Salary) AS EmpCountAtSalary  -- how many share this salary
+    FROM Employees
+)
+SELECT EmployeeId, Name, Salary, DepartmentId, EmpCountAtSalary
+FROM SalaryCount
+WHERE EmpCountAtSalary > 1   -- only employees whose salary is shared
+ORDER BY Salary, Name;
+```
+
+**Sample Output:**
+| EmployeeId | Name | Salary | DepartmentId | EmpCountAtSalary |
+|-----------|------|--------|-------------|-----------------|
+| 3 | Alice | 75000 | IT | 3 |
+| 7 | Bob | 75000 | HR | 3 |
+| 11 | Carol | 75000 | IT | 3 |
+| 5 | Dave | 90000 | Finance | 2 |
+| 9 | Eve | 90000 | IT | 2 |
+
+> **Variation:** Replace `Salary` with any column to find duplicates on that column.
+> Add `AND DepartmentId = e2.DepartmentId` to find same-salary pairs *within* a department only.
+
+---
+
+### Quick Problem-to-Pattern Reference
+
+| Problem | Core Pattern | Key SQL |
+|---------|-------------|---------|
+| Customers with no orders | Anti-join | `NOT EXISTS` / `LEFT JOIN IS NULL` |
+| Most recent record per group | Per-group top 1 | `ROW_NUMBER() OVER (PARTITION BY … ORDER BY date DESC)` |
+| Month-over-Month growth | Period comparison | `LAG(col) OVER (ORDER BY period)` |
+| Pivot: categories as columns | Conditional aggregation | `SUM(CASE WHEN cat='X' THEN val ELSE 0 END)` |
+| Active in A but not B | Set difference | `EXCEPT` / `LEFT JOIN IS NULL` |
+| Items bought together | Pair generation | Self-join with `p1.id < p2.id` |
+| Running balance | Cumulative sum | `SUM() OVER (ORDER BY … ROWS UNBOUNDED PRECEDING)` |
+| Employees sharing a salary | Duplicate value detection | `COUNT(*) OVER (PARTITION BY Salary) > 1` |
+
+---
 
 1. **Always clarify requirements** before writing queries
 2. **Consider edge cases**: NULL values, empty results, duplicates
