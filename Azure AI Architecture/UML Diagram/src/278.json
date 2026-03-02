@@ -1,0 +1,114 @@
+{
+    "authorization": {
+      Specialty,Gender,ClientServiceReqestId
+      *"InsuranceCarrierKey": "eafa997e-6943-4b96-9d74-001c63f8bbc9",
+      "InsuranceCarrier": "CIGNA",-InsurerProviderID
+      *"transactionId": "OP0036981511",-ServiceRequestIDs
+      *"requestStageCode": "5",
+      *"requestStage": "Notification",
+      "memberId": "U9299223402",-PolicyNumber
+      "memberFirstName": "LAURIE",-FirstName
+      "memberLastName": "DRELSSCENL",-LastName
+      "memberMiddleName": "A",-MiddleName
+      "memberDOB": "19560510",-DateofBirth
+      "memberAddress": {
+        "AdressLine1": "PP BPX 9998",
+        "City": "CINCINNATI",
+        "State": "OH",
+        "Zip": "452015576"
+      },-Address
+      *"dateTimeRequestReceived": "20241104100111",-MessageTimeStamp
+      "placeOfService": "Home",-ServicePlaceFullName
+      "placeOfServiceCode": "12",-ServicePlaceCode
+      "serviceTypeCode": "42",-TypeOfServiceCode
+      "serviceType": "Home Health",-TypeOfServiceDescription
+      *"eventStartDate": "20210224",-EpisodeStartDate/case start date /end date
+      "orderingProvider": {
+        *"providerTypeCode": "DK",-ProviderKey
+        *"providerType": "Ordering Physician",-Type
+        "providerLastName": "ABDO",-LastName
+        "providerFirstName": "SAMIR",-FirstName
+        *"providerMiddleName": "F",
+        "providerNPI": "1578612982",-NPI
+        "orderingProviderAddress": {
+          "AddressLine1": "117 E CLARK ST",
+          "City": "HARRISBURG",
+          "State": "IL",
+          "Zip": "629462702"
+        }-Address
+      },
+      "diagnosisInfo": [
+        {
+          "diagnosisCodeQualifier": "ABK",-DiagnosisCodeSetName
+          "diagnosisCode": "A55"-DiagnosisCode
+        }
+      ],
+      *"errors": [
+        {
+          "validRequestIndicator": "N",
+          "agencyQualiferCode": "",
+          "rejectReasonCode": "67",
+          *"rejectReason": "Patient Not Found",
+          "followUpActionCode": "C",
+          "loop": "SUBSCRIBER NAME"
+        }
+      ],
+      "clinicalReviewDeterm": {
+        *"clinicalReviewDeterminationCode": "A1",
+        *"clinicalReviewDetermination": "Certified in Total",
+        *"adminRefNum": "OP0036981511",
+        *"authorizationId": "OP0036981511"
+      },
+      "procedureCodesInfo": [
+        {
+          *"procedureCode": "S9127",-BillCode.Code
+          "procedureQty": "3",-UnitsRequested.Qty
+          *"procedureCodeQtyQual": "HS",
+          *"clinicalReviewDeterm": { "clinicalReviewFromDate": "20210225" },
+          "servicingProvider": {-TreatmentProvider
+            *"providerTypeCode": "FA",
+            *"providerType": "Facility",
+            "providerLastName": "PROFESSIONAL ASSOCIATES OF ALLIANCE, INC. DBA COMM",
+            "providerFirstName": "",
+            "providerMiddleName": "",
+            *"providerTIN": "341920740",-TIN
+            *"insCarrierProviderId": "1734539",-OAOID-AlternateId/InsurerProviderID
+            "servicingProviderAddress": {
+              "AdressLine1": "1207 W STATE ST # G",
+              "City": "ALLIANCE",
+              "State": "OH",
+              "Zip": "44601",
+              "Phone": "1466566664",
+              "Fax": "3419207401",
+              "contactName": "George Cloone"
+            }
+          }
+        },
+        {
+          "procedureCode": "S9124",-BillCode.Code
+          "procedureQty": "1",-UnitsRequested.Qty
+          "procedureCodeQtyQual": "HS",
+          "clinicalReviewDeterm": { "clinicalReviewFromDate": "20210225" },
+          "servicingProvider": {
+            "providerTypeCode": "FA",
+            "providerType": "Facility",
+            "providerLastName": "PROFESSIONAL ASSOCIATES OF ALLIANCE, INC. DBA COMM",
+            "providerFirstName": "",
+            "providerMiddleName": "",
+            "providerTIN": "341920740",
+            "insCarrierProviderId": "1734539",
+            "servicingProviderAddress": {
+              "AdressLine1": "1207 W STATE ST # G",
+              "City": "ALLIANCE",
+              "State": "OH",
+              "Zip": "44601",
+              "Phone": "1466566664",
+              "Fax": "3419207401",
+              "contactName": "George Cloone"
+            }
+          }
+        }
+      ]
+    }
+  }
+  

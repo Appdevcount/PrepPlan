@@ -1,0 +1,84 @@
+formatter: 'markdown table'
+
+settings:
+  anchor: true
+  color: true
+  default: true
+  description: false
+  escape: true
+  hide-empty: false
+  html: true
+  indent: 2
+  lockfile: true
+  read-comments: true
+  required: true
+  sensitive: true
+  type: true
+
+content: |-
+  {{ include "docs/header.md" }}
+
+  {{ .Requirements}}
+
+  {{ .Providers }}
+
+  {{- $requiredInputs := list -}}
+  {{- $optionalInputs := list -}}
+  {{- $overrideInputs := list -}}
+  {{- range .Module.Inputs -}}
+    {{- if .Required -}}
+      {{- $requiredInputs = append $requiredInputs . -}}
+    {{- else -}}
+      {{- if eq (substr 0 10 (toString .Description)) "Override -" -}}
+        {{- $overrideInputs = append $overrideInputs . -}}
+      {{- else -}}
+        {{- $optionalInputs = append $optionalInputs . -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end }}
+  {{ if $requiredInputs }}
+  ## Required Inputs
+  | Name | Description | Type |
+  |------|-------------|------|
+  {{ range $requiredInputs -}}
+    | {{ .Name }} | {{ toString .Description | sanitizeMarkdownTbl -}} |
+    {{- print "<pre>" (toString .Type | sanitizeMarkdownTbl) "</pre> |" }}
+  {{ end -}}
+  {{ end -}}
+
+  {{ if $optionalInputs }}
+  ## Optional Inputs
+  | Name | Description | Type | Default |
+  |------|-------------|------|---------|
+  {{ range $optionalInputs -}}
+    | {{ .Name }} | {{ trimPrefix "Override - " (toString .Description | sanitizeMarkdownTbl) -}} |
+    {{- print "<pre>" (toString .Type | sanitizeMarkdownTbl) "</pre> |" }}
+    {{- print "<pre>" (.GetValue | sanitizeMarkdownTbl) "</pre> |" }}
+  {{ end -}}
+  {{ end -}}
+
+  {{ if $overrideInputs }}
+  ## Override Inputs
+  These are provided for testing and rare corner-cases only. They should not be used in production unless absolutely necessary and reviewed as an exception pattern.
+  | Name | Description | Type | Default |
+  |------|-------------|------|---------|
+  {{ range $overrideInputs -}}
+    | {{ .Name }} | {{ trimPrefix "Override - " (toString .Description | sanitizeMarkdownTbl) -}} |
+    {{- print "<pre>" (toString .Type | sanitizeMarkdownTbl) "</pre> |" }}
+    {{- print "<pre>" (.GetValue | sanitizeMarkdownTbl) "</pre> |" }}
+  {{ end -}}
+  {{ end -}}
+
+  {{ .Outputs }}
+
+  {{ include "docs/changelog.md" }}
+
+  {{ include "docs/footer.md"}}
+
+output:
+  file: README.md
+  mode: replace
+
+sort:
+  enabled: true
+  by: required

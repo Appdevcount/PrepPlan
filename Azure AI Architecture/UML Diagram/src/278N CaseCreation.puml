@@ -1,0 +1,134 @@
+@startuml
+participant Cigna278Consumer
+participant "Image One OAOData Database" as Database
+participant "CCNService" as CaseManagementService
+participant  CaseBasketService
+
+' Cigna278Consumer -> Cigna278Consumer: Consume Cigna 278 message 
+
+alt if message type is 278N
+
+
+    note right of Cigna278Consumer
+        {
+            "memberId": "U9299223402",
+            "memberFirstName": "LAURIE",
+            "memberLastName": "DRELSSCENL",
+            "memberMiddleName": "A",
+            "memberDOB": "19560510",
+            "memberAddress": {
+                "AdressLine1": "PP BPX 9998",
+                "City": "CINCINNATI",
+                "State": "OH",
+                "Zip": "452015576"
+            }
+        }
+    end note
+    Cigna278Consumer -> Database: Member lookup
+    
+    activate Database
+    
+    Database -> Cigna278Consumer: Return member details
+    deactivate Database
+
+    note right of Cigna278Consumer
+        {
+            "orderingProvider": {
+                "providerTypeCode": "DK",
+                "providerType": "Ordering Physician",
+                "providerLastName": "ABDO",
+                "providerFirstName": "SAMIR",
+                "providerMiddleName": "F",
+                "providerNPI": "1578612982",
+                "orderingProviderAddress": {
+                    "AddressLine1": "117 E CLARK ST",
+                    "City": "HARRISBURG",
+                    "State": "IL",
+                    "Zip": "629462702",
+                    "Phone": "629462702",
+                    "Email": "abc@asv.cc"
+                }
+            }
+        }
+    end note
+    Cigna278Consumer -> Database: Physician lookup
+    
+    activate Database
+    
+    Database -> Cigna278Consumer: Return physician details
+    deactivate Database
+    
+    note right of Cigna278Consumer
+        {
+            "servicingProvider": {
+                "providerTypeCode": "SJ",
+                "providerType": "Service Provider",
+                "providerLastName": "AAFLAQ",
+                "providerFirstName": "OSAMA",
+                "providerNPI": "1083663520",
+                "servicingProviderAddress": {
+                    "AddressLine1": "3333 W DEYOUNG ST",
+                    "City": "MARION",
+                    "State": "IL",
+                    "Zip": "629595884"
+                }
+            }
+        }
+    end note
+    Cigna278Consumer -> Database: Site lookup
+    
+    activate Database
+    
+    Database -> Cigna278Consumer: Return site details
+    deactivate Database
+    
+    
+    
+    activate CaseManagementService
+    Cigna278Consumer -> CaseManagementService: Create the case in ImageOne PreAuthIn Database
+    Cigna278Consumer -> CaseManagementService: Add journal note to case
+    Cigna278Consumer -> CaseManagementService: Add review history comment to case
+    deactivate CaseManagementService
+    note right of Cigna278Consumer
+        {
+            "procedureCode": "78018",
+            "procedureQty": "2",
+            "procedureCodeQtyQual": "FL",
+        }
+    end note
+    ' activate CaseBasketService
+    
+    Cigna278Consumer -> CaseBasketService: Build case basket with CPT codes
+    ' activate CaseBasketService
+    ' Database -> Cigna278Consumer: Return site details
+    ' deactivate CaseBasketService
+
+    else if message type is 278R
+    Cigna278Consumer -> CaseManagementService: Update auth status for the existing case \n based on the message from Cigna
+    note right of Cigna278Consumer 
+        {   
+        "clinicalReviewDeterm": {
+            "clinicalReviewDeterminationCode": "A1",
+            "clinicalReviewDetermination": "Certified in Total",
+            "adminRefNum": "OP0036981511",
+            "authorizationId": "OP0036981511"
+        },
+        "procedureCodesInfo": [
+            {
+                "procedureCode": "78018",
+                "procedureQty": "2",
+                "procedureCodeQtyQual": "FL",
+                "clinicalReviewDeterm": {
+                    "clinicalReviewFromDate": "20210108",
+                    "clinicalReviewToDate": "20210109"
+                }
+            }
+        ]
+        }
+        end note
+    activate CaseManagementService
+    CaseManagementService -> Cigna278Consumer: Return case with updated auth status
+    deactivate CaseManagementService
+
+end
+@enduml

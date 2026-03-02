@@ -1,0 +1,10 @@
+variable "application" {}
+variable "rg_name" {}
+variable "location" {}
+variable "vnetcidr" {}
+variable "subnets" {}
+variable "production" {}
+variable "required_tags" {}
+variable "flow_storage_id" {}
+variable "monitor_log_storage_account_id" {}
+variable "allow_firewall_routes" {}

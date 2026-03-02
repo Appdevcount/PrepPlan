@@ -1,0 +1,33 @@
+# This file should only contain local variable declarations that are used globally within a module. If
+# a local is defined to support creation of a specific resource, that local should be included in the same
+# .tf file as the resource being created to improve code readability.
+
+locals {
+  sku_name = "S1"
+  asp_name = format("%s%s%s", var.location, var.app_service_plan_name, "-asp")
+  pe_subnet_id = "/subscriptions/75dbc8c6-6364-4eb1-91c1-3400a4010fb4/resourceGroups/dv1_rsg_eu2_infra_vnet/providers/Microsoft.Network/virtualNetworks/infra-vnet/subnets/infra-private_endpoints-subnet"
+  ado_subnet     = "/subscriptions/a0c6645e-c3da-4a78-9ef6-04ab6aad45ff/resourceGroups/pd1_rsg_eu2_vnet_products/providers/Microsoft.Network/virtualNetworks/eu2_pd1_vnet_products/subnets/eu2_pd1_snet_products_devops_10.194.62.0_23"
+  log_workspace = "/subscriptions/a0c6645e-c3da-4a78-9ef6-04ab6aad45ff/resourceGroups/pd1_rsg_eu2_security_siem/providers/Microsoft.OperationalInsights/workspaces/pd1-cloudsiem"
+  storage_diag = [{
+    name = "diagnostic"
+    log_analytics_workspace_id = local.log_workspace
+  }]
+
+ /*  pe_app_settings = {
+    WEBSITE_DNS_SERVER     = "168.63.129.16",
+    WEBSITE_VNET_ROUTE_ALL = "1"
+  }
+
+  expanded_app_settings = upper(substr(var.sku, 0, 1)) == "P" ? merge(var.app_settings, local.pe_app_settings) : var.app_settings
+ */
+  req_site_config = {
+    ftps_state      = "Disabled",
+    min_tls_version = "1.2"
+  }
+
+  #does not support CORS origins block -- add for V2
+  site_configs = merge(
+    var.site_config,
+    local.req_site_config
+  )
+}

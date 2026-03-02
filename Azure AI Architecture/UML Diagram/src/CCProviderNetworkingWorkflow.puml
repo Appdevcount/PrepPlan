@@ -1,0 +1,20 @@
+
+@startuml
+start
+:CareCoordination API calls Pathway;
+:Pathway returns Rendering and Ordering Provider rulesets;
+:CareCoordination API calls Site/Rendering Provider Lookup API;
+:CareCoordination API calls Physician Lookup API;
+:InNetwork sites/providers found?;
+if (Providers found?) then (yes)
+    :Display InNetwork providers;
+else (no)
+    :Display message "There are no INN Providers found, Do you want to search the ONN Providers?";
+    :User clicks on hyperlink for Out Of Network search?;
+    if (User clicks?) then (yes)
+        :Perform Out Of Network search;
+        :Display Out Of Network providers;
+    endif
+endif
+stop
+@enduml

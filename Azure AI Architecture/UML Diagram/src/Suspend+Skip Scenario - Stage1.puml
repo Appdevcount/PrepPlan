@@ -1,0 +1,16 @@
+@startuml
+
+actor       MD
+MD->"Routing Service":GetNext
+"Routing Service"->"UI/Pathway":"Gets a manually assigned \n or internally routed case"
+MD->"UI/Pathway" : "Suspend the Request"
+"UI/Pathway"->Kafka:XPLUpadsReviewCompleted event:ParkingLotCase
+Kafka->DecisionService:Consume XPLUpadsReviewCompleted Event
+DecisionService->Kafka:Publish UCXPhysicianDecisionMade Event\n(IsPendingInQueue,SuspendCaseAssignmentExpirationTime,\nSuspendExpirationTime,)
+Kafka->"Routing Service" : Consume UCXPhysicianDecisionMade Event
+"Routing Service"->"Routing Service":"Set the Assignment for 4 hrs\n for internally routed case\n Set the SuspendExpiration for 1 hr\n "
+Kafka->"Header Service" : Consume UCXPhysicianDecisionMade Event
+"Header Service"->"Header Service":"Set the Request Suspension \n flag/badge for next 4 hrs in header"
+
+
+@enduml

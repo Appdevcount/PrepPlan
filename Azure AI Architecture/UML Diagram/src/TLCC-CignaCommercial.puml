@@ -1,0 +1,26 @@
+@startuml
+actor WindowsService
+participant "SubscriberWindowsService" as SWS
+participant "KafkaErssSubscriber" as KES
+participant "PostProcessor" as PP
+participant "CCNCasemanagement" as CCN
+
+WindowsService -> SWS: Start Service
+SWS -> KES: InitiateKafkaConsumer(true)
+loop every 5 seconds
+    alt Processing
+        KES -> KES: _kafkaConsumer.ConsumeMessage()
+        KES -> KES: "Validate message ErssVersionNumber \n and 'RequestCreation' as the messagetype \n and Episodeid as not null ""
+        KES -> PP: ProcessMessage()
+        PP -> PP :ValidateDxCodes
+        PP -> CCN: Create Case
+        PP -> PP: Validate Document Status with OV endpoint
+        PP -> PP: "Update Journal and Auth Status \n based on Document validation"
+        PP -> PP: TouchlessCaseCreation Pathway call
+    ' else Invalid
+    '     KES -> KES: Log Error
+    end
+end
+WindowsService -> SWS: Stop Service
+SWS -> KES: TerminateKafkaConsumer(true)
+@enduml

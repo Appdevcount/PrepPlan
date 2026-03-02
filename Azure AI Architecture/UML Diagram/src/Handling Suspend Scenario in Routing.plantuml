@@ -1,0 +1,12 @@
+@startuml
+"UCX.Qualifier"->Pathway:Call pathway with list of Qualifiers
+Pathway->Kafka:XPLUpadsReviewCompleted event:ParkingLotCase determination
+Kafka->DecisionService:Consume XPLUpadsReviewCompleted Event
+DecisionService->Kafka:Publish UCXPhysicianDecisionMade Event\n(IsPendingInQueue,SuspendCaseAssignmentExpirationTime,\nSuspendExpirationTime,)
+Kafka->"Routing Service" : Consume UCXPhysicianDecisionMade Event
+
+"Routing Service"->"Routing Service":"Set the Assignment for 4 hrs\n for internally routed case\n Set the SuspendExpiration/route back time\n for 1 hr"
+Kafka->"Header Service" : Consume UCXPhysicianDecisionMade Event
+
+"Header Service"->"Header Service":"Set the Request Suspension \n badge for next 4 hrs \n in the Request header"
+@enduml

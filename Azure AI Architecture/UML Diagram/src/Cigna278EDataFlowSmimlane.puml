@@ -1,0 +1,37 @@
+@startuml
+title 278 N/R Data Flow
+
+|ImageOne (Initial Case Creation )|
+A -> B: Post data to B2B2Gateway
+
+|B2B2Gateway|
+B -> C: Verify the tblEDI278PostAuthCriteria table for eligibility and \n Send case details (minimum) to EDI
+
+|EDI|
+C -> D: Lookup more details and send(278RR) to Cigna
+D -> C: Return acknowledgement to EDI
+
+|[Cigna]|
+D -> E: 278R Data along with Determinations - \n Status: In Clinical Review
+
+alt Final Determination [278R Or 278N]
+    D -> E: Status: Approved
+    D -> E: Status: Denied
+    D -> E: Status: Partial Approval
+    D -> E: Status: Cancelled
+    D -> E: Status: Contact Payor
+    D -> E: Status: No Action Required
+end
+
+|IO Consumer for Cigna 278 N/R|
+E -> E: Process the Case details(278N/278R) from Cigna \n and update in ImageOne Database
+
+note right of D
+    Status Descriptions(Unique to Cigna):
+    - Cancelled: Cigna cancelled the case because there is no follow-up from member or provider.
+    - In Clinical Review: Cigna has started working on the case for review.
+    - Contact Payor: Patient/Provider needs to contact back Cigna.
+    - No Action Required: Case doesn't require any action, it can be expired.
+end note
+
+@enduml

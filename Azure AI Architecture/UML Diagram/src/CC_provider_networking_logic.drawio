@@ -1,0 +1,98 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/25.0.2 Chrome/128.0.6613.186 Electron/32.2.5 Safari/537.36" version="25.0.2">
+  <diagram name="Provider Classification Logic" id="provider_logic">
+    <mxGraphModel dx="1235" dy="739" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="start" value="Search Provider with Member IPA Code" style="ellipse;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="70" y="40" width="130" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="checkINN" value="Does provider&amp;nbsp;&lt;div&gt;match INN ruleset?&lt;/div&gt;" style="rhombus;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="250" y="30" width="160" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="uHafGnNpd9_Ks0wXSQSJ-12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="parINN" target="uHafGnNpd9_Ks0wXSQSJ-5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="parINN" value="PAR INN PROVIDER" style="rounded=1;fillColor=#d5e8d4;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="520" y="45" width="110" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="uHafGnNpd9_Ks0wXSQSJ-9" value="No[These Providers will not have IPA match&lt;div&gt;and it can be Steerage 2 or 4]&lt;/div&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="checkNonPar" target="uHafGnNpd9_Ks0wXSQSJ-16">
+          <mxGeometry x="-0.0045" relative="1" as="geometry">
+            <mxPoint x="330" y="365" as="targetPoint" />
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="checkNonPar" value="Check if the&lt;div&gt;&amp;nbsp;ProviderFlag = N&amp;nbsp;&lt;div&gt;OR NetworkID is NULL&amp;nbsp;&lt;/div&gt;&lt;div&gt;OR &lt;b&gt;&lt;u&gt;Steerage = 5&lt;/u&gt;&lt;/b&gt;?&lt;/div&gt;&lt;/div&gt;" style="rhombus;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="210" y="170" width="240" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="uHafGnNpd9_Ks0wXSQSJ-2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="nonPar" target="uHafGnNpd9_Ks0wXSQSJ-1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="nonPar" value="NON PAR PROVIDER" style="rounded=1;fillColor=#f8cecc;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="520" y="200" width="110" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="edge1" style="endArrow=block" parent="1" source="start" target="checkINN" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge2" value="Yes" style="endArrow=block" parent="1" source="checkINN" target="parINN" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge3" value="No,Then Search for ALL-IPA &#xa;(Generally these are Non IPA Match Providers)" style="endArrow=block" parent="1" source="checkINN" target="checkNonPar" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge4" value="Yes" style="endArrow=block" parent="1" source="checkNonPar" target="nonPar" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="uHafGnNpd9_Ks0wXSQSJ-4" value="No" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="uHafGnNpd9_Ks0wXSQSJ-1" target="uHafGnNpd9_Ks0wXSQSJ-3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="uHafGnNpd9_Ks0wXSQSJ-1" value="Is Member having&lt;div&gt;&amp;nbsp;OON Benefit&lt;/div&gt;" style="rhombus;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="660" y="195" width="140" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="uHafGnNpd9_Ks0wXSQSJ-11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="uHafGnNpd9_Ks0wXSQSJ-3" target="uHafGnNpd9_Ks0wXSQSJ-5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="uHafGnNpd9_Ks0wXSQSJ-3" value="Show Alert&lt;div&gt;&quot;You have selected a non-participating provider and the member does not have out of network coverage&quot;&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="615" y="305" width="230" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="uHafGnNpd9_Ks0wXSQSJ-5" value="Allow Site selection and build Request" style="rounded=1;whiteSpace=wrap;html=1;shape=ellipse;perimeter=ellipsePerimeter;" vertex="1" parent="1">
+          <mxGeometry x="880" y="195" width="140" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="uHafGnNpd9_Ks0wXSQSJ-6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="uHafGnNpd9_Ks0wXSQSJ-1" target="uHafGnNpd9_Ks0wXSQSJ-5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="uHafGnNpd9_Ks0wXSQSJ-20" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="uHafGnNpd9_Ks0wXSQSJ-16" target="uHafGnNpd9_Ks0wXSQSJ-19">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="uHafGnNpd9_Ks0wXSQSJ-16" value="PAR OON PROVIDER" style="rounded=1;fillColor=#dae8fc;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="272.5" y="420" width="115" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="uHafGnNpd9_Ks0wXSQSJ-21" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="uHafGnNpd9_Ks0wXSQSJ-18">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="950" y="270" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="uHafGnNpd9_Ks0wXSQSJ-18" value="&lt;div&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;Show Alert&lt;/span&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;&lt;div&gt;&quot;You have selected an out of network provider and the member does not have out of network coverage&quot;&lt;/div&gt;&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="430" y="540" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="uHafGnNpd9_Ks0wXSQSJ-23" value="Yes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="uHafGnNpd9_Ks0wXSQSJ-19">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="950" y="270" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="uHafGnNpd9_Ks0wXSQSJ-24" value="No" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.45;entryY=0.014;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="uHafGnNpd9_Ks0wXSQSJ-19" target="uHafGnNpd9_Ks0wXSQSJ-18">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="560" y="530" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="uHafGnNpd9_Ks0wXSQSJ-19" value="Is Member having&lt;div&gt;&amp;nbsp;OON Benefit&lt;/div&gt;" style="rhombus;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="450" y="415" width="140" height="70" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

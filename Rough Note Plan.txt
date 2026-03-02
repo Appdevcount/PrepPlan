@@ -1,18 +1,20 @@
 
 Key idea is to act with elevated expertise and not do same mistakes
 
-React-Ang md 3
 
 Intro and Answer Approach 2
-Behv 1
-
-ASD 2
 AKS helm practice 2
-
+ASD 2
 Prod issues - ADR   2
-
-
+Behv 1
 Reactmd 2
+AI Integ Initiatives 
+dotnet+SQL 1 hr each quick coding md go thru
+
+
+
+
+React-Ang md 3
 
 ================ DSA + SD + ADR ===============
 DSA Diag - mental model of all concepts

@@ -1,0 +1,16 @@
+@startuml
+
+"Request Assignment \n from different sources\n (UCX Internal\GetNext,\n Manual Assignment\IOne)" -> Kafka: (UCX Internal\GetNext,\n Manual Assignment\IOne) \n Assignment events
+actor       MD
+
+Kafka --> HeaderService:Listens all UCXRoutingRequestAssigned \n events
+note over HeaderService:Header has the latest\nAssignedToId details\n for the Request
+HeaderService->HeaderService:If its an UnAssignment \n event then clear the Current \nSuspension details for the request\n (if exists)
+
+note over MD:MD has suspended\n the request \n (Refer Suspend \n workflow)
+MD -> Kafka :Raises Skip Request event \n after the Request routed back in 1 hr\n suspend time
+Kafka --> HeaderService:Listens UCXUserExcludedFromRequest \n events
+note over HeaderService:Header has the latest \nSkipped details for \nthe Request
+HeaderService->HeaderService:If the Skipped Id is same as the current \nAssignedToId then clear the \nCurrent Suspension details \nfor the Request
+
+@enduml

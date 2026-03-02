@@ -1,0 +1,59 @@
+@startuml
+title 278 N/R Data Flow
+
+
+
+' participant "ImageOne (Initial Case Creation )" as A #darkgreen/white
+' participant "B2B2Gateway" as B #darkgreen/white
+' participant "EDI" as C #darkgreen/white
+' participant "[Cigna]" as D #blue/white
+' participant "IO Consumer for Cigna 278 N/R" as E #darkgreen/white
+
+box "[evicore]" #cefad0
+participant "ImageOne (Initial Case Creation )" as A 
+participant "B2B2Gateway" as B 
+participant "EDI" as C 
+end box
+box "[Cigna]"
+participant "[Cigna]" as D 
+end box
+box "[evicore]" #cefad0
+participant "IO Consumer for Cigna 278 N/R" as E 
+end box 
+
+A -> B: Post data to B2B2Gateway
+B -> C: Verify the tblEDI278PostAuthCriteria table \n for eligibility and  Send case \n details (minimum) to EDI
+activate C
+C -> D: Lookup more details and send(278RR) to Cigna
+activate D
+D --> C: Return acknowledgement to EDI
+
+
+D --> C: 278R Data along with Determinations - \n Status: In Clinical Review
+
+alt Final Determination [278R Or 278N]
+    D --> C: Status: Approved
+    D --> C: Status: Denied
+    D --> C: Status: Partial Approval
+    D --> C: Status: Cancelled
+    D --> C: Status: Contact Payor
+    D --> C: Status: No Action Required
+end
+C -> E: Publish data in Cigna \n specific schema to Kafka topic 
+deactivate D
+deactivate C
+activate E
+
+E -> E: Process the Case details(278N/278R) from \n Cigna  and update in ImageOne \n Database
+
+deactivate E
+
+' note right of D
+'     Status Descriptions(Unique to Cigna):
+'     - Cancelled: Cigna cancelled the case because there \n is no follow-up from member or provider.
+'     - In Clinical Review: Cigna has started working on the case for review.
+'     - Contact Payor: Patient/Provider needs to contact back Cigna.
+'     - No Action Required: Case doesn't require any action, it can be expired.
+' end note
+
+@enduml
