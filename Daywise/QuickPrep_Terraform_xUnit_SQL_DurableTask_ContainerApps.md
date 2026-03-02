@@ -419,6 +419,40 @@ Assert.IsAssignableFrom<IEnumerable<OrderDto>>(result);
 └─────────────────────────────────────────────────────────────┘
 ```
 
+### Sample Data Used Throughout This Section
+
+**Customers**
+
+| Id | Name   |
+|----|--------|
+| 1  | Alice  |
+| 2  | Bob    |
+| 3  | Carol  |
+
+**Orders**
+
+| Id | CustomerId | OrderDate  | TotalAmount | Status   |
+|----|-----------|------------|-------------|----------|
+| 1  | 1         | 2025-01-10 | 500.00      | Shipped  |
+| 2  | 1         | 2025-03-15 | 1200.00     | Pending  |
+| 3  | 1         | 2025-06-20 | 300.00      | Shipped  |
+| 4  | 2         | 2025-02-05 | 8500.00     | Shipped  |
+| 5  | 2         | 2025-05-18 | 3200.00     | Pending  |
+| 6  | NULL      | 2025-04-01 | 750.00      | Pending  |
+
+**Employees** *(for recursive CTE)*
+
+| Id | Name    | ManagerId |
+|----|---------|-----------|
+| 1  | CEO     | NULL      |
+| 2  | VP Eng  | 1         |
+| 3  | VP Sales| 1         |
+| 4  | Dev Lead| 2         |
+| 5  | Dev1    | 4         |
+| 6  | Dev2    | 4         |
+
+---
+
 ### Joins — Visual Reference
 ```
 INNER JOIN   → only matching rows on both sides
@@ -427,13 +461,59 @@ RIGHT JOIN   → all right + matching left
 FULL OUTER   → all rows from both, NULL where no match
 CROSS JOIN   → cartesian product (every combo)
 SELF JOIN    → table joined to itself (hierarchy/pairs)
+```
 
--- Example: orders with or without customers
+**INNER JOIN** — customers who have orders:
+```sql
+SELECT o.Id, c.Name, o.TotalAmount
+FROM Orders o
+INNER JOIN Customers c ON o.CustomerId = c.Id;
+```
+
+| Id | Name  | TotalAmount |
+|----|-------|-------------|
+| 1  | Alice | 500.00      |
+| 2  | Alice | 1200.00     |
+| 3  | Alice | 300.00      |
+| 4  | Bob   | 8500.00     |
+| 5  | Bob   | 3200.00     |
+
+> Carol has no orders → excluded. Order 6 has NULL CustomerId → excluded.
+
+**LEFT JOIN + orphan filter** — orders with NO matching customer:
+```sql
 SELECT o.Id, c.Name
 FROM Orders o
 LEFT JOIN Customers c ON o.CustomerId = c.Id
-WHERE c.Id IS NULL;  -- orders with NO customer (orphaned)
+WHERE c.Id IS NULL;
 ```
+
+| Id | Name |
+|----|------|
+| 6  | NULL |
+
+> Order 6 has `CustomerId = NULL` → no customer match → only row returned.
+
+**FULL OUTER JOIN** — all orders and all customers, nulls where no match:
+```sql
+SELECT o.Id AS OrderId, c.Name AS Customer
+FROM Orders o
+FULL OUTER JOIN Customers c ON o.CustomerId = c.Id;
+```
+
+| OrderId | Customer |
+|---------|----------|
+| 1       | Alice    |
+| 2       | Alice    |
+| 3       | Alice    |
+| 4       | Bob      |
+| 5       | Bob      |
+| 6       | NULL     |
+| NULL    | Carol    |
+
+> Carol row appears with NULL OrderId — customer exists but has no orders.
+
+---
 
 ### Indexes
 ```sql
@@ -457,57 +537,141 @@ WHERE Status = 'Pending';           -- only indexes pending rows
 **Q: What is index seek vs scan?**
 > **Seek**: navigates B-tree directly to matching rows — O(log n). **Scan**: reads entire index — O(n). Use seek for high-cardinality lookups. Scans are fine for small tables or when fetching >15-20% of rows.
 
+---
+
 ### Window Functions — Key Pattern
+
 ```sql
--- ROW_NUMBER, RANK, DENSE_RANK
 SELECT
-    OrderId,
+    Id          AS OrderId,
     CustomerId,
     OrderDate,
     TotalAmount,
-    ROW_NUMBER() OVER (PARTITION BY CustomerId ORDER BY OrderDate DESC) AS rn,
+    ROW_NUMBER() OVER (PARTITION BY CustomerId ORDER BY OrderDate DESC)  AS rn,
     RANK()       OVER (PARTITION BY CustomerId ORDER BY TotalAmount DESC) AS rnk,
-    SUM(TotalAmount) OVER (PARTITION BY CustomerId) AS CustomerTotal,
+    SUM(TotalAmount) OVER (PARTITION BY CustomerId)                      AS CustomerTotal,
     LAG(TotalAmount, 1) OVER (PARTITION BY CustomerId ORDER BY OrderDate) AS PrevOrderAmt
-FROM Orders;
-
--- Get latest order per customer (classic pattern)
-WITH RankedOrders AS (
-    SELECT *, ROW_NUMBER() OVER (PARTITION BY CustomerId ORDER BY OrderDate DESC) AS rn
-    FROM Orders
-)
-SELECT * FROM RankedOrders WHERE rn = 1;
+FROM Orders
+WHERE CustomerId IS NOT NULL;
 ```
 
-### CTEs & Recursive CTEs
+**Output:**
+
+| OrderId | CustomerId | OrderDate  | TotalAmount | rn | rnk | CustomerTotal | PrevOrderAmt |
+|---------|-----------|------------|-------------|----|----|---------------|--------------|
+| 3       | 1         | 2025-06-20 | 300.00      | 1  | 3  | 2000.00       | 1200.00      |
+| 2       | 1         | 2025-03-15 | 1200.00     | 2  | 1  | 2000.00       | 500.00       |
+| 1       | 1         | 2025-01-10 | 500.00      | 3  | 2  | 2000.00       | NULL         |
+| 5       | 2         | 2025-05-18 | 3200.00     | 1  | 2  | 11700.00      | 8500.00      |
+| 4       | 2         | 2025-02-05 | 8500.00     | 2  | 1  | 11700.00      | NULL         |
+
+> **Key observations:**
+> - `rn` resets per customer (PARTITION BY CustomerId) — row 1 is most recent order per partition
+> - `rnk` is by TotalAmount DESC — Bob's $8500 order gets rank 1 within his partition
+> - `CustomerTotal` is the same for all rows in the same partition (Alice = 2000, Bob = 11700)
+> - `PrevOrderAmt` for the earliest order per customer is NULL (no prior row in window)
+
+**Get LATEST order per customer** — classic interview pattern:
 ```sql
--- Simple CTE — readability + reuse in one query
+WITH RankedOrders AS (
+    SELECT *,
+           ROW_NUMBER() OVER (PARTITION BY CustomerId ORDER BY OrderDate DESC) AS rn
+    FROM Orders
+    WHERE CustomerId IS NOT NULL
+)
+SELECT OrderId, CustomerId, OrderDate, TotalAmount
+FROM RankedOrders
+WHERE rn = 1;
+```
+
+**Output:**
+
+| OrderId | CustomerId | OrderDate  | TotalAmount |
+|---------|-----------|------------|-------------|
+| 3       | 1         | 2025-06-20 | 300.00      |
+| 5       | 2         | 2025-05-18 | 3200.00     |
+
+> Only 1 row per customer — the most recent by `OrderDate`. Carol excluded (no orders).
+
+**RANK vs DENSE_RANK vs ROW_NUMBER** — when TotalAmount ties:
+
+```sql
+-- Suppose two orders both have TotalAmount = 500
+-- OrderId 1: Alice, 500   OrderId 7: Alice, 500
+SELECT OrderId, TotalAmount,
+    ROW_NUMBER() OVER (PARTITION BY CustomerId ORDER BY TotalAmount) AS row_num,
+    RANK()       OVER (PARTITION BY CustomerId ORDER BY TotalAmount) AS rnk,
+    DENSE_RANK() OVER (PARTITION BY CustomerId ORDER BY TotalAmount) AS dense_rnk
+FROM Orders WHERE CustomerId = 1;
+```
+
+| OrderId | TotalAmount | row_num | rnk | dense_rnk |
+|---------|-------------|---------|-----|-----------|
+| 1       | 500.00      | 1       | 1   | 1         |
+| 7       | 500.00      | 2       | 1   | 1         |
+| 2       | 1200.00     | 3       | 3   | 2         |
+
+> `ROW_NUMBER`: always unique (arbitrary tiebreak). `RANK`: ties share rank, skips next (1,1,3). `DENSE_RANK`: ties share rank, no skip (1,1,2).
+
+---
+
+### CTEs & Recursive CTEs
+
+**Simple CTE** — high-value customers (total orders > $5,000):
+```sql
 WITH HighValueOrders AS (
     SELECT CustomerId, SUM(TotalAmount) AS Total
     FROM Orders
     GROUP BY CustomerId
-    HAVING SUM(TotalAmount) > 10000
+    HAVING SUM(TotalAmount) > 5000
 )
 SELECT c.Name, h.Total
 FROM Customers c
 JOIN HighValueOrders h ON c.Id = h.CustomerId;
+```
 
--- Recursive CTE — hierarchy (org chart, bill of materials)
+**Output:**
+
+| Name | Total    |
+|------|----------|
+| Bob  | 11700.00 |
+
+> Alice's total = 2000 (below threshold). Bob = 11700 → qualifies. Carol has no orders → excluded.
+
+**Recursive CTE** — org chart hierarchy:
+```sql
 WITH OrgChart AS (
-    -- Anchor: root employees
+    -- Anchor: root (no manager)
     SELECT Id, Name, ManagerId, 0 AS Level
     FROM Employees
     WHERE ManagerId IS NULL
 
     UNION ALL
 
-    -- Recursive: employees reporting to already-found employees
+    -- Recursive: each employee reporting to already-found employees
     SELECT e.Id, e.Name, e.ManagerId, oc.Level + 1
     FROM Employees e
     JOIN OrgChart oc ON e.ManagerId = oc.Id
 )
-SELECT * FROM OrgChart ORDER BY Level, Name;
+SELECT Id, Name, ManagerId, Level
+FROM OrgChart
+ORDER BY Level, Name;
 ```
+
+**Output:**
+
+| Id | Name     | ManagerId | Level |
+|----|----------|-----------|-------|
+| 1  | CEO      | NULL      | 0     |
+| 2  | VP Eng   | 1         | 1     |
+| 3  | VP Sales | 1         | 1     |
+| 4  | Dev Lead | 2         | 2     |
+| 5  | Dev1     | 4         | 3     |
+| 6  | Dev2     | 4         | 3     |
+
+> Anchor fires once (CEO). Recursion fires 3 more times expanding level by level until no new rows match.
+
+---
 
 ### Transactions & Isolation Levels
 ```sql
@@ -527,13 +691,49 @@ SET TRANSACTION ISOLATION LEVEL READ COMMITTED;   -- default SQL Server
 SET TRANSACTION ISOLATION LEVEL SNAPSHOT;          -- optimistic, avoids locks
 ```
 
+**Before transaction:**
+
+| Id | Balance  |
+|----|---------|
+| 1  | 1000.00 |
+| 2  | 500.00  |
+
+**After COMMIT:**
+
+| Id | Balance  |
+|----|---------|
+| 1  | 900.00  |
+| 2  | 600.00  |
+
+**After ROLLBACK** (if UPDATE 2 fails):
+
+| Id | Balance  |
+|----|---------|
+| 1  | 1000.00 |
+| 2  | 500.00  |
+
+> Atomicity: both updates succeed or neither persists.
+
 **Q: ACID properties?**
 > **A**tomicity: all or nothing. **C**onsistency: DB moves from valid state to valid state. **I**solation: concurrent txns don't see each other's partial work. **D**urability: committed data survives crash.
 
 **Q: Dirty read / Phantom read?**
 > Dirty read: reading uncommitted data (READ UNCOMMITTED). Non-repeatable read: same row read twice gives different values. Phantom read: same range query gives different row count. SNAPSHOT isolation prevents these without heavy locking.
 
+**Isolation Level Comparison:**
+
+| Level            | Dirty Read | Non-Repeatable | Phantom | Notes                        |
+|------------------|-----------|----------------|---------|------------------------------|
+| READ UNCOMMITTED | ✅ possible | ✅ possible   | ✅ possible | Fastest, no locks          |
+| READ COMMITTED   | ❌ blocked  | ✅ possible   | ✅ possible | SQL Server default          |
+| REPEATABLE READ  | ❌          | ❌ blocked    | ✅ possible | Locks rows read             |
+| SERIALIZABLE     | ❌          | ❌            | ❌ blocked  | Locks ranges, slowest       |
+| SNAPSHOT         | ❌          | ❌            | ❌ blocked  | Optimistic, row versioning  |
+
+---
+
 ### Stored Procedures vs Inline SQL
+
 ```sql
 CREATE OR ALTER PROCEDURE usp_GetCustomerOrders
     @CustomerId INT,
@@ -549,8 +749,19 @@ BEGIN
     ORDER BY o.OrderDate DESC;
 END;
 
--- EXEC usp_GetCustomerOrders @CustomerId = 42, @FromDate = '2025-01-01';
+-- EXEC usp_GetCustomerOrders @CustomerId = 1, @FromDate = '2025-02-01';
 ```
+
+**Output** (`@CustomerId = 1, @FromDate = '2025-02-01'`):
+
+| Id | OrderDate  | TotalAmount |
+|----|------------|-------------|
+| 3  | 2025-06-20 | 300.00      |
+| 2  | 2025-03-15 | 1200.00     |
+
+> Order 1 (2025-01-10) excluded because it's before `@FromDate = 2025-02-01`.
+
+---
 
 ### Normalization Quick Reference
 ```
@@ -560,8 +771,19 @@ END;
 BCNF: stricter 3NF
 ```
 
+**Denormalization example — pre-computed aggregate:**
+
+| OrderId | CustomerId | CustomerName | TotalAmount | CustomerTotal |
+|---------|-----------|-------------|-------------|---------------|
+| 1       | 1         | Alice       | 500.00      | 2000.00       |
+| 2       | 1         | Alice       | 1200.00     | 2000.00       |
+
+> `CustomerTotal` violates 3NF (transitive: depends on CustomerId, not PK=OrderId). Acceptable in read-heavy reporting tables.
+
 **Q: When do you DENORMALIZE?**
 > Read-heavy reporting, analytics, data warehouses (star schema). When JOIN cost > storage cost. Pre-computed aggregates (totals, counts on wide tables).
+
+---
 
 ### Performance Q&A
 
@@ -572,11 +794,67 @@ BCNF: stricter 3NF
 > 4. Parameter sniffing (`OPTION (RECOMPILE)` or `OPTIMIZE FOR`)
 > 5. Statistics out of date (`UPDATE STATISTICS`)
 
+**`SET STATISTICS IO ON` sample output:**
+```
+Table 'Orders'. Scan count 1, logical reads 847, physical reads 0
+-- 847 logical reads = 847 x 8KB pages read from buffer cache
+-- High number → missing index or full scan → investigate execution plan
+```
+
 **Q: What is a covering index?**
 > Index that satisfies the query without touching the base table. Include all columns needed by SELECT + WHERE in the index (using `INCLUDE`).
 
+**Covering index example:**
+```sql
+-- Query: find pending orders for a customer, show date and amount
+SELECT OrderDate, TotalAmount
+FROM Orders
+WHERE CustomerId = 2 AND Status = 'Pending';
+
+-- WITHOUT covering index: index seek on CustomerId → key lookup for OrderDate, TotalAmount
+-- WITH covering index: single seek, no table touch
+CREATE NONCLUSTERED INDEX IX_Orders_Cust_Status
+ON Orders (CustomerId, Status)
+INCLUDE (OrderDate, TotalAmount);   -- all SELECT columns included
+```
+
+**Execution plan difference:**
+
+| Without Covering Index | With Covering Index |
+|----------------------|---------------------|
+| Index Seek (50%) + Key Lookup (50%) | Index Seek (100%) |
+| 2 operators, 2 I/Os | 1 operator, 1 I/O |
+
 **Q: UNION vs UNION ALL?**
-> `UNION` deduplicates (sorts both sets to find dupes) — expensive. `UNION ALL` keeps all rows — always prefer unless deduplication is required.
+```sql
+-- UNION deduplicates
+SELECT CustomerId FROM Orders WHERE TotalAmount > 1000
+UNION
+SELECT CustomerId FROM Orders WHERE Status = 'Pending';
+```
+
+| CustomerId |
+|-----------|
+| 1         |
+| 2         |
+
+> Bob (CustomerId=2) appears in both sets but is returned once. Sort + dedup cost applied.
+
+```sql
+-- UNION ALL keeps all rows including duplicates
+SELECT CustomerId FROM Orders WHERE TotalAmount > 1000
+UNION ALL
+SELECT CustomerId FROM Orders WHERE Status = 'Pending';
+```
+
+| CustomerId |
+|-----------|
+| 1         |
+| 2         |
+| 1         |
+| 2         |
+
+> Bob appears twice. No sort/dedup — always prefer `UNION ALL` unless deduplication is explicitly required.
 
 ---
 
@@ -886,36 +1164,787 @@ az containerapp update \
   --set-env-vars "ConnectionStrings__Default=secretref:db-conn"
 ```
 
-### Dapr Integration
+### Dapr Integration — Beginner to Expert
+
+---
+
+#### LEVEL 1 — BEGINNER: What Problem Does Dapr Solve?
+
 ```
-┌──────────────────────────────────────────────────────────────┐
-│  Dapr sidecar = co-located proxy for service-to-service      │
-│  abstracts: pub/sub, state store, secrets, service invocation│
-│                                                              │
-│  App Container │ Dapr Sidecar                                │
-│  :8080         │ :3500 (Dapr HTTP API)                       │
-│  calls         │ routes to right backend                     │
-│  localhost:3500│                                             │
-└──────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│  MENTAL MODEL: Dapr = Universal Adapter for Microservices        │
+│                                                                  │
+│  WITHOUT Dapr: each service hardcodes broker SDK, Redis SDK,     │
+│  retry logic, mTLS certs, secrets client, tracing setup...       │
+│                                                                  │
+│  WITH Dapr: your app calls localhost:3500 (always the same API)  │
+│  Dapr sidecar handles the actual broker/Redis/Vault behind it    │
+│                                                                  │
+│  App says: "publish this event"                                  │
+│  Dapr says: "ok — today it's Service Bus, tomorrow it's Kafka,  │
+│              you don't need to change a single line of code"     │
+└──────────────────────────────────────────────────────────────────┘
 ```
+
+**The Sidecar Pattern:**
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                     Pod / Container Group                        │
+│  ┌──────────────────┐        ┌─────────────────────────────┐    │
+│  │   Your App       │        │      Dapr Sidecar            │    │
+│  │   :8080          │◄──────►│      :3500  (HTTP API)       │    │
+│  │                  │        │      :50001 (gRPC API)        │    │
+│  │  calls           │        │                             │    │
+│  │  localhost:3500  │        │  ┌────────────────────────┐ │    │
+│  └──────────────────┘        │  │  Building Blocks        │ │    │
+│                               │  │  - Service Invocation  │ │    │
+│                               │  │  - State Management    │ │    │
+│                               │  │  - Pub/Sub             │ │    │
+│                               │  │  - Bindings            │ │    │
+│                               │  │  - Secrets             │ │    │
+│                               │  │  - Actors              │ │    │
+│                               │  │  - Workflows           │ │    │
+│                               │  └────────────────────────┘ │    │
+│                               └─────────────────────────────┘    │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+**The 8 Dapr Building Blocks:**
+
+| Building Block | What It Does | Backend Examples |
+|---|---|---|
+| Service Invocation | Service-to-service HTTP/gRPC with retries + mTLS | Any HTTP service |
+| State Management | Key/value store with transactions & ETags | Redis, CosmosDB, SQL |
+| Pub/Sub | Async message broker abstraction | Service Bus, Kafka, Redis |
+| Bindings (Input) | Trigger app from external system | Cron, Queue, Blob, HTTP |
+| Bindings (Output) | Call external system from app | Blob, SMTP, Twilio |
+| Secrets | Read secrets from vault | Key Vault, env vars, K8s secrets |
+| Configuration | Dynamic config with change notifications | App Config, Redis |
+| Actors | Stateful virtual actors with timers/reminders | Built-in (uses state store) |
+
+**Local Development Setup:**
 ```bash
-# Enable Dapr on a container app
-az containerapp dapr enable \
+# Install Dapr CLI
+winget install Dapr.CLI         # Windows
+brew install dapr/tap/dapr      # Mac
+
+# Initialize Dapr locally (starts Redis + Zipkin in Docker)
+dapr init
+
+# Run your app WITH the Dapr sidecar
+dapr run \
+  --app-id orders-api \         # unique name for this service
+  --app-port 5000 \             # your app's HTTP port
+  --dapr-http-port 3500 \       # Dapr's API port (default 3500)
+  -- dotnet run                 # your actual start command
+
+# Check running apps
+dapr list
+```
+
+---
+
+#### LEVEL 2 — INTERMEDIATE: Building Blocks Deep Dive
+
+---
+
+##### Building Block 1: Service Invocation
+
+```
+orders-api                    Dapr Sidecar              inventory-api
+    │                              │                          │
+    │  POST localhost:3500/        │                          │
+    │  v1.0/invoke/                │                          │
+    │  inventory-api/method/       │  discovers service       │
+    │  api/inventory/check  ──────►│  via name resolution ───►│
+    │                              │  adds retries + mTLS     │
+    │◄─────────────────────────────│◄─────────────────────────│
+```
+
+```csharp
+// === C# SDK (Dapr.Client NuGet) ===
+
+// Setup
+builder.Services.AddDaprClient();
+
+// Injection
+public class OrderService(DaprClient dapr) { }
+
+// GET request to another service
+var inventory = await daprClient.InvokeMethodAsync<InventoryResult>(
+    HttpMethod.Get,
+    "inventory-api",           // target Dapr app-id (NOT a URL)
+    "api/inventory/check",     // target endpoint path
+    new CancellationTokenSource(TimeSpan.FromSeconds(10)).Token);
+
+// POST with body
+var result = await daprClient.InvokeMethodAsync<CreateOrderRequest, OrderResult>(
+    HttpMethod.Post,
+    "orders-api",
+    "api/orders",
+    new CreateOrderRequest { ItemId = 42, Qty = 1 });
+```
+
+```yaml
+# resiliency.yaml — sidecar-level retry/circuit breaker (no app code needed)
+apiVersion: dapr.io/v1alpha1
+kind: Resiliency
+metadata:
+  name: myresiliency
+spec:
+  policies:
+    retries:
+      retryForever:
+        policy: exponential
+        maxInterval: 15s
+        maxRetries: -1          # infinite retries
+    circuitBreakers:
+      simpleCB:
+        maxRequests: 1
+        interval: 10s
+        timeout: 30s
+        trip: consecutiveFailures >= 3   # open after 3 consecutive failures
+
+  targets:
+    apps:
+      inventory-api:             # apply to calls targeting this app
+        retry: retryForever
+        circuitBreaker: simpleCB
+```
+
+> **Key Insight:** Dapr service invocation adds automatic mTLS between sidecars — services communicate encrypted WITHOUT you writing any TLS code.
+
+---
+
+##### Building Block 2: State Management
+
+```
+Your App ──► Dapr Sidecar ──► State Store Component
+              (key/value API)   (Redis / CosmosDB / SQL / etc.)
+```
+
+```csharp
+// Save state
+await daprClient.SaveStateAsync(
+    storeName: "statestore",       // component name (matches YAML)
+    key:       "order-42",         // your key
+    value:     new Order { Id = 42, Status = "Pending" });
+
+// Get state
+var order = await daprClient.GetStateAsync<Order>("statestore", "order-42");
+
+// Delete state
+await daprClient.DeleteStateAsync("statestore", "order-42");
+
+// Optimistic concurrency with ETags — prevents lost updates
+var (order, etag) = await daprClient.GetStateAndETagAsync<Order>("statestore", "order-42");
+order.Status = "Shipped";
+
+var success = await daprClient.TrySaveStateAsync(
+    "statestore", "order-42", order,
+    etag,                          // if etag changed, save returns false
+    new StateOptions { Consistency = ConsistencyMode.Strong });
+
+if (!success) throw new ConcurrencyException("Order was modified, retry");
+```
+
+```yaml
+# statestore.yaml — component definition (swap backend without code change)
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore              # this name is used in your code
+spec:
+  type: state.redis             # swap to state.azure.cosmosdb for prod
+  version: v1
+  metadata:
+  - name: redisHost
+    value: "localhost:6379"
+  - name: actorStateStore       # mark as actor state store too
+    value: "true"
+```
+
+**State Transactions — atomic multi-key operations:**
+```csharp
+var ops = new List<StateTransactionRequest>
+{
+    new("cart-user1",  JsonSerializer.SerializeToUtf8Bytes(cart),    StateOperationType.Upsert),
+    new("balance-user1", JsonSerializer.SerializeToUtf8Bytes(balance), StateOperationType.Upsert),
+    new("reservation-42", null,                                        StateOperationType.Delete),
+};
+await daprClient.ExecuteStateTransactionAsync("statestore", ops);
+// All three ops succeed or all fail — atomically
+```
+
+---
+
+##### Building Block 3: Pub/Sub
+
+```
+Publisher                Dapr Sidecar        Broker            Consumer Sidecar    Consumer App
+    │                        │                 │                     │                  │
+    │ PublishEventAsync ─────►│                 │                     │                  │
+    │                        │─── publish ─────►│                     │                  │
+    │                        │                 │────── deliver ───────►│                  │
+    │                        │                 │                     │──POST /orders ───►│
+    │                        │                 │                     │                  │ process
+    │                        │                 │◄─────────── 200 ────│◄── return 200 ──│
+```
+
+```csharp
+// Publisher — doesn't know what broker or who's listening
+await daprClient.PublishEventAsync(
+    pubsubName: "pubsub",         // component name
+    topicName:  "orders",         // topic
+    data:       new OrderCreatedEvent { OrderId = 42, Total = 99.99m },
+    cancellationToken: ct);
+
+// With CloudEvents metadata
+await daprClient.PublishEventAsync("pubsub", "orders",
+    new OrderCreatedEvent { OrderId = 42 },
+    new Dictionary<string, string>
+    {
+        { "ttlInSeconds", "3600" },   // message TTL
+        { "rawPayload", "true" }
+    });
+```
+
+```csharp
+// Consumer — ASP.NET Core subscription (Dapr POSTs to this endpoint)
+// Program.cs:
+app.MapSubscribeHandler();   // exposes GET /dapr/subscribe endpoint Dapr queries
+
+// Controller:
+[ApiController]
+public class OrdersSubscriberController : ControllerBase
+{
+    [Topic("pubsub", "orders")]        // Dapr attribute — subscribes to topic
+    [HttpPost("orders")]
+    public async Task<IActionResult> HandleOrder(OrderCreatedEvent evt)
+    {
+        // Dapr delivers via POST with CloudEvents envelope
+        await _orderProcessor.ProcessAsync(evt);
+
+        // Return 200/204 = ACK (message deleted from broker)
+        // Return 404/500  = NACK (message redelivered by Dapr)
+        // Return 200 + { "status": "DROP" } = discard without retry
+        return Ok();
+    }
+}
+```
+
+```yaml
+# pubsub.yaml — broker component (swap broker, zero code change)
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: pubsub
+spec:
+  type: pubsub.azure.servicebus.topics   # or pubsub.kafka, pubsub.redis
+  version: v1
+  metadata:
+  - name: connectionString
+    secretKeyRef:                        # reference to secret, not hardcoded
+      name: servicebus-secret
+      key: connectionString
+  - name: maxConcurrentHandlers
+    value: "10"
+  - name: prefetchCount
+    value: "20"
+```
+
+**Subscription filtering — only receive relevant events:**
+```yaml
+# subscription.yaml — declarative subscription with filter
+apiVersion: dapr.io/v2alpha1
+kind: Subscription
+metadata:
+  name: orders-subscription
+spec:
+  pubsubname: pubsub
+  topic: orders
+  routes:
+    rules:
+      - match: 'event.type == "order.created"'
+        path: /orders/created
+      - match: 'event.type == "order.shipped"'
+        path: /orders/shipped
+    default: /orders/unknown
+  scopes:
+    - orders-processor           # only this app-id receives it
+```
+
+---
+
+##### Building Block 4: Input/Output Bindings
+
+```
+INPUT BINDING: External system ──► Dapr ──► POST your endpoint
+OUTPUT BINDING: Your app ──► Dapr ──► External system (no SDK needed)
+```
+
+```yaml
+# cron-binding.yaml — trigger your app on a schedule (no cron job infra needed)
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: scheduled-cleanup
+spec:
+  type: bindings.cron
+  version: v1
+  metadata:
+  - name: schedule
+    value: "@every 1h"    # or "0 2 * * *" standard cron
+
+# blob-binding.yaml — trigger on new file in Azure Blob Storage
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: new-reports
+spec:
+  type: bindings.azure.blobstorage
+  version: v1
+  metadata:
+  - name: storageAccount
+    value: "mystorageaccount"
+  - name: container
+    value: "reports"
+```
+
+```csharp
+// Input binding — Dapr POSTs to this endpoint when cron fires or blob arrives
+[ApiController]
+public class BindingController : ControllerBase
+{
+    [HttpPost("scheduled-cleanup")]     // name must match component metadata.name
+    public async Task<IActionResult> RunScheduledCleanup()
+    {
+        await _cleanupService.RunAsync();
+        return Ok();
+    }
+
+    [HttpPost("new-reports")]
+    public async Task<IActionResult> ProcessNewReport([FromBody] BlobBindingPayload payload)
+    {
+        // payload.Data = base64 of blob content
+        // payload.Metadata["blobName"] = filename
+        await _reportProcessor.ProcessAsync(payload);
+        return Ok();
+    }
+}
+
+// Output binding — call external system without its SDK
+await daprClient.InvokeBindingAsync(
+    bindingName: "send-email",         // component name
+    operation:   "create",             // operation supported by binding
+    data:        new { to = "user@example.com", subject = "Order Confirmed" });
+```
+
+---
+
+##### Building Block 5: Secrets
+
+```csharp
+// Read secret from Key Vault / K8s secrets / env vars — same API
+var secrets = await daprClient.GetSecretAsync(
+    storeName:  "secretstore",         // component pointing to Key Vault
+    key:        "db-connection-string");
+var connStr = secrets["db-connection-string"];
+
+// Multi-value secret (Key Vault secret with JSON value)
+var allSecrets = await daprClient.GetBulkSecretAsync("secretstore");
+```
+
+```yaml
+# secretstore.yaml — points to Azure Key Vault
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: secretstore
+spec:
+  type: secretstores.azure.keyvault
+  version: v1
+  metadata:
+  - name: vaultName
+    value: "kv-myapp-prod"
+  - name: azureClientId               # Managed Identity client ID
+    value: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+# NOTE: With Managed Identity, no credentials in YAML — Dapr uses pod identity
+```
+
+---
+
+#### LEVEL 3 — ADVANCED: Actors, Workflows, and Production Patterns
+
+---
+
+##### Building Block 6: Dapr Actors (Virtual Actor Pattern)
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  MENTAL MODEL: Actor = a tiny stateful object with a mailbox     │
+│  - Has unique ID (e.g., "cart-user-42")                          │
+│  - Only one method runs at a time (no concurrency within actor)  │
+│  - State automatically persisted to state store                  │
+│  - Garbage collected when idle, rehydrated on next call          │
+│  - Timers: fire-and-forget schedule (reset on deactivation)      │
+│  - Reminders: durable schedule (survive restarts)               │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+```csharp
+// 1. Define actor interface
+public interface IShoppingCartActor : IActor
+{
+    Task AddItemAsync(CartItem item);
+    Task RemoveItemAsync(string itemId);
+    Task<CartSummary> GetSummaryAsync();
+    Task CheckoutAsync();
+}
+
+// 2. Implement actor
+[Actor(TypeName = "ShoppingCartActor")]
+public class ShoppingCartActor : Actor, IShoppingCartActor
+{
+    private const string StateKey = "cart-items";
+
+    public ShoppingCartActor(ActorHost host) : base(host) { }
+
+    protected override async Task OnActivateAsync()
+    {
+        // Called when actor is first created or rehydrated
+        var exists = await StateManager.ContainsStateAsync(StateKey);
+        if (!exists) await StateManager.SetStateAsync(StateKey, new List<CartItem>());
+    }
+
+    public async Task AddItemAsync(CartItem item)
+    {
+        var items = await StateManager.GetStateAsync<List<CartItem>>(StateKey);
+        items.Add(item);
+        await StateManager.SetStateAsync(StateKey, items);
+        // State automatically saved to state store — survives restarts
+    }
+
+    public async Task<CartSummary> GetSummaryAsync()
+    {
+        var items = await StateManager.GetStateAsync<List<CartItem>>(StateKey);
+        return new CartSummary { Items = items, Total = items.Sum(i => i.Price * i.Qty) };
+    }
+
+    // Reminder — durable, survives actor deactivation
+    public async Task RegisterAbandonedCartReminderAsync()
+    {
+        await RegisterReminderAsync(
+            "abandoned-cart-check",
+            null,
+            dueTime: TimeSpan.FromHours(1),    // first fire in 1hr
+            period: TimeSpan.FromHours(24));    // then every 24hrs
+    }
+
+    public async Task ReceiveReminderAsync(string name, byte[] state,
+        TimeSpan dueTime, TimeSpan period)
+    {
+        if (name == "abandoned-cart-check")
+        {
+            var summary = await GetSummaryAsync();
+            if (summary.Items.Any())
+                await _emailService.SendAbandonedCartEmailAsync(Id.GetId());
+        }
+    }
+}
+
+// 3. Register actor
+builder.Services.AddActors(options =>
+{
+    options.Actors.RegisterActor<ShoppingCartActor>();
+    options.ActorIdleTimeout          = TimeSpan.FromMinutes(60);  // deactivate after 60min idle
+    options.DrainOngoingCallTimeout   = TimeSpan.FromSeconds(30);  // graceful shutdown drain
+    options.RemindersStoragePartitions = 7;                         // partition reminders for scale
+});
+app.MapActorsHandlers();   // exposes /dapr/config and actor endpoints
+
+// 4. Call actor from another service
+var proxy = ActorProxy.Create<IShoppingCartActor>(
+    new ActorId("user-42"),      // unique ID for this actor instance
+    "ShoppingCartActor");        // actor type name
+await proxy.AddItemAsync(new CartItem { ItemId = "sku-99", Price = 29.99m, Qty = 2 });
+var summary = await proxy.GetSummaryAsync();
+```
+
+> **When to use Actors vs Orchestration:**
+> - **Actor**: long-lived entity with own state and behavior (cart, session, device twin)
+> - **Orchestration**: workflow with steps and compensation (order process, approval flow)
+
+---
+
+##### Building Block 7: Dapr Workflows (Dapr v1.10+)
+
+```
+MENTAL MODEL: Dapr Workflow ≈ Azure Durable Functions for any platform
+Orchestrator + Activities — deterministic replay, durable state
+```
+
+```csharp
+// 1. Define workflow
+public class OrderProcessingWorkflow : Workflow<OrderRequest, OrderResult>
+{
+    public override async Task<OrderResult> RunAsync(
+        WorkflowContext context, OrderRequest input)
+    {
+        // Deterministic: use context.CurrentUtcDateTime, not DateTime.UtcNow
+        var orderId = context.InstanceId;
+
+        // Call activities (can retry, run in parallel)
+        var inventoryOk = await context.CallActivityAsync<bool>(
+            nameof(CheckInventoryActivity), input.ItemId);
+
+        if (!inventoryOk)
+            return new OrderResult { Status = "OutOfStock" };
+
+        // Parallel fan-out
+        var paymentTask  = context.CallActivityAsync<string>(nameof(ProcessPaymentActivity), input.Payment);
+        var reserveTask  = context.CallActivityAsync<bool>(nameof(ReserveInventoryActivity), input.ItemId);
+        await Task.WhenAll(paymentTask, reserveTask);
+
+        // Wait for external event (human approval, webhook, etc.)
+        var approved = await context.WaitForExternalEventAsync<bool>(
+            "manager-approval",
+            TimeSpan.FromHours(48));   // timeout if no response in 48hrs
+
+        if (!approved)
+        {
+            // Compensate: refund and release
+            await context.CallActivityAsync(nameof(RefundPaymentActivity), await paymentTask);
+            await context.CallActivityAsync(nameof(ReleaseInventoryActivity), input.ItemId);
+            return new OrderResult { Status = "Rejected" };
+        }
+
+        await context.CallActivityAsync(nameof(ShipOrderActivity), orderId);
+        return new OrderResult { Status = "Shipped", OrderId = orderId };
+    }
+}
+
+// 2. Define activities
+public class CheckInventoryActivity : WorkflowActivity<string, bool>
+{
+    private readonly IInventoryService _inventory;
+    public CheckInventoryActivity(IInventoryService inventory) => _inventory = inventory;
+
+    public override async Task<bool> RunAsync(WorkflowActivityContext context, string itemId)
+        => await _inventory.IsAvailableAsync(itemId);
+}
+
+// 3. Register
+builder.Services.AddDaprWorkflow(options =>
+{
+    options.RegisterWorkflow<OrderProcessingWorkflow>();
+    options.RegisterActivity<CheckInventoryActivity>();
+    options.RegisterActivity<ProcessPaymentActivity>();
+    options.RegisterActivity<ShipOrderActivity>();
+    options.RegisterActivity<RefundPaymentActivity>();
+});
+
+// 4. Start workflow
+var workflowClient = app.Services.GetRequiredService<DaprWorkflowClient>();
+var instanceId = await workflowClient.ScheduleNewWorkflowAsync(
+    nameof(OrderProcessingWorkflow),
+    instanceId: $"order-{Guid.NewGuid()}",   // unique per workflow run
+    input: new OrderRequest { ItemId = "sku-99", Payment = paymentInfo });
+
+// 5. Raise external event (from webhook or approval endpoint)
+await workflowClient.RaiseEventAsync(instanceId, "manager-approval", true);
+
+// 6. Query status
+var metadata = await workflowClient.GetWorkflowMetadataAsync(instanceId);
+Console.WriteLine(metadata.RuntimeStatus);  // Running, Completed, Failed
+```
+
+---
+
+##### Production: Dapr on Azure Container Apps
+
+```bash
+# ACA automatically manages Dapr sidecar injection
+az containerapp create \
   --name ca-orders-api \
   --resource-group rg-myapp \
-  --dapr-app-id orders-api \
+  --environment cae-myapp-prod \
+  --image myacr.azurecr.io/orders-api:v1 \
+  --dapr-enabled true \
+  --dapr-app-id "orders-api" \
   --dapr-app-port 8080 \
-  --dapr-app-protocol http
-```
-```csharp
-// Service-to-service call via Dapr (app doesn't need to know other app's URL)
-var result = await daprClient.InvokeMethodAsync<Order>(
-    HttpMethod.Get,
-    "inventory-api",       // Dapr app-id of target
-    "api/inventory/check");
+  --dapr-app-protocol http \
+  --target-port 8080
 
-// Publish to pub/sub (decoupled from broker implementation)
-await daprClient.PublishEventAsync("pubsub", "orders", orderEvent);
+# Register a Dapr component (shared across all apps in environment)
+az containerapp env dapr-component set \
+  --name cae-myapp-prod \
+  --resource-group rg-myapp \
+  --dapr-component-name pubsub \
+  --yaml pubsub.yaml
+```
+
+**Component YAML with scopes (restrict which apps use it):**
+```yaml
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: pubsub
+spec:
+  type: pubsub.azure.servicebus.topics
+  version: v1
+  metadata:
+  - name: connectionString
+    secretKeyRef:
+      name: servicebus-conn
+      key: connectionString
+  - name: maxActiveMessages
+    value: "100"
+scopes:                         # ONLY these app-ids can use this component
+  - orders-api
+  - inventory-api
+  - notification-service
+```
+
+---
+
+##### Production: Observability — Distributed Tracing with Dapr
+
+```
+Every Dapr service invocation + pub/sub delivery automatically creates spans.
+Zero code change needed — tracing is built into the sidecar.
+```
+
+```yaml
+# tracing config (applied at environment level in ACA)
+apiVersion: dapr.io/v1alpha1
+kind: Configuration
+metadata:
+  name: daprConfig
+spec:
+  tracing:
+    samplingRate: "1"            # 1 = 100% sampling (use 0.1 in prod = 10%)
+    zipkin:
+      endpointAddress: "http://zipkin:9411/api/v2/spans"
+    otel:
+      endpointAddress: "http://otel-collector:4317"
+      isSecure: false
+      protocol: grpc
+```
+
+```
+Trace view in Zipkin / App Insights:
+orders-api ──────────────────────────────────── 245ms total
+  └── dapr invoke: inventory-api/check ──────── 82ms
+  └── dapr publish: orders topic ─────────────── 15ms
+      └── inventory-api subscribe: /orders ───── 120ms (async)
+```
+
+---
+
+##### Production: Security — mTLS Between Services
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  Dapr security without any cert management code                  │
+│                                                                  │
+│  Dapr Control Plane (Sentry) issues certificates automatically   │
+│  Every sidecar gets a SPIFFE-standard identity certificate        │
+│  All sidecar-to-sidecar traffic is mTLS encrypted by default     │
+│                                                                  │
+│  orders-api sidecar ──(mTLS, cert verified)──► inventory sidecar │
+│  Your app code: zero SSL/TLS code                                │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+```yaml
+# Access control — restrict what services can call each other
+apiVersion: dapr.io/v1alpha1
+kind: Configuration
+metadata:
+  name: inventory-api-config
+spec:
+  accessControl:
+    defaultAction: deny          # deny-by-default (secure baseline)
+    trustDomain: "production"
+    policies:
+    - appId: orders-api          # only orders-api can call inventory-api
+      defaultAction: allow
+      namespace: "default"
+      operations:
+      - name: /api/inventory/**
+        httpVerb: ['GET']
+        action: allow
+    - appId: admin-service
+      defaultAction: allow
+      operations:
+      - name: /api/inventory/**
+        httpVerb: ['GET', 'POST', 'DELETE']
+        action: allow
+```
+
+---
+
+##### Dapr Component Comparison — When to Use What
+
+| Scenario | Use This Building Block | Example Component |
+|---|---|---|
+| Service calls another service synchronously | Service Invocation | (built-in, no YAML needed) |
+| Temporary cache / session data | State Management | state.redis |
+| Durable entity state (cart, profile) | Actors + State | state.azure.cosmosdb |
+| Async fire-and-forget events | Pub/Sub | pubsub.azure.servicebus |
+| Schedule recurring work | Input Binding (cron) | bindings.cron |
+| React to new files/queue messages | Input Binding | bindings.azure.storagequeues |
+| Call external API/SMTP/SMS | Output Binding | bindings.smtp, bindings.twilio |
+| Multi-step workflow with compensation | Workflows | (built-in, uses state store) |
+
+---
+
+##### Dapr Interview Q&A — Lead Level
+
+**Q: What is the Dapr sidecar and why is it separate from the app?**
+> Separation of concerns: the app focuses on business logic; the sidecar handles infrastructure cross-cutting (retries, mTLS, tracing, secret reading, broker protocol). Upgrading Dapr = redeploy sidecar only, not the app. Multiple languages can use the same Dapr API (HTTP/gRPC on localhost:3500).
+
+**Q: How does Dapr pub/sub guarantee at-least-once delivery?**
+> The broker (Service Bus, Kafka) holds the message. Dapr sidecar delivers to your app via POST. If your app returns 2xx, Dapr ACKs to broker (message deleted). If 4xx/5xx, broker retries. Your app must be idempotent — use the `ce-id` CloudEvents header as idempotency key.
+
+**Q: What happens to an Actor during a rolling deployment?**
+> Dapr drains actors gracefully: `DrainOngoingCallTimeout` lets running methods finish before the pod is terminated. Reminders fire from the new pod because they're stored in the state store (durable). State is reloaded from the state store on reactivation.
+
+**Q: How is Dapr Workflow different from Durable Functions?**
+> Same programming model (orchestrator + activities, deterministic replay, external events). Dapr Workflow runs on any platform (K8s, ACA, self-hosted) — not Azure-only. Uses Dapr's state store for history (any backend). Durable Functions is Azure-only but has deeper Azure integration. Choose Dapr Workflow when you need cloud-agnostic orchestration.
+
+**Q: How do you swap a state store from Redis (dev) to CosmosDB (prod) without code change?**
+> Change only the component YAML file — `type: state.redis` → `type: state.azure.cosmosdb`, update metadata (endpoint, key). Your app code calls `daprClient.SaveStateAsync("statestore", ...)` — the name `statestore` stays the same. Zero code change.
+
+**Q: How do you test Dapr applications locally without a real broker or Redis?**
+> 1. `dapr init` starts local Redis + Zipkin via Docker. 2. Use `dapr run` to start app + sidecar. 3. For unit tests: mock `DaprClient` with `Moq` — it's an interface. 4. For integration tests: use `dapr run` with in-memory components (`type: state.in-memory`, `type: pubsub.in-memory`).
+
+**Q: What is the difference between a Dapr Timer and a Dapr Reminder?**
+> **Timer**: fires on schedule but does NOT persist across actor deactivation. If actor is garbage-collected, timer is lost. Use for: short-lived periodic checks while actor is active. **Reminder**: durable, stored in state store, survives actor deactivation and process restarts. Use for: critical scheduled operations (abandoned cart, subscription renewal).
+
+**Q: How do you handle poison messages in Dapr pub/sub?**
+> 1. Configure max delivery count on the broker component (e.g., `maxDeliveryCount: 5`). 2. After max retries, broker moves to dead-letter topic. 3. Subscribe to dead-letter topic with a separate handler for alerting/logging. 4. In your handler, return `{ "status": "DROP" }` to discard without retry (for known bad messages).
+
+```csharp
+// Explicit DROP vs RETRY vs SUCCESS from subscription handler
+[Topic("pubsub", "orders")]
+[HttpPost("orders")]
+public IActionResult HandleOrder(OrderCreatedEvent evt)
+{
+    if (evt.OrderId <= 0)
+        return Ok(new { status = "DROP" });    // discard — bad message, no retry
+
+    try
+    {
+        _processor.Process(evt);
+        return Ok();                           // SUCCESS — ACK to broker
+    }
+    catch (TransientException)
+    {
+        return StatusCode(500);                // RETRY — Dapr will redeliver
+    }
+}
 ```
 
 ### Jobs vs Container Apps

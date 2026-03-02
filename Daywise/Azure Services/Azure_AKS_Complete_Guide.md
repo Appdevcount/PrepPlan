@@ -13081,6 +13081,1714 @@ spec:
 
 ---
 
+## Part 15 — Docker · Docker Compose · kubectl: Complete Command Reference
+
+> **Mental Model:** Docker = single container lifecycle on one machine. Docker Compose = multi-container app on one machine. kubectl = multi-container workloads across a cluster. The progression is: *build locally → compose locally → deploy to cluster.*
+
+---
+
+### 15.1 Docker Commands — Complete Reference
+
+#### Container Lifecycle
+
+```bash
+# ── BUILD ──────────────────────────────────────────────────────────────────
+docker build -t myapp:1.0 .
+# Builds image from Dockerfile in current directory, tags as myapp:1.0
+```
+**Sample Output:**
+```
+[+] Building 12.3s (10/10) FINISHED
+ => [internal] load build definition from Dockerfile           0.0s
+ => [internal] load .dockerignore                              0.0s
+ => [1/5] FROM mcr.microsoft.com/dotnet/aspnet:10.0           4.1s
+ => [2/5] COPY *.csproj ./                                     0.1s
+ => [3/5] RUN dotnet restore                                   5.2s
+ => [4/5] COPY . .                                             0.1s
+ => [5/5] RUN dotnet publish -c Release -o /app               2.5s
+ => exporting to image                                         0.1s
+ => => naming to docker.io/library/myapp:1.0                   0.0s
+```
+
+```bash
+docker build -t myapp:1.0 -f Dockerfile.prod --no-cache .
+# Forces fresh build ignoring layer cache; uses specific Dockerfile
+```
+**Sample Output:**
+```
+[+] Building 28.7s (10/10) FINISHED       ← longer; no cache hits
+```
+
+```bash
+docker build --target build-stage -t myapp:debug .
+# Builds only up to a named stage (multi-stage Dockerfile)
+```
+
+---
+
+```bash
+# ── RUN ────────────────────────────────────────────────────────────────────
+docker run myapp:1.0
+# Runs container in foreground (Ctrl+C to stop)
+```
+**Sample Output:**
+```
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://[::]:80
+info: Microsoft.Hosting.Lifetime[0]
+      Application started. Press Ctrl+C to shut down.
+```
+
+```bash
+docker run -d -p 8080:80 --name api myapp:1.0
+# -d detached, -p host:container port mapping, --name gives container a name
+```
+**Sample Output:**
+```
+a3f9d1c2b4e8f7a6d5c4b3a2e1f0d9c8b7a6e5f4d3c2b1a0e9f8d7c6b5a4
+```
+*(just the container ID — container is running in background)*
+
+```bash
+docker run -d \
+  -p 8080:80 \
+  -e ASPNETCORE_ENVIRONMENT=Production \
+  -e ConnectionStrings__Default="Server=db;Database=mydb;User=sa;Password=P@ss!" \
+  -v $(pwd)/logs:/app/logs \
+  --network mynet \
+  --restart unless-stopped \
+  --memory 512m --cpus 1.0 \
+  --name api myapp:1.0
+# Full production-style run: env vars, volume mount, network, restart policy, resource limits
+```
+
+```bash
+docker run --rm -it myapp:1.0 /bin/bash
+# --rm removes container when it exits; -it = interactive + tty (gives you a shell)
+```
+**Sample Output:**
+```
+root@7a3f9d1c:/app#           ← you are now inside the container
+```
+
+---
+
+```bash
+# ── EXEC ───────────────────────────────────────────────────────────────────
+# Open interactive shell in a running container
+docker exec -it api /bin/bash
+```
+**Sample Output:**
+```
+root@a3f9d1c2:/app#
+```
+
+```bash
+# Run a single command without interactive shell
+docker exec api env
+```
+**Sample Output:**
+```
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ASPNETCORE_HTTP_PORTS=80
+ASPNETCORE_ENVIRONMENT=Production
+DOTNET_RUNNING_IN_CONTAINER=true
+HOME=/root
+```
+
+```bash
+docker exec api dotnet --info
+# Runs a single command non-interactively inside running container
+```
+**Sample Output:**
+```
+.NET SDK:
+ Version:           10.0.100
+ Commit:            abc123def
+
+Runtime Environment:
+ OS Name:     debian
+ OS Version:  12
+```
+
+```bash
+docker exec -it api env | grep ASPNET
+# Print env vars inside the container, filter for ASPNET
+```
+**Sample Output:**
+```
+ASPNETCORE_HTTP_PORTS=80
+ASPNETCORE_ENVIRONMENT=Production
+```
+
+---
+
+```bash
+# ── LOGS ───────────────────────────────────────────────────────────────────
+docker logs api
+# Print all logs from container named "api"
+```
+**Sample Output:**
+```
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://[::]:80
+info: Microsoft.Hosting.Lifetime[0]
+      Application started.
+warn: MyApp.Controllers.WeatherController[0]
+      Slow response detected: 2340ms
+```
+
+```bash
+docker logs -f api
+# Follow (tail) logs in real-time (like tail -f)
+```
+
+```bash
+docker logs --tail 50 api
+# Last 50 lines only
+```
+
+```bash
+docker logs --since 5m api
+# Logs from last 5 minutes
+```
+
+```bash
+docker logs --timestamps api
+# Show timestamps with each log line
+```
+**Sample Output:**
+```
+2026-03-02T09:14:23.541Z  info: App started.
+2026-03-02T09:14:25.812Z  warn: Slow response: 2340ms
+```
+
+---
+
+```bash
+# ── PS / INSPECT ───────────────────────────────────────────────────────────
+docker ps
+# List running containers
+```
+**Sample Output:**
+```
+CONTAINER ID   IMAGE        COMMAND              CREATED        STATUS        PORTS                  NAMES
+a3f9d1c2b4e8   myapp:1.0    "dotnet MyApp.dll"   2 hours ago    Up 2 hours    0.0.0.0:8080->80/tcp   api
+9f8e7d6c5b4a   redis:7      "docker-entrypoint"  2 hours ago    Up 2 hours    0.0.0.0:6379->6379/tcp redis
+```
+
+```bash
+docker ps -a
+# All containers including stopped
+```
+**Sample Output:**
+```
+CONTAINER ID   IMAGE        COMMAND              CREATED        STATUS                    NAMES
+a3f9d1c2b4e8   myapp:1.0    "dotnet MyApp.dll"   2 hours ago    Up 2 hours                api
+b4e5f6a7b8c9   myapp:0.9    "dotnet MyApp.dll"   3 days ago     Exited (0) 3 days ago     api-old
+```
+
+```bash
+docker ps -q
+# Quiet mode: only container IDs (useful in scripts: docker stop $(docker ps -q))
+```
+**Sample Output:**
+```
+a3f9d1c2b4e8
+9f8e7d6c5b4a
+```
+
+```bash
+docker inspect api
+# Full JSON metadata: mounts, network, env, config, state
+```
+**Sample Output (abbreviated):**
+```json
+[
+  {
+    "Id": "a3f9d1c2b4e8...",
+    "State": { "Status": "running", "Running": true, "Pid": 12345 },
+    "Mounts": [
+      { "Type": "bind", "Source": "/host/logs", "Destination": "/app/logs" }
+    ],
+    "NetworkSettings": {
+      "Ports": { "80/tcp": [{ "HostIp": "0.0.0.0", "HostPort": "8080" }] },
+      "IPAddress": "172.17.0.2"
+    }
+  }
+]
+```
+
+```bash
+docker stats
+# Live CPU/memory/network usage for all running containers
+```
+**Sample Output:**
+```
+CONTAINER ID   NAME    CPU %   MEM USAGE / LIMIT     MEM %   NET I/O          BLOCK I/O
+a3f9d1c2b4e8   api     0.42%   128MiB / 512MiB       25.0%   1.2MB / 456kB    0B / 8kB
+9f8e7d6c5b4a   redis   0.01%   12.4MiB / 1.5GiB      0.8%    88kB / 72kB      0B / 0B
+```
+
+```bash
+docker top api
+# Show running processes inside container (like ps aux)
+```
+**Sample Output:**
+```
+UID    PID     PPID    C   STIME   TTY   TIME       CMD
+root   12345   12300   0   09:14   ?     00:00:02   dotnet MyApp.dll
+```
+
+---
+
+```bash
+# ── STOP / START / RESTART / REMOVE ────────────────────────────────────────
+docker stop api              # SIGTERM → wait 10s → SIGKILL
+docker stop -t 30 api        # Wait 30 seconds before SIGKILL
+docker kill api              # Immediate SIGKILL (no graceful shutdown)
+docker start api             # Start a stopped container
+docker restart api           # Stop then start
+docker pause api             # Freeze container (SIGSTOP)
+docker unpause api           # Resume frozen container
+docker rm api                # Remove stopped container
+docker rm -f api             # Force remove even if running
+docker rm $(docker ps -aq)   # Remove ALL stopped containers
+```
+**Sample Output (docker stop api):**
+```
+api                          ← prints container name on success
+```
+
+---
+
+```bash
+# ── IMAGES ─────────────────────────────────────────────────────────────────
+docker images
+# or: docker image ls
+```
+**Sample Output:**
+```
+REPOSITORY   TAG       IMAGE ID       CREATED        SIZE
+myapp        1.0       d1e2f3a4b5c6   2 hours ago    215MB
+myapp        0.9       e2f3a4b5c6d7   3 days ago     218MB
+redis        7         f3a4b5c6d7e8   1 week ago     117MB
+```
+
+```bash
+docker pull nginx:1.25              # Download image from registry
+docker push myregistry.io/myapp:1.0 # Push image to registry
+docker tag myapp:1.0 myregistry.io/myapp:1.0  # Tag for pushing
+docker rmi myapp:0.9                # Remove image by tag
+docker rmi -f d1e2f3a4b5c6          # Force remove image by ID
+docker image prune                  # Remove dangling images (untagged)
+docker image prune -a               # Remove ALL unused images
+```
+
+```bash
+docker history myapp:1.0
+# Show image layer history (sizes, commands)
+```
+**Sample Output:**
+```
+IMAGE          CREATED        CREATED BY                                      SIZE
+d1e2f3a4b5c6   2 hours ago    ENTRYPOINT ["dotnet" "MyApp.dll"]               0B
+<missing>      2 hours ago    COPY /app /app                                  45.2MB
+<missing>      2 hours ago    RUN dotnet publish -c Release -o /app           98.4MB
+<missing>      4 weeks ago    FROM mcr.microsoft.com/dotnet/aspnet:10.0       68.7MB
+```
+
+```bash
+docker save myapp:1.0 -o myapp.tar    # Export image to tar file
+docker load -i myapp.tar              # Import image from tar file
+docker export api > container.tar     # Export container filesystem
+docker import container.tar myapp:v2  # Import as new image
+```
+
+---
+
+```bash
+# ── VOLUMES ────────────────────────────────────────────────────────────────
+docker volume create mydata
+docker volume ls
+docker volume inspect mydata
+docker volume rm mydata
+docker volume prune              # Remove all unused volumes
+```
+
+**docker volume ls Sample Output:**
+```
+DRIVER    VOLUME NAME
+local     mydata
+local     redis-data
+local     pgdata
+```
+
+**docker volume inspect mydata Sample Output:**
+```json
+[
+  {
+    "Name": "mydata",
+    "Driver": "local",
+    "Mountpoint": "/var/lib/docker/volumes/mydata/_data",
+    "CreatedAt": "2026-03-02T09:00:00Z",
+    "Labels": {}
+  }
+]
+```
+
+---
+
+```bash
+# ── NETWORKS ───────────────────────────────────────────────────────────────
+docker network create mynet
+docker network create --driver bridge --subnet 192.168.100.0/24 mynet
+docker network ls
+docker network inspect mynet
+docker network connect mynet api       # Attach running container to network
+docker network disconnect mynet api    # Detach container from network
+docker network rm mynet
+docker network prune                   # Remove all unused networks
+```
+
+**docker network ls Sample Output:**
+```
+NETWORK ID     NAME      DRIVER    SCOPE
+b1c2d3e4f5a6   bridge    bridge    local
+c2d3e4f5a6b7   host      host      local
+d3e4f5a6b7c8   mynet     bridge    local
+e4f5a6b7c8d9   none      null      local
+```
+
+---
+
+```bash
+# ── SYSTEM / CLEANUP ───────────────────────────────────────────────────────
+docker system df
+# Show disk usage by images, containers, volumes
+```
+**Sample Output:**
+```
+TYPE            TOTAL   ACTIVE   SIZE      RECLAIMABLE
+Images          8       3        1.42GB    892MB (62%)
+Containers      5       2        2.1MB     1.8MB (85%)
+Local Volumes   4       2        512MB     128MB (25%)
+Build Cache     42               245MB     245MB
+```
+
+```bash
+docker system prune           # Remove stopped containers, unused networks, dangling images
+docker system prune -a        # Also remove all unused images (not just dangling)
+docker system prune -a --volumes  # Nuclear option: also remove unused volumes
+```
+**Sample Output (docker system prune):**
+```
+WARNING! This will remove:
+  - all stopped containers
+  - all networks not used by at least one container
+  - all dangling images
+  - all dangling build cache
+Are you sure you want to continue? [y/N] y
+
+Deleted Containers:
+b4e5f6a7b8c9
+
+Deleted Networks:
+oldnet
+
+Total reclaimed space: 218.4MB
+```
+
+```bash
+docker info
+# System-wide information: containers, images, storage driver, runtime
+```
+**Sample Output:**
+```
+Client: Docker Engine - Community
+ Version:    26.1.0
+ Context:    default
+
+Server:
+ Containers: 5
+  Running: 2
+  Paused: 0
+  Stopped: 3
+ Images: 8
+ Server Version: 26.1.0
+ Storage Driver: overlay2
+ Logging Driver: json-file
+ Cgroup Driver: systemd
+ Runtimes: io.containerd.runc.v2
+ Total Memory: 15.5GiB
+ CPUs: 8
+ Docker Root Dir: /var/lib/docker
+```
+
+```bash
+docker version
+# Client and server version info
+```
+**Sample Output:**
+```
+Client: Docker Engine - Community
+ Version:           26.1.0
+ API version:       1.45
+ Go version:        go1.21.9
+ OS/Arch:           linux/amd64
+
+Server: Docker Engine - Community
+ Engine:
+  Version:          26.1.0
+  API version:      1.45 (minimum version 1.12)
+```
+
+---
+
+```bash
+# ── COPY / DIFF ────────────────────────────────────────────────────────────
+docker cp api:/app/logs/app.log ./app.log   # Copy file from container to host
+docker cp ./config.json api:/app/config.json # Copy file from host to container
+
+docker diff api
+# Show filesystem changes made to running container
+```
+**Sample Output (docker diff):**
+```
+C /app
+A /app/logs
+A /app/logs/app.log        ← A=Added, C=Changed, D=Deleted
+```
+
+```bash
+docker commit api myapp:with-logs
+# Create new image from current container state (avoid in prod; prefer Dockerfile)
+```
+
+---
+
+### 15.2 Docker Compose Commands — Complete Reference
+
+> **Mental Model:** Compose reads `docker-compose.yml` / `compose.yaml` and treats it as a single application definition. One command starts all your containers, networks, and volumes together.
+
+```yaml
+# ── REFERENCE compose.yaml USED IN EXAMPLES ────────────────────────────────
+services:
+  api:
+    build: .
+    ports: ["8080:80"]
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+    depends_on: [db, redis]
+    volumes: ["./logs:/app/logs"]
+    networks: [backend]
+
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      SA_PASSWORD: "P@ssw0rd!"
+      ACCEPT_EULA: "Y"
+    volumes: ["sqldata:/var/opt/mssql"]
+    networks: [backend]
+
+  redis:
+    image: redis:7-alpine
+    networks: [backend]
+
+volumes:
+  sqldata:
+
+networks:
+  backend:
+```
+
+---
+
+```bash
+# ── UP / DOWN ──────────────────────────────────────────────────────────────
+docker compose up
+# Build (if needed), create, start all services; attach to logs
+```
+**Sample Output:**
+```
+[+] Running 3/3
+ ✔ Container myapp-db-1     Created   0.1s
+ ✔ Container myapp-redis-1  Created   0.1s
+ ✔ Container myapp-api-1    Created   0.2s
+Attaching to myapp-api-1, myapp-db-1, myapp-redis-1
+myapp-db-1     | SQL Server is now ready for client connections.
+myapp-api-1    | info: Now listening on: http://[::]:80
+```
+
+```bash
+docker compose up -d
+# Detached mode (background)
+```
+**Sample Output:**
+```
+[+] Running 3/3
+ ✔ Container myapp-db-1     Started   1.2s
+ ✔ Container myapp-redis-1  Started   0.8s
+ ✔ Container myapp-api-1    Started   2.1s
+```
+
+```bash
+docker compose up -d --build
+# Force rebuild images before starting (picks up code changes)
+```
+
+```bash
+docker compose up -d --scale api=3
+# Start 3 replicas of the api service
+```
+**Sample Output:**
+```
+[+] Running 5/5
+ ✔ Container myapp-db-1     Running   0.0s
+ ✔ Container myapp-redis-1  Running   0.0s
+ ✔ Container myapp-api-1    Started   0.5s
+ ✔ Container myapp-api-2    Started   0.6s
+ ✔ Container myapp-api-3    Started   0.7s
+```
+
+```bash
+docker compose down
+# Stop and remove containers + networks (volumes preserved)
+```
+**Sample Output:**
+```
+[+] Running 4/4
+ ✔ Container myapp-api-1    Removed   0.3s
+ ✔ Container myapp-redis-1  Removed   0.1s
+ ✔ Container myapp-db-1     Removed   0.5s
+ ✔ Network myapp_backend    Removed   0.1s
+```
+
+```bash
+docker compose down -v
+# Also remove named volumes (DATA LOSS — drops sqldata volume)
+```
+
+```bash
+docker compose down --rmi all
+# Also remove all images built for this project
+```
+
+---
+
+```bash
+# ── START / STOP / RESTART ─────────────────────────────────────────────────
+docker compose start          # Start stopped services (no rebuild)
+docker compose stop           # Stop running services (containers kept)
+docker compose restart        # Restart all services
+docker compose restart api    # Restart only the api service
+docker compose pause          # Pause all services
+docker compose unpause        # Unpause all services
+```
+**Sample Output (docker compose stop):**
+```
+[+] Stopping 3/3
+ ✔ Container myapp-api-1    Stopped   1.0s
+ ✔ Container myapp-redis-1  Stopped   0.1s
+ ✔ Container myapp-db-1     Stopped   1.5s
+```
+
+---
+
+```bash
+# ── LOGS ───────────────────────────────────────────────────────────────────
+docker compose logs
+# All service logs combined
+```
+**Sample Output:**
+```
+myapp-db-1     | 2026-03-02 09:14:20.00 Server   SQL Server is now ready.
+myapp-api-1    | info: Application started.
+myapp-api-1    | info: Request: GET /health → 200 (12ms)
+myapp-redis-1  | 1:M 02 Mar 2026 09:14:19.543 * Ready to accept connections tcp
+```
+
+```bash
+docker compose logs -f api          # Follow api service logs only
+docker compose logs --tail 50 api   # Last 50 lines
+docker compose logs --timestamps    # Include timestamps
+```
+
+---
+
+```bash
+# ── PS / TOP / STATS ───────────────────────────────────────────────────────
+docker compose ps
+# List containers for this project
+```
+**Sample Output:**
+```
+NAME               IMAGE        COMMAND              SERVICE   CREATED      STATUS         PORTS
+myapp-api-1        myapp-api    "dotnet MyApp.dll"   api       2 hours ago  Up 2 hours     0.0.0.0:8080->80/tcp
+myapp-db-1         mssql:2022   "/opt/mssql/bin/sq"  db        2 hours ago  Up 2 hours
+myapp-redis-1      redis:7      "docker-entrypoint"  redis     2 hours ago  Up 2 hours     6379/tcp
+```
+
+```bash
+docker compose ps -a              # Include stopped services
+docker compose top                # Processes inside each service
+docker compose stats              # Live resource usage per service
+```
+
+---
+
+```bash
+# ── EXEC / RUN ─────────────────────────────────────────────────────────────
+# Open interactive shell in a running service container
+docker compose exec api /bin/bash
+```
+**Sample Output:**
+```
+root@myapp-api-1:/app#
+```
+
+```bash
+# Run a single command without interactive shell
+docker compose exec api env
+```
+**Sample Output:**
+```
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ASPNETCORE_HTTP_PORTS=80
+ASPNETCORE_ENVIRONMENT=Development
+DOTNET_RUNNING_IN_CONTAINER=true
+HOME=/root
+```
+
+```bash
+docker compose exec api dotnet --info
+# Run command in running service container
+
+docker compose run --rm api dotnet test
+# Spin up NEW container for api service, run command, then remove
+# Useful for one-off tasks (migrations, seed data)
+```
+**Sample Output (docker compose run):**
+```
+[+] Creating 1/0
+ ✔ Container myapp-api-run-abcd  Created   0.2s
+Test run for /app/MyApp.Tests.dll (.NETCoreApp,Version=v10.0)
+...
+Passed!  - Failed:     0, Passed:    42, Skipped:     0, Total:    42
+```
+
+---
+
+```bash
+# ── BUILD / PULL / PUSH ────────────────────────────────────────────────────
+docker compose build             # Build all service images
+docker compose build api         # Build only api service
+docker compose build --no-cache  # Force rebuild without cache
+docker compose pull              # Pull latest base images for all services
+docker compose push              # Push built images to registry
+```
+**Sample Output (docker compose build):**
+```
+[+] Building 12.3s (10/10) FINISHED
+ => [api] FROM mcr.microsoft.com/dotnet/aspnet:10.0            4.1s
+ => [api] COPY . .                                             0.1s
+ => [api] RUN dotnet publish -c Release -o /app               6.8s
+ => [api] exporting to image                                   0.2s
+```
+
+---
+
+```bash
+# ── CONFIG / VERSION ───────────────────────────────────────────────────────
+docker compose config
+# Validate and print resolved compose file (with env substitutions applied)
+```
+**Sample Output:**
+```
+name: myapp
+services:
+  api:
+    build:
+      context: /home/user/myapp
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+    networks:
+      backend: null
+    ports:
+      - 8080:80/tcp
+  ...
+```
+
+```bash
+docker compose version
+```
+**Sample Output:**
+```
+Docker Compose version v2.27.0
+```
+
+---
+
+### 15.3 kubectl Commands — Complete Reference
+
+> **Mental Model:** kubectl is your control plane remote control. Every command is `kubectl <verb> <resource> <name> [flags]`. Verbs: get, describe, apply, delete, exec, logs, port-forward, rollout, scale, top, drain, cordon, label, annotate, patch.
+
+---
+
+#### Cluster & Context Management
+
+```bash
+# ── CONTEXTS ──────────────────────────────────────────────────────────────
+kubectl config get-contexts
+# List all kubeconfig contexts
+```
+**Sample Output:**
+```
+CURRENT   NAME               CLUSTER            AUTHINFO           NAMESPACE
+*         aks-prod           aks-prod           clusterUser-prod   default
+          aks-dev            aks-dev            clusterUser-dev    default
+          docker-desktop     docker-desktop     docker-desktop     default
+```
+
+```bash
+kubectl config use-context aks-dev
+# Switch active context
+```
+**Sample Output:**
+```
+Switched to context "aks-dev".
+```
+
+```bash
+kubectl config current-context          # Show current context
+kubectl config view                     # Full kubeconfig contents
+kubectl config set-context --current --namespace=myapp  # Set default namespace
+```
+
+```bash
+kubectl cluster-info
+# Show control plane and DNS addresses
+```
+**Sample Output:**
+```
+Kubernetes control plane is running at https://myaks-prod-api.hcp.eastus.azmk8s.io:443
+CoreDNS is running at https://myaks-prod-api.hcp.eastus.azmk8s.io:443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
+```
+
+```bash
+kubectl version
+# Client and server Kubernetes versions
+```
+**Sample Output:**
+```
+Client Version: v1.31.2
+Kustomize Version: v5.4.2
+Server Version: v1.31.2
+```
+
+---
+
+#### Namespaces
+
+```bash
+kubectl get namespaces
+# or: kubectl get ns
+```
+**Sample Output:**
+```
+NAME              STATUS   AGE
+default           Active   30d
+kube-node-lease   Active   30d
+kube-public       Active   30d
+kube-system       Active   30d
+myapp             Active   5d
+monitoring        Active   15d
+```
+
+```bash
+kubectl create namespace myapp
+kubectl delete namespace myapp
+
+# Use -n flag for all resource commands:
+kubectl get pods -n myapp
+kubectl get pods --all-namespaces    # or: kubectl get pods -A
+```
+**Sample Output (kubectl get pods -A):**
+```
+NAMESPACE     NAME                                 READY   STATUS    RESTARTS   AGE
+kube-system   coredns-5dd5756b68-4j9lp             1/1     Running   0          30d
+kube-system   coredns-5dd5756b68-nbtmr             1/1     Running   0          30d
+myapp         api-deployment-6b9c5d4f8-x7k2p       1/1     Running   0          2d
+myapp         api-deployment-6b9c5d4f8-m3n9q       1/1     Running   0          2d
+monitoring    prometheus-0                          1/1     Running   0          15d
+```
+
+---
+
+#### Nodes
+
+```bash
+kubectl get nodes
+```
+**Sample Output:**
+```
+NAME                             STATUS   ROLES   AGE   VERSION
+aks-nodepool1-12345678-vmss000000   Ready    agent   30d   v1.31.2
+aks-nodepool1-12345678-vmss000001   Ready    agent   30d   v1.31.2
+aks-nodepool1-12345678-vmss000002   Ready    agent   30d   v1.31.2
+```
+
+```bash
+kubectl get nodes -o wide
+# Extra columns: OS, kernel, container runtime, internal/external IPs
+```
+**Sample Output:**
+```
+NAME                           STATUS   ROLES   AGE   VERSION   INTERNAL-IP    EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION   CONTAINER-RUNTIME
+aks-nodepool1-...-vmss000000   Ready    agent   30d   v1.31.2   10.240.0.4     <none>        Ubuntu 22.04.4 LTS   5.15.0-1060      containerd://1.7.15
+aks-nodepool1-...-vmss000001   Ready    agent   30d   v1.31.2   10.240.0.5     <none>        Ubuntu 22.04.4 LTS   5.15.0-1060      containerd://1.7.15
+```
+
+```bash
+kubectl describe node aks-nodepool1-12345678-vmss000000
+# Full node detail: capacity, allocatable, conditions, events, pods running
+```
+**Sample Output (abbreviated):**
+```
+Name:               aks-nodepool1-12345678-vmss000000
+Roles:              agent
+Labels:             agentpool=nodepool1
+                    kubernetes.io/arch=amd64
+                    node.kubernetes.io/instance-type=Standard_DS2_v2
+Capacity:
+  cpu:                2
+  memory:             7121700Ki
+  pods:               110
+Allocatable:
+  cpu:                1900m
+  memory:             5515876Ki
+  pods:               110
+Conditions:
+  Type                Status   Message
+  ----                ------   -------
+  MemoryPressure      False    kubelet has sufficient memory
+  DiskPressure        False    kubelet has sufficient disk space
+  PIDPressure         False    kubelet has sufficient PID
+  Ready               True     kubelet is posting ready status
+Non-terminated Pods:
+  myapp     api-deployment-6b9c5d4f8-x7k2p   100m (5%)    128Mi (2%)
+  myapp     api-deployment-6b9c5d4f8-m3n9q   100m (5%)    128Mi (2%)
+Events:     <none>
+```
+
+```bash
+kubectl top nodes
+# CPU and memory usage (requires metrics-server)
+```
+**Sample Output:**
+```
+NAME                             CPU(cores)   CPU%   MEMORY(bytes)   MEMORY%
+aks-nodepool1-12345678-vmss000000   187m         9%     2412Mi          43%
+aks-nodepool1-12345678-vmss000001   94m          4%     1876Mi          34%
+aks-nodepool1-12345678-vmss000002   203m         10%    2589Mi          46%
+```
+
+```bash
+kubectl cordon aks-nodepool1-12345678-vmss000000
+# Mark node unschedulable (no new pods placed here)
+```
+**Sample Output:**
+```
+node/aks-nodepool1-12345678-vmss000000 cordoned
+```
+
+```bash
+kubectl uncordon aks-nodepool1-12345678-vmss000000
+# Re-enable scheduling on node
+
+kubectl drain aks-nodepool1-12345678-vmss000000 --ignore-daemonsets --delete-emptydir-data
+# Evict all pods from node (for maintenance/upgrades)
+```
+**Sample Output (kubectl drain):**
+```
+node/aks-nodepool1-12345678-vmss000000 cordoned
+evicting pod myapp/api-deployment-6b9c5d4f8-x7k2p
+pod/api-deployment-6b9c5d4f8-x7k2p evicted
+node/aks-nodepool1-12345678-vmss000000 drained
+```
+
+---
+
+#### Pods
+
+```bash
+kubectl get pods -n myapp
+```
+**Sample Output:**
+```
+NAME                              READY   STATUS    RESTARTS   AGE
+api-deployment-6b9c5d4f8-x7k2p   1/1     Running   0          2d
+api-deployment-6b9c5d4f8-m3n9q   1/1     Running   0          2d
+api-deployment-6b9c5d4f8-r5t8w   0/1     Pending   0          30s
+```
+
+```bash
+kubectl get pods -n myapp -o wide
+# Extra: node placement, IP address
+```
+**Sample Output:**
+```
+NAME                              READY   STATUS    RESTARTS   AGE   IP            NODE
+api-deployment-6b9c5d4f8-x7k2p   1/1     Running   0          2d    10.244.1.15   aks-nodepool1-...-vmss000000
+api-deployment-6b9c5d4f8-m3n9q   1/1     Running   0          2d    10.244.2.18   aks-nodepool1-...-vmss000001
+```
+
+```bash
+kubectl get pods -n myapp -w
+# Watch mode: continuously prints changes (like tail -f)
+```
+
+```bash
+kubectl get pods -n myapp -l app=api
+# Filter by label selector
+```
+**Sample Output:**
+```
+NAME                              READY   STATUS    RESTARTS   AGE
+api-deployment-6b9c5d4f8-x7k2p   1/1     Running   0          2d
+api-deployment-6b9c5d4f8-m3n9q   1/1     Running   0          2d
+```
+
+```bash
+kubectl describe pod api-deployment-6b9c5d4f8-x7k2p -n myapp
+# Full pod detail: events, containers, env, mounts, conditions
+```
+**Sample Output (abbreviated):**
+```
+Name:             api-deployment-6b9c5d4f8-x7k2p
+Namespace:        myapp
+Node:             aks-nodepool1-...-vmss000000/10.240.0.4
+Start Time:       Mon, 02 Mar 2026 09:14:23 +0000
+Labels:           app=api
+                  pod-template-hash=6b9c5d4f8
+Status:           Running
+IP:               10.244.1.15
+Containers:
+  api:
+    Image:         myregistry.io/myapp:1.0
+    Port:          80/TCP
+    Limits:        cpu=500m, memory=512Mi
+    Requests:      cpu=100m, memory=128Mi
+    Ready:         True
+    Restart Count: 0
+    Environment:
+      ASPNETCORE_ENVIRONMENT:  Production
+Conditions:
+  Ready             True
+  ContainersReady   True
+  PodScheduled      True
+Events:
+  Normal  Scheduled  2d    default-scheduler  Successfully assigned myapp/api-... to node
+  Normal  Pulled     2d    kubelet            Successfully pulled image in 3.2s
+  Normal  Started    2d    kubelet            Started container api
+```
+
+```bash
+kubectl logs api-deployment-6b9c5d4f8-x7k2p -n myapp
+```
+**Sample Output:**
+```
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://[::]:80
+info: Microsoft.Hosting.Lifetime[0]
+      Application started.
+```
+
+```bash
+kubectl logs -f api-deployment-6b9c5d4f8-x7k2p -n myapp       # Follow
+kubectl logs --tail=100 api-deployment-6b9c5d4f8-x7k2p -n myapp  # Last 100 lines
+kubectl logs --previous api-deployment-6b9c5d4f8-x7k2p -n myapp  # Previous container (after crash)
+kubectl logs -l app=api -n myapp                                 # Logs from ALL pods with label
+kubectl logs api-deployment-6b9c5d4f8-x7k2p -c sidecar -n myapp # Specific container in multi-container pod
+```
+
+```bash
+kubectl exec -it api-deployment-6b9c5d4f8-x7k2p -n myapp -- /bin/bash
+# Interactive shell inside pod
+```
+**Sample Output:**
+```
+root@api-deployment-6b9c5d4f8-x7k2p:/app#
+```
+
+```bash
+kubectl exec api-deployment-6b9c5d4f8-x7k2p -n myapp -- env | grep ASPNET
+# Run single command; -- separates kubectl flags from container command
+```
+**Sample Output:**
+```
+ASPNETCORE_ENVIRONMENT=Production
+ASPNETCORE_HTTP_PORTS=80
+```
+
+```bash
+kubectl port-forward pod/api-deployment-6b9c5d4f8-x7k2p 8080:80 -n myapp
+# Forward local port 8080 → pod port 80 (for local debugging)
+```
+**Sample Output:**
+```
+Forwarding from 127.0.0.1:8080 -> 80
+Forwarding from [::1]:8080 -> 80
+Handling connection for 8080
+```
+
+```bash
+kubectl cp myapp/api-deployment-6b9c5d4f8-x7k2p:/app/logs/app.log ./app.log
+# Copy file from pod to local
+kubectl cp ./config.json myapp/api-deployment-6b9c5d4f8-x7k2p:/app/config.json
+# Copy file from local to pod
+
+kubectl top pod -n myapp
+# CPU/memory per pod
+```
+**Sample Output (kubectl top pod):**
+```
+NAME                              CPU(cores)   MEMORY(bytes)
+api-deployment-6b9c5d4f8-x7k2p   23m          134Mi
+api-deployment-6b9c5d4f8-m3n9q   18m          128Mi
+```
+
+```bash
+kubectl delete pod api-deployment-6b9c5d4f8-x7k2p -n myapp
+# Delete pod (Deployment will immediately create a replacement)
+```
+**Sample Output:**
+```
+pod "api-deployment-6b9c5d4f8-x7k2p" deleted
+```
+
+```bash
+kubectl debug -it api-deployment-6b9c5d4f8-x7k2p --image=busybox -n myapp
+# Attach an ephemeral debug container to a running pod (k8s 1.23+)
+```
+
+---
+
+#### Deployments
+
+```bash
+kubectl get deployments -n myapp
+# or: kubectl get deploy -n myapp
+```
+**Sample Output:**
+```
+NAME             READY   UP-TO-DATE   AVAILABLE   AGE
+api-deployment   3/3     3            3           5d
+```
+
+```bash
+kubectl describe deployment api-deployment -n myapp
+```
+**Sample Output (abbreviated):**
+```
+Name:                   api-deployment
+Namespace:              myapp
+Replicas:               3 desired | 3 updated | 3 total | 3 available | 0 unavailable
+StrategyType:           RollingUpdate
+RollingUpdateStrategy:  25% max unavailable, 25% max surge
+Pod Template:
+  Labels:    app=api
+  Containers:
+    api:
+      Image:  myregistry.io/myapp:1.0
+      Port:   80/TCP
+      Limits: cpu=500m, memory=512Mi
+Conditions:
+  Type          Status   Reason
+  Available     True     MinimumReplicasAvailable
+  Progressing   True     NewReplicaSetAvailable
+Events:
+  Normal  ScalingReplicaSet  5d  deployment-controller  Scaled up to 3
+```
+
+```bash
+kubectl apply -f deployment.yaml -n myapp
+# Apply (create or update) from YAML file; idempotent
+```
+**Sample Output:**
+```
+deployment.apps/api-deployment created
+# or on update:
+deployment.apps/api-deployment configured
+```
+
+```bash
+kubectl apply -f ./k8s/                   # Apply all YAML files in directory
+kubectl apply -k ./k8s/overlays/prod/     # Apply kustomize overlay
+
+kubectl delete -f deployment.yaml -n myapp # Delete resources defined in file
+```
+
+```bash
+kubectl scale deployment api-deployment --replicas=5 -n myapp
+```
+**Sample Output:**
+```
+deployment.apps/api-deployment scaled
+```
+
+```bash
+kubectl set image deployment/api-deployment api=myregistry.io/myapp:2.0 -n myapp
+# Update container image (triggers rolling update)
+```
+**Sample Output:**
+```
+deployment.apps/api-deployment image updated
+```
+
+```bash
+kubectl rollout status deployment/api-deployment -n myapp
+# Watch rolling update progress
+```
+**Sample Output:**
+```
+Waiting for deployment "api-deployment" rollout to finish: 1 out of 3 new replicas have been updated...
+Waiting for deployment "api-deployment" rollout to finish: 2 out of 3 new replicas have been updated...
+Waiting for deployment "api-deployment" rollout to finish: 1 old replicas are pending termination...
+deployment "api-deployment" successfully rolled out
+```
+
+```bash
+kubectl rollout history deployment/api-deployment -n myapp
+# Show revision history
+```
+**Sample Output:**
+```
+REVISION  CHANGE-CAUSE
+1         <none>
+2         kubectl set image deployment/api-deployment api=myapp:2.0
+3         kubectl set image deployment/api-deployment api=myapp:3.0
+```
+
+```bash
+kubectl rollout undo deployment/api-deployment -n myapp
+# Roll back to previous revision
+```
+**Sample Output:**
+```
+deployment.apps/api-deployment rolled back
+```
+
+```bash
+kubectl rollout undo deployment/api-deployment --to-revision=1 -n myapp
+# Roll back to specific revision
+
+kubectl rollout pause deployment/api-deployment -n myapp   # Pause rolling update
+kubectl rollout resume deployment/api-deployment -n myapp  # Resume paused update
+kubectl rollout restart deployment/api-deployment -n myapp # Force restart all pods
+```
+
+```bash
+kubectl edit deployment api-deployment -n myapp
+# Open deployment YAML in $EDITOR for live editing
+```
+
+---
+
+#### Services
+
+```bash
+kubectl get services -n myapp
+# or: kubectl get svc -n myapp
+```
+**Sample Output:**
+```
+NAME          TYPE           CLUSTER-IP     EXTERNAL-IP     PORT(S)        AGE
+api-service   LoadBalancer   10.0.45.123    52.149.12.34    80:31245/TCP   5d
+db-service    ClusterIP      10.0.102.88    <none>          1433/TCP       5d
+redis         ClusterIP      10.0.78.55     <none>          6379/TCP       5d
+```
+
+```bash
+kubectl describe service api-service -n myapp
+```
+**Sample Output:**
+```
+Name:                     api-service
+Namespace:                myapp
+Type:                     LoadBalancer
+IP:                       10.0.45.123
+LoadBalancer Ingress:     52.149.12.34
+Port:                     http  80/TCP
+TargetPort:               80/TCP
+NodePort:                 31245/TCP
+Endpoints:                10.244.1.15:80,10.244.2.18:80,10.244.3.21:80
+Selector:                 app=api
+```
+
+```bash
+kubectl port-forward service/api-service 8080:80 -n myapp
+# Tunnel to service (doesn't go through load balancer; useful for internal services)
+```
+
+```bash
+kubectl expose deployment api-deployment --type=LoadBalancer --port=80 -n myapp
+# Create a Service exposing a Deployment (imperative style; prefer YAML)
+```
+
+---
+
+#### ConfigMaps & Secrets
+
+```bash
+kubectl get configmaps -n myapp
+# or: kubectl get cm -n myapp
+```
+**Sample Output:**
+```
+NAME               DATA   AGE
+app-config         3      5d
+nginx-config       1      5d
+kube-root-ca.crt   1      30d
+```
+
+```bash
+kubectl describe configmap app-config -n myapp
+```
+**Sample Output:**
+```
+Name:         app-config
+Namespace:    myapp
+Data
+====
+ASPNETCORE_ENVIRONMENT:  Production
+FeatureFlags__DarkMode:  true
+Logging__Level:          Warning
+```
+
+```bash
+kubectl create configmap app-config \
+  --from-literal=ASPNETCORE_ENVIRONMENT=Production \
+  --from-literal=FeatureFlags__DarkMode=true \
+  -n myapp
+
+kubectl create configmap nginx-config --from-file=nginx.conf -n myapp
+
+kubectl get secret -n myapp
+```
+**Sample Output:**
+```
+NAME                  TYPE                DATA   AGE
+db-credentials        Opaque              2      5d
+tls-cert              kubernetes.io/tls   2      30d
+regcred               kubernetes.io/dockerconfigjson  1  5d
+```
+
+```bash
+kubectl create secret generic db-credentials \
+  --from-literal=SA_PASSWORD="P@ssw0rd!" \
+  --from-literal=ConnectionString="Server=db;Database=mydb;User=sa;Password=P@ssw0rd!" \
+  -n myapp
+
+kubectl get secret db-credentials -o jsonpath='{.data.SA_PASSWORD}' -n myapp | base64 --decode
+# Decode a secret value
+```
+**Sample Output:**
+```
+P@ssw0rd!
+```
+
+```bash
+kubectl delete configmap app-config -n myapp
+kubectl delete secret db-credentials -n myapp
+```
+
+---
+
+#### Ingress
+
+```bash
+kubectl get ingress -n myapp
+# or: kubectl get ing -n myapp
+```
+**Sample Output:**
+```
+NAME          CLASS   HOSTS                    ADDRESS        PORTS     AGE
+api-ingress   nginx   api.myapp.com            52.149.12.34   80, 443   5d
+```
+
+```bash
+kubectl describe ingress api-ingress -n myapp
+```
+**Sample Output:**
+```
+Name:             api-ingress
+Namespace:        myapp
+IngressClass:     nginx
+Rules:
+  Host          Path  Backends
+  ----          ----  --------
+  api.myapp.com
+                /     api-service:80 (10.244.1.15:80,10.244.2.18:80)
+TLS:
+  tls-cert terminates api.myapp.com
+Annotations:
+  nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  nginx.ingress.kubernetes.io/proxy-body-size: 10m
+```
+
+---
+
+#### Persistent Volumes & Claims
+
+```bash
+kubectl get pv                          # Cluster-wide (no -n needed)
+kubectl get pvc -n myapp
+```
+**Sample Output (kubectl get pvc):**
+```
+NAME        STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+sqldata     Bound    pvc-a1b2c3d4-e5f6-7890-abcd-ef1234567890   32Gi       RWO            managed-csi    5d
+```
+
+```bash
+kubectl describe pvc sqldata -n myapp
+```
+**Sample Output:**
+```
+Name:          sqldata
+Namespace:     myapp
+StorageClass:  managed-csi
+Status:        Bound
+Volume:        pvc-a1b2c3d4-e5f6-7890-abcd-ef1234567890
+Capacity:      32Gi
+Access Modes:  RWO
+Events:
+  Normal  ProvisioningSucceeded  5d  disk.csi.azure.com  Successfully provisioned volume
+```
+
+---
+
+#### HPA / VPA / KEDA
+
+```bash
+kubectl get hpa -n myapp
+```
+**Sample Output:**
+```
+NAME          REFERENCE                     TARGETS         MINPODS   MAXPODS   REPLICAS   AGE
+api-hpa       Deployment/api-deployment     23%/60%         2         10        3          5d
+```
+
+```bash
+kubectl describe hpa api-hpa -n myapp
+```
+**Sample Output:**
+```
+Name:                                                  api-hpa
+Namespace:                                             myapp
+Reference:                                             Deployment/api-deployment
+Metrics:     ( current / target )
+  resource cpu on pods (as a percentage of request):  23% (23m) / 60%
+Min replicas:                                          2
+Max replicas:                                          10
+Deployment pods:                                       3 current / 3 desired
+Events:
+  Normal  SuccessfulRescale  1h  horizontal-pod-autoscaler  New size: 4; reason: cpu resource above target
+  Normal  SuccessfulRescale  45m horizontal-pod-autoscaler  New size: 3; reason: All metrics below target
+```
+
+---
+
+#### Jobs & CronJobs
+
+```bash
+kubectl get jobs -n myapp
+kubectl get cronjobs -n myapp
+```
+**Sample Output (kubectl get jobs):**
+```
+NAME              COMPLETIONS   DURATION   AGE
+db-migration      1/1           45s        1d
+data-seed-abc12   0/1           5m         5m    ← still running
+```
+
+```bash
+kubectl create job manual-run --from=cronjob/daily-report -n myapp
+# Manually trigger a CronJob
+```
+**Sample Output:**
+```
+job.batch/manual-run created
+```
+
+---
+
+#### Output Formats
+
+```bash
+# ── OUTPUT FORMAT FLAGS (apply to any get command) ─────────────────────────
+kubectl get pods -n myapp -o wide         # Extra columns
+kubectl get pods -n myapp -o yaml         # Full YAML definition
+kubectl get pods -n myapp -o json         # Full JSON definition
+kubectl get pods -n myapp -o name         # Only resource names
+kubectl get pods -n myapp -o jsonpath='{.items[*].metadata.name}'  # JSONPath extraction
+kubectl get pods -n myapp -o custom-columns=NAME:.metadata.name,STATUS:.status.phase,NODE:.spec.nodeName
+```
+**Sample Output (-o name):**
+```
+pod/api-deployment-6b9c5d4f8-x7k2p
+pod/api-deployment-6b9c5d4f8-m3n9q
+pod/api-deployment-6b9c5d4f8-r5t8w
+```
+**Sample Output (-o jsonpath):**
+```
+api-deployment-6b9c5d4f8-x7k2p api-deployment-6b9c5d4f8-m3n9q api-deployment-6b9c5d4f8-r5t8w
+```
+**Sample Output (-o custom-columns):**
+```
+NAME                              STATUS    NODE
+api-deployment-6b9c5d4f8-x7k2p   Running   aks-nodepool1-...-vmss000000
+api-deployment-6b9c5d4f8-m3n9q   Running   aks-nodepool1-...-vmss000001
+```
+
+---
+
+#### Labels, Annotations, Patches
+
+```bash
+kubectl label pod api-deployment-6b9c5d4f8-x7k2p env=production -n myapp
+# Add or update label
+```
+**Sample Output:**
+```
+pod/api-deployment-6b9c5d4f8-x7k2p labeled
+```
+
+```bash
+kubectl label pod api-deployment-6b9c5d4f8-x7k2p env- -n myapp
+# Remove label (trailing dash)
+
+kubectl annotate deployment api-deployment kubernetes.io/change-cause="Deploy v2.0" -n myapp
+# Add annotation (used for rollout history CHANGE-CAUSE)
+
+kubectl patch deployment api-deployment -n myapp \
+  -p '{"spec":{"replicas":5}}'
+# Inline JSON patch (strategic merge patch by default)
+
+kubectl patch deployment api-deployment -n myapp \
+  --type=json \
+  -p '[{"op":"replace","path":"/spec/replicas","value":5}]'
+# JSON Patch (RFC 6902) — precise path operations
+```
+
+---
+
+#### RBAC
+
+```bash
+kubectl get clusterroles
+kubectl get clusterrolebindings
+kubectl get roles -n myapp
+kubectl get rolebindings -n myapp
+
+kubectl auth can-i create pods -n myapp
+# Check if current user has permission
+```
+**Sample Output:**
+```
+yes
+```
+
+```bash
+kubectl auth can-i create pods -n myapp --as=serviceaccount:myapp:api-sa
+# Check permissions as a specific service account
+```
+**Sample Output:**
+```
+no
+```
+
+---
+
+#### Apply / Diff / Dry-run
+
+```bash
+kubectl diff -f deployment.yaml -n myapp
+# Show what would change BEFORE applying (like terraform plan)
+```
+**Sample Output:**
+```
+diff -u -N /tmp/LIVE/apps.v1.Deployment.myapp.api-deployment /tmp/MERGED/apps.v1.Deployment.myapp.api-deployment
+--- /tmp/LIVE/...
++++ /tmp/MERGED/...
+@@ -20,7 +20,7 @@
+       containers:
+       - name: api
+-        image: myregistry.io/myapp:1.0
++        image: myregistry.io/myapp:2.0
+```
+
+```bash
+kubectl apply -f deployment.yaml --dry-run=client -n myapp
+# Validate locally without hitting the API server
+```
+**Sample Output:**
+```
+deployment.apps/api-deployment configured (dry run)
+```
+
+```bash
+kubectl apply -f deployment.yaml --dry-run=server -n myapp
+# Validate on server (catches webhook / admission controller rejections)
+```
+
+---
+
+### 15.4 Side-by-Side Comparison: Docker vs Docker Compose vs kubectl
+
+| Task | Docker | Docker Compose | kubectl |
+|------|--------|----------------|---------|
+| **Run app** | `docker run -d -p 8080:80 myapp:1.0` | `docker compose up -d` | `kubectl apply -f deployment.yaml` |
+| **Stop app** | `docker stop api` | `docker compose down` | `kubectl delete -f deployment.yaml` |
+| **Scale** | `docker run` (multiple times) | `docker compose up --scale api=3` | `kubectl scale deployment api --replicas=3` |
+| **See running** | `docker ps` | `docker compose ps` | `kubectl get pods -n myapp` |
+| **Logs** | `docker logs -f api` | `docker compose logs -f api` | `kubectl logs -f <pod-name>` |
+| **Shell into container** | `docker exec -it api bash` | `docker compose exec api bash` | `kubectl exec -it <pod> -- bash` |
+| **Env vars** | `-e KEY=value` flag | `environment:` in YAML | ConfigMap / Secret / `env:` in pod spec |
+| **Volumes** | `-v /host:/container` | `volumes:` in YAML | PersistentVolumeClaim |
+| **Networking** | `--network mynet` | automatic per project | Service (ClusterIP / LoadBalancer) |
+| **Forward port locally** | `-p 8080:80` | `ports:` in YAML | `kubectl port-forward` |
+| **Copy file** | `docker cp api:/path ./path` | `docker compose cp api:/path ./path` | `kubectl cp ns/pod:/path ./path` |
+| **Live resource usage** | `docker stats` | `docker compose stats` | `kubectl top pods` |
+| **Restart service** | `docker restart api` | `docker compose restart api` | `kubectl rollout restart deployment/api` |
+| **Rolling update** | N/A (single container) | `docker compose up -d --build` | `kubectl set image deployment/api api=img:2.0` |
+| **Rollback** | `docker run myapp:1.0` (manually) | change image tag + `up -d` | `kubectl rollout undo deployment/api` |
+| **Health check** | `HEALTHCHECK` in Dockerfile | `healthcheck:` in YAML | `livenessProbe` / `readinessProbe` in pod spec |
+| **Multi-service start order** | manual / scripting | `depends_on:` | `initContainers` / readiness gates |
+| **Config / Secrets** | `-e` flag or `.env` file | `environment:` / `.env` file | ConfigMap + Secret objects |
+| **Cleanup all** | `docker system prune -a` | `docker compose down -v --rmi all` | `kubectl delete namespace myapp` |
+| **Inspect full config** | `docker inspect api` | `docker compose config` | `kubectl get pod <name> -o yaml` |
+| **Disk usage** | `docker system df` | N/A | `kubectl get pvc -n myapp` |
+| **Image build** | `docker build -t img:tag .` | `docker compose build` | Build outside k8s, push to registry |
+| **Scope** | Single container, one host | Multi-container, one host | Multi-container, multi-node cluster |
+
+---
+
+### 15.5 Equivalent Pattern: "Run a web app with a database"
+
+#### Docker (manual, two containers)
+```bash
+docker network create mynet
+docker volume create sqldata
+
+docker run -d \
+  --name db \
+  --network mynet \
+  -e SA_PASSWORD="P@ssw0rd!" \
+  -e ACCEPT_EULA="Y" \
+  -v sqldata:/var/opt/mssql \
+  mcr.microsoft.com/mssql/server:2022-latest
+
+docker run -d \
+  --name api \
+  --network mynet \
+  -p 8080:80 \
+  -e ConnectionStrings__Default="Server=db;Database=mydb;User=sa;Password=P@ssw0rd!" \
+  myapp:1.0
+```
+
+#### Docker Compose (declarative, same machine)
+```yaml
+# compose.yaml
+services:
+  api:
+    build: .
+    ports: ["8080:80"]
+    environment:
+      ConnectionStrings__Default: "Server=db;Database=mydb;User=sa;Password=P@ssw0rd!"
+    depends_on: [db]
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      SA_PASSWORD: "P@ssw0rd!"
+      ACCEPT_EULA: "Y"
+    volumes: ["sqldata:/var/opt/mssql"]
+volumes:
+  sqldata:
+```
+```bash
+docker compose up -d
+```
+
+#### kubectl (declarative, cluster)
+```yaml
+# deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: api, namespace: myapp }
+spec:
+  replicas: 3
+  selector: { matchLabels: { app: api } }
+  template:
+    metadata: { labels: { app: api } }
+    spec:
+      containers:
+      - name: api
+        image: myregistry.io/myapp:1.0
+        ports: [{ containerPort: 80 }]
+        env:
+        - name: ConnectionStrings__Default
+          valueFrom:
+            secretKeyRef: { name: db-credentials, key: ConnectionString }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: api-service, namespace: myapp }
+spec:
+  type: LoadBalancer
+  selector: { app: api }
+  ports: [{ port: 80, targetPort: 80 }]
+```
+```bash
+kubectl apply -f deployment.yaml
+kubectl get svc api-service -n myapp   # wait for EXTERNAL-IP
+```
+
+---
+
+### 15.6 Quick Reference Card
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                      DOCKER / COMPOSE / kubectl QUICK CARD                              │
+├──────────────────────┬──────────────────────────┬──────────────────────────────────────┤
+│ DOCKER               │ DOCKER COMPOSE           │ kubectl                              │
+├──────────────────────┼──────────────────────────┼──────────────────────────────────────┤
+│ build -t img:tag .   │ build                    │ (external: docker build + push)      │
+│ run -d -p 8080:80    │ up -d                    │ apply -f deploy.yaml                 │
+│ stop api             │ stop                     │ scale deploy/api --replicas=0        │
+│ rm api               │ down                     │ delete -f deploy.yaml                │
+│ ps                   │ ps                       │ get pods -n ns                       │
+│ ps -a                │ ps -a                    │ get pods -A                          │
+│ logs -f api          │ logs -f api              │ logs -f <pod>                        │
+│ exec -it api bash    │ exec api bash            │ exec -it <pod> -- bash               │
+│ stats                │ stats                    │ top pods                             │
+│ inspect api          │ config                   │ get pod <name> -o yaml               │
+│ cp api:/path ./path  │ cp api:/path ./path      │ cp ns/pod:/path ./path               │
+│ images               │ images                   │ get pods (images in describe)        │
+│ pull nginx:1.25      │ pull                     │ (set image in deploy spec)           │
+│ rmi myapp:0.9        │ (rmi all: down --rmi all)│ (remove from registry)               │
+│ network create       │ (auto per project)       │ (Service object)                     │
+│ volume create        │ (volumes: section)       │ PVC + StorageClass                   │
+│ system prune -a      │ down -v --rmi all        │ delete namespace myapp               │
+│ version              │ version                  │ version                              │
+│ info                 │ (docker info)            │ cluster-info                         │
+└──────────────────────┴──────────────────────────┴──────────────────────────────────────┘
+```
+
+---
+
 *End of Azure Kubernetes Service Complete Guide*
 
 > **Last Updated:** February 2026

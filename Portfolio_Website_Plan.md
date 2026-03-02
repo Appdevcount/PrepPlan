@@ -20,6 +20,8 @@ A modern, AI-integrated portfolio website that showcases your technical expertis
 6. [AI Integration Showcase](#ai-integration-showcase)
 7. [Detailed Implementation: Interactive Tools](#%EF%B8%8F-detailed-implementation-interactive-tools)
    - [Architect Quiz Arena](#architect-quiz-arena---full-implementation-blueprint)
+   - [Interview Evaluation Interface](#interview-evaluation-interface--full-implementation-blueprint)
+   - [Docker & kubectl Command Interface](#docker--kubectl-command-interface--full-implementation-blueprint)
 8. [Implementation Phases](#implementation-phases)
 9. [Networking & Visibility Strategy](#networking--visibility-strategy)
 10. [Monetization Opportunities](#monetization-opportunities)
@@ -63,6 +65,8 @@ A modern, AI-integrated portfolio website that showcases your technical expertis
 - **Interview Prep Bot** - Interactive Q&A based on your interview guides
 - **Architecture Advisor** - AI-powered system design suggestions
 - **Architect Quiz Arena** - Random scenario-based 10-question quiz per attempt (Azure, .NET, API, SQL, AI, System Design, React) targeting architect-level interview prep
+- **Interview Evaluation Interface** - Structured interviewer-led scoring panel: 4-axis rubric (Knowledge, Depth, Communication, Prod Readiness), AI gap analysis, radar chart, shareable PDF report — covers Terraform, xUnit, SQL, Dapr, Webhooks, .NET API, Container Apps
+- **Docker & kubectl Command Interface** - Interactive browser with left side-menu by category, 150+ commands with syntax, flags table, copy-to-clipboard examples, sample terminal output, danger-level indicators, AI plain-English explain, cheatsheet export to PDF
 - **Real-time Sentiment Analysis** - Analyze feedback and comments
 
 #### 3. **Appointment Booking & Mentoring**
@@ -1383,7 +1387,1550 @@ No share card   Shareable card      White-label result cards
 
 ---
 
-## 💼 Advanced Employability Features
+### **Interview Evaluation Interface — Full Implementation Blueprint**
+
+> **Purpose:** Structured, AI-assisted interview scorecard for interviewers to evaluate candidates across technical topics — producing an objective, shareable report with scores, gap analysis, and hiring recommendation.
+> **Distinction from Quiz Arena:** Quiz Arena = candidate self-prep. Evaluation Interface = interviewer-led live assessment during or after an interview.
+
+---
+
+#### **User Experience Flow**
+
+```
+INTERVIEWER FLOW                            CANDIDATE VIEW (read-only link)
+────────────────                            ────────────────────────────────
+[New Evaluation]                            Receives shareable report link
+      │                                     after session closes
+      ▼
+┌─────────────────────────────────────────────────────────────┐
+│  SESSION SETUP                                              │
+│                                                             │
+│  Candidate Name:  [________________]                        │
+│  Role Applied For:[Lead Developer ▼]                        │
+│  Seniority Level: [○ Mid  ● Senior  ○ Lead  ○ Principal]   │
+│  Topics to Cover: [✓ .NET API] [✓ SQL] [✓ Dapr]            │
+│                   [✓ Terraform] [✓ xUnit] [✓ Webhooks]     │
+│                   [✓ Container Apps] [○ DSA] [○ Security]  │
+│  Format:          [○ Structured  ● Free-form  ○ Mixed]      │
+│                                                             │
+│  [START SESSION]                                            │
+└─────────────────────────────────────────────────────────────┘
+      │
+      ▼
+┌─────────────────────────────────────────────────────────────┐
+│  LIVE EVALUATION PANEL (per topic)                          │
+│                                                             │
+│  Topic: .NET API                    ████████── 78%          │
+│  ─────────────────────────────────────────────────         │
+│                                                             │
+│  Suggested Questions: (click to expand)                     │
+│  ┌──────────────────────────────────────────┐              │
+│  │ Q: Explain middleware order and what     │              │
+│  │    breaks if UseAuthorization is placed  │              │
+│  │    before UseRouting.                    │              │
+│  │                                          │              │
+│  │ Expected: Mention endpoint metadata,     │              │
+│  │ auth can't read policy without routing   │              │
+│  └──────────────────────────────────────────┘              │
+│                                                             │
+│  Candidate Response (notes):                               │
+│  [_________________________________________]               │
+│                                                             │
+│  Score this topic:                                         │
+│  Knowledge    [●●●●○] 4/5                                  │
+│  Depth        [●●●○○] 3/5                                  │
+│  Communication[●●●●○] 4/5                                  │
+│  Production   [●●○○○] 2/5  ← "prod readiness"             │
+│                                                             │
+│  Quick Tag: [✓ Strong] [○ Average] [○ Weak] [○ Skip]       │
+│                                                             │
+│  [◄ PREV TOPIC]   Topic 2 of 6   [NEXT TOPIC ►]            │
+└─────────────────────────────────────────────────────────────┘
+      │
+      ▼
+┌─────────────────────────────────────────────────────────────┐
+│  OVERALL SCORECARD (Live — updates as you score)            │
+│                                                             │
+│  Candidate: John Doe  │  Role: Lead Developer               │
+│  Duration: 00:47:22   │  Topics: 6 / 6  completed          │
+│                                                             │
+│  ┌─── RADAR CHART ─────────────────────────────────────┐  │
+│  │          .NET API (78%)                              │  │
+│  │      ╱──────────╲                                   │  │
+│  │   Webhooks       SQL                                │  │
+│  │   (72%)        (85%)                                │  │
+│  │      ╲──────────╱                                   │  │
+│  │   Terraform   Dapr                                  │  │
+│  │   (90%)      (65%)                                  │  │
+│  └─────────────────────────────────────────────────────┘  │
+│                                                             │
+│  Composite Score:  77 / 100   🟡  STRONG HIRE POTENTIAL    │
+│                                                             │
+│  Dimension Averages:                                        │
+│  Knowledge     ████████──  82%                             │
+│  Depth         ███████───  72%                             │
+│  Communication ████████──  80%                             │
+│  Prod Readiness██████────  65%  ← Weakest — coach on this  │
+│                                                             │
+│  AI Summary (auto-generated):                              │
+│  "Strong in infrastructure (Terraform 90%) and SQL.        │
+│  Dapr knowledge is foundational but lacks production        │
+│  experience. Communication is clear and structured.         │
+│  Recommend follow-up on Dapr Actor patterns and            │
+│  webhook idempotency before final round."                  │
+│                                                             │
+│  Recommendation:  [● Proceed] [○ Hold] [○ Reject]          │
+│  Hiring Note:    [________________________________]         │
+│                                                             │
+│  [💾 Save Draft] [📤 Generate Report] [📧 Send to Candidate]│
+└─────────────────────────────────────────────────────────────┘
+      │
+      ▼
+┌─────────────────────────────────────────────────────────────┐
+│  GENERATED REPORT (PDF + shareable link)                    │
+│                                                             │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │  INTERVIEW EVALUATION REPORT                         │  │
+│  │  Candidate: John Doe    Date: 2026-03-02             │  │
+│  │  Role: Lead Developer   Interviewer: [Your Name]     │  │
+│  │                                                      │  │
+│  │  OVERALL: 77/100   Status: STRONG HIRE POTENTIAL     │  │
+│  │                                                      │  │
+│  │  Topic Scores:                                       │  │
+│  │  .NET API   ████████── 78%  Strong middleware depth  │  │
+│  │  SQL        █████████─ 85%  Excellent window fns     │  │
+│  │  Dapr       ██████──── 65%  Needs prod experience   │  │
+│  │  Terraform  █████████─ 90%  Module strategy solid    │  │
+│  │  Webhooks   ████████── 72%  Good fundamentals        │  │
+│  │  Container  ████████── 75%  ACA scaling understood   │  │
+│  │                                                      │  │
+│  │  Gaps Identified:                                    │  │
+│  │  - Dapr Actor timers vs reminders (critical gap)     │  │
+│  │  - Webhook timing attack prevention                  │  │
+│  │  - DI captive dependency scenarios                   │  │
+│  │                                                      │  │
+│  │  Strengths: Terraform, SQL, communication style      │  │
+│  │  Recommendation: Proceed with architectural round    │  │
+│  └──────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+#### **Scoring Dimensions (4-Axis Rubric)**
+
+| Dimension | 1 — Novice | 3 — Proficient | 5 — Expert |
+|---|---|---|---|
+| **Knowledge** | Names concepts but can't explain | Explains accurately with examples | Explains nuances, edge cases, history |
+| **Depth** | Surface-level answer | Trade-offs mentioned | Production impact, alternatives, cost |
+| **Communication** | Rambling, unclear | Structured, mostly clear | Concise, uses diagrams/analogies |
+| **Prod Readiness** | Theoretical only | Has applied in projects | Battle-tested, knows failure modes |
+
+**Composite Score Formula:**
+```
+TopicScore     = avg(Knowledge, Depth, Communication, ProdReadiness) × 20
+CompositeScore = weighted avg of all TopicScores
+               = (Topic1 × w1 + Topic2 × w2 + ...) / sum(weights)
+
+Default weights by seniority:
+  Lead/Principal: Depth ×1.5, ProdReadiness ×1.5, Knowledge ×1.0, Communication ×1.0
+  Senior:         Depth ×1.2, ProdReadiness ×1.2, Knowledge ×1.0, Communication ×1.0
+  Mid:            Knowledge ×1.5, Communication ×1.2, Depth ×1.0, ProdReadiness ×0.8
+```
+
+---
+
+#### **Topic Coverage Matrix — Suggested Questions Bank**
+
+Each topic ships with 3 tiers of questions: Conceptual → Applied → Production Crisis.
+
+```yaml
+topics:
+  - name: .NET API
+    questions:
+      conceptual:
+        - "What does [ApiController] attribute do under the hood?"
+        - "Explain middleware order — what breaks if UseAuthorization comes before UseRouting?"
+        - "Transient vs Scoped vs Singleton — when does captive dependency occur?"
+      applied:
+        - "Design an idempotent POST endpoint for order creation."
+        - "How would you implement per-user rate limiting with .NET 7 RateLimiter?"
+        - "Walk me through Output Cache invalidation after a database write."
+      production:
+        - "Your API is leaking sockets under load — what's the root cause and fix?"
+        - "You notice N+1 queries at 500 RPS — what's your detection and mitigation strategy?"
+        - "Design a versioning migration from v1 to v3 with 50k active consumers."
+
+  - name: SQL
+    questions:
+      conceptual:
+        - "Clustered vs non-clustered index — physical storage difference?"
+        - "What is a covering index and when does Key Lookup appear in an execution plan?"
+        - "RANK vs DENSE_RANK vs ROW_NUMBER — when does each behave differently?"
+      applied:
+        - "Write a query: latest order per customer using window functions."
+        - "Explain the isolation level that prevents phantom reads without locking."
+        - "Design a recursive CTE for a 6-level org hierarchy."
+      production:
+        - "Your top-10 slowest queries all show Key Lookup — what's your systematic fix?"
+        - "A query runs fast in dev (10 rows) and slow in prod (10M rows) — root cause?"
+        - "Explain parameter sniffing and your two resolution options."
+
+  - name: Dapr
+    questions:
+      conceptual:
+        - "What problem does the Dapr sidecar solve vs hardcoding SDK calls?"
+        - "Timer vs Reminder in Dapr Actors — survival across deactivation?"
+        - "How does Dapr pub/sub guarantee at-least-once delivery?"
+      applied:
+        - "How do you swap a Redis state store to CosmosDB without changing app code?"
+        - "Implement a Dapr Actor for a shopping cart with abandoned-cart reminder."
+        - "Design mTLS access control: only orders-api can call inventory-api GET endpoints."
+      production:
+        - "A Dapr Actor reminder fires twice after a rolling deployment — why and fix?"
+        - "Your pub/sub consumers are processing poison messages in a loop — resolution?"
+        - "Design observable Dapr workflow: tracing across 4 activities with compensation."
+
+  - name: Terraform
+    questions:
+      conceptual:
+        - "What does terraform plan do that apply doesn't?"
+        - "for_each vs count — when does count cause resource destruction on insertion?"
+        - "How do you prevent a production database from being destroyed by terraform destroy?"
+      applied:
+        - "Design a module structure for dev/staging/prod environments."
+        - "How do you import an existing Azure resource into Terraform state?"
+        - "Handle a secret in Terraform without storing it in state or .tf files."
+      production:
+        - "Your terraform apply fails mid-way — state is now partial. Recovery plan?"
+        - "Two engineers applied conflicting configs simultaneously — state conflict resolution?"
+        - "Your provider upgrade broke 3 resources — rollback strategy?"
+
+  - name: Webhooks
+    questions:
+      conceptual:
+        - "Why must a webhook consumer return 200 immediately?"
+        - "What is a timing attack and how does FixedTimeEquals prevent it?"
+        - "Difference between at-least-once delivery and effectively-once semantics?"
+      applied:
+        - "Implement HMAC-SHA256 signature validation on an incoming webhook endpoint."
+        - "Design the retry schedule for a webhook producer: max 10 attempts, exponential backoff."
+        - "How do you handle a consumer that's been down for 4 hours?"
+      production:
+        - "A subscriber receives the same event 3 times — your consumer isn't idempotent. Fix it."
+        - "Design a webhook subscription system: registration, ping verify, per-subscriber secrets."
+        - "Event Grid vs custom outbox for webhooks — when do you choose each?"
+
+  - name: Azure Container Apps
+    questions:
+      conceptual:
+        - "What is a Container Apps revision and how does traffic splitting work?"
+        - "Scale to zero — what happens to the first request in a cold-start scenario?"
+        - "Container Apps vs AKS — when does each win?"
+      applied:
+        - "Configure KEDA scaling: 1 replica per 5 messages in a Service Bus queue."
+        - "Set up blue-green deployment: 20% traffic to v2, rollback if error rate > 5%."
+        - "Enable Dapr on a container app with a shared pub/sub component scoped to 3 apps."
+      production:
+        - "Your Container App is cold-starting 8 seconds — optimization plan?"
+        - "A Dapr component change broke 2 of 5 apps — rollback strategy without downtime?"
+        - "Design a multi-environment ACA setup: dev/staging share environment, prod isolated."
+
+  - name: xUnit / Testing
+    questions:
+      conceptual:
+        - "IClassFixture vs ICollectionFixture — when does each apply?"
+        - "Why does xUnit create a new class instance per test?"
+        - "Mock vs Stub vs Fake — what is each and when do you use them?"
+      applied:
+        - "Write an integration test for a POST /orders endpoint using WebApplicationFactory."
+        - "How do you replace the real SQL DB with Testcontainers in an integration test?"
+        - "Test an endpoint that calls DateTime.UtcNow — without a flaky time dependency."
+      production:
+        - "Your test suite runs 12 minutes in CI — systematic speed improvement plan?"
+        - "A test passes locally but fails in CI — three most likely root causes?"
+        - "Design a test strategy for a 6-service microservice system with shared Dapr components."
+```
+
+---
+
+#### **Database Schema**
+
+```sql
+-- Evaluation Sessions
+CREATE TABLE EvalSessions (
+    Id              UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    InterviewerId   NVARCHAR(200)  NOT NULL,       -- evaluator's user ID
+    CandidateName   NVARCHAR(200)  NOT NULL,
+    CandidateEmail  NVARCHAR(200),                 -- optional, for report email
+    RoleApplied     NVARCHAR(100)  NOT NULL,       -- "Lead Developer"
+    SeniorityLevel  NVARCHAR(50)   NOT NULL,       -- Mid|Senior|Lead|Principal
+    TopicsSelected  NVARCHAR(500)  NOT NULL,       -- JSON: ["DotNetApi","SQL","Dapr"]
+    Format          NVARCHAR(20)   NOT NULL,       -- Structured|FreeForm|Mixed
+    StartedAt       DATETIME2      DEFAULT GETUTCDATE(),
+    CompletedAt     DATETIME2,
+    DurationSeconds INT,
+    CompositeScore  DECIMAL(5,2),                  -- 0–100 weighted
+    Recommendation  NVARCHAR(20),                  -- Proceed|Hold|Reject
+    HiringNote      NVARCHAR(2000),
+    AiSummary       NVARCHAR(4000),                -- AI-generated narrative
+    ReportUrl       NVARCHAR(500),                 -- shareable link
+    IsSharedWithCandidate BIT DEFAULT 0,
+    CreatedAt       DATETIME2      DEFAULT GETUTCDATE()
+);
+
+-- Per-Topic Scores
+CREATE TABLE EvalTopicScores (
+    Id              UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    SessionId       UNIQUEIDENTIFIER REFERENCES EvalSessions(Id) ON DELETE CASCADE,
+    TopicName       NVARCHAR(100)  NOT NULL,       -- DotNetApi|SQL|Dapr|Terraform|...
+    KnowledgeScore  DECIMAL(3,1)   NOT NULL,       -- 1.0–5.0
+    DepthScore      DECIMAL(3,1)   NOT NULL,
+    CommunicScore   DECIMAL(3,1)   NOT NULL,       -- Communication
+    ProdReadyScore  DECIMAL(3,1)   NOT NULL,       -- Production Readiness
+    TopicScore      AS (                           -- computed column
+        (KnowledgeScore + DepthScore + CommunicScore + ProdReadyScore) / 4.0 * 20
+    ) PERSISTED,
+    QuickTag        NVARCHAR(20),                  -- Strong|Average|Weak|Skip
+    InterviewerNotes NVARCHAR(2000),               -- raw notes taken during interview
+    QuestionsAsked  NVARCHAR(MAX),                 -- JSON array of question texts asked
+    CandidateAnswerSummary NVARCHAR(4000),         -- interviewer's transcription
+    AiGapAnalysis   NVARCHAR(2000),                -- AI-identified gaps per topic
+    WeightMultiplier DECIMAL(3,1) DEFAULT 1.0,     -- adjusted per seniority level
+    ScoredAt        DATETIME2      DEFAULT GETUTCDATE()
+);
+CREATE INDEX IX_EvalTopic_Session ON EvalTopicScores (SessionId, TopicName);
+
+-- Suggested Questions Catalog
+CREATE TABLE EvalQuestions (
+    Id              UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    TopicName       NVARCHAR(100)  NOT NULL,
+    Tier            NVARCHAR(20)   NOT NULL,       -- Conceptual|Applied|Production
+    QuestionText    NVARCHAR(2000) NOT NULL,
+    ExpectedKeyPoints NVARCHAR(4000) NOT NULL,     -- bullet points evaluator sees
+    SeniorityTarget NVARCHAR(100)  NOT NULL,       -- Mid|Senior|Lead|All
+    FollowUpQuestions NVARCHAR(2000),              -- JSON array
+    IsActive        BIT DEFAULT 1,
+    CreatedAt       DATETIME2 DEFAULT GETUTCDATE()
+);
+CREATE INDEX IX_EvalQ_Topic_Tier ON EvalQuestions (TopicName, Tier, IsActive);
+
+-- Report Views / Audit
+CREATE TABLE EvalReportViews (
+    Id          UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    SessionId   UNIQUEIDENTIFIER REFERENCES EvalSessions(Id),
+    ViewerType  NVARCHAR(20) NOT NULL,             -- Interviewer|Candidate|HRManager
+    ViewedAt    DATETIME2 DEFAULT GETUTCDATE(),
+    IpHash      NVARCHAR(100)                      -- anonymised for GDPR
+);
+```
+
+---
+
+#### **Backend: .NET 8 Minimal API**
+
+```csharp
+// ── Session Management ──────────────────────────────────────
+
+// POST /api/eval/sessions — create new evaluation session
+app.MapPost("/api/eval/sessions", async (
+    CreateEvalSessionRequest req,
+    EvalService eval,
+    ClaimsPrincipal user) =>
+{
+    var session = await eval.CreateSessionAsync(new EvalSession
+    {
+        InterviewerId  = user.GetUserId(),
+        CandidateName  = req.CandidateName,
+        RoleApplied    = req.RoleApplied,
+        SeniorityLevel = req.SeniorityLevel,
+        TopicsSelected = req.Topics,
+        Format         = req.Format,
+    });
+    return Results.Created($"/api/eval/sessions/{session.Id}", session);
+})
+.RequireAuthorization();
+
+// GET /api/eval/sessions/{id} — get live session state
+app.MapGet("/api/eval/sessions/{id:guid}", async (
+    Guid id, EvalService eval, ClaimsPrincipal user) =>
+{
+    var session = await eval.GetSessionAsync(id, user.GetUserId());
+    return session is null ? Results.NotFound() : Results.Ok(session);
+})
+.RequireAuthorization();
+
+// ── Topic Scoring ───────────────────────────────────────────
+
+// POST /api/eval/sessions/{id}/topics — save or update a topic score
+app.MapPost("/api/eval/sessions/{id:guid}/topics", async (
+    Guid id,
+    UpsertTopicScoreRequest req,
+    EvalService eval) =>
+{
+    var score = await eval.UpsertTopicScoreAsync(id, req);
+    // Recalculate composite score in real-time
+    var composite = await eval.RecalculateCompositeAsync(id);
+    return Results.Ok(new { topicScore = score, compositeScore = composite });
+})
+.RequireAuthorization();
+
+// ── AI Gap Analysis ─────────────────────────────────────────
+
+// POST /api/eval/sessions/{id}/topics/{topic}/analyze
+// Sends interviewer's notes → AI returns structured gap analysis
+app.MapPost("/api/eval/sessions/{id:guid}/topics/{topic}/analyze", async (
+    Guid id,
+    string topic,
+    AnalyzeTopicRequest req,
+    EvalService eval,
+    AiEvalService ai) =>
+{
+    var questions     = await eval.GetQuestionsForTopicAsync(topic, req.SeniorityLevel);
+    var gapAnalysis   = await ai.AnalyzeTopicResponseAsync(new AiTopicAnalysisRequest
+    {
+        Topic                  = topic,
+        InterviewerNotes       = req.Notes,
+        ExpectedKeyPointsList  = questions.SelectMany(q => q.ExpectedKeyPoints).ToList(),
+        CandidateScores        = req.Scores,
+    });
+    await eval.SaveGapAnalysisAsync(id, topic, gapAnalysis);
+    return Results.Ok(gapAnalysis);
+})
+.RequireAuthorization();
+
+// ── Session Finalization ────────────────────────────────────
+
+// POST /api/eval/sessions/{id}/finalize
+app.MapPost("/api/eval/sessions/{id:guid}/finalize", async (
+    Guid id,
+    FinalizeSessionRequest req,
+    EvalService eval,
+    AiEvalService ai,
+    ReportService reports) =>
+{
+    var session    = await eval.GetSessionAsync(id);
+    var aiSummary  = await ai.GenerateNarrativeSummaryAsync(session);
+    var reportUrl  = await reports.GenerateReportAsync(session, aiSummary);
+
+    await eval.FinalizeAsync(id, new FinalizeRequest
+    {
+        Recommendation = req.Recommendation,
+        HiringNote     = req.HiringNote,
+        AiSummary      = aiSummary,
+        ReportUrl      = reportUrl,
+    });
+
+    return Results.Ok(new { reportUrl, compositeScore = session.CompositeScore });
+})
+.RequireAuthorization();
+
+// GET /api/eval/report/{token} — public shareable report (no auth required)
+app.MapGet("/api/eval/report/{token}", async (
+    string token,
+    ReportService reports) =>
+{
+    var report = await reports.GetByShareTokenAsync(token);
+    return report is null ? Results.NotFound() : Results.Ok(report);
+});
+
+// ── Question Bank ───────────────────────────────────────────
+
+// GET /api/eval/questions?topic=Dapr&tier=Applied&level=Lead
+app.MapGet("/api/eval/questions", async (
+    [FromQuery] string? topic,
+    [FromQuery] string? tier,
+    [FromQuery] string? level,
+    EvalService eval) =>
+    Results.Ok(await eval.GetQuestionsAsync(topic, tier, level))
+)
+.RequireAuthorization();
+```
+
+---
+
+#### **AI Services — Scoring & Narrative Prompts**
+
+```csharp
+// 1. Per-topic gap analysis prompt (Semantic Kernel)
+var gapAnalysisPrompt = """
+You are a senior technical interviewer evaluating a {{$level}} candidate on {{$topic}}.
+
+INTERVIEWER NOTES (candidate responses during interview):
+{{$notes}}
+
+EXPECTED KEY POINTS for this topic at {{$level}} level:
+{{$keyPoints}}
+
+CANDIDATE SCORES: Knowledge={{$knowledge}}/5, Depth={{$depth}}/5,
+                  Communication={{$communication}}/5, ProdReadiness={{$prodReady}}/5
+
+Identify:
+1. GAPS: which key concepts the candidate did NOT demonstrate
+2. STRENGTHS: what they clearly understand well
+3. FOLLOW-UP: 2 questions to probe the identified gaps in next round
+
+Respond in JSON:
+{
+  "gaps": ["<gap1>", "<gap2>"],
+  "strengths": ["<strength1>"],
+  "followUpQuestions": ["<q1>", "<q2>"],
+  "developmentAreas": "<1-sentence coaching note>"
+}
+""";
+
+// 2. Narrative summary prompt (called after all topics scored)
+var narrativeSummpt = """
+You are a hiring manager writing an interview debrief for a {{$role}} ({{$level}}) candidate.
+
+CANDIDATE: {{$name}}
+TOPIC SCORES (JSON): {{$topicScores}}
+DIMENSION AVERAGES: Knowledge={{$avgK}}, Depth={{$avgD}},
+                    Communication={{$avgC}}, ProdReadiness={{$avgP}}
+GAPS PER TOPIC: {{$allGaps}}
+RECOMMENDATION: {{$recommendation}}
+INTERVIEWER NOTE: {{$hiringNote}}
+
+Write a 3-paragraph professional interview debrief:
+1. Overall impression and composite score rationale
+2. Technical strengths (specific, evidence-based)
+3. Development gaps and suggested next steps / follow-up round focus
+
+Keep it factual, constructive, and free of personal bias language.
+""";
+```
+
+---
+
+#### **React Frontend Components**
+
+```typescript
+// ── Types ────────────────────────────────────────────────────
+interface TopicScore {
+  topicName: string;
+  knowledge:    number;   // 1-5
+  depth:        number;
+  communication: number;
+  prodReadiness: number;
+  quickTag:     'Strong' | 'Average' | 'Weak' | 'Skip';
+  notes:        string;
+}
+
+interface EvalSession {
+  id:              string;
+  candidateName:   string;
+  role:            string;
+  seniorityLevel:  string;
+  topicsSelected:  string[];
+  topicScores:     TopicScore[];
+  compositeScore:  number;
+  recommendation:  'Proceed' | 'Hold' | 'Reject' | null;
+  aiSummary:       string;
+}
+
+// ── Zustand store ─────────────────────────────────────────────
+const useEvalStore = create<EvalStore>((set, get) => ({
+  session:        null,
+  activeTopicIdx: 0,
+  isSaving:       false,
+
+  updateTopicScore: async (topic: string, scores: Partial<TopicScore>) => {
+    set({ isSaving: true });
+    const updated = await evalApi.upsertTopicScore(get().session!.id, { topic, ...scores });
+    set(state => ({
+      session: {
+        ...state.session!,
+        topicScores: state.session!.topicScores.map(t =>
+          t.topicName === topic ? { ...t, ...updated.topicScore } : t
+        ),
+        compositeScore: updated.compositeScore,
+      },
+      isSaving: false,
+    }));
+  },
+
+  analyzeWithAI: async (topic: string) => {
+    const s = get().session!;
+    const ts = s.topicScores.find(t => t.topicName === topic)!;
+    const analysis = await evalApi.analyzeTopicWithAI(s.id, topic, {
+      notes: ts.notes, scores: ts, seniorityLevel: s.seniorityLevel,
+    });
+    // Update gap analysis on the topic
+    set(state => ({ /* merge analysis */ }));
+  },
+}));
+
+// ── Live Scoring Panel ────────────────────────────────────────
+const TopicScoringPanel: React.FC<{ topic: string }> = ({ topic }) => {
+  const { session, updateTopicScore, analyzeWithAI } = useEvalStore();
+  const ts = session?.topicScores.find(t => t.topicName === topic);
+  const [notes, setNotes] = useState(ts?.notes ?? '');
+
+  return (
+    <div className="topic-panel">
+      <TopicHeader topic={topic} score={ts} />
+
+      {/* Suggested questions accordion */}
+      <SuggestedQuestionsAccordion topic={topic} level={session?.seniorityLevel} />
+
+      {/* Notes textarea with auto-save debounce */}
+      <NotesArea
+        value={notes}
+        onChange={setNotes}
+        onBlur={() => updateTopicScore(topic, { notes })}
+        placeholder="Type candidate's response summary here..."
+      />
+
+      {/* 4-axis slider rubric */}
+      <RubricSliders
+        dimensions={['knowledge', 'depth', 'communication', 'prodReadiness']}
+        values={{ knowledge: ts?.knowledge, depth: ts?.depth,
+                  communication: ts?.communication, prodReadiness: ts?.prodReadiness }}
+        onChange={scores => updateTopicScore(topic, scores)}
+      />
+
+      {/* Quick tag buttons */}
+      <QuickTagBar
+        selected={ts?.quickTag}
+        onSelect={tag => updateTopicScore(topic, { quickTag: tag })}
+      />
+
+      {/* AI analysis button */}
+      <Button
+        variant="outlined"
+        onClick={() => analyzeWithAI(topic)}
+        startIcon={<AutoAwesomeIcon />}
+      >
+        Analyse Gaps with AI
+      </Button>
+
+      {/* AI gap output */}
+      {ts?.gapAnalysis && <GapAnalysisCard analysis={ts.gapAnalysis} />}
+    </div>
+  );
+};
+
+// ── Radar Chart (Recharts) ────────────────────────────────────
+const TopicRadarChart: React.FC<{ scores: TopicScore[] }> = ({ scores }) => {
+  const data = scores.map(s => ({
+    topic:       s.topicName,
+    score:       (s.knowledge + s.depth + s.communication + s.prodReadiness) / 4 * 20,
+  }));
+
+  return (
+    <RadarChart cx="50%" cy="50%" outerRadius={120} data={data} width={400} height={320}>
+      <PolarGrid />
+      <PolarAngleAxis dataKey="topic" />
+      <PolarRadiusAxis angle={30} domain={[0, 100]} />
+      <Radar name="Candidate" dataKey="score" stroke="#2196f3" fill="#2196f3" fillOpacity={0.3} />
+      <Tooltip formatter={(v: number) => `${v.toFixed(0)}%`} />
+    </RadarChart>
+  );
+};
+
+// ── Printable / PDF Report ────────────────────────────────────
+const EvalReport: React.FC<{ token: string }> = ({ token }) => {
+  const { data: report } = useQuery(['eval-report', token],
+    () => evalApi.getReport(token));
+
+  return (
+    <div className="report-container" id="report-print-area">
+      <ReportHeader report={report} />
+      <CompositeScoreBadge score={report?.compositeScore} recommendation={report?.recommendation} />
+      <TopicScoreTable scores={report?.topicScores} />
+      <TopicRadarChart scores={report?.topicScores ?? []} />
+      <DimensionAveragesBar scores={report?.topicScores} />
+      <GapsSection gaps={report?.allGaps} />
+      <AiNarrativeSection summary={report?.aiSummary} />
+      <RecommendationBlock rec={report?.recommendation} note={report?.hiringNote} />
+
+      <div className="report-actions no-print">
+        <Button onClick={() => window.print()}>🖨 Print / Save PDF</Button>
+        <Button onClick={() => navigator.share({ url: window.location.href })}>
+          📤 Share Link
+        </Button>
+        <Button onClick={() => evalApi.emailReport(token, report?.candidateEmail)}>
+          📧 Email to Candidate
+        </Button>
+      </div>
+    </div>
+  );
+};
+```
+
+---
+
+#### **Composite Score Calculation Service**
+
+```csharp
+public class EvalScoringService
+{
+    // Weights per dimension, adjusted for seniority
+    private static readonly Dictionary<string, DimensionWeights> SeniorityWeights = new()
+    {
+        ["Mid"]       = new(Knowledge: 1.5m, Depth: 1.0m, Communication: 1.2m, ProdReadiness: 0.8m),
+        ["Senior"]    = new(Knowledge: 1.0m, Depth: 1.2m, Communication: 1.0m, ProdReadiness: 1.2m),
+        ["Lead"]      = new(Knowledge: 1.0m, Depth: 1.5m, Communication: 1.0m, ProdReadiness: 1.5m),
+        ["Principal"] = new(Knowledge: 0.8m, Depth: 1.5m, Communication: 1.2m, ProdReadiness: 2.0m),
+    };
+
+    public decimal CalculateTopicScore(EvalTopicScore ts, string seniorityLevel)
+    {
+        var w = SeniorityWeights[seniorityLevel];
+        var weightedSum = ts.KnowledgeScore  * w.Knowledge
+                        + ts.DepthScore      * w.Depth
+                        + ts.CommunicScore   * w.Communication
+                        + ts.ProdReadyScore  * w.ProdReadiness;
+        var totalWeight = w.Knowledge + w.Depth + w.Communication + w.ProdReadiness;
+        return (weightedSum / totalWeight) * 20m; // scale 1-5 → 0-100
+    }
+
+    public decimal CalculateComposite(IEnumerable<EvalTopicScore> topics, string seniorityLevel)
+    {
+        var scored = topics.Where(t => t.QuickTag != "Skip").ToList();
+        if (!scored.Any()) return 0;
+
+        // Topics the interviewer marked "Strong" get slight bonus (+5%)
+        var scores = scored.Select(t => new {
+            score  = CalculateTopicScore(t, seniorityLevel),
+            weight = t.QuickTag == "Strong" ? 1.1m : t.QuickTag == "Weak" ? 0.9m : 1.0m
+        });
+
+        return scores.Sum(s => s.score * s.weight) / scores.Sum(s => s.weight);
+    }
+
+    public string DeriveRecommendation(decimal composite) => composite switch
+    {
+        >= 85 => "Proceed",    // strong hire
+        >= 70 => "Proceed",    // hire with coaching
+        >= 55 => "Hold",       // another round needed
+        _     => "Reject"
+    };
+}
+```
+
+---
+
+#### **Monetization Tiers**
+
+```
+FREE                   PRO ($19/mo)              TEAM ($79/mo, 5 seats)
+─────────────────────  ────────────────────────  ──────────────────────────────
+3 evaluations/month    Unlimited evaluations     Unlimited evaluations
+4 topics               All 7 topics              Custom topics / question bank
+Manual scoring only    AI gap analysis           AI narrative + report
+No report export       PDF + shareable link      White-label branded reports
+No question bank       Full question catalog     Custom rubric weights
+No history             Full history              HR manager dashboard
+                       Email report to candidate Team leaderboard & analytics
+                                                 ATS/Greenhouse export (webhook)
+                                                 Bulk candidate import
+```
+
+---
+
+#### **Integration with Architect Quiz Arena**
+
+```
+Candidate takes Quiz Arena (self-prep) ──► shares result link
+      │
+      ▼
+Interviewer opens Evaluation session ──► imports Quiz Arena scores
+      │                                  as baseline (auto-fills Knowledge axis)
+      ▼
+Live interview ──► Interviewer scores Depth + Communication + ProdReadiness
+      │           (Knowledge already seeded from Quiz Arena)
+      ▼
+Composite Report merges both data sources:
+  "Self-assessed: 78% Knowledge (Quiz Arena)"
+  "Interviewer-assessed: 65% Prod Readiness (Live Eval)"
+  → Full 360° picture of candidate
+```
+
+---
+
+#### **Demo Videos to Create (Eval-Specific)**
+
+1. **"Score a Candidate Live"** — 4-minute walkthrough of a .NET API topic evaluation
+2. **"AI Gap Analysis in Action"** — Show notes typed → AI returns gaps + follow-ups
+3. **"The Shareable Report"** — Generate and email PDF to candidate in 30 seconds
+4. **"Quiz Arena + Eval Interface"** — Show the combined candidate profile use case
+5. **"HR Dashboard"** — Team plan: multiple evaluators, leaderboard, ATS export
+
+---
+
+### **Docker & kubectl Command Interface — Full Implementation Blueprint**
+
+> **Purpose:** An interactive, searchable command reference browser with a left-side category menu. Users click a category (e.g., "Pod Operations"), see all commands with syntax, flags, examples, and sample output — copy-to-clipboard in one click. Doubles as an interview cheatsheet and a portfolio showpiece.
+
+---
+
+#### **User Experience Flow**
+
+```
+┌────────────────────────────────────────────────────────────────────────────┐
+│  🐳 Docker & ☸ kubectl Command Center                    [🔍 Search...]    │
+├──────────────┬─────────────────────────────────────────────────────────────┤
+│  SIDE MENU   │  COMMAND DETAIL PANEL                                       │
+│              │                                                             │
+│  🐳 DOCKER   │  kubectl › Pod Operations › kubectl logs                   │
+│  ──────────  │  ─────────────────────────────────────────────────────────  │
+│  Containers  │                                                             │
+│  ▸ Images    │  kubectl logs                                               │
+│    Networks  │  Print the logs for a container in a pod                   │
+│    Volumes   │                                                             │
+│    Compose   │  SYNTAX                                                     │
+│    System    │  ┌─────────────────────────────────────────────────────┐   │
+│              │  │ kubectl logs <pod-name> [flags]               📋    │   │
+│  ☸ KUBECTL   │  └─────────────────────────────────────────────────────┘   │
+│  ──────────  │                                                             │
+│  Core        │  FLAGS                                                      │
+│ ▶Pod Ops     │  ┌──────────────────┬──────────────────────────────────┐   │
+│  Deployments │  │ Flag             │ Description                      │   │
+│  Services    │  ├──────────────────┼──────────────────────────────────┤   │
+│  Config      │  │ -f, --follow     │ Stream logs in real-time         │   │
+│  Namespaces  │  │ --previous       │ Logs from crashed/prev container │   │
+│  Nodes       │  │ -c <container>   │ Specific container in multi-pod  │   │
+│  Debug       │  │ --tail=<N>       │ Last N lines only                │   │
+│  RBAC        │  │ --since=<dur>    │ Since 5m, 1h, 2h30m etc.        │   │
+│              │  │ --timestamps     │ Prefix each line with timestamp  │   │
+│  CHEATSHEET  │  └──────────────────┴──────────────────────────────────┘   │
+│  [📥 Export] │                                                             │
+│              │  EXAMPLES                                                   │
+│  SETTINGS    │  ┌─────────────────────────────────────────────────────┐   │
+│  Dark Mode ○ │  │ # Stream logs in real-time                    📋   │   │
+│  Compact  ○  │  │ kubectl logs -f my-pod                              │   │
+│              │  │                                                     │   │
+│              │  │ # Last 100 lines from a specific container    📋   │   │
+│              │  │ kubectl logs my-pod -c sidecar --tail=100          │   │
+│              │  │                                                     │   │
+│              │  │ # Logs from crashed previous instance         📋   │   │
+│              │  │ kubectl logs my-pod --previous                      │   │
+│              │  │                                                     │   │
+│              │  │ # Logs from last 1 hour                       📋   │   │
+│              │  │ kubectl logs my-pod --since=1h --timestamps        │   │
+│              │  └─────────────────────────────────────────────────────┘   │
+│              │                                                             │
+│              │  SAMPLE OUTPUT                                              │
+│              │  ┌─────────────────────────────────────────────────────┐   │
+│              │  │ 2026-03-02T08:14:22Z info  Starting orders-api      │   │
+│              │  │ 2026-03-02T08:14:23Z info  Listening on :8080       │   │
+│              │  │ 2026-03-02T08:14:30Z info  POST /api/orders 201     │   │
+│              │  │ 2026-03-02T08:15:01Z warn  DB retry attempt 1/3     │   │
+│              │  └─────────────────────────────────────────────────────┘   │
+│              │                                                             │
+│              │  RELATED COMMANDS                                           │
+│              │  [kubectl exec]  [kubectl describe pod]  [kubectl events]   │
+│              │                                                             │
+│              │  INTERVIEW TIP 💡                                           │
+│              │  "--previous is critical in crash-loop debugging.           │
+│              │  Always pair with kubectl describe pod to see               │
+│              │  OOMKilled or CrashLoopBackOff reasons."                    │
+└──────────────┴─────────────────────────────────────────────────────────────┘
+```
+
+**Cheatsheet Mode (Print / Export):**
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  kubectl CHEATSHEET — Pod Operations                        [🖨 PDF] │
+│                                                                     │
+│  kubectl logs -f <pod>              Stream logs live                │
+│  kubectl logs <pod> --previous      Crashed container logs          │
+│  kubectl exec -it <pod> -- bash     Interactive shell               │
+│  kubectl port-forward <pod> 8080    Forward local port              │
+│  kubectl cp <pod>:/path ./local     Copy file from pod              │
+│  kubectl top pod <pod>              CPU/memory usage                │
+│  kubectl describe pod <pod>         Full status + events            │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+#### **Side Menu Category Structure**
+
+```
+🐳 DOCKER
+├── Containers
+│   ├── Lifecycle       (run, start, stop, restart, rm, kill, pause)
+│   ├── Inspect & Debug (logs, exec, inspect, stats, top, diff)
+│   └── Copy & Export   (cp, export, import, commit)
+├── Images
+│   ├── Build           (build, buildx, tag, history)
+│   ├── Registry        (pull, push, login, logout, search)
+│   └── Cleanup         (rmi, image prune, image ls)
+├── Networks
+│   └── Management      (network ls, create, connect, inspect, rm)
+├── Volumes
+│   └── Management      (volume ls, create, inspect, rm, prune)
+├── Compose
+│   ├── Lifecycle       (up, down, start, stop, restart)
+│   ├── Inspect         (ps, logs, exec, top, events)
+│   └── Build           (build, pull, config)
+└── System
+    └── Maintenance     (system prune, df, info, events, version)
+
+☸ KUBECTL
+├── Core Resources
+│   ├── Get & Describe  (get, describe, explain)
+│   ├── Apply & Manage  (apply, create, delete, patch, replace)
+│   └── Labels & Annot  (label, annotate, get -l selector)
+├── Pod Operations
+│   ├── Logs            (logs, logs -f, logs --previous)
+│   ├── Execute         (exec -it, exec --dry-run)
+│   ├── Port Forward    (port-forward)
+│   └── Copy            (cp)
+├── Deployments
+│   ├── Rollout         (rollout status, history, undo, pause, resume)
+│   ├── Scale           (scale, autoscale)
+│   └── Set             (set image, set env, set resources)
+├── Services & Networking
+│   ├── Services        (expose, get svc, describe svc)
+│   └── Ingress         (get ingress, describe ingress)
+├── Config & Secrets
+│   ├── ConfigMaps      (create cm, get cm, describe cm)
+│   └── Secrets         (create secret, get secret, decode)
+├── Namespaces
+│   └── Management      (get ns, create ns, config set-context)
+├── Nodes
+│   ├── Inspect         (get nodes, describe node, top node)
+│   └── Management      (cordon, uncordon, drain, taint)
+├── Debugging
+│   ├── Events          (get events, --sort-by=.lastTimestamp)
+│   ├── Debug           (debug, run --rm -it)
+│   └── Resource Usage  (top pods, top nodes)
+└── RBAC
+    └── Access Control  (get roles, rolebindings, auth can-i)
+```
+
+---
+
+#### **Command Data Model (TypeScript + JSON)**
+
+```typescript
+// Core types
+interface CommandEntry {
+  id:           string;           // "kubectl-logs"
+  tool:         'docker' | 'kubectl';
+  category:     string;           // "Pod Operations"
+  subCategory:  string;           // "Logs"
+  name:         string;           // "kubectl logs"
+  tagline:      string;           // "Print logs for a container in a pod"
+  syntax:       string;           // "kubectl logs <pod-name> [flags]"
+  description:  string;           // markdown — full explanation
+  flags:        CommandFlag[];
+  examples:     CommandExample[];
+  sampleOutput: string;           // realistic terminal output
+  interviewTip: string;           // lead-level insight
+  relatedCmds:  string[];         // ["kubectl-exec", "kubectl-describe-pod"]
+  tags:         string[];         // ["debug", "logs", "troubleshooting"]
+  dangerLevel:  'safe' | 'caution' | 'destructive';   // visual warning
+  since:        string;           // "k8s 1.14" / "docker 20.10"
+}
+
+interface CommandFlag {
+  flag:        string;   // "-f, --follow"
+  shortForm:   string;   // "-f"
+  longForm:    string;   // "--follow"
+  valueType:   string;   // "bool" | "int" | "duration" | "string"
+  description: string;
+  example:     string;   // "--follow"
+  isCommon:    boolean;  // highlight in condensed view
+}
+
+interface CommandExample {
+  title:       string;   // "Stream logs in real-time"
+  code:        string;   // "kubectl logs -f my-pod"
+  explanation: string;   // "Use -f to follow new output — like tail -f"
+  output?:     string;   // sample terminal output for this example
+}
+
+// Sample data — kubectl logs
+const kubectlLogs: CommandEntry = {
+  id: "kubectl-logs",
+  tool: "kubectl",
+  category: "Pod Operations",
+  subCategory: "Logs",
+  name: "kubectl logs",
+  tagline: "Print the logs for a container in a pod",
+  syntax: "kubectl logs <pod-name> [flags]",
+  dangerLevel: "safe",
+  since: "k8s 1.0",
+  description: `
+Fetches logs from a pod's container. Crucial for debugging crashes,
+slow responses, and unexpected behaviour. Supports multi-container pods,
+log streaming, and historical (pre-crash) logs.
+  `,
+  flags: [
+    { flag: "-f", shortForm: "-f", longForm: "--follow",    valueType: "bool",     description: "Stream logs in real-time",                     example: "-f",          isCommon: true  },
+    { flag: "",   shortForm: "",   longForm: "--previous",  valueType: "bool",     description: "Logs from the previous (crashed) container",   example: "--previous",  isCommon: true  },
+    { flag: "-c", shortForm: "-c", longForm: "--container", valueType: "string",   description: "Container name in a multi-container pod",      example: "-c sidecar",  isCommon: true  },
+    { flag: "",   shortForm: "",   longForm: "--tail",      valueType: "int",      description: "Number of recent log lines to show",           example: "--tail=100",  isCommon: true  },
+    { flag: "",   shortForm: "",   longForm: "--since",     valueType: "duration", description: "Logs since a relative duration (5m, 1h, 2h30m)", example: "--since=1h", isCommon: true  },
+    { flag: "",   shortForm: "",   longForm: "--timestamps", valueType: "bool",    description: "Prefix each log line with its timestamp",      example: "--timestamps", isCommon: false },
+    { flag: "-n", shortForm: "-n", longForm: "--namespace", valueType: "string",   description: "Target a specific namespace",                  example: "-n production", isCommon: false },
+  ],
+  examples: [
+    { title: "Stream logs live",                code: "kubectl logs -f my-pod",                         explanation: "Follow new log output in real-time. Ctrl+C to stop." },
+    { title: "Last 100 lines from sidecar",     code: "kubectl logs my-pod -c sidecar --tail=100",      explanation: "Target a specific container in a multi-container pod." },
+    { title: "Previous crashed container",      code: "kubectl logs my-pod --previous",                 explanation: "Critical for CrashLoopBackOff — see what went wrong before restart." },
+    { title: "Logs from last hour",             code: "kubectl logs my-pod --since=1h --timestamps",    explanation: "Time-bounded logs with timestamps for incident correlation." },
+    { title: "All pods matching a label",       code: "kubectl logs -l app=orders-api --all-containers", explanation: "Aggregate logs across all replicas of a deployment." },
+  ],
+  sampleOutput: `2026-03-02T08:14:22Z info  Starting orders-api v2.1.0
+2026-03-02T08:14:23Z info  Listening on :8080
+2026-03-02T08:14:30Z info  POST /api/orders 201 42ms
+2026-03-02T08:15:01Z warn  DB connection retry attempt 1/3
+2026-03-02T08:15:03Z error DB connection failed: timeout after 5000ms`,
+  interviewTip: `--previous is critical in CrashLoopBackOff debugging — the current container
+has restarted so its logs are empty, but the crashed instance's logs are preserved briefly.
+Always pair with "kubectl describe pod" to see OOMKilled/CrashLoopBackOff events and exit codes.`,
+  relatedCmds: ["kubectl-exec", "kubectl-describe", "kubectl-events", "kubectl-top-pod"],
+  tags: ["debug", "logs", "troubleshooting", "pod", "crash"],
+};
+```
+
+---
+
+#### **Full Command Coverage (150+ Commands)**
+
+```yaml
+# Docker Containers — Lifecycle
+commands:
+  - name: docker run
+    syntax: docker run [flags] <image> [command]
+    dangerLevel: safe
+    keyFlags:
+      -d:             Run in detached (background) mode
+      --name:         Assign a container name
+      -p <h>:<c>:     Map host:container port
+      -v <h>:<c>:     Mount host:container volume
+      -e KEY=VAL:     Set environment variable
+      --rm:           Auto-remove container on exit
+      --network:      Connect to a specific network
+      --restart:      Restart policy (always, on-failure, unless-stopped)
+      --cpus / --memory: Resource limits
+    examples:
+      - docker run -d --name orders-api -p 8080:80 myapp:latest
+      - docker run --rm -it ubuntu bash                        # throwaway shell
+      - docker run -e DB_CONN=... --network app-net myapp:v2  # with env + network
+
+  - name: docker exec
+    syntax: docker exec [flags] <container> <command>
+    dangerLevel: safe
+    keyFlags:
+      -it: Interactive TTY (required for shell access)
+      -e:  Set environment variable for the exec session
+      -u:  Run as a specific user
+    examples:
+      - docker exec -it orders-api bash             # interactive shell
+      - docker exec orders-api cat /etc/hosts       # one-off command
+      - docker exec -it -u root orders-api sh       # as root (Alpine uses sh)
+
+  - name: docker logs
+    syntax: docker logs [flags] <container>
+    dangerLevel: safe
+    keyFlags:
+      -f:         Follow / stream
+      --tail=N:   Last N lines
+      --since:    Time-relative (5m, 2h, 2026-03-02)
+      --timestamps: Add timestamps
+    examples:
+      - docker logs -f orders-api
+      - docker logs --tail=50 --timestamps orders-api
+
+  - name: docker rm / docker stop / docker kill
+    dangerLevel: caution
+    notes:
+      - "docker stop sends SIGTERM (graceful, 10s timeout then SIGKILL)"
+      - "docker kill sends SIGKILL immediately — no cleanup"
+      - "docker rm -f = stop + remove in one command"
+    examples:
+      - docker stop orders-api && docker rm orders-api
+      - docker rm -f orders-api                            # force remove running container
+      - docker rm $(docker ps -aq)                         # remove all stopped containers
+
+# Docker Images
+  - name: docker build
+    syntax: docker build [flags] <context>
+    dangerLevel: safe
+    keyFlags:
+      -t <name:tag>:      Tag the image
+      -f <Dockerfile>:    Custom Dockerfile path
+      --no-cache:         Ignore build cache (clean build)
+      --build-arg:        Pass build-time ARG values
+      --target:           Multi-stage: build up to specific stage
+      --platform:         Cross-platform build (linux/amd64, linux/arm64)
+    examples:
+      - docker build -t myapp:v1.0 .
+      - docker build -f Dockerfile.prod --no-cache -t myapp:prod .
+      - docker buildx build --platform linux/amd64,linux/arm64 -t myapp:multi --push .
+
+  - name: docker system prune
+    dangerLevel: destructive
+    warning: "Removes ALL stopped containers, unused images, dangling volumes, unused networks"
+    examples:
+      - docker system prune                  # prompts for confirmation
+      - docker system prune -af              # all unused images + volumes, no prompt
+      - docker system df                     # check disk usage before pruning
+
+# kubectl Core
+  - name: kubectl get
+    syntax: kubectl get <resource> [name] [flags]
+    dangerLevel: safe
+    keyFlags:
+      -n <ns>:      Namespace
+      -A:           All namespaces
+      -o wide:      Extra columns (node, IP)
+      -o yaml/json: Full resource definition
+      -l <selector>: Label selector
+      --watch:      Watch for changes
+      --sort-by:    Sort output
+    examples:
+      - kubectl get pods -n production -o wide
+      - kubectl get all -A                            # everything, all namespaces
+      - kubectl get pods -l app=orders-api --watch    # watch scaling events
+      - kubectl get pod my-pod -o jsonpath='{.status.podIP}'
+
+  - name: kubectl apply
+    syntax: kubectl apply -f <file|dir|url>
+    dangerLevel: caution
+    notes:
+      - "Declarative: applies the desired state, creates or updates"
+      - "Safe for CI/CD pipelines — idempotent"
+      - "Use --dry-run=client to validate without applying"
+      - "Use --server-side for large objects and SSA merge strategy"
+    examples:
+      - kubectl apply -f deployment.yaml
+      - kubectl apply -f ./manifests/                 # apply entire directory
+      - kubectl apply -f https://raw.github.com/.../manifest.yaml
+      - kubectl apply -f deployment.yaml --dry-run=client -o yaml  # preview
+
+  - name: kubectl rollout
+    syntax: kubectl rollout <subcommand> deployment/<name>
+    dangerLevel: caution
+    subcommands:
+      status:  "Watch rollout progress — blocks until complete or error"
+      history: "See revision history with --record annotations"
+      undo:    "Roll back to previous revision (or --to-revision=N)"
+      pause:   "Pause rollout for canary inspection"
+      resume:  "Resume a paused rollout"
+    examples:
+      - kubectl rollout status deployment/orders-api
+      - kubectl rollout history deployment/orders-api
+      - kubectl rollout undo deployment/orders-api
+      - kubectl rollout undo deployment/orders-api --to-revision=3
+
+  - name: kubectl drain
+    dangerLevel: destructive
+    warning: "Evicts all pods from a node — use before node maintenance"
+    notes:
+      - "--ignore-daemonsets required for nodes with DaemonSets"
+      - "--delete-emptydir-data required for pods with emptyDir volumes"
+      - "Always cordon first to prevent new scheduling"
+    examples:
+      - kubectl cordon node01                                         # stop scheduling
+      - kubectl drain node01 --ignore-daemonsets --delete-emptydir-data  # evict pods
+      - kubectl uncordon node01                                       # re-enable after maintenance
+
+  - name: kubectl debug
+    syntax: kubectl debug <pod-name> -it --image=<debug-image>
+    dangerLevel: safe
+    notes:
+      - "Attaches an ephemeral debug container — no pod restart needed"
+      - "Original container's filesystem accessible at /proc/<pid>/root"
+      - "Use busybox, netshoot, or ubuntu as debug image"
+    examples:
+      - kubectl debug -it my-pod --image=busybox --target=app    # ephemeral container
+      - kubectl debug node/node01 -it --image=ubuntu             # debug the node itself
+      - kubectl run debug-shell --rm -it --image=netshoot -- bash # throwaway debug pod
+```
+
+---
+
+#### **Database / Static Data Strategy**
+
+```typescript
+// Commands are static content — use JSON files (no DB needed, CDN-cacheable)
+// Structure:
+// /public/commands/
+//   docker-containers.json    ← 25 commands
+//   docker-images.json        ← 15 commands
+//   docker-networks.json      ← 8 commands
+//   docker-volumes.json       ← 6 commands
+//   docker-compose.json       ← 12 commands
+//   docker-system.json        ← 6 commands
+//   kubectl-core.json         ← 18 commands
+//   kubectl-pods.json         ← 12 commands
+//   kubectl-deployments.json  ← 14 commands
+//   kubectl-services.json     ← 8 commands
+//   kubectl-config.json       ← 10 commands
+//   kubectl-nodes.json        ← 8 commands
+//   kubectl-debug.json        ← 10 commands
+//   kubectl-rbac.json         ← 8 commands
+
+// For user bookmarks / history → use localStorage (no auth needed)
+// For PRO users (custom notes per command) → Azure SQL / Cosmos DB
+interface UserCommandNote {
+  commandId: string;
+  note:       string;           // user's personal annotation
+  bookmarked: boolean;
+  lastViewed: string;           // ISO date
+}
+```
+
+---
+
+#### **Backend: .NET 8 Minimal API**
+
+```csharp
+// Static content served from CDN — API handles only user-specific features
+
+// GET /api/commands/search?q=logs&tool=kubectl
+app.MapGet("/api/commands/search", async (
+    [FromQuery] string q,
+    [FromQuery] string? tool,
+    [FromQuery] string? category,
+    [FromQuery] string? dangerLevel,
+    CommandSearchService search) =>
+{
+    var results = await search.SearchAsync(new CommandSearchQuery
+    {
+        Text        = q,
+        Tool        = tool,
+        Category    = category,
+        DangerLevel = dangerLevel,
+    });
+    return Results.Ok(results.Take(20));   // max 20 results per search
+});
+
+// GET /api/commands/{id}/ai-explain   (PRO feature)
+// Asks AI to explain a command in plain English with a real-world analogy
+app.MapGet("/api/commands/{id}/ai-explain", async (
+    string id,
+    [FromQuery] string? context,     // "I'm debugging a CrashLoopBackOff"
+    CommandRepository repo,
+    AiExplainService ai) =>
+{
+    var cmd = await repo.GetByIdAsync(id);
+    if (cmd is null) return Results.NotFound();
+
+    var explanation = await ai.ExplainCommandAsync(cmd, context);
+    return Results.Ok(explanation);
+})
+.RequireAuthorization("ProUser");
+
+// POST /api/commands/{id}/notes      (PRO feature — save personal annotation)
+app.MapPost("/api/commands/{id}/notes", async (
+    string id,
+    SaveNoteRequest req,
+    NoteService notes,
+    ClaimsPrincipal user) =>
+{
+    await notes.UpsertAsync(user.GetUserId(), id, req.Note);
+    return Results.NoContent();
+})
+.RequireAuthorization();
+
+// GET /api/commands/cheatsheet?categories=Pod+Operations,Deployments&format=pdf
+app.MapGet("/api/commands/cheatsheet", async (
+    [FromQuery] string categories,
+    [FromQuery] string format,      // "pdf" | "md" | "json"
+    CheatsheetService cs) =>
+{
+    var cats    = categories.Split(',');
+    var content = await cs.GenerateAsync(cats, format);
+
+    return format == "pdf"
+        ? Results.File(content, "application/pdf", "kubectl-cheatsheet.pdf")
+        : Results.Ok(content);
+});
+
+// AI explain service prompt
+var explainPrompt = """
+You are a senior DevOps engineer explaining a command to a developer.
+
+COMMAND: {{$name}}
+SYNTAX:  {{$syntax}}
+FLAGS:   {{$flags}}
+CONTEXT: {{$context}}
+
+Explain this command in plain English using:
+1. ONE real-world analogy (e.g., "kubectl drain is like evacuating a building floor before maintenance")
+2. When you MUST use this command (production scenario)
+3. The #1 mistake people make with it
+
+Keep it under 120 words. No jargon without explanation.
+""";
+```
+
+---
+
+#### **React Frontend**
+
+```typescript
+// ── State ─────────────────────────────────────────────────────
+const useCmdStore = create<CmdStore>((set, get) => ({
+  selectedTool:      'kubectl',            // 'docker' | 'kubectl'
+  selectedCategory:  'Pod Operations',
+  selectedSubCat:    'Logs',
+  activeCommand:     null as CommandEntry | null,
+  searchQuery:       '',
+  bookmarks:         [] as string[],       // commandIds, from localStorage
+  viewMode:          'detail',             // 'detail' | 'cheatsheet'
+  sidebarCollapsed:  false,
+
+  selectCommand: (cmd: CommandEntry) => {
+    set({ activeCommand: cmd });
+    // persist to recent history in localStorage
+    const recent = JSON.parse(localStorage.getItem('cmd-history') ?? '[]');
+    localStorage.setItem('cmd-history', JSON.stringify(
+      [cmd.id, ...recent.filter((id: string) => id !== cmd.id)].slice(0, 20)
+    ));
+  },
+
+  toggleBookmark: (cmdId: string) => set(state => ({
+    bookmarks: state.bookmarks.includes(cmdId)
+      ? state.bookmarks.filter(b => b !== cmdId)
+      : [...state.bookmarks, cmdId]
+  })),
+}));
+
+// ── Side Menu Component ───────────────────────────────────────
+const SideMenu: React.FC = () => {
+  const { selectedTool, selectedCategory, sidebarCollapsed } = useCmdStore();
+  const [expanded, setExpanded] = useState<Set<string>>(new Set(['Pod Operations']));
+
+  const menuTree = MENU_STRUCTURE[selectedTool];   // loaded from static JSON
+
+  return (
+    <aside className={`side-menu ${sidebarCollapsed ? 'collapsed' : ''}`}>
+      {/* Tool switcher tabs */}
+      <ToolSwitcher />
+
+      {/* Search within sidebar */}
+      <SidebarSearch />
+
+      {/* Category tree */}
+      {menuTree.map(cat => (
+        <div key={cat.name} className="menu-category">
+          <button
+            className={`cat-header ${selectedCategory === cat.name ? 'active' : ''}`}
+            onClick={() => setExpanded(prev => {
+              const next = new Set(prev);
+              next.has(cat.name) ? next.delete(cat.name) : next.add(cat.name);
+              return next;
+            })}
+          >
+            {cat.icon} {cat.name}
+            <ChevronIcon expanded={expanded.has(cat.name)} />
+          </button>
+
+          {expanded.has(cat.name) && (
+            <div className="sub-cats">
+              {cat.subCategories.map(sub => (
+                <SubCategoryItem key={sub.name} subCat={sub} />
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+
+      {/* Bookmarks section */}
+      <BookmarksSection />
+
+      {/* Quick links */}
+      <div className="side-footer">
+        <button onClick={() => useCmdStore.setState({ viewMode: 'cheatsheet' })}>
+          📋 Cheatsheet Mode
+        </button>
+        <button onClick={() => cheatsheetApi.download(['all'])}>
+          📥 Export PDF
+        </button>
+      </div>
+    </aside>
+  );
+};
+
+// ── Command Detail Panel ──────────────────────────────────────
+const CommandDetail: React.FC = () => {
+  const { activeCommand, toggleBookmark, bookmarks } = useCmdStore();
+  const [aiExplanation, setAiExplanation] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const copyToClipboard = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 1500);
+  };
+
+  if (!activeCommand) return <EmptyState />;
+
+  return (
+    <main className="cmd-detail">
+      {/* Breadcrumb */}
+      <Breadcrumb items={[activeCommand.tool, activeCommand.category,
+                          activeCommand.subCategory, activeCommand.name]} />
+
+      {/* Header */}
+      <div className="cmd-header">
+        <div>
+          <h1>{activeCommand.name}</h1>
+          <p className="tagline">{activeCommand.tagline}</p>
+          <DangerBadge level={activeCommand.dangerLevel} />
+        </div>
+        <BookmarkButton
+          isBookmarked={bookmarks.includes(activeCommand.id)}
+          onClick={() => toggleBookmark(activeCommand.id)}
+        />
+      </div>
+
+      {/* Syntax block */}
+      <Section title="SYNTAX">
+        <CodeBlock
+          code={activeCommand.syntax}
+          onCopy={() => copyToClipboard(activeCommand.syntax, 'syntax')}
+          copied={copiedId === 'syntax'}
+        />
+      </Section>
+
+      {/* Flags table */}
+      <Section title="FLAGS">
+        <FlagsTable
+          flags={activeCommand.flags}
+          showAllDefault={false}
+        />
+      </Section>
+
+      {/* Examples */}
+      <Section title="EXAMPLES">
+        {activeCommand.examples.map((ex, i) => (
+          <ExampleBlock
+            key={i}
+            title={ex.title}
+            code={ex.code}
+            explanation={ex.explanation}
+            output={ex.output}
+            onCopy={() => copyToClipboard(ex.code, `ex-${i}`)}
+            copied={copiedId === `ex-${i}`}
+          />
+        ))}
+      </Section>
+
+      {/* Sample output */}
+      {activeCommand.sampleOutput && (
+        <Section title="SAMPLE OUTPUT">
+          <TerminalOutput text={activeCommand.sampleOutput} />
+        </Section>
+      )}
+
+      {/* Interview tip */}
+      <InterviewTipCard tip={activeCommand.interviewTip} />
+
+      {/* AI explain button — PRO feature */}
+      <AiExplainSection
+        commandId={activeCommand.id}
+        explanation={aiExplanation}
+        onExplain={setAiExplanation}
+      />
+
+      {/* Related commands */}
+      <Section title="RELATED COMMANDS">
+        <RelatedCommandsChips ids={activeCommand.relatedCmds} />
+      </Section>
+    </main>
+  );
+};
+
+// ── Cheatsheet Mode ───────────────────────────────────────────
+const CheatsheetView: React.FC<{ categories: string[] }> = ({ categories }) => (
+  <div className="cheatsheet" id="cheatsheet-print">
+    <CheatsheetHeader categories={categories} />
+    {categories.map(cat => (
+      <CheatsheetSection key={cat} category={cat}>
+        {getCommandsByCategory(cat).map(cmd => (
+          <CheatsheetRow
+            key={cmd.id}
+            syntax={cmd.syntax}
+            tagline={cmd.tagline}
+            dangerLevel={cmd.dangerLevel}
+          />
+        ))}
+      </CheatsheetSection>
+    ))}
+    <PrintActions />
+  </div>
+);
+
+// ── Global Search (Cmd+K) ─────────────────────────────────────
+const GlobalSearch: React.FC = () => {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery]  = useState('');
+  const { data: results } = useQuery(
+    ['cmd-search', query],
+    () => commandApi.search(query),
+    { enabled: query.length > 1 }
+  );
+
+  useHotkeys('ctrl+k, cmd+k', () => setOpen(true));
+
+  return (
+    <CommandPalette
+      open={open}
+      onClose={() => setOpen(false)}
+      query={query}
+      onQueryChange={setQuery}
+      results={results ?? []}
+      onSelect={cmd => {
+        useCmdStore.getState().selectCommand(cmd);
+        setOpen(false);
+      }}
+    />
+  );
+};
+```
+
+---
+
+#### **Danger Level Indicators**
+
+```
+🟢 SAFE        — Read-only, no side effects (get, logs, describe, top)
+🟡 CAUTION     — Modifies state but reversible (apply, exec, port-forward, scale)
+🔴 DESTRUCTIVE — Irreversible or high-impact (prune, drain, kill, rm -f, delete)
+
+Visual treatment:
+  Safe:        subtle green left border on command card
+  Caution:     amber badge + tooltip warning
+  Destructive: red badge + confirmation modal before showing "copy" button
+```
+
+---
+
+#### **Monetization Tiers**
+
+```
+FREE                    PRO ($9/mo)                TEAM ($29/mo)
+──────────────────────  ────────────────────────── ──────────────────────────
+All 150+ commands       All FREE features           All PRO features
+Syntax + flags          AI explain (plain English)  Custom command notes (team)
+Examples + output       Personal bookmarks sync     Shared team bookmarks
+Interview tips          Custom notes per command    Branded cheatsheet PDFs
+Cheatsheet mode         PDF export (any category)   Offline mode (PWA cache)
+Cmd+K search            Command history (30 days)   Slack command lookup bot
+                        Dark mode                   Embed widget for blog posts
+```
+
+---
+
+#### **Demo Videos to Create (Command Interface)**
+
+1. **"150 Commands, Zero Memorisation"** — 90-second overview of the side-menu navigation
+2. **"Debug a CrashLoopBackOff Live"** — Use kubectl logs + describe + debug in sequence
+3. **"AI Explains kubectl drain"** — Show the plain-English analogy feature
+4. **"Build Your Cheatsheet"** — Select categories → export PDF in 10 seconds
+5. **"docker system prune — what it ACTUALLY deletes"** — Show destructive warning + df output
+
+---
 
 ### **1. GitHub Activity Dashboard (Real-Time)**
 ```typescript
