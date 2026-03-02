@@ -1,6 +1,56 @@
-@SimpleApi_HostAddress = http://localhost:5248
+### SimpleApi1 — Webhook Publisher
+### Run SimpleApi1 on port 5248, SimpleApi2 on port 5249
 
-GET {{SimpleApi_HostAddress}}/weatherforecast/
-Accept: application/json
+@Publisher = http://localhost:5248
+@Receiver  = http://localhost:5249
+
+###─────────────────────────────────────────────────────────────────────────────
+### STEP 1: Register SimpleApi2 as a webhook subscriber
+###  → Use the SAME secret configured in SimpleApi2/appsettings.json Webhook:Secret
+###─────────────────────────────────────────────────────────────────────────────
+POST {{Publisher}}/webhooks/subscribe
+Content-Type: application/json
+
+{
+  "url": "http://localhost:5249/webhook/receive",
+  "secret": "dev-secret-change-in-production-min-32-chars!!",
+  "eventTypes": ["*"]
+}
+
+###─────────────────────────────────────────────────────────────────────────────
+### STEP 2: List all active subscriptions (secrets shown as ***)
+###─────────────────────────────────────────────────────────────────────────────
+GET {{Publisher}}/webhooks/subscriptions
+
+###─────────────────────────────────────────────────────────────────────────────
+### STEP 3: Trigger a manual test event
+###  → Fires immediately to all "*" subscribers
+###─────────────────────────────────────────────────────────────────────────────
+POST {{Publisher}}/webhooks/trigger
+Content-Type: application/json
+
+{
+  "eventType": "trigger.test",
+  "data": {
+    "message": "hello from SimpleApi1 publisher",
+    "sentAt": "2026-03-02T10:00:00Z"
+  }
+}
+
+###─────────────────────────────────────────────────────────────────────────────
+### STEP 4: Fetch weather — also fires "weather.fetched" webhook to all subscribers
+###─────────────────────────────────────────────────────────────────────────────
+GET {{Publisher}}/weatherforecast
+
+###─────────────────────────────────────────────────────────────────────────────
+### STEP 5: Delete a subscription (replace {id} with the ID from STEP 1 response)
+###─────────────────────────────────────────────────────────────────────────────
+# DELETE {{Publisher}}/webhooks/subscriptions/{id}
+
+###─────────────────────────────────────────────────────────────────────────────
+### Health & Info
+###─────────────────────────────────────────────────────────────────────────────
+GET {{Publisher}}/health
 
 ###
+GET {{Publisher}}/info

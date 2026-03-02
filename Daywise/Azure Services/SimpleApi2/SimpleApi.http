@@ -1,6 +1,47 @@
-@SimpleApi_HostAddress = http://localhost:5248
+### SimpleApi2 — Webhook Handler
+### Run with: dotnet run --launch-profile http-5249 (port 5249)
 
-GET {{SimpleApi_HostAddress}}/weatherforecast/
-Accept: application/json
+@Receiver  = http://localhost:5249
+@Publisher = http://localhost:5248
+
+###─────────────────────────────────────────────────────────────────────────────
+### View all received webhook events (audit log)
+### Check this after sending events from SimpleApi1
+###─────────────────────────────────────────────────────────────────────────────
+GET {{Receiver}}/webhook/events
+
+###─────────────────────────────────────────────────────────────────────────────
+### Test: Send a valid webhook manually (signature must match the configured secret)
+### Use this only for low-level testing — normally events come from SimpleApi1
+###─────────────────────────────────────────────────────────────────────────────
+# POST {{Receiver}}/webhook/receive
+# Content-Type: application/json
+# X-Webhook-Signature: sha256=<compute-with-secret>
+# X-Webhook-Id: test-event-001
+# X-Webhook-Timestamp: <unix-epoch>
+#
+# { "id": "test-event-001", "type": "trigger.test", "timestamp": "2026-03-02T10:00:00Z", "data": {} }
+
+###─────────────────────────────────────────────────────────────────────────────
+### Test: Send with invalid signature — should return 401
+###─────────────────────────────────────────────────────────────────────────────
+POST {{Receiver}}/webhook/receive
+Content-Type: application/json
+X-Webhook-Signature: sha256=invalidsignaturefortestingpurposes0000000000000000000000000000000
+X-Webhook-Id: bad-sig-test
+X-Webhook-Timestamp: 1706745600
+
+{
+  "id": "bad-sig-test",
+  "type": "trigger.test",
+  "timestamp": "2026-03-02T10:00:00Z",
+  "data": { "msg": "this should be rejected" }
+}
+
+###─────────────────────────────────────────────────────────────────────────────
+### Health & Info
+###─────────────────────────────────────────────────────────────────────────────
+GET {{Receiver}}/health
 
 ###
+GET {{Receiver}}/info
