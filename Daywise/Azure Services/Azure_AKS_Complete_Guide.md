@@ -7940,6 +7940,50 @@ spec:
     port: 80                          # Port exposed by this Service
     targetPort: 80                    # Port on the pod (container port)
 ```
+In your YAML snippet, the `protocol: TCP` line under the `ports` section specifies the **network protocol** that the Kubernetes Service will use to forward traffic to the pods.  
+
+Here’s what it means in context:
+
+- **TCP vs. UDP**: Kubernetes Services can expose ports using either TCP or UDP. TCP is the most common choice because it provides reliable, connection-oriented communication (used by HTTP, HTTPS, gRPC, etc.). UDP is connectionless and often used for DNS, streaming, or gaming traffic.
+- **Your case**: Since the Service is exposing port 80 for HTTP traffic, it makes sense to declare `protocol: TCP`. HTTP relies on TCP to ensure ordered, reliable delivery of requests and responses.
+- **Effect**: When another pod (like `SimpleApi1`) calls `simpleapi2-svc.simple-apis.svc.cluster.local:80`, Kubernetes routes that traffic using TCP to one of the pods labeled `app=simpleapi2` on their port 80.
+
+So, in short: **`protocol: TCP` tells Kubernetes that this Service should handle traffic over TCP connections, which is the standard for HTTP.**
+
+Would you like me to also break down how Kubernetes decides *which pod* gets the traffic when multiple pods match the selector? That’s where load balancing comes into play.
+Great question — TCP and HTTP often get mixed up, but they’re not the same thing. Think of them as **different layers of communication**:
+
+### TCP (Transport Layer)
+- **What it is**: A transport protocol that ensures reliable, ordered delivery of data between two endpoints.
+- **Role**: Like the postal service making sure every letter arrives in the right order without being lost.
+- **Features**:
+  - Connection-oriented (handshake before sending data).
+  - Guarantees delivery and order.
+  - Used by many higher-level protocols (HTTP, HTTPS, FTP, SMTP, etc.).
+
+### HTTP (Application Layer)
+- **What it is**: An application-level protocol built on top of TCP.
+- **Role**: Defines how web clients (browsers, APIs) and servers exchange requests and responses.
+- **Features**:
+  - Text-based, human-readable format (GET, POST, headers, etc.).
+  - Relies on TCP underneath for reliable transport.
+  - Used specifically for web communication.
+
+### Analogy
+- **TCP** = the road system that ensures vehicles can travel safely and reliably.
+- **HTTP** = the specific type of vehicle (say, a delivery truck) carrying web content along those roads.
+
+### In Your YAML
+When you set `protocol: TCP`, you’re telling Kubernetes:  
+“Use TCP as the transport mechanism for traffic on port 80.”  
+
+Then, inside that TCP connection, your app (SimpleApi2) speaks **HTTP**. Kubernetes doesn’t care about the application-level protocol — it just routes TCP packets.  
+
+So:  
+- **TCP** is the foundation.  
+- **HTTP** is the language spoken on top of it.  
+
+Would you like me to also show you how this looks in a **layered diagram** (OSI model style) so you can visualize where TCP and HTTP sit?
 
 #### SimpleApi1 Deployment — Calling SimpleApi2
 ```yaml
@@ -13005,6 +13049,27 @@ External Client Request
                           ▼
                  Kubernetes Services → Pods
 ```
+Session affinity (cookie-based) is about **making sure a client keeps talking to the same backend pod** in Kubernetes, rather than being load-balanced to different pods each time.  
+
+### How it works
+- Normally, a Kubernetes Service load-balances requests across all matching pods.
+- With **session affinity**, Kubernetes tries to "stick" a client to one pod for consistency.
+- There are two main types:
+  1. **Client IP-based affinity**: The client’s IP address determines which pod it gets routed to.
+  2. **Cookie-based affinity**: The Service (or an Ingress/LoadBalancer in front of it) sets a special cookie in the client’s browser. That cookie tells the load balancer to keep sending requests from that client to the same pod.
+
+### Why it matters
+- Useful for **stateful applications** where a user’s session data is stored in memory on a pod (e.g., shopping carts, login sessions).
+- Without affinity, a user might hit different pods and lose session continuity unless you use external session storage (like Redis).
+
+### Example
+Imagine you have 3 pods running `simpleapi2`.  
+- Without affinity: User A’s requests might go to Pod 1, then Pod 2, then Pod 3.  
+- With cookie-based affinity: User A gets a cookie, and all their requests keep going to Pod 1 until the session expires.  
+
+### Important note
+Cookie-based affinity is usually configured at the **Ingress controller or LoadBalancer level**, not directly in a ClusterIP Service. Kubernetes Services themselves only support **ClientIP affinity** (`sessionAffinity: ClientIP`). Cookie-based affinity is an extra feature provided by controllers like NGINX Ingress or cloud load balancers.
+
 
 #### IP Address Planning for Azure CNI
 
@@ -14786,6 +14851,643 @@ kubectl get svc api-service -n myapp   # wait for EXTERNAL-IP
 │ info                 │ (docker info)            │ cluster-info                         │
 └──────────────────────┴──────────────────────────┴──────────────────────────────────────┘
 ```
+
+---
+
+### 15.7 Azure Networking Layers: Load Balancer → App Gateway → APIM
+
+> **Mental Model:** Each layer adds one capability tier on top of the previous.
+> L4 routing (get packets to pods) → L7 WAF (inspect and filter HTTP) → API policies (authenticate, throttle, transform).
+> You only pay for the layers you actually need.
+
+---
+
+#### The Full Production Stack
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│                               INTERNET                                               │
+└─────────────────────────────────┬────────────────────────────────────────────────────┘
+                                  │  HTTPS :443
+           ┌──────────────────────▼──────────────────────────┐
+           │         Azure Application Gateway (L7)           │
+           │  • WAF (OWASP 3.2 rules, bot protection)         │  ← Network security perimeter
+           │  • SSL/TLS termination  (your cert lives here)   │    Stops malicious traffic
+           │  • URL/path-based routing  (/api → svc A)        │    before it reaches app logic
+           │  • HTTP→HTTPS redirect, header rewrites          │
+           │  Public IP: 52.149.12.34                         │
+           └──────────────────────┬──────────────────────────┘
+                                  │  HTTP or re-encrypted HTTPS (internal VNet)
+           ┌──────────────────────▼──────────────────────────┐
+           │         Azure API Management (APIM)              │
+           │  • JWT / OAuth2 / API-key validation             │  ← API contract enforcer
+           │  • Rate limiting & throttling (per consumer)     │    Handles auth, transforms,
+           │  • Request/response transformation               │    versioning, dev portal
+           │  • API versioning  (/v1/, /v2/ → different AKS)  │
+           │  • Caching, logging, circuit breaker policies    │
+           │  • Developer portal  (self-service docs + keys)  │
+           │  Mode: Internal VNet  (no public IP)             │
+           └──────────────────────┬──────────────────────────┘
+                                  │  HTTP to internal AKS service IP
+           ┌──────────────────────▼──────────────────────────┐
+           │   AKS — Internal Azure Load Balancer (L4)        │
+           │  • Provisioned by: Service type: LoadBalancer    │  ← Transport routing
+           │    + internal annotation                         │    Distributes TCP across
+           │  • Private IP only (e.g. 10.240.0.100)          │    healthy pod endpoints
+           │  • Health-probes pod readiness endpoints         │
+           └──────────────────────┬──────────────────────────┘
+                                  │
+           ┌──────────────────────▼──────────────────────────┐
+           │                  AKS Pods                        │
+           │  (ClusterIP services — never directly exposed)   │
+           └──────────────────────────────────────────────────┘
+```
+
+---
+
+#### Layer 1 — Service `type: LoadBalancer` → Azure Load Balancer (L4)
+
+When AKS sees a `Service` of type `LoadBalancer`, the **Azure Cloud Controller Manager** calls the Azure API and provisions an Azure Standard Load Balancer automatically.
+
+**External Load Balancer (default — gets public IP):**
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-service
+  namespace: myapp
+spec:
+  type: LoadBalancer          # ← triggers Azure LB provisioning
+  selector:
+    app: api
+  ports:
+    - port: 80
+      targetPort: 80
+```
+```bash
+kubectl apply -f service.yaml -n myapp
+kubectl get svc api-service -n myapp
+```
+**Sample Output:**
+```
+NAME          TYPE           CLUSTER-IP     EXTERNAL-IP     PORT(S)        AGE
+api-service   LoadBalancer   10.0.45.123    52.149.12.34    80:31245/TCP   2m
+                                            ↑
+                          Azure provisioned this public IP automatically
+```
+
+**Internal Load Balancer (private VNet IP — used behind App Gateway / APIM):**
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-service-internal
+  namespace: myapp
+  annotations:
+    service.beta.kubernetes.io/azure-load-balancer-internal: "true"   # ← KEY annotation
+    service.beta.kubernetes.io/azure-load-balancer-internal-subnet: "aks-subnet"
+spec:
+  type: LoadBalancer
+  selector:
+    app: api
+  ports:
+    - port: 80
+      targetPort: 80
+```
+```bash
+kubectl get svc api-service-internal -n myapp
+```
+**Sample Output:**
+```
+NAME                    TYPE           CLUSTER-IP    EXTERNAL-IP    PORT(S)       AGE
+api-service-internal    LoadBalancer   10.0.78.55    10.240.0.100   80:30512/TCP  1m
+                                                     ↑
+                                      Private VNet IP — unreachable from internet
+                                      Only App Gateway / APIM can reach this
+```
+
+**What the L4 Load Balancer does and does NOT do:**
+```
+DOES:
+  ✔ Distribute TCP connections to healthy pods
+  ✔ Health-probe readiness endpoints (/healthz)
+  ✔ Assign public or private IP
+  ✔ Handle any TCP protocol (HTTP, gRPC, SQL, MQTT, custom)
+
+DOES NOT:
+  ✗ Inspect HTTP headers, URLs, or cookies
+  ✗ Terminate TLS (pods receive raw TLS or plain HTTP)
+  ✗ Route by path (/api vs /web)
+  ✗ Apply WAF rules or block OWASP threats
+  ✗ Know about API keys or JWT tokens
+```
+
+---
+
+#### Layer 2 — Azure Application Gateway (L7 — HTTP/HTTPS aware)
+
+App Gateway is deployed **outside AKS** in its own subnet. It communicates with pods directly via VNet peering (pod CIDR must be routable to the App Gateway subnet).
+
+**In AKS: AGIC (App Gateway Ingress Controller)**
+- AGIC runs as a pod inside AKS
+- It watches Kubernetes `Ingress` objects
+- Translates them into App Gateway listener/rule/backend pool config
+- Pods get `ClusterIP` services; App Gateway calls pod IPs directly (bypasses kube-proxy)
+
+```
+┌─────────────────────────────────────────────────────┐
+│                   AKS Cluster                        │
+│                                                      │
+│  ┌──────────────────┐   watches    ┌──────────────┐ │
+│  │  AGIC Pod        │────Ingress──▶│  App Gateway │ │
+│  │ (azure/ingress-  │   objects    │  (external)  │ │
+│  │  azure-ingress)  │◀─programs────│              │ │
+│  └──────────────────┘              └──────┬───────┘ │
+│                                           │         │
+│  ┌──────────┐  ┌──────────┐              │ direct  │
+│  │  Pod     │  │  Pod     │◀─────────────┘  pod IP │
+│  │ 10.244.1 │  │ 10.244.2 │                        │
+│  │  .15:80  │  │  .18:80  │                        │
+│  └──────────┘  └──────────┘                        │
+└─────────────────────────────────────────────────────┘
+```
+
+**Sample Ingress YAML (AGIC):**
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-ingress
+  namespace: myapp
+  annotations:
+    kubernetes.io/ingress.class: azure/application-gateway
+    appgw.ingress.kubernetes.io/ssl-redirect: "true"
+    appgw.ingress.kubernetes.io/waf-policy-for-path: /subscriptions/.../wafpolicies/my-waf
+spec:
+  tls:
+    - hosts: [api.myapp.com]
+      secretName: tls-cert              # ← TLS cert stored as K8s Secret
+  rules:
+    - host: api.myapp.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service: { name: api-service, port: { number: 80 } }
+          - path: /admin
+            pathType: Prefix
+            backend:
+              service: { name: admin-service, port: { number: 80 } }
+```
+
+**Provision App Gateway + AGIC via Azure CLI:**
+```bash
+# Create App Gateway in its own subnet
+az network application-gateway create \
+  --name myAppGateway \
+  --resource-group myRG \
+  --location eastus \
+  --vnet-name myVNet \
+  --subnet appgw-subnet \
+  --sku WAF_v2 \
+  --capacity 2 \
+  --frontend-port 443 \
+  --public-ip-address myAppGwPublicIP
+
+# Enable AGIC add-on on AKS cluster
+az aks enable-addons \
+  --resource-group myRG \
+  --name myAKSCluster \
+  --addons ingress-appgw \
+  --appgw-id /subscriptions/.../resourceGroups/myRG/providers/Microsoft.Network/applicationGateways/myAppGateway
+```
+
+---
+
+#### Layer 3 — Azure API Management (APIM)
+
+APIM sits **between App Gateway and AKS**. Deployed in **internal VNet mode** — no public IP; only App Gateway can reach it.
+
+```
+App Gateway (public) → APIM (internal VNet) → AKS Internal LB (private)
+```
+
+**What APIM adds that App Gateway cannot do:**
+```
+JWT Validation:    Validates Bearer tokens; rejects unauthenticated before hitting AKS
+Rate Limiting:     3 calls/second per subscription; 1000/day per consumer tier
+Transformation:    Add/remove headers, rewrite body, convert SOAP→REST
+Versioning:        /v1/* → AKS deployment v1;  /v2/* → AKS deployment v2
+Caching:           Cache GET /products 60s — AKS never called for cached responses
+Dev Portal:        Auto-generated docs; devs self-register and get API keys
+Mock:              Return 200 {"status":"ok"} while backend is still being built
+Circuit Breaker:   If AKS returns 5xx 3x in 10s → return 503 without hitting AKS
+```
+
+**Sample APIM Policy XML (JWT validation + rate limiting + versioned routing):**
+```xml
+<policies>
+  <inbound>
+    <base />
+
+    <!-- Validate JWT Bearer token -->
+    <validate-jwt header-name="Authorization"
+                  failed-validation-httpcode="401"
+                  failed-validation-error-message="Unauthorized">
+      <openid-config url="https://login.microsoftonline.com/{tenant}/.well-known/openid-configuration" />
+      <required-claims>
+        <claim name="aud">
+          <value>api://myapp-client-id</value>
+        </claim>
+      </required-claims>
+    </validate-jwt>
+
+    <!-- Rate limit: 5 calls per 10 seconds per subscription key -->
+    <rate-limit-by-key calls="5"
+                       renewal-period="10"
+                       counter-key="@(context.Subscription.Id)" />
+
+    <!-- Route v1 and v2 to different AKS Internal LB IPs -->
+    <choose>
+      <when condition="@(context.Request.Url.Path.StartsWith("/v2"))">
+        <set-backend-service base-url="http://10.240.0.101" />   <!-- AKS v2 Internal LB -->
+      </when>
+      <otherwise>
+        <set-backend-service base-url="http://10.240.0.100" />   <!-- AKS v1 Internal LB -->
+      </otherwise>
+    </choose>
+
+    <!-- Strip version prefix before forwarding -->
+    <rewrite-uri template="@(context.Request.Url.Path.Replace("/v1","").Replace("/v2",""))" />
+  </inbound>
+  <outbound>
+    <base />
+    <!-- Remove internal headers before returning to caller -->
+    <set-header name="X-Powered-By" exists-action="delete" />
+    <set-header name="Server" exists-action="delete" />
+  </outbound>
+</policies>
+```
+
+**Provision APIM in internal VNet mode:**
+```bash
+az apim create \
+  --name myAPIM \
+  --resource-group myRG \
+  --location eastus \
+  --publisher-email admin@myapp.com \
+  --publisher-name "My Company" \
+  --sku-name Developer \
+  --virtual-network Internal
+
+# Point the APIM backend to the AKS Internal Load Balancer
+az apim api create \
+  --service-name myAPIM \
+  --resource-group myRG \
+  --api-id myapp-api \
+  --display-name "MyApp API" \
+  --path "/" \
+  --protocols https \
+  --service-url "http://10.240.0.100"   # ← AKS Internal LB private IP
+```
+
+---
+
+#### Why App Gateway BEFORE APIM (not after)?
+
+| Concern | App Gateway | APIM |
+|---------|-------------|------|
+| WAF / OWASP rule sets | Yes — WAF_v2 SKU | No |
+| DDoS & bot protection | Yes | No |
+| SSL/TLS termination | Yes — offloads certs | Yes (but hand off to AppGW) |
+| URL/path-based routing | Yes — listener rules | Yes — policy-based |
+| JWT / OAuth2 validation | No | Yes |
+| Rate limiting per consumer | No | Yes |
+| Request body transformation | No | Yes |
+| Developer portal | No | Yes |
+| API versioning | No | Yes |
+| Response caching | Yes (basic) | Yes (fine-grained) |
+| **Sits at** | **Network security perimeter** | **API contract enforcer** |
+
+> **Key Insight:** App Gateway blocks *malicious traffic* (SQLi, XSS, bot floods) before it wastes APIM or AKS resources. APIM then enforces *business rules* on legitimate traffic. Reversing the order would expose APIM's management plane to raw internet attacks.
+
+---
+
+#### When to Skip Layers — Decision Table
+
+| Scenario | Stack | Reason |
+|----------|-------|--------|
+| Internal microservices only | `ClusterIP` | No external exposure needed |
+| Internal tool / low-traffic API | `Service: LoadBalancer` (internal) | AppGW + APIM adds ~$300+/month |
+| Public API, WAF required, no API management | App Gateway (AGIC) → AKS pods | WAF needed; no rate-limit/portal required |
+| Enterprise API platform (partners + devs) | App Gateway → APIM → AKS Internal LB | Full: WAF + policies + versioning + portal |
+| Global high-throughput CDN | Azure Front Door → AKS Internal LB | Front Door = global PoPs + DDoS; replaces AppGW |
+| Hybrid internal + external consumers | App Gateway (internet) + APIM (VNet) | AppGW faces internet; APIM also serves VPN partners |
+
+---
+
+#### Traffic Flow: One Request End-to-End
+
+```
+1. Client → GET https://api.myapp.com/v2/orders/123
+   │
+2. [App Gateway — WAF checks]
+   │  WAF: no SQLi/XSS detected in path ✔
+   │  SSL terminated, certificate validated
+   │  Route rule: *.myapp.com → APIM backend pool (10.x.x.x:443)
+   │
+3. [APIM — inbound policy pipeline]
+   │  validate-jwt: Bearer token valid, aud=api://myapp ✔
+   │  rate-limit: subscription XYZ under 5/10s limit ✔
+   │  choose: path starts /v2 → set-backend-service 10.240.0.101
+   │  rewrite-uri: /v2/orders/123 → /orders/123
+   │
+4. [AKS Internal Load Balancer — 10.240.0.101]
+   │  Health probe passes on pod 10.244.2.18 ✔
+   │  Forward TCP to pod 10.244.2.18:80
+   │
+5. [Pod — api-deployment-v2 container]
+   │  dotnet handles GET /orders/123
+   │  Returns 200 { "orderId": 123, "status": "shipped" }
+   │
+6. Response travels back:
+   Pod → AKS LB → APIM (outbound: strip X-Powered-By, Server headers)
+       → App Gateway → Client
+```
+
+---
+
+### 15.8 Session Affinity Across the Stack: App Gateway → APIM → AKS
+
+> **Mental Model:** APIM is an identity launderer. It receives requests with a client IP and a session cookie, then makes brand-new connections to AKS using its own IP. The AKS Load Balancer sees only APIM — the client is invisible. Every affinity mechanism must be retrofitted at the application layer, not the network layer.
+
+---
+
+#### The Core Problem
+
+```
+Without APIM:
+  Client (1.2.3.4) ─────────────────────────────▶ Azure LB ─▶ Pod A (sticky to 1.2.3.4)
+
+With APIM in the middle:
+  Client (1.2.3.4) ──▶ App Gateway ──▶ APIM (10.0.0.5) ──▶ Azure LB
+                                                                 ├──▶ Pod A
+                                                                 ├──▶ Pod B
+                                                                 └──▶ Pod C
+                                        ↑
+                          AKS LB sees only APIM's IP (10.0.0.5)
+                          ALL clients look like one source
+                          5-tuple hash distributes randomly across pods
+```
+
+The **Azure Standard Load Balancer uses a 5-tuple hash** (source IP, source port, dest IP, dest port, protocol). Because APIM opens new TCP connections per request (or uses a connection pool with rotating source ports), even the source port varies — stickiness at the Azure LB level is **unreliable and cannot be relied upon**.
+
+---
+
+#### Layer 1 — App Gateway: ARR Cookie (Client → APIM stickiness)
+
+App Gateway can pin each client to a **specific APIM backend instance** using a cookie (`AppGwAffinity`). This ensures the same client always hits the same APIM node — useful when APIM itself caches per-session policy state.
+
+```bash
+# Enable cookie-based affinity in App Gateway backend HTTP settings (pointing to APIM)
+az network application-gateway http-settings update \
+  --gateway-name myAppGateway \
+  --resource-group myRG \
+  --name apimHttpSettings \
+  --cookie-based-affinity Enabled \
+  --affinity-cookie-name "AppGwAffinity"
+```
+
+```
+Client A ──[AppGwAffinity=hash-A]──▶ APIM Instance 1 ──▶ AKS Pod ?
+Client B ──[AppGwAffinity=hash-B]──▶ APIM Instance 2 ──▶ AKS Pod ?
+```
+
+**What this solves:** Stable APIM node per client.
+**What this does NOT solve:** Which AKS pod the request lands on — APIM still makes a new connection to AKS.
+
+---
+
+#### Layer 2 — APIM: Four Options for Session Identity
+
+**Option A — Forward Client IP (basic, limited)**
+```xml
+<inbound>
+  <!-- Tell AKS the real client IP; NGINX Ingress can use this for routing -->
+  <set-header name="X-Forwarded-For" exists-action="override">
+    <value>@(context.Request.IpAddress)</value>
+  </set-header>
+  <set-header name="X-Original-Client-IP" exists-action="override">
+    <value>@(context.Request.IpAddress)</value>
+  </set-header>
+</inbound>
+```
+The Azure LB ignores this header — only works if NGINX Ingress or app code reads `X-Forwarded-For` for routing logic.
+
+---
+
+**Option B — Pass Through Session Cookie (for NGINX Ingress stickiness)**
+```xml
+<inbound>
+  <!-- APIM forwards the client's INGRESSCOOKIE untouched to AKS -->
+  <!-- NGINX Ingress reads this cookie and routes to the pinned pod -->
+  <!-- No policy needed: APIM passes all request headers by default -->
+  <base />
+</inbound>
+```
+This works automatically — APIM does not strip cookies by default. Pair with NGINX Ingress annotation (see Layer 3 below).
+
+---
+
+**Option C — APIM Cache-Based Sticky Routing (production-grade)**
+
+APIM uses its **internal cache** to remember which backend group was assigned to each session, then uses `set-backend-service` to enforce it:
+
+```xml
+<inbound>
+  <base />
+
+  <!-- Extract a stable session key: prefer JWT sub, fall back to cookie, then IP -->
+  <set-variable name="sessionKey" value="@{
+    // Try JWT subject claim first (most stable identifier)
+    var jwtSub = context.Request.Headers.GetValueOrDefault("Authorization","")
+                   .Replace("Bearer ","");
+    if (!string.IsNullOrEmpty(jwtSub)) {
+      try {
+        var jwt = new System.IdentityModel.Tokens.Jwt.JwtSecurityToken(jwtSub);
+        var sub = jwt.Subject;
+        if (!string.IsNullOrEmpty(sub)) return sub;
+      } catch {}
+    }
+    // Fall back to session cookie value
+    var cookie = context.Request.Headers.GetValueOrDefault("Cookie","")
+                   .Split(';')
+                   .Select(c => c.Trim())
+                   .FirstOrDefault(c => c.StartsWith("SessionId="));
+    if (cookie != null) return cookie.Replace("SessionId=","");
+    // Last resort: client IP
+    return context.Request.IpAddress;
+  }" />
+
+  <!-- Look up any previously cached backend assignment for this session -->
+  <cache-lookup-value
+    key="@("sticky-backend-" + (string)context.Variables["sessionKey"])"
+    variable-name="stickyBackend" />
+
+  <choose>
+    <!-- Known session: route to previously assigned backend -->
+    <when condition="@(context.Variables.ContainsKey("stickyBackend") && !string.IsNullOrEmpty((string)context.Variables["stickyBackend"]))">
+      <set-backend-service base-url="@((string)context.Variables["stickyBackend"])" />
+    </when>
+    <!-- New session: assign backend by consistent hash, cache the assignment -->
+    <otherwise>
+      <set-variable name="assignedBackend" value="@{
+        var backends = new[] {
+          "http://10.240.0.100",   // AKS Internal LB — deployment group A
+          "http://10.240.0.101"    // AKS Internal LB — deployment group B
+        };
+        var idx = Math.Abs(((string)context.Variables["sessionKey"]).GetHashCode())
+                  % backends.Length;
+        return backends[idx];
+      }" />
+      <!-- Cache for 1 hour (adjust to match your session timeout) -->
+      <cache-store-value
+        key="@("sticky-backend-" + (string)context.Variables["sessionKey"])"
+        value="@((string)context.Variables["assignedBackend"])"
+        duration="3600" />
+      <set-backend-service base-url="@((string)context.Variables["assignedBackend"])" />
+    </otherwise>
+  </choose>
+</inbound>
+```
+
+```
+Request 1 (user=alice): no cache entry → assign 10.240.0.100 → cache "sticky-backend-alice"=10.240.0.100
+Request 2 (user=alice): cache hit → always route to 10.240.0.100
+Request 3 (user=bob):   no cache entry → assign 10.240.0.101 → cache "sticky-backend-bob"=10.240.0.101
+```
+
+---
+
+#### Layer 3 — NGINX Ingress: Cookie Affinity at Pod Level
+
+If NGINX Ingress Controller is used as the final hop (instead of a raw ClusterIP service), it can do **cookie-based pod stickiness**. The `INGRESSCOOKIE` travels all the way: Client → App Gateway → APIM (pass-through) → NGINX → same Pod every time.
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-ingress-sticky
+  namespace: myapp
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/affinity: "cookie"              # ← enable cookie affinity
+    nginx.ingress.kubernetes.io/session-cookie-name: "INGRESSCOOKIE"
+    nginx.ingress.kubernetes.io/session-cookie-expires: "3600"  # seconds
+    nginx.ingress.kubernetes.io/session-cookie-max-age: "3600"
+    nginx.ingress.kubernetes.io/session-cookie-path: "/"
+    nginx.ingress.kubernetes.io/session-cookie-samesite: "Lax"
+spec:
+  rules:
+    - host: api.myapp.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: api-service, port: { number: 80 } }
+```
+
+**How the cookie travels through the stack:**
+```
+1. First request (no cookie):
+   Client ──▶ AppGW ──▶ APIM (pass-through) ──▶ NGINX ──▶ Pod A
+   Response: Set-Cookie: INGRESSCOOKIE=podA-hash (travels back through APIM, AppGW to Client)
+
+2. Subsequent requests (cookie present):
+   Client ──[INGRESSCOOKIE=podA-hash]──▶ AppGW ──▶ APIM (forwards cookie) ──▶ NGINX ──▶ Pod A (always)
+                                                    ↑
+                              APIM passes request cookies through by default
+                              No policy change needed for this to work
+```
+
+**Important:** APIM does NOT strip request cookies by default, so this works without any policy change. APIM also passes `Set-Cookie` response headers back to the client transparently.
+
+---
+
+#### Why NOT to Use `sessionAffinity: ClientIP` on the K8s Service
+
+```yaml
+# AVOID this pattern when APIM is in the chain:
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-service
+spec:
+  sessionAffinity: ClientIP          # ← problematic with APIM
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 3600
+```
+
+**The problem:**
+```
+APIM Instance 1 IP: 10.0.0.5
+APIM Instance 2 IP: 10.0.0.6
+
+ClientIP affinity: 10.0.0.5 → always Pod A
+                   10.0.0.6 → always Pod B
+
+Result: ALL traffic from APIM node 1 goes to Pod A
+        ALL traffic from APIM node 2 goes to Pod B
+        Pods C, D, E get zero traffic → uneven load distribution
+```
+
+Use NGINX Ingress cookie affinity or APIM cache-based routing instead.
+
+---
+
+#### Decision Tree: Which Approach to Use
+
+```
+Does your AKS app require session stickiness?
+│
+├── NO (stateless pods) ──▶ No affinity config needed anywhere. Done.
+│                           Use distributed cache (Azure Cache for Redis)
+│                           for any session state that crosses requests.
+│
+└── YES ──▶ What kind of stickiness?
+            │
+            ├── WebSocket / SignalR (long-lived connection to same pod)
+            │     ──▶ App Gateway ARR cookie (client → APIM node)
+            │         + NGINX Ingress cookie affinity (APIM → pod)
+            │         + APIM: set-backend-service bypass policy
+            │
+            ├── Multi-step form / file upload chunks (same pod for N requests)
+            │     ──▶ APIM cache-based routing (Option C above)
+            │         + NGINX Ingress cookie affinity as belt-and-suspenders
+            │
+            └── Legacy in-memory session (HttpContext.Session in ASP.NET)
+                  ──▶ BEST: Migrate to Redis IDistributedCache (1-day effort)
+                      WORKAROUND: NGINX Ingress cookie affinity
+                                  + APIM cookie pass-through (default)
+```
+
+---
+
+#### Summary Table
+
+| Layer | Mechanism | Pins | Limitation |
+|-------|-----------|------|------------|
+| App Gateway | ARR affinity cookie | Client → APIM node | Only helps if APIM is stateful |
+| APIM (Option A) | `X-Forwarded-For` header | Passes client IP downstream | Azure LB ignores it; app code must use it |
+| APIM (Option B) | Cookie pass-through (default) | Client cookie → NGINX reads it | Requires NGINX Ingress (not Azure LB) as backend |
+| APIM (Option C) | Cache-based `set-backend-service` | Session key → backend group | APIM cache is the single source of truth; TTL must match session lifetime |
+| K8s `sessionAffinity: ClientIP` | Source IP hash | APIM IP → pod | All APIM traffic → 1 pod; breaks load distribution |
+| NGINX Ingress cookie affinity | `INGRESSCOOKIE` header | Cookie hash → specific pod | Requires NGINX Ingress; cookie must survive AppGW → APIM round-trip (it does by default) |
+
+> **Key Insight:** The cleanest production solution is: **stateless pods + Redis for session state**. If you must have stickiness, **NGINX Ingress cookie affinity** is the most reliable mechanism in this stack because the cookie travels transparently through App Gateway and APIM without any policy configuration.
 
 ---
 
