@@ -408,6 +408,1626 @@ Assert.IsAssignableFrom<IEnumerable<OrderDto>>(result);
 **Q: How do you ensure test isolation?**
 > No shared mutable state. Each test gets fresh instance (xUnit creates new class instance per test). Use `IClassFixture` only for read-only/expensive setup. Rollback DB transactions in teardown.
 
+### Integration Testing & Testcontainers — Deep Dive
+
+## 1. Mental Model: The Testing Spectrum
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    THE TESTING SPECTRUM                             │
+│                                                                     │
+│      /\           E2E Tests                                         │
+│     /  \          • Real browser / real app / real infra            │
+│    /    \         • Slowest (minutes), most fragile                 │
+│   /──────\        • Use for: critical happy paths only              │
+│  /        \                                                         │
+│ / Integr.  \      Integration Tests  ← THIS GUIDE                  │
+│/────────────\     • Real HTTP / real DB (via Testcontainers)        │
+│              \    • Medium speed (seconds), mostly reliable         │
+│   Unit Tests  \   • Use for: contracts, DB queries, API behavior    │
+│────────────────\                                                    │
+│                 \  • Fastest (ms), ultra-reliable                   │
+│                  \ • Use for: business logic, algorithms            │
+│                   \• Mock all external deps                         │
+└─────────────────────────────────────────────────────────────────────┘
+
+DECISION TREE:
+Does the test need a DB / HTTP / broker?
+  YES → Integration test (Testcontainers if real behavior matters)
+  NO  → Unit test (mock everything)
+Does it need a real browser / full deployment?
+  YES → E2E test (Playwright, Cypress)
+```
+
+### The "Confidence vs Speed" Trade-off
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                                                                 │
+│  UNIT TEST                INTEGRATION TEST           E2E        │
+│                                                                 │
+│  mock.Setup(r =>          real SQL Server            real app   │
+│    r.GetUser(1))          real HTTP stack            real UI    │
+│  .Returns(fakeUser)       real EF Core               real flow  │
+│                                                                 │
+│  Fast: ~1ms               Medium: ~2-10s             Slow: 30s+ │
+│  Isolation: perfect       Isolation: good            Poor       │
+│  Confidence: low          Confidence: HIGH           Highest    │
+│  (mocks lie!)             (real behavior)                       │
+│                                                                 │
+│  KEY INSIGHT: "My mock said it works" ≠ "It actually works"    │
+│  Integration tests catch what unit tests miss:                  │
+│  • SQL query mistakes (wrong JOIN, missing index)              │
+│  • EF Core mapping bugs (wrong column name)                    │
+│  • Serialization mismatches (JSON property casing)             │
+│  • Auth middleware ordering issues                              │
+│  • Middleware pipeline bugs                                     │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 2. What Integration Tests Actually Are
+
+### Scope Options
+
+```
+NARROW INTEGRATION TEST:
+  Test a single class against a real DB
+  ┌──────────────┐      ┌──────────────────┐
+  │  OrderRepo   │─────▶│  SQL Server       │
+  │  (your class)│      │  (Testcontainers) │
+  └──────────────┘      └──────────────────┘
+  No HTTP layer. Just: does the SQL work?
+
+BROAD INTEGRATION TEST (most common):
+  Test the full HTTP stack against real deps
+  ┌─────────┐  HTTP  ┌─────────────┐  EF Core  ┌──────────┐
+  │HttpClient│──────▶│ ASP.NET Core│──────────▶│SQL Server│
+  │(test)   │        │ (in-process)│           │(TC)      │
+  └─────────┘        └─────────────┘           └──────────┘
+  Tests: routing, middleware, validation, auth, DB, serialization
+
+COMPONENT TEST:
+  Whole service with all deps containerized
+  Used in: microservices testing, contract testing
+```
+
+### What to Integration Test
+
+```
+✓ TEST THESE:
+  • Repository / data access layer SQL queries
+  • API endpoints (status codes, response shapes, validation errors)
+  • Authentication / authorization (401, 403 behaviors)
+  • EF Core migrations (schema actually matches model)
+  • Message consumer behavior (process a real message)
+  • Cache interactions (Redis SET/GET/TTL)
+  • Complex query correctness (pagination, filtering, sorting)
+
+✗ DON'T INTEGRATION TEST THESE (use unit tests):
+  • Pure business logic / calculations
+  • Domain rules that don't touch external systems
+  • Error handling within a service class
+  • Mapping / transformation logic
+```
+
+---
+
+## 3. WebApplicationFactory — Testing the Full HTTP Stack
+
+**Mental Model**: WebApplicationFactory boots your ASP.NET Core app **in-process** (no real TCP port), gives you an `HttpClient` that talks directly to the in-memory pipeline. No network latency. Real middleware. Real DI container.
+
+```
+WITHOUT WebApplicationFactory:
+  Test → real network → kestrel → your app → DB
+         (need running server)
+
+WITH WebApplicationFactory:
+  Test → TestServer (in-process) → your app pipeline → DB
+         (no network, boots in test process)
+```
+
+### Level 1: Basic Setup
+
+```csharp
+// NuGet: Microsoft.AspNetCore.Mvc.Testing
+
+// Your API project must have:
+// <Project Sdk="Microsoft.NET.Sdk.Web">
+// and Program.cs must be accessible:
+// public partial class Program { }  // at the bottom of Program.cs
+
+public class BasicApiTests : IClassFixture<WebApplicationFactory<Program>>
+{
+    private readonly HttpClient _client;
+
+    public BasicApiTests(WebApplicationFactory<Program> factory)
+    {
+        _client = factory.CreateClient();
+    }
+
+    [Fact]
+    public async Task HealthCheck_Returns200()
+    {
+        var response = await _client.GetAsync("/health");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetOrders_Unauthenticated_Returns401()
+    {
+        var response = await _client.GetAsync("/api/orders");
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+}
+```
+
+### Level 2: Replacing Services (Override DI)
+
+```csharp
+public class OrdersApiTests : IClassFixture<WebApplicationFactory<Program>>
+{
+    private readonly WebApplicationFactory<Program> _factory;
+
+    public OrdersApiTests(WebApplicationFactory<Program> factory)
+    {
+        _factory = factory;
+    }
+
+    private HttpClient CreateClientWithOverrides(Action<IServiceCollection> configureServices)
+    {
+        return _factory
+            .WithWebHostBuilder(builder =>
+            {
+                builder.ConfigureServices(services =>
+                {
+                    configureServices(services);
+                });
+            })
+            .CreateClient();
+    }
+
+    [Fact]
+    public async Task GetOrders_WithInMemoryDb_ReturnsOrders()
+    {
+        var client = CreateClientWithOverrides(services =>
+        {
+            // Remove real DB
+            var descriptor = services.SingleOrDefault(
+                d => d.ServiceType == typeof(DbContextOptions<AppDbContext>));
+            if (descriptor != null) services.Remove(descriptor);
+
+            // Add in-memory DB (fast but limited — see section 4)
+            services.AddDbContext<AppDbContext>(options =>
+                options.UseInMemoryDatabase("TestDb_" + Guid.NewGuid()));
+
+            // Seed test data
+            var sp = services.BuildServiceProvider();
+            using var scope = sp.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.Orders.AddRange(new Order { Id = 1, Amount = 100 });
+            db.SaveChanges();
+        });
+
+        var response = await client.GetAsync("/api/orders");
+        response.EnsureSuccessStatusCode();
+    }
+}
+```
+
+### Level 3: Custom WebApplicationFactory (Recommended Pattern)
+
+```csharp
+// Create a reusable custom factory — the STANDARD production pattern
+public class CustomWebAppFactory : WebApplicationFactory<Program>, IAsyncLifetime
+{
+    // Testcontainers (covered in section 6) go here
+    private readonly MsSqlContainer _sqlContainer = new MsSqlBuilder()
+        .WithPassword("Strong@Passw0rd!")
+        .WithImage("mcr.microsoft.com/mssql/server:2022-latest")
+        .Build();
+
+    // Called BEFORE tests run
+    public async Task InitializeAsync()
+    {
+        await _sqlContainer.StartAsync();
+    }
+
+    // Called AFTER all tests run
+    public async Task DisposeAsync()
+    {
+        await _sqlContainer.DisposeAsync();
+    }
+
+    // Override the app configuration for tests
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        builder.ConfigureServices(services =>
+        {
+            // 1. Remove real DB registration
+            services.RemoveAll<DbContextOptions<AppDbContext>>();
+            services.RemoveAll<AppDbContext>();
+
+            // 2. Point to Testcontainer SQL Server
+            services.AddDbContext<AppDbContext>(options =>
+                options.UseSqlServer(_sqlContainer.GetConnectionString()));
+
+            // 3. Run EF migrations on test DB
+            var sp = services.BuildServiceProvider();
+            using var scope = sp.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.Database.Migrate();   // creates real schema!
+        });
+
+        // Set environment to Test (can be used in app to skip certain startup)
+        builder.UseEnvironment("Testing");
+    }
+}
+
+// Tests use the custom factory
+public class OrdersApiTests : IClassFixture<CustomWebAppFactory>
+{
+    private readonly HttpClient _client;
+    private readonly CustomWebAppFactory _factory;
+
+    public OrdersApiTests(CustomWebAppFactory factory)
+    {
+        _factory = factory;
+        _client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,   // catch 302s explicitly
+            HandleCookies = true
+        });
+    }
+
+    [Fact]
+    public async Task CreateOrder_ValidRequest_Returns201WithLocation()
+    {
+        var request = new { Amount = 250.00m, CustomerId = 1 };
+
+        var response = await _client.PostAsJsonAsync("/api/orders", request);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.NotNull(response.Headers.Location);   // check Location header
+    }
+}
+```
+
+---
+
+## 4. The Problem with Fakes (InMemory DB)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  EF Core InMemoryDatabase — LOOKS like a DB, ISN'T one         │
+│                                                                 │
+│  What it DOES:                                                  │
+│  ✓ Stores entities in memory                                    │
+│  ✓ Basic LINQ queries work                                       │
+│  ✓ Fast (no Docker needed)                                       │
+│                                                                 │
+│  What it DOESN'T do:                                            │
+│  ✗ SQL constraints (unique, foreign key, check constraints)     │
+│  ✗ Transactions / rollback                                       │
+│  ✗ Raw SQL queries (FromSqlRaw, ExecuteSqlRaw)                  │
+│  ✗ Stored procedures, views, functions                           │
+│  ✗ DB-specific features (JSON columns, hierarchyid, sequences)  │
+│  ✗ Cascade delete behavior                                       │
+│  ✗ Concurrency handling                                          │
+│                                                                 │
+│  WHEN TO USE InMemory:                                          │
+│  ✓ Smoke tests / pure logic tests touching DB-like API          │
+│  ✓ When you KNOW you won't use raw SQL or constraints           │
+│                                                                 │
+│  WHEN TO USE Testcontainers (real DB):                          │
+│  ✓ Any time you run migrations                                   │
+│  ✓ Any time you use raw SQL / stored procs                      │
+│  ✓ When testing DB constraints matter                            │
+│  ✓ Production-confidence tests                                   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### SQLite — The Middle Ground
+
+```csharp
+// SQLite is a real relational DB, runs in-process, no Docker needed
+// Better than InMemory for most cases, cheaper than Testcontainers
+
+services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlite("DataSource=:memory:"));   // in-memory SQLite
+
+// OR file-based (persists across tests):
+options.UseSqlite($"DataSource={Path.GetTempFileName()}");
+
+// Limitations vs SQL Server:
+// ✗ No schema (dbo.), no identity seed behavior
+// ✗ Limited JSON support, no TVPs
+// ✗ Different datetime handling
+// USE WHEN: you want real SQL but can't use Docker (restricted CI)
+```
+
+### Decision Matrix
+
+```
+┌──────────────────┬──────────┬────────────┬───────────────┬──────────────────┐
+│                  │ InMemory │   SQLite   │ Testcontainers│  Real DB (CI env)│
+├──────────────────┼──────────┼────────────┼───────────────┼──────────────────┤
+│ Speed            │ Fastest  │ Fast       │ 2-10s startup │ Fast (reuse)     │
+│ SQL Accuracy     │ None     │ Partial    │ EXACT         │ EXACT            │
+│ Constraints      │ No       │ Yes        │ Yes           │ Yes              │
+│ Raw SQL          │ No       │ Yes        │ Yes           │ Yes              │
+│ Docker required  │ No       │ No         │ Yes           │ No               │
+│ Isolation        │ Perfect  │ Good       │ Perfect       │ Shared (risky)   │
+│ CI friendliness  │ Always   │ Always     │ Need Docker   │ Need env setup   │
+└──────────────────┴──────────┴────────────┴───────────────┴──────────────────┘
+```
+
+---
+
+## 5. Testcontainers — How It Works
+
+**Mental Model**: Testcontainers is a .NET library that talks to your local **Docker daemon** via socket. It pulls images, starts containers, waits for them to be ready, gives you a connection string, and kills them when tests end. All automated.
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                HOW TESTCONTAINERS WORKS                          │
+│                                                                  │
+│  Test Code                                                       │
+│  ┌─────────────────────┐                                         │
+│  │ new MsSqlBuilder()  │                                         │
+│  │   .WithPassword()   │                                         │
+│  │   .Build()          │──────┐                                  │
+│  │ container.Start()   │      │ Docker API calls                 │
+│  └─────────────────────┘      │ (via /var/run/docker.sock)       │
+│                               ▼                                  │
+│                    ┌─────────────────────┐                       │
+│                    │   Docker Daemon     │                        │
+│                    │                    │                        │
+│                    │  1. Pull image      │                        │
+│                    │  2. Create container│                        │
+│                    │  3. Start container │                        │
+│                    │  4. Expose ports   │                        │
+│                    └──────────┬──────────┘                       │
+│                               │                                  │
+│                    ┌──────────▼──────────┐                       │
+│                    │  SQL Server         │                        │
+│                    │  127.0.0.1:XXXXX    │◀── random host port   │
+│                    │  (mapped to 1433    │    (avoids conflicts)  │
+│                    │   inside container) │                        │
+│                    └─────────────────────┘                       │
+│                                                                  │
+│  container.GetConnectionString()                                 │
+│  → "Server=127.0.0.1,XXXXX;User Id=sa;Password=...;..."         │
+│                                                                  │
+│  After tests: container.StopAsync() → container destroyed        │
+└──────────────────────────────────────────────────────────────────┘
+
+REQUIREMENTS:
+  • Docker Desktop (Windows/Mac) or Docker Engine (Linux)
+  • Docker socket accessible: /var/run/docker.sock (Linux/Mac)
+                              npipe:////./pipe/docker_engine (Windows)
+  • Internet access to pull images (first run only — cached after)
+```
+
+### NuGet Package Structure
+
+```
+Testcontainers (base)              → core Docker interaction
+Testcontainers.MsSql               → SQL Server specific builder
+Testcontainers.PostgreSql           → PostgreSQL specific builder
+Testcontainers.Redis                → Redis specific builder
+Testcontainers.RabbitMq             → RabbitMQ specific builder
+Testcontainers.Kafka                → Kafka specific builder
+Testcontainers.MongoDb              → MongoDB specific builder
+Testcontainers.Azurite              → Azure Storage emulator
+Testcontainers.LocalStack           → AWS services emulator
+```
+
+```xml
+<!-- In your test project .csproj -->
+<ItemGroup>
+  <PackageReference Include="Testcontainers.MsSql" Version="3.9.0" />
+  <PackageReference Include="Testcontainers.PostgreSql" Version="3.9.0" />
+  <PackageReference Include="Testcontainers.Redis" Version="3.9.0" />
+  <PackageReference Include="Testcontainers.RabbitMq" Version="3.9.0" />
+  <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.0" />
+  <PackageReference Include="Respawn" Version="6.2.1" />   <!-- DB reset -->
+</ItemGroup>
+```
+
+---
+
+## 6. Core Containers: SQL, Postgres, Redis, RabbitMQ
+
+### SQL Server Container
+
+```csharp
+// Builder pattern — configure before starting
+private readonly MsSqlContainer _sqlContainer = new MsSqlBuilder()
+    .WithImage("mcr.microsoft.com/mssql/server:2022-latest")
+    .WithPassword("Strong@Passw0rd!")    // must meet SQL Server complexity rules
+    .WithEnvironment("ACCEPT_EULA", "Y") // included automatically by builder
+    .WithPortBinding(1433, true)         // true = random host port (default)
+    .WithWaitStrategy(                   // wait until container is READY
+        Wait.ForUnixContainer()
+            .UntilPortIsAvailable(1433))
+    .Build();
+
+// Usage
+await _sqlContainer.StartAsync();
+
+string connStr = _sqlContainer.GetConnectionString();
+// → "Server=127.0.0.1,54321;Database=master;User Id=sa;Password=Strong@Passw0rd!;..."
+
+// Always stop after tests
+await _sqlContainer.StopAsync();   // or DisposeAsync()
+```
+
+### PostgreSQL Container
+
+```csharp
+private readonly PostgreSqlContainer _pgContainer = new PostgreSqlBuilder()
+    .WithImage("postgres:16-alpine")    // alpine = smaller image
+    .WithDatabase("testdb")
+    .WithUsername("testuser")
+    .WithPassword("testpass")
+    .Build();
+
+await _pgContainer.StartAsync();
+
+string connStr = _pgContainer.GetConnectionString();
+// → "Host=127.0.0.1;Port=XXXXX;Database=testdb;Username=testuser;Password=testpass"
+
+// With Npgsql:
+services.AddDbContext<AppDbContext>(o => o.UseNpgsql(connStr));
+```
+
+### Redis Container
+
+```csharp
+private readonly RedisContainer _redisContainer = new RedisBuilder()
+    .WithImage("redis:7-alpine")
+    .Build();
+
+await _redisContainer.StartAsync();
+
+string connStr = _redisContainer.GetConnectionString();
+// → "127.0.0.1:XXXXX"
+
+// With StackExchange.Redis:
+var connection = await ConnectionMultiplexer.ConnectAsync(connStr);
+
+// With Microsoft.Extensions.Caching.StackExchangeRedis:
+services.AddStackExchangeRedisCache(options =>
+    options.Configuration = connStr);
+```
+
+### RabbitMQ Container
+
+```csharp
+private readonly RabbitMqContainer _rabbitContainer = new RabbitMqBuilder()
+    .WithImage("rabbitmq:3-management-alpine")
+    .WithUsername("guest")
+    .WithPassword("guest")
+    .Build();
+
+await _rabbitContainer.StartAsync();
+
+string connStr = _rabbitContainer.GetConnectionString();
+// → "amqp://guest:guest@127.0.0.1:XXXXX/"
+
+// With MassTransit:
+services.AddMassTransitTestHarness(x =>
+{
+    x.UsingRabbitMq((ctx, cfg) =>
+    {
+        cfg.Host(connStr);
+        cfg.ConfigureEndpoints(ctx);
+    });
+});
+```
+
+### Custom / Generic Container
+
+```csharp
+// For anything without a specific builder — use ContainerBuilder
+private readonly IContainer _wiremockContainer = new ContainerBuilder()
+    .WithImage("wiremock/wiremock:latest")
+    .WithPortBinding(8080, true)
+    .WithCommand("--port", "8080", "--verbose")
+    .WithWaitStrategy(
+        Wait.ForUnixContainer()
+            .UntilHttpRequestIsSucceeded(r => r.ForPath("/__admin/mappings").ForPort(8080)))
+    .WithBindMount(Path.Combine(Directory.GetCurrentDirectory(), "wiremock"), "/home/wiremock")
+    .Build();
+
+string wiremockUrl = $"http://localhost:{_wiremockContainer.GetMappedPublicPort(8080)}";
+```
+
+---
+
+## 7. Lifecycle Management: IAsyncLifetime
+
+**Mental Model**: `IAsyncLifetime` is xUnit's hook to run async setup/teardown. Like a constructor/Dispose but async.
+
+```
+Test class lifecycle with IAsyncLifetime:
+
+  InitializeAsync()    ← runs BEFORE first test in class
+       ↓
+  [Fact] Test1()
+       ↓
+  [Fact] Test2()
+       ↓
+  DisposeAsync()       ← runs AFTER last test in class
+```
+
+### Pattern A: Container per Test Class (Simple)
+
+```csharp
+// Each test CLASS gets its own container
+// Pros: perfect isolation   Cons: slow (starts N containers for N test classes)
+
+public class OrderRepositoryTests : IAsyncLifetime
+{
+    private readonly MsSqlContainer _sqlContainer = new MsSqlBuilder()
+        .WithPassword("Strong@Passw0rd!")
+        .Build();
+
+    private AppDbContext _db = null!;
+    private string _connStr = null!;
+
+    // Runs once before all [Fact]s in this class
+    public async Task InitializeAsync()
+    {
+        await _sqlContainer.StartAsync();
+        _connStr = _sqlContainer.GetConnectionString();
+
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseSqlServer(_connStr)
+            .Options;
+
+        _db = new AppDbContext(options);
+        await _db.Database.MigrateAsync();   // apply migrations
+        await SeedAsync(_db);                // seed test data
+    }
+
+    // Runs once after all [Fact]s in this class
+    public async Task DisposeAsync()
+    {
+        await _db.DisposeAsync();
+        await _sqlContainer.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task GetOrderById_ExistingId_ReturnsOrder()
+    {
+        var repo = new OrderRepository(_db);
+        var order = await repo.GetByIdAsync(1);
+
+        Assert.NotNull(order);
+        Assert.Equal(1, order.Id);
+    }
+
+    [Fact]
+    public async Task GetOrderById_MissingId_ReturnsNull()
+    {
+        var repo = new OrderRepository(_db);
+        var order = await repo.GetByIdAsync(9999);
+
+        Assert.Null(order);
+    }
+
+    private async Task SeedAsync(AppDbContext db)
+    {
+        db.Orders.AddRange(
+            new Order { Id = 1, Amount = 100, CustomerId = 1 },
+            new Order { Id = 2, Amount = 200, CustomerId = 1 }
+        );
+        await db.SaveChangesAsync();
+    }
+}
+```
+
+---
+
+## 8. Shared Containers: Collection Fixtures
+
+**Mental Model**: Starting a SQL Server container takes 3-8 seconds. If you have 10 test classes, that's 30-80 seconds wasted. **Collection fixtures** share ONE container across ALL test classes in a collection.
+
+```
+WITHOUT Collection Fixture:         WITH Collection Fixture:
+  TestClass A → start container       One container starts ONCE
+  TestClass A tests run (3s start)    ┌──────────────────────┐
+  TestClass A → stop container        │  SharedDatabaseFixture│
+                                      │  (one SQL container)  │
+  TestClass B → start container       └─────────┬────────────┘
+  TestClass B tests run (3s start)              │
+  TestClass B → stop container          ┌───────┴────────┐
+                                    TestA     TestB    TestC
+  Total: 6s startup overhead        (all share same container)
+
+  Total: 3s startup (once!)
+```
+
+### Step 1: Create the Shared Fixture
+
+```csharp
+// SharedDatabaseFixture.cs
+public class SharedDatabaseFixture : IAsyncLifetime
+{
+    // ONE container for ALL test classes in the collection
+    public MsSqlContainer SqlContainer { get; } = new MsSqlBuilder()
+        .WithPassword("Strong@Passw0rd!")
+        .Build();
+
+    public string ConnectionString => SqlContainer.GetConnectionString();
+
+    public async Task InitializeAsync()
+    {
+        await SqlContainer.StartAsync();
+
+        // Run migrations ONCE on the shared container
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseSqlServer(ConnectionString)
+            .Options;
+        using var db = new AppDbContext(options);
+        await db.Database.MigrateAsync();
+    }
+
+    public async Task DisposeAsync()
+    {
+        await SqlContainer.DisposeAsync();
+    }
+}
+```
+
+### Step 2: Register the Collection
+
+```csharp
+// CollectionDefinition.cs
+// This file just declares the collection — no logic needed
+[CollectionDefinition("Database")]
+public class DatabaseCollection : ICollectionFixture<SharedDatabaseFixture>
+{
+    // xUnit uses this class as a marker — leave it empty
+}
+```
+
+### Step 3: Use in Multiple Test Classes
+
+```csharp
+[Collection("Database")]   // ← must match CollectionDefinition name
+public class OrderRepositoryTests
+{
+    private readonly SharedDatabaseFixture _fixture;
+
+    public OrderRepositoryTests(SharedDatabaseFixture fixture)
+    {
+        _fixture = fixture;   // SAME instance across all [Collection("Database")] classes
+    }
+
+    [Fact]
+    public async Task CreateOrder_PersistsToDb()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseSqlServer(_fixture.ConnectionString)
+            .Options;
+
+        using var db = new AppDbContext(options);
+        // IMPORTANT: clean DB before each test (see section 9)
+        await db.Orders.ExecuteDeleteAsync();
+
+        db.Orders.Add(new Order { Amount = 100 });
+        await db.SaveChangesAsync();
+
+        Assert.Equal(1, await db.Orders.CountAsync());
+    }
+}
+
+[Collection("Database")]   // shares the SAME container
+public class CustomerRepositoryTests
+{
+    private readonly SharedDatabaseFixture _fixture;
+
+    public CustomerRepositoryTests(SharedDatabaseFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
+    [Fact]
+    public async Task GetAllCustomers_ReturnsSeededData()
+    {
+        // container already running — no startup delay here!
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseSqlServer(_fixture.ConnectionString)
+            .Options;
+        using var db = new AppDbContext(options);
+        // ...
+    }
+}
+```
+
+---
+
+## 9. Database Reset Strategies
+
+**The Problem**: Tests share a DB container but must NOT share data. Test A's inserted rows must be invisible to Test B.
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│              DATABASE RESET OPTIONS                          │
+│                                                              │
+│  1. RESPAWN (best for integration tests)                     │
+│     Deletes all data between tests via smart DELETE          │
+│     Respects FK order. Fast (~50ms). No recreation needed.   │
+│                                                              │
+│  2. TRANSACTION ROLLBACK                                     │
+│     Wrap each test in a transaction, rollback at end         │
+│     Fast but: doesn't work with parallel tests or            │
+│     code that uses its own transactions                       │
+│                                                              │
+│  3. DROP & RECREATE DATABASE                                 │
+│     Drop DB, recreate, run migrations                        │
+│     Slowest (2-5s per test). Guaranteed clean state.        │
+│     Use only if Respawn doesn't fit                          │
+│                                                              │
+│  4. EF CORE DELETERANGE                                      │
+│     db.Orders.ExecuteDeleteAsync() per table                 │
+│     Fast but: you must know all tables & correct order       │
+│                                                              │
+│  RECOMMENDATION: Use Respawn for shared containers           │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### Strategy 1: Respawn (Recommended)
+
+```csharp
+// NuGet: Respawn
+
+public class SharedDatabaseFixture : IAsyncLifetime
+{
+    public MsSqlContainer SqlContainer { get; } = new MsSqlBuilder()
+        .WithPassword("Strong@Passw0rd!")
+        .Build();
+
+    private Respawner _respawner = null!;
+
+    public async Task InitializeAsync()
+    {
+        await SqlContainer.StartAsync();
+
+        // Run migrations
+        using var db = CreateDbContext();
+        await db.Database.MigrateAsync();
+
+        // Configure Respawner AFTER migrations (needs schema to exist)
+        await using var conn = new SqlConnection(SqlContainer.GetConnectionString());
+        await conn.OpenAsync();
+
+        _respawner = await Respawner.CreateAsync(conn, new RespawnerOptions
+        {
+            TablesToIgnore = new[] { new Table("__EFMigrationsHistory") },
+            DbAdapter = DbAdapter.SqlServer
+        });
+    }
+
+    // Call this at the start of each test or in a base class
+    public async Task ResetDatabaseAsync()
+    {
+        await using var conn = new SqlConnection(SqlContainer.GetConnectionString());
+        await conn.OpenAsync();
+        await _respawner.ResetAsync(conn);
+    }
+
+    public AppDbContext CreateDbContext()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseSqlServer(SqlContainer.GetConnectionString())
+            .Options;
+        return new AppDbContext(options);
+    }
+
+    public async Task DisposeAsync()
+    {
+        await SqlContainer.DisposeAsync();
+    }
+}
+
+// Usage in test class — reset before each test
+[Collection("Database")]
+public class OrderTests : IAsyncLifetime
+{
+    private readonly SharedDatabaseFixture _fixture;
+
+    public OrderTests(SharedDatabaseFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
+    // Reset DB before THIS test class's tests
+    public async Task InitializeAsync() => await _fixture.ResetDatabaseAsync();
+    public Task DisposeAsync() => Task.CompletedTask;
+
+    [Fact]
+    public async Task Test_StartsWith_CleanDatabase()
+    {
+        using var db = _fixture.CreateDbContext();
+        // DB is guaranteed empty (Respawn wiped it)
+        Assert.Equal(0, await db.Orders.CountAsync());
+    }
+}
+```
+
+### Strategy 2: Transaction Rollback
+
+```csharp
+// Wrap each test in a transaction, rollback at end
+// Works well for repository-level tests where you control the connection
+
+public class OrderRepositoryTests : IAsyncLifetime
+{
+    private readonly SharedDatabaseFixture _fixture;
+    private SqlConnection _connection = null!;
+    private SqlTransaction _transaction = null!;
+
+    public OrderRepositoryTests(SharedDatabaseFixture fixture) => _fixture = fixture;
+
+    public async Task InitializeAsync()
+    {
+        _connection = new SqlConnection(_fixture.ConnectionString);
+        await _connection.OpenAsync();
+        _transaction = _connection.BeginTransaction();    // start before each test
+    }
+
+    public async Task DisposeAsync()
+    {
+        await _transaction.RollbackAsync();    // ROLLBACK — nothing committed!
+        await _connection.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Insert_ThenRollback_LeavesNoTrace()
+    {
+        // This INSERT will be ROLLED BACK in DisposeAsync
+        var cmd = new SqlCommand(
+            "INSERT INTO Orders (Amount) VALUES (100)", _connection, _transaction);
+        await cmd.ExecuteNonQueryAsync();
+
+        // Verify it's there within THIS transaction
+        var countCmd = new SqlCommand(
+            "SELECT COUNT(*) FROM Orders", _connection, _transaction);
+        var count = (int)await countCmd.ExecuteScalarAsync();
+        Assert.Equal(1, count);
+
+        // After test: DisposeAsync rolls back → DB unchanged for next test
+    }
+}
+```
+
+---
+
+## 10. WebApplicationFactory + Testcontainers Combined
+
+This is the **production-standard pattern** — full HTTP integration tests with a real DB.
+
+```
+HTTP Request Flow in Integration Test:
+
+  [Fact] test code
+     ↓
+  HttpClient (in-process)
+     ↓
+  ASP.NET Core Pipeline
+  (middleware, routing, auth, filters)
+     ↓
+  Controller / Endpoint Handler
+     ↓
+  Service Layer
+     ↓
+  Repository / EF Core
+     ↓
+  SQL Server (Testcontainer)
+     ↓
+  response back up the chain
+```
+
+### The Complete Pattern
+
+```csharp
+// IntegrationTestFactory.cs
+public class IntegrationTestFactory : WebApplicationFactory<Program>, IAsyncLifetime
+{
+    // All containers declared here
+    private readonly MsSqlContainer _sqlContainer = new MsSqlBuilder()
+        .WithPassword("Strong@Passw0rd!")
+        .Build();
+
+    private readonly RedisContainer _redisContainer = new RedisBuilder()
+        .WithImage("redis:7-alpine")
+        .Build();
+
+    private Respawner _respawner = null!;
+
+    public async Task InitializeAsync()
+    {
+        // Start containers in PARALLEL — saves time
+        await Task.WhenAll(
+            _sqlContainer.StartAsync(),
+            _redisContainer.StartAsync()
+        );
+
+        // Run migrations (after containers are up)
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Database.MigrateAsync();
+
+        // Setup Respawner
+        await using var conn = new SqlConnection(_sqlContainer.GetConnectionString());
+        await conn.OpenAsync();
+        _respawner = await Respawner.CreateAsync(conn, new RespawnerOptions
+        {
+            TablesToIgnore = new[] { new Table("__EFMigrationsHistory") },
+            DbAdapter = DbAdapter.SqlServer
+        });
+    }
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        builder.ConfigureServices(services =>
+        {
+            // Replace SQL Server
+            services.RemoveAll<DbContextOptions<AppDbContext>>();
+            services.AddDbContext<AppDbContext>(o =>
+                o.UseSqlServer(_sqlContainer.GetConnectionString()));
+
+            // Replace Redis
+            services.RemoveAll<IConnectionMultiplexer>();
+            services.AddSingleton<IConnectionMultiplexer>(_ =>
+                ConnectionMultiplexer.Connect(_redisContainer.GetConnectionString()));
+
+            // Replace external HTTP clients with fakes
+            services.RemoveAll<IExternalPaymentService>();
+            services.AddSingleton<IExternalPaymentService, FakePaymentService>();
+        });
+
+        builder.UseEnvironment("Testing");
+    }
+
+    public async Task ResetDatabaseAsync()
+    {
+        await using var conn = new SqlConnection(_sqlContainer.GetConnectionString());
+        await conn.OpenAsync();
+        await _respawner.ResetAsync(conn);
+    }
+
+    public new async Task DisposeAsync()
+    {
+        await _sqlContainer.DisposeAsync();
+        await _redisContainer.DisposeAsync();
+    }
+}
+
+// CollectionDefinition.cs
+[CollectionDefinition("Integration")]
+public class IntegrationCollection : ICollectionFixture<IntegrationTestFactory> { }
+
+// Base test class to avoid boilerplate
+public abstract class IntegrationTestBase : IAsyncLifetime
+{
+    protected readonly IntegrationTestFactory Factory;
+    protected readonly HttpClient Client;
+
+    protected IntegrationTestBase(IntegrationTestFactory factory)
+    {
+        Factory = factory;
+        Client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+    }
+
+    // Reset DB before each test class's tests run
+    public async Task InitializeAsync() => await Factory.ResetDatabaseAsync();
+    public Task DisposeAsync() => Task.CompletedTask;
+
+    // Helper: seed data
+    protected async Task SeedAsync(Func<AppDbContext, Task> seedAction)
+    {
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await seedAction(db);
+        await db.SaveChangesAsync();
+    }
+}
+
+// Actual test class — clean and minimal
+[Collection("Integration")]
+public class OrdersApiTests : IntegrationTestBase
+{
+    public OrdersApiTests(IntegrationTestFactory factory) : base(factory) { }
+
+    [Fact]
+    public async Task GetOrder_ExistingId_Returns200WithOrder()
+    {
+        // Arrange — seed specific data for this test
+        await SeedAsync(async db =>
+        {
+            db.Orders.Add(new Order { Id = 1, Amount = 100, Status = "Pending" });
+        });
+
+        // Act
+        var response = await Client.GetAsync("/api/orders/1");
+
+        // Assert
+        response.EnsureSuccessStatusCode();
+        var order = await response.Content.ReadFromJsonAsync<OrderDto>();
+        Assert.Equal(1, order!.Id);
+        Assert.Equal(100, order.Amount);
+    }
+
+    [Fact]
+    public async Task CreateOrder_InvalidAmount_Returns400()
+    {
+        var body = new { Amount = -1 };  // negative amount
+
+        var response = await Client.PostAsJsonAsync("/api/orders", body);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        Assert.Contains("Amount", problem!.Extensions.Keys);
+    }
+
+    [Fact]
+    public async Task GetOrder_NotFound_Returns404()
+    {
+        var response = await Client.GetAsync("/api/orders/9999");
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+}
+```
+
+---
+
+## 11. Advanced Patterns
+
+### Pattern A: Bypass Authentication in Tests
+
+```csharp
+// Option 1: TestAuthHandler — fake auth that always succeeds
+public class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
+{
+    public TestAuthHandler(IOptionsMonitor<AuthenticationSchemeOptions> options,
+        ILoggerFactory logger, UrlEncoder encoder) : base(options, logger, encoder) { }
+
+    protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+    {
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.Name, "testuser"),
+            new Claim(ClaimTypes.NameIdentifier, "user-123"),
+            new Claim(ClaimTypes.Role, "Admin"),
+            new Claim("tenant_id", "tenant-abc"),
+        };
+        var identity = new ClaimsIdentity(claims, "TestScheme");
+        var principal = new ClaimsPrincipal(identity);
+        var ticket = new AuthenticationTicket(principal, "TestScheme");
+        return Task.FromResult(AuthenticateResult.Success(ticket));
+    }
+}
+
+// Register in ConfigureWebHost:
+builder.ConfigureServices(services =>
+{
+    services.AddAuthentication("TestScheme")
+        .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>("TestScheme", _ => { });
+});
+
+// Option 2: Use JWT — generate real token in test
+private string GenerateTestToken(string userId, string role = "User")
+{
+    var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("test-secret-key-min-32-chars!!"));
+    var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+    var token = new JwtSecurityToken(
+        claims: new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, userId),
+            new Claim(ClaimTypes.Role, role)
+        },
+        expires: DateTime.UtcNow.AddHours(1),
+        signingCredentials: creds);
+    return new JwtSecurityTokenHandler().WriteToken(token);
+}
+
+// Usage:
+Client.DefaultRequestHeaders.Authorization =
+    new AuthenticationHeaderValue("Bearer", GenerateTestToken("user-123", "Admin"));
+```
+
+### Pattern B: Test Data Builders
+
+```csharp
+// Fluent builder for creating test data — avoids bloated [Fact] methods
+public class OrderBuilder
+{
+    private int _id = 1;
+    private decimal _amount = 100m;
+    private string _status = "Pending";
+    private int _customerId = 1;
+    private DateTime _createdAt = DateTime.UtcNow;
+
+    public OrderBuilder WithId(int id) { _id = id; return this; }
+    public OrderBuilder WithAmount(decimal amount) { _amount = amount; return this; }
+    public OrderBuilder WithStatus(string status) { _status = status; return this; }
+    public OrderBuilder WithCustomer(int customerId) { _customerId = customerId; return this; }
+    public OrderBuilder CreatedDaysAgo(int days) { _createdAt = DateTime.UtcNow.AddDays(-days); return this; }
+
+    public Order Build() => new Order
+    {
+        Id = _id,
+        Amount = _amount,
+        Status = _status,
+        CustomerId = _customerId,
+        CreatedAt = _createdAt
+    };
+
+    public static OrderBuilder AnOrder() => new();
+}
+
+// Usage in tests — reads like a sentence
+[Fact]
+public async Task GetExpiredOrders_ReturnsOnlyOldPendingOrders()
+{
+    await SeedAsync(async db =>
+    {
+        db.Orders.AddRange(
+            OrderBuilder.AnOrder().WithId(1).WithStatus("Pending").CreatedDaysAgo(30).Build(),
+            OrderBuilder.AnOrder().WithId(2).WithStatus("Pending").CreatedDaysAgo(2).Build(),  // recent
+            OrderBuilder.AnOrder().WithId(3).WithStatus("Completed").CreatedDaysAgo(30).Build() // completed
+        );
+    });
+
+    var response = await Client.GetAsync("/api/orders/expired");
+    var orders = await response.Content.ReadFromJsonAsync<List<OrderDto>>();
+
+    // Only Order 1 is old AND pending
+    Assert.Single(orders!);
+    Assert.Equal(1, orders![0].Id);
+}
+```
+
+### Pattern C: WireMock for External HTTP Dependencies
+
+```csharp
+// NuGet: WireMock.Net
+
+public class IntegrationTestFactory : WebApplicationFactory<Program>, IAsyncLifetime
+{
+    // WireMock server replaces external payment API
+    private WireMockServer _wireMock = null!;
+
+    public async Task InitializeAsync()
+    {
+        _wireMock = WireMockServer.Start();  // random port
+
+        // Stub: successful payment
+        _wireMock
+            .Given(Request.Create()
+                .WithPath("/payments/charge")
+                .UsingPost())
+            .RespondWith(Response.Create()
+                .WithStatusCode(200)
+                .WithBodyAsJson(new { transactionId = "txn-123", status = "Success" }));
+
+        // Stub: payment failure for specific amount
+        _wireMock
+            .Given(Request.Create()
+                .WithPath("/payments/charge")
+                .UsingPost()
+                .WithBody(new JsonPathMatcher("$.amount", "0")))
+            .RespondWith(Response.Create()
+                .WithStatusCode(400)
+                .WithBodyAsJson(new { error = "Invalid amount" }));
+    }
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        builder.ConfigureServices(services =>
+        {
+            // Point HttpClient at WireMock
+            services.AddHttpClient<IPaymentGateway, PaymentGateway>(client =>
+                client.BaseAddress = new Uri(_wireMock.Url!));
+        });
+    }
+
+    public new async Task DisposeAsync()
+    {
+        _wireMock.Stop();
+        _wireMock.Dispose();
+    }
+}
+
+// Test verifies WireMock was called
+[Fact]
+public async Task CreateOrder_ValidPayment_CompletesOrder()
+{
+    var response = await Client.PostAsJsonAsync("/api/orders", new { Amount = 100 });
+
+    Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+    // Verify external API was actually called
+    var calls = Factory.WireMock.LogEntries
+        .Where(e => e.RequestMessage.Path == "/payments/charge")
+        .ToList();
+    Assert.Single(calls);
+}
+```
+
+---
+
+## 12. Testing Event-Driven Systems
+
+### Testing RabbitMQ Consumers
+
+```csharp
+// Test that publishing a message triggers the right behavior
+[Collection("Integration")]
+public class OrderCreatedConsumerTests : IntegrationTestBase
+{
+    public OrderCreatedConsumerTests(IntegrationTestFactory factory) : base(factory) { }
+
+    [Fact]
+    public async Task OrderCreated_Event_TriggersInventoryReduction()
+    {
+        // Arrange — seed inventory
+        await SeedAsync(async db =>
+        {
+            db.Products.Add(new Product { Id = 1, Stock = 100 });
+        });
+
+        // Act — publish event directly (via MassTransit test harness)
+        using var scope = Factory.Services.CreateScope();
+        var harness = scope.ServiceProvider.GetRequiredService<ITestHarness>();
+        await harness.Start();
+
+        await harness.Bus.Publish(new OrderCreatedEvent
+        {
+            OrderId = Guid.NewGuid(),
+            ProductId = 1,
+            Quantity = 5
+        });
+
+        // Assert — wait for consumer to process (with timeout)
+        var consumed = await harness.Consumed.Any<OrderCreatedEvent>(
+            x => x.Context.Message.ProductId == 1,
+            timeout: TimeSpan.FromSeconds(5));
+
+        Assert.True(consumed);
+
+        // Verify DB side effect
+        using var db = Factory.CreateDbContext();
+        var product = await db.Products.FindAsync(1);
+        Assert.Equal(95, product!.Stock);   // 100 - 5
+    }
+}
+
+// MassTransit Test Harness setup in factory
+builder.ConfigureServices(services =>
+{
+    services.AddMassTransitTestHarness(x =>
+    {
+        x.AddConsumer<OrderCreatedConsumer>();
+        x.UsingRabbitMq((ctx, cfg) =>
+        {
+            cfg.Host(_rabbitContainer.GetConnectionString());
+            cfg.ConfigureEndpoints(ctx);
+        });
+    });
+});
+```
+
+### Testing with Outbox Pattern
+
+```csharp
+[Fact]
+public async Task CreateOrder_PublishesOutboxMessage()
+{
+    // Act — create order via API
+    var response = await Client.PostAsJsonAsync("/api/orders",
+        new { Amount = 100, CustomerId = 1 });
+    response.EnsureSuccessStatusCode();
+
+    // Assert — check outbox table has the message
+    using var scope = Factory.Services.CreateScope();
+    using var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+    var outboxMsg = await db.OutboxMessages
+        .OrderByDescending(m => m.CreatedAt)
+        .FirstOrDefaultAsync();
+
+    Assert.NotNull(outboxMsg);
+    Assert.Equal("OrderCreated", outboxMsg!.MessageType);
+    Assert.False(outboxMsg.ProcessedAt.HasValue);   // not yet sent
+}
+```
+
+---
+
+## 13. CI/CD Integration
+
+### GitHub Actions
+
+```yaml
+# .github/workflows/integration-tests.yml
+name: Integration Tests
+
+on: [push, pull_request]
+
+jobs:
+  integration-tests:
+    runs-on: ubuntu-latest   # Linux runners have Docker built-in
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Verify Docker is running
+        run: docker info           # Testcontainers needs this
+
+      - name: Run integration tests
+        run: dotnet test tests/IntegrationTests/
+             --configuration Release
+             --logger "trx;LogFileName=results.trx"
+             --results-directory ./test-results
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: ./test-results/*.trx
+
+# NOTE: docker.sock is available on ubuntu-latest runners automatically
+# Windows runners also support Docker (windows containers or Linux via WSL2)
+```
+
+### Azure DevOps
+
+```yaml
+# azure-pipelines.yml
+trigger:
+  - main
+
+pool:
+  vmImage: 'ubuntu-latest'   # has Docker
+
+steps:
+  - task: UseDotNet@2
+    inputs:
+      version: '8.x'
+
+  - script: docker info
+    displayName: 'Verify Docker'
+
+  - task: DotNetCoreCLI@2
+    displayName: 'Integration Tests'
+    inputs:
+      command: 'test'
+      projects: 'tests/IntegrationTests/*.csproj'
+      arguments: '--configuration Release --collect:"XPlat Code Coverage"'
+
+  - task: PublishTestResults@2
+    inputs:
+      testResultsFormat: 'VSTest'
+      testResultsFiles: '**/*.trx'
+```
+
+### Testcontainers Cloud (No Docker Required)
+
+```csharp
+// For restricted CI environments without Docker:
+// Testcontainers Cloud runs containers remotely
+
+// Set environment variable: TC_CLOUD_TOKEN=your-token
+// Testcontainers automatically detects and uses cloud
+
+// No code changes needed — same API, containers run in TC cloud
+```
+
+### Ryuk (Reaper Container) — Auto Cleanup
+
+```
+Testcontainers automatically starts a "Ryuk" container alongside yours.
+Ryuk monitors for test process death and kills all test containers —
+even if your test crashes or you kill the process.
+
+  Your test crashes mid-run?
+  → Ryuk detects process death → kills SQL container → no zombie containers
+
+  Disable Ryuk (not recommended):
+  Environment variable: TESTCONTAINERS_RYUK_DISABLED=true
+```
+
+---
+
+## 14. Anti-Patterns & Gotchas
+
+```
+┌───────────────────────────────────────────────────────────────────┐
+│                    ANTI-PATTERNS                                  │
+├───────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  1. SHARED MUTABLE STATE                                          │
+│     Bad:  Tests insert rows without cleanup                       │
+│            → Test B fails because Test A's data is still there   │
+│     Fix:  Respawn before each test class                          │
+│                                                                   │
+│  2. CONTAINER PER [FACT]                                          │
+│     Bad:  Start/stop a container inside each [Fact]              │
+│            → 100 tests × 5s startup = 500s test run              │
+│     Fix:  Use IClassFixture or Collection fixture                 │
+│                                                                   │
+│  3. TESTING IMPLEMENTATION DETAILS                                │
+│     Bad:  Assert that OrderRepository.GetById called SQL JOIN     │
+│     Fix:  Assert the returned Order has correct fields            │
+│            (test behavior, not internals)                         │
+│                                                                   │
+│  4. USING PRODUCTION CONNECTION STRINGS                           │
+│     Bad:  Integration tests hitting a shared dev/staging DB       │
+│            → Pollutes shared DB, tests interfere with each other  │
+│     Fix:  Always Testcontainers (isolated per test run)           │
+│                                                                   │
+│  5. NOT AWAITING CONTAINER READINESS                              │
+│     Bad:  _container.StartAsync() then immediately connect        │
+│            → Connection refused because DB not yet accepting      │
+│     Fix:  Testcontainers' WaitStrategy handles this automatically │
+│            (it waits until port is accepting connections)         │
+│                                                                   │
+│  6. PARALLEL TESTS WITH SHARED DB (NO RESET)                     │
+│     Bad:  xUnit runs tests in parallel → DB state corrupted      │
+│     Fix:  Use [assembly: CollectionBehavior(DisableTestParallelization=true)]│
+│            OR use Respawn to reset between each test             │
+│                                                                   │
+│  7. EMBEDDING BUSINESS LOGIC IN TESTS                             │
+│     Bad:  Test calculates expected total itself                   │
+│     Fix:  Use hardcoded expected values — test catches regressions│
+│                                                                   │
+│  8. NOT TESTING UNHAPPY PATHS                                     │
+│     Bad:  Only testing 200 OK                                     │
+│     Fix:  Test 400, 401, 403, 404, 409, 500 responses            │
+│                                                                   │
+└───────────────────────────────────────────────────────────────────┘
+```
+
+### Common Gotchas
+
+```csharp
+// GOTCHA 1: Program.cs must be accessible from test project
+// Add to bottom of Program.cs:
+public partial class Program { }   // makes class visible to WebApplicationFactory<Program>
+
+// GOTCHA 2: MsSqlContainer password must meet complexity rules
+// At least 8 chars, uppercase, lowercase, digit, special char
+.WithPassword("Strong@Passw0rd!")   // ✓
+.WithPassword("password")           // ✗ SQL Server rejects this
+
+// GOTCHA 3: EF Core migrations run on the test DB, not InMemory
+// InMemory doesn't support migrations — always use a real DB container
+await db.Database.MigrateAsync();   // runs all pending migrations
+
+// GOTCHA 4: Parallel test execution can corrupt shared DB
+// Disable parallelism at assembly level in a file:
+// tests/IntegrationTests/AssemblyInfo.cs
+[assembly: CollectionBehavior(DisableTestParallelization = true)]
+
+// Or per-collection:
+[CollectionDefinition("Integration", DisableParallelization = true)]
+
+// GOTCHA 5: Container startup takes time — use WaitStrategy
+new MsSqlBuilder()
+    .WithWaitStrategy(Wait.ForUnixContainer().UntilPortIsAvailable(1433))
+    .Build();
+// Without this: GetConnectionString() may give a port that's not accepting connections yet
+
+// GOTCHA 6: Respawn must be initialized AFTER migrations run
+// (it reads schema from DB to know which tables to truncate)
+await db.Database.MigrateAsync();         // ← first
+_respawner = await Respawner.CreateAsync(conn, options);  // ← after
+
+// GOTCHA 7: HttpClient created by factory is in-process (no real port)
+// Don't use CreateClient() URLs like "http://localhost:5000"
+var client = factory.CreateClient();  // ✓ in-process
+// client.BaseAddress is set automatically to the test server address
+```
+
+---
+
+## 15. Expert-Level Q&A
+
+**Q: When would you NOT use Testcontainers?**
+> - Tests run on machines without Docker (some corporate environments, some CI)
+> - You need millisecond-fast test suites and business logic doesn't hit real SQL
+> - Testing a pure domain layer — no external deps — unit tests are fine
+> - You're using SQLite/InMemory intentionally for smoke tests
+
+**Q: How do you handle database migrations in integration tests?**
+> Call `db.Database.MigrateAsync()` in the fixture's `InitializeAsync()`. This runs EF Core migrations against the container's DB, creating the real schema. This is better than `EnsureCreated()` because it validates migration files work correctly — a real production concern.
+
+**Q: What's the difference between IClassFixture and ICollectionFixture?**
+> `IClassFixture<T>`: one instance per test class, not shared across classes. `ICollectionFixture<T>`: one instance shared across ALL classes in the collection. For expensive resources like DB containers, use `ICollectionFixture` so you start only one container for many test classes.
+
+**Q: How do you test that a 401 is returned for unauthenticated requests?**
+> Create the `HttpClient` without setting auth headers, hit the protected endpoint, assert `HttpStatusCode.Unauthorized`. In the `TestAuthHandler` setup, don't register it for those specific tests — or create a second `CreateClient()` without auth headers.
+
+**Q: How do you test race conditions / concurrency?**
+> Spin up multiple `HttpClient`s (or `Task.WhenAll` multiple requests), then verify DB state is consistent. Example: two requests both try to buy the last item — only one should succeed, DB stock should be 0 not -1.
+
+**Q: What's Respawn and how does it differ from truncating tables?**
+> Respawn (`Respawn` NuGet) deletes all data in the correct order respecting foreign key constraints. It queries `INFORMATION_SCHEMA` to build the delete order automatically. Plain `TRUNCATE` fails if FK constraints exist. `DELETE` in wrong order fails too. Respawn handles all of this automatically.
+
+**Q: How do you test async background jobs (Hangfire, hosted services)?**
+> For `IHostedService`: trigger the processing manually in the test by calling the method directly (if you inject the service from DI). For Hangfire: use Hangfire's test server or trigger jobs synchronously. For `BackgroundService`: expose the processing logic as a public/internal method and call it directly.
+
+**Q: What about Docker-in-Docker for CI?**
+> GitHub Actions `ubuntu-latest` runners have Docker natively — no DinD needed. Azure DevOps hosted agents (`ubuntu-latest`) also have Docker. Testcontainers detects the Docker socket automatically. For self-hosted agents, ensure Docker is installed.
+
+**Q: How do you test EF Core optimistic concurrency?**
+> Seed an entity, fetch it in two separate DbContext instances, update one and save (succeeds), update the other and save — expect `DbUpdateConcurrencyException`. Integration test proves the concurrency token (rowversion/timestamp) is correctly configured.
+
+**Q: Testcontainers vs docker-compose for integration tests?**
+> Testcontainers: containers start/stop in code, no external files, works in any environment with Docker, perfect isolation per test run. docker-compose: requires separate file, manual start/stop, containers can be reused across runs (faster repeated runs but risk of state contamination). For CI: prefer Testcontainers for isolation. For local dev with many services: docker-compose pre-started can be faster.
+
+---
+
+## Quick Setup Checklist
+
+```
+NEW INTEGRATION TEST PROJECT SETUP:
+
+□ 1. Create xUnit test project
+     dotnet new xunit -n MyApp.IntegrationTests
+
+□ 2. Add NuGet packages
+     Testcontainers.MsSql (or Postgres, Redis, etc.)
+     Microsoft.AspNetCore.Mvc.Testing
+     Respawn
+     Microsoft.NET.Test.Sdk
+     coverlet.collector
+
+□ 3. Reference your API project
+     <ProjectReference Include="../MyApp.Api/MyApp.Api.csproj" />
+
+□ 4. Add to API's Program.cs
+     public partial class Program { }
+
+□ 5. Create IntegrationTestFactory.cs
+     • Extends WebApplicationFactory<Program>, IAsyncLifetime
+     • Declare Testcontainers
+     • Override ConfigureWebHost to replace services
+
+□ 6. Create CollectionDefinition.cs
+     [CollectionDefinition("Integration")]
+     public class IntegrationCollection : ICollectionFixture<IntegrationTestFactory> {}
+
+□ 7. Create base test class (IntegrationTestBase)
+     • Holds HttpClient
+     • Calls ResetDatabaseAsync() in InitializeAsync
+
+□ 8. Write first test
+     [Collection("Integration")]
+     public class MyFirstTest : IntegrationTestBase { ... }
+
+□ 9. Disable parallelism (if using shared DB)
+     [assembly: CollectionBehavior(DisableTestParallelization = true)]
+
+□ 10. Run: dotnet test --configuration Release
+```
+
 ---
 
 ## 3. SQL — Core Interview Topics

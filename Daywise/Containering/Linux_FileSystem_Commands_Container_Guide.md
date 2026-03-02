@@ -19,6 +19,7 @@
 11. [/proc & /sys — The Live Kernel Window](#11-proc--sys--the-live-kernel-window)
 12. [Mount Points & Volume Mounts](#12-mount-points--volume-mounts)
 13. [Quick Cheatsheet](#13-quick-cheatsheet)
+14. [Linux ↔ Windows Command Reference](#14-linux--windows-command-reference)
 
 ---
 
@@ -1214,6 +1215,186 @@ total 24M
 │  K8s secrets  │  /run/secrets/ (mounted) │  (stdout)          │
 │  K8s config   │  /etc/myapp/ (mounted)   │  (stdout)          │
 └───────────────┴───────────────────────────┴────────────────────┘
+```
+
+---
+
+## 14. Linux ↔ Windows Command Reference
+
+> **Key mindset shift**: Linux uses forward slashes `/`, case-sensitive names, and chained small tools. Windows uses backslashes `\`, case-insensitive names, and monolithic cmdlets. PowerShell (PS) is the modern Windows equivalent of bash.
+
+### Filesystem Paths — Concept Mapping
+
+```
+LINUX                          WINDOWS
+/                          →   C:\               (root of a drive)
+/home/alice/               →   C:\Users\alice\
+/etc/                      →   C:\Windows\System32\config\ (roughly)
+/tmp/                      →   C:\Temp\ or %TEMP%
+/var/log/                  →   C:\Windows\Logs\  or Event Viewer
+/usr/bin/                  →   C:\Windows\System32\  or C:\Program Files\
+/dev/null                  →   NUL               (CMD) / $null (PS)
+PATH (colon-separated)     →   PATH (semicolon-separated)
+~  (home dir shortcut)     →   %USERPROFILE%     (CMD) / $HOME (PS)
+```
+
+### Navigation & Discovery
+
+| Task | Linux (bash) | Windows CMD | PowerShell |
+|------|-------------|-------------|------------|
+| Print working dir | `pwd` | `cd` (no args) | `Get-Location` / `pwd` |
+| List files (basic) | `ls` | `dir` | `Get-ChildItem` / `ls` |
+| List all + details | `ls -la` | `dir /a` | `Get-ChildItem -Force` |
+| List sorted by time | `ls -lt` | `dir /o:d` | `Get-ChildItem \| Sort-Object LastWriteTime` |
+| Tree view | `tree -L 2` | `tree /F` | `Get-ChildItem -Recurse` |
+| Change directory | `cd /etc` | `cd C:\Windows` | `Set-Location C:\Windows` |
+| Go up one level | `cd ..` | `cd ..` | `cd ..` |
+| Go to home | `cd ~` | `cd %USERPROFILE%` | `cd $HOME` |
+| Go back (prev dir) | `cd -` | *(no equivalent)* | `cd -` (PS 6+) |
+| Find file by name | `find / -name "*.conf"` | `dir /s /b *.conf` | `Get-ChildItem -Recurse -Filter *.conf` |
+| Find where cmd is | `which nginx` | `where nginx` | `Get-Command nginx` |
+
+### File Inspection
+
+| Task | Linux (bash) | Windows CMD | PowerShell |
+|------|-------------|-------------|------------|
+| Print file content | `cat file.txt` | `type file.txt` | `Get-Content file.txt` |
+| Page through file | `less file.txt` | `more file.txt` | `Get-Content file.txt \| more` |
+| First N lines | `head -20 file.txt` | *(no direct)* | `Get-Content file.txt -TotalCount 20` |
+| Last N lines | `tail -20 file.txt` | *(no direct)* | `Get-Content file.txt -Tail 20` |
+| Follow log live | `tail -f app.log` | *(no direct)* | `Get-Content app.log -Wait` |
+| Search in file | `grep "ERROR" file` | `findstr "ERROR" file` | `Select-String "ERROR" file.txt` |
+| Search recursive | `grep -r "text" /dir` | `findstr /s "text" *` | `Get-ChildItem -Recurse \| Select-String "text"` |
+| Search + line nums | `grep -n "text" file` | `findstr /n "text" file` | `Select-String "text" file \| Select LineNumber,Line` |
+| Invert match | `grep -v "DEBUG" file` | `findstr /v "DEBUG" file` | `Get-Content file \| Where-Object {$_ -notmatch "DEBUG"}` |
+| Count matches | `grep -c "ERROR" file` | `findstr "ERROR" file \| find /c /v ""` | `(Select-String "ERROR" file).Count` |
+| Word count / lines | `wc -l file.txt` | `find /c /v "" file.txt` | `(Get-Content file.txt).Count` |
+
+### File & Directory Operations
+
+| Task | Linux (bash) | Windows CMD | PowerShell |
+|------|-------------|-------------|------------|
+| Create directory | `mkdir -p /opt/app/logs` | `mkdir C:\opt\app\logs` | `New-Item -ItemType Directory -Force` |
+| Create empty file | `touch file.txt` | `type nul > file.txt` | `New-Item file.txt` |
+| Copy file | `cp file.txt dest/` | `copy file.txt dest\` | `Copy-Item file.txt dest\` |
+| Copy dir recursive | `cp -r /src /dest` | `xcopy /E /I src dest` | `Copy-Item src dest -Recurse` |
+| Move / rename | `mv old.txt new.txt` | `move old.txt new.txt` | `Move-Item old.txt new.txt` |
+| Delete file | `rm file.txt` | `del file.txt` | `Remove-Item file.txt` |
+| Delete dir (force) | `rm -rf /tmp/dir` | `rmdir /S /Q dir` | `Remove-Item dir -Recurse -Force` |
+| Create symlink | `ln -s /target link` | `mklink link target` | `New-Item -ItemType SymbolicLink -Target target` |
+| Create hard link | `ln file.txt backup` | `mklink /H backup file.txt` | `New-Item -ItemType HardLink` |
+
+### Permissions & Ownership
+
+| Task | Linux (bash) | Windows CMD | PowerShell |
+|------|-------------|-------------|------------|
+| View permissions | `ls -la` / `stat file` | `icacls file` | `Get-Acl file \| Format-List` |
+| Set permissions | `chmod 755 file` | `icacls file /grant user:F` | `Set-Acl` |
+| Make executable | `chmod +x script.sh` | *(no concept — .exe/.bat runs)* | *(no concept)* |
+| Change owner | `chown alice file` | `icacls file /setowner alice` | `$acl.SetOwner(...)` |
+| Current user | `whoami` | `whoami` | `whoami` / `$env:USERNAME` |
+| User + groups | `id` | `whoami /groups` | `[Security.Principal.WindowsIdentity]::GetCurrent()` |
+| Run as admin | `sudo command` | `runas /user:Administrator cmd` | `Start-Process cmd -Verb RunAs` |
+
+### Disk & Filesystem
+
+| Task | Linux (bash) | Windows CMD | PowerShell |
+|------|-------------|-------------|------------|
+| Disk free space | `df -h` | `wmic logicaldisk get size,freespace` | `Get-PSDrive` / `Get-Volume` |
+| Dir disk usage | `du -sh /var/log` | `dir /s` (total at bottom) | `(Get-ChildItem -Recurse \| Measure-Object -Sum Length).Sum` |
+| List drives/volumes | `lsblk` | `diskpart` → `list disk` | `Get-Disk` / `Get-Volume` |
+| Show mount points | `mount` / `findmnt` | `mountvol` | `Get-Volume` |
+| Mount a drive | `mount /dev/sdb1 /mnt` | `subst Z: C:\folder` | `Mount-DiskImage` |
+
+### Process & System Info
+
+| Task | Linux (bash) | Windows CMD | PowerShell |
+|------|-------------|-------------|------------|
+| List all processes | `ps aux` | `tasklist` | `Get-Process` |
+| Find process by name | `ps aux \| grep nginx` | `tasklist \| findstr nginx` | `Get-Process nginx` |
+| Kill process by PID | `kill -9 <pid>` | `taskkill /F /PID <pid>` | `Stop-Process -Id <pid> -Force` |
+| Kill by name | `pkill nginx` | `taskkill /F /IM nginx.exe` | `Stop-Process -Name nginx` |
+| PID 1 / init | `cat /proc/1/cmdline` | `sc query` (services) | `Get-Service` |
+| System info | `uname -a` | `systeminfo` | `Get-ComputerInfo` |
+| CPU info | `cat /proc/cpuinfo` | `wmic cpu get name,cores` | `Get-CimInstance Win32_Processor` |
+| Memory info | `cat /proc/meminfo` | `wmic OS get TotalVisibleMemorySize` | `Get-CimInstance Win32_OperatingSystem` |
+| Hostname | `hostname` | `hostname` | `$env:COMPUTERNAME` |
+| Uptime | `uptime` | `net statistics workstation` | `(Get-Date) - (gcim Win32_OS).LastBootUpTime` |
+
+### Environment Variables
+
+| Task | Linux (bash) | Windows CMD | PowerShell |
+|------|-------------|-------------|------------|
+| Show all env vars | `env` | `set` | `Get-ChildItem Env:` |
+| Show one var | `printenv DB_HOST` / `echo $DB_HOST` | `echo %DB_HOST%` | `$env:DB_HOST` |
+| Set var (session) | `export DB_HOST=mydb` | `set DB_HOST=mydb` | `$env:DB_HOST = "mydb"` |
+| Set var (permanent) | `~/.bashrc` or `/etc/environment` | `setx DB_HOST mydb` | `[Environment]::SetEnvironmentVariable(...)` |
+| Unset var | `unset DB_HOST` | `set DB_HOST=` | `Remove-Item Env:DB_HOST` |
+
+### Networking
+
+| Task | Linux (bash) | Windows CMD | PowerShell |
+|------|-------------|-------------|------------|
+| Network interfaces | `ip addr show` / `ifconfig` | `ipconfig /all` | `Get-NetIPAddress` |
+| Routing table | `ip route show` | `route print` | `Get-NetRoute` |
+| Active connections | `ss -tlnp` / `netstat -tlnp` | `netstat -ano` | `Get-NetTCPConnection` |
+| DNS lookup | `nslookup host` / `dig host` | `nslookup host` | `Resolve-DnsName host` |
+| Ping | `ping -c 4 host` | `ping host` | `Test-Connection host` |
+| Check port open | `nc -zv host 80` | `telnet host 80` | `Test-NetConnection host -Port 80` |
+| DNS config | `cat /etc/resolv.conf` | `ipconfig /displaydns` | `Get-DnsClientServerAddress` |
+| Hosts file | `cat /etc/hosts` | `type C:\Windows\System32\drivers\etc\hosts` | `Get-Content C:\Windows\System32\drivers\etc\hosts` |
+| Firewall rules | `iptables -L` | `netsh advfirewall show` | `Get-NetFirewallRule` |
+
+### Text Processing
+
+| Task | Linux (bash) | Windows CMD | PowerShell |
+|------|-------------|-------------|------------|
+| Search text | `grep "term" file` | `findstr "term" file` | `Select-String "term" file` |
+| Replace text | `sed 's/old/new/g' file` | *(no direct)* | `(Get-Content f) -replace 'old','new' \| Set-Content f` |
+| Print column N | `awk '{print $2}' file` | *(no direct)* | `Import-Csv file \| Select Column2` |
+| Sort lines | `sort file.txt` | `sort file.txt` | `Get-Content file \| Sort-Object` |
+| Unique lines | `uniq file.txt` | *(no direct)* | `Get-Content file \| Select-Object -Unique` |
+| Count lines | `wc -l file` | `find /c /v "" file` | `(Get-Content file).Count` |
+| Pipe output | `cmd1 \| cmd2` | `cmd1 \| cmd2` | `cmd1 \| cmd2` (objects, not text) |
+| Redirect to file | `cmd > file.txt` | `cmd > file.txt` | `cmd \| Out-File file.txt` |
+| Append to file | `cmd >> file.txt` | `cmd >> file.txt` | `cmd \| Add-Content file.txt` |
+| Discard output | `cmd 2>/dev/null` | `cmd 2>NUL` | `cmd 2>$null` |
+
+### Scripting Concepts
+
+| Concept | Linux (bash) | PowerShell |
+|---------|-------------|------------|
+| Script file ext | `.sh` | `.ps1` |
+| Comment | `# comment` | `# comment` |
+| Variable | `name="value"` | `$name = "value"` |
+| If condition | `if [ "$x" = "y" ]; then` | `if ($x -eq "y") {` |
+| Loop over list | `for f in *.log; do` | `foreach ($f in Get-ChildItem *.log) {` |
+| Function | `myfunc() { ... }` | `function MyFunc { ... }` |
+| Exit code check | `if [ $? -eq 0 ]` | `if ($LASTEXITCODE -eq 0)` |
+| String concat | `"Hello $name"` | `"Hello $name"` |
+| Multi-cmd chain | `cmd1 && cmd2` | `cmd1; if ($?) { cmd2 }` |
+
+### Key Conceptual Differences
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  LINUX                          │  WINDOWS                       │
+├─────────────────────────────────┼────────────────────────────────┤
+│  Everything is a file           │  Everything is an object (PS)  │
+│  Text streams between commands  │  Objects stream between cmdlets │
+│  Case-SENSITIVE paths           │  Case-insensitive paths        │
+│  Forward slash /                │  Backslash \                   │
+│  Single root /                  │  Multiple roots C:\ D:\ etc.   │
+│  Extensions optional            │  .exe needed for executables   │
+│  Permissions: rwx per user/grp  │  ACLs (more granular)          │
+│  config in /etc/*.conf          │  config in Registry + .xml/.ini│
+│  logs in /var/log/              │  logs in Event Viewer          │
+│  services = systemd units       │  services = Windows Services   │
+│  Package mgr: apt/yum/apk       │  Package mgr: winget/choco     │
+│  Shell: bash/zsh/sh             │  Shell: cmd.exe / PowerShell   │
+│  /dev/null (discard)            │  NUL (CMD) / $null (PS)        │
+│  Shebang: #!/bin/bash           │  No equivalent in PS           │
+└──────────────────────────────────┴────────────────────────────────┘
 ```
 
 ---
