@@ -5,6 +5,7 @@ Based on real interview experiences from **TCS, Infosys, Wipro, Accenture, Cogni
 ---
 
 ## Table of Contents
+0. [Structured Thinking Approach — How to Solve Any SQL Problem](#structured-thinking-approach--how-to-solve-any-sql-problem)
 1. [Beginner Level](#beginner-level)
 2. [Intermediate Level](#intermediate-level)
 3. [Advanced Level](#advanced-level)
@@ -15,7 +16,397 @@ Based on real interview experiences from **TCS, Infosys, Wipro, Accenture, Cogni
 
 ---
 
-## Beginner Level
+## Structured Thinking Approach — How to Solve Any SQL Problem
+
+> **Mental Model:** Treat every SQL problem like building a house.
+> First read the blueprint (understand output), find the materials (identify tables),
+> lay the foundation (joins/filters), assemble the floors (aggregation/windowing),
+> then inspect for defects (edge cases, NULLs, performance).
+
+---
+
+### The 5-Step Framework
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│               5-STEP SQL PROBLEM SOLVING FRAMEWORK                  │
+├──────┬──────────────────────────────────────────────────────────────┤
+│ Step │ Action                                                        │
+├──────┼──────────────────────────────────────────────────────────────┤
+│  1   │ UNDERSTAND  — What is the expected output? (columns, rows)   │
+│  2   │ IDENTIFY    — Which tables, columns, relationships needed?    │
+│  3   │ DECOMPOSE   — Break complex logic into smaller sub-problems   │
+│  4   │ CHOOSE      — Pick the best technique (see decision tree)     │
+│  5   │ VALIDATE    — Check NULLs, duplicates, edge cases, perf      │
+└──────┴──────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Step 1 — UNDERSTAND: Read the Problem Like a Spec
+
+Ask yourself and the interviewer these questions before writing a single line:
+
+| Question | Why it matters |
+|----------|----------------|
+| What does one row of output represent? | Determines GROUP BY keys |
+| Are duplicates expected or should I deduplicate? | Drives DISTINCT or ROW_NUMBER() |
+| Is the result a count, a list, or a comparison? | Determines aggregation vs. filtering |
+| What time range or filters apply? | WHERE clause scope |
+| Are NULLs meaningful or should they be excluded? | NULL handling strategy |
+| Does "top N" mean per group or overall? | Partitioned vs global ranking |
+
+> **Key Insight:** Spending 60 seconds clarifying the problem is worth 10 minutes of re-writing a wrong query. Interviewers reward candidates who ask smart questions.
+
+---
+
+### Step 2 — IDENTIFY: Map Tables and Relationships
+
+Before joining, sketch the data model mentally:
+
+```
+┌──────────────┐         ┌──────────────┐         ┌──────────────┐
+│   Orders     │ N ──1   │  Customers   │  1── N  │   Addresses  │
+│  OrderId     │         │  CustomerId  │         │  AddressId   │
+│  CustomerId  │◄────────│  Name        │────────►│  CustomerId  │
+│  Amount      │         │  Region      │         │  City        │
+│  OrderDate   │         └──────────────┘         └──────────────┘
+└──────────────┘
+        │ N
+        │
+        ▼ 1
+┌──────────────┐
+│  Products    │
+│  ProductId   │
+│  Category    │
+└──────────────┘
+```
+
+**Checklist:**
+- [ ] Which table is the "driver" (the one in FROM)?
+- [ ] Which tables bring in lookup/dimension data (JOINs)?
+- [ ] Are there bridge/junction tables for M:N relationships?
+- [ ] Do I need all rows from a table or just matching ones? (LEFT vs INNER)
+
+---
+
+### Step 3 — DECOMPOSE: Break the Problem Into Layers
+
+Complex problems are always composed of simpler primitives. Identify which layer(s) apply:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                    SQL QUERY LAYERS                          │
+│                                                              │
+│   Layer 4: FINAL SHAPE  (SELECT, ORDER BY, LIMIT/TOP)        │
+│       ▲                                                      │
+│   Layer 3: RANK / PIVOT / COMPARE  (Window Functions)        │
+│       ▲                                                      │
+│   Layer 2: AGGREGATE   (GROUP BY, HAVING, COUNT/SUM/AVG)     │
+│       ▲                                                      │
+│   Layer 1: FILTER + JOIN  (WHERE, JOINs, subqueries)         │
+│       ▲                                                      │
+│   Layer 0: RAW DATA    (FROM tables)                         │
+└──────────────────────────────────────────────────────────────┘
+```
+
+**Rule:** Build from Layer 0 upward. Write (or mentally draft) each layer before writing the full query.
+
+---
+
+### Step 4 — CHOOSE: Decision Tree for SQL Techniques
+
+```
+                        SQL TECHNIQUE DECISION TREE
+
+Is the problem about RANKING or COMPARISON within groups?
+├── YES ──► Use WINDOW FUNCTIONS (ROW_NUMBER, RANK, DENSE_RANK, LAG, LEAD)
+└── NO
+    │
+    Is there a HIERARCHY or RECURSIVE structure (org chart, BOM)?
+    ├── YES ──► Use RECURSIVE CTE
+    └── NO
+        │
+        Is the logic REUSED multiple times in the same query?
+        ├── YES ──► Use CTE (WITH clause) — readability + reuse
+        └── NO
+            │
+            Is it a ONE-TIME derived result used in FROM?
+            ├── YES ──► Use DERIVED TABLE (subquery in FROM)
+            └── NO
+                │
+                Is it a SCALAR value filter (single value comparison)?
+                ├── YES ──► Use SUBQUERY in WHERE
+                └── NO
+                    │
+                    Is it a SET membership check (IN / EXISTS)?
+                    ├── YES ──► Use EXISTS (correlated) or IN
+                    └── NO
+                        │
+                        Is it a PIVOT / UNPIVOT of rows to columns?
+                        ├── YES ──► Use PIVOT operator or conditional aggregation
+                        └── NO
+                            │
+                            Simple JOIN + GROUP BY + HAVING
+```
+
+---
+
+### Technique Comparison Table
+
+| Technique | Best For | Readability | Performance | Reusable? |
+|-----------|----------|-------------|-------------|-----------|
+| Simple JOIN + GROUP BY | Aggregates across tables | High | High | No |
+| Subquery (WHERE) | Scalar filters, existence checks | Medium | Varies | No |
+| Derived Table (FROM subquery) | One-time intermediate result | Low | Same as CTE | No |
+| CTE (`WITH`) | Multi-step logic, reuse, recursion | High | Same as subquery | Yes (in query) |
+| Window Function | Ranking, running totals, lag/lead | Medium | High (no extra scan) | No |
+| `EXISTS` vs `IN` | Set membership checks | `EXISTS` clearer | `EXISTS` better for large sets | No |
+| Temp Table (`#temp`) | Complex multi-step ETL, index needed | High | High (with indexes) | Yes (in session) |
+| TVF / Stored Procedure | Parameterized reusable logic | High | High | Yes (cross-query) |
+
+> **Key Insight:** CTEs and derived tables produce the **same execution plan** in SQL Server — CTEs win on readability. Temp tables win when you need an **index on intermediate results**.
+
+---
+
+### Step 5 — VALIDATE: The Edge Case Checklist
+
+Before finalizing any query, run through this checklist mentally (or out loud with the interviewer):
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  EDGE CASE VALIDATION CHECKLIST             │
+├─────────────────────────────────────────────────────────────┤
+│  □  NULL values  — does NULL in JOIN key drop rows?         │
+│  □  Duplicates   — will GROUP BY produce inflated counts?   │
+│  □  Zero rows    — what happens if subquery returns empty?  │
+│  □  Ties         — RANK() vs DENSE_RANK() vs ROW_NUMBER()?  │
+│  □  Date ranges  — is the filter inclusive or exclusive?    │
+│  □  Division     — divide by zero guard (NULLIF)?           │
+│  □  Data types   — implicit conversion causing index skip?  │
+│  □  Performance  — am I scanning a large table without idx? │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Approach Evolution Box — Example Problem
+
+**Problem:** "Find the top 2 highest-paid employees in each department."
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  APPROACH EVOLUTION                                                 │
+├────────────┬────────────────────────────────────────────────────────┤
+│ 🔴 BRUTE   │ Self-join to count how many employees earn more        │
+│            │ Complex, slow on large tables, hard to read            │
+├────────────┼────────────────────────────────────────────────────────┤
+│ 🟡 BETTER  │ Subquery with IN (or correlated subquery)              │
+│            │ Works but re-executes for each row                     │
+├────────────┼────────────────────────────────────────────────────────┤
+│ 🟢 OPTIMAL │ ROW_NUMBER() OVER (PARTITION BY DeptId ORDER BY Salary │
+│            │ DESC) — single pass, clean, handles ties explicitly    │
+└────────────┴────────────────────────────────────────────────────────┘
+```
+
+**Schema:**
+```sql
+-- Employees(EmployeeId, Name, DepartmentId, Salary)
+-- Departments(DepartmentId, DepartmentName)
+```
+
+---
+
+#### Option 1 — Brute Force: Self-Join (🔴 Avoid)
+
+```sql
+-- Count how many people earn more than me in my dept
+-- If fewer than 2 people earn more, I'm in the top 2
+SELECT e1.Name, e1.DepartmentId, e1.Salary
+FROM Employees e1
+WHERE (
+    SELECT COUNT(*)
+    FROM Employees e2
+    WHERE e2.DepartmentId = e1.DepartmentId
+      AND e2.Salary > e1.Salary   -- correlated: runs for EVERY row
+) < 2
+ORDER BY e1.DepartmentId, e1.Salary DESC;
+
+-- WHY THIS IS BAD:
+-- Correlated subquery executes once per row (N² problem on large tables)
+-- Ties not handled clearly — two employees with same salary both counted
+```
+
+---
+
+#### Option 2 — Better: Subquery with RANK (🟡 Acceptable)
+
+```sql
+SELECT Name, DepartmentId, Salary
+FROM (
+    SELECT
+        Name,
+        DepartmentId,
+        Salary,
+        -- RANK gives same rank to ties, skips next rank
+        RANK() OVER (PARTITION BY DepartmentId ORDER BY Salary DESC) AS rnk
+    FROM Employees
+) ranked
+WHERE rnk <= 2
+ORDER BY DepartmentId, Salary DESC;
+
+-- NOTE: If two people share rank 1, both appear.
+-- Rank 2 is skipped → you may get 3+ rows if there are ties at #2.
+-- Use DENSE_RANK() if you always want exactly 2 distinct salary levels.
+```
+
+---
+
+#### Option 3 — Optimal: ROW_NUMBER with CTE (🟢 Best for Interviews)
+
+```sql
+WITH RankedEmployees AS (
+    SELECT
+        e.Name,
+        d.DepartmentName,
+        e.Salary,
+        -- ROW_NUMBER: strictly 1,2,3... — ties broken arbitrarily
+        ROW_NUMBER() OVER (
+            PARTITION BY e.DepartmentId   -- reset counter per department
+            ORDER BY e.Salary DESC         -- highest salary = rank 1
+        ) AS rn
+    FROM Employees e
+    INNER JOIN Departments d ON e.DepartmentId = d.DepartmentId
+)
+SELECT Name, DepartmentName, Salary
+FROM RankedEmployees
+WHERE rn <= 2                              -- keep only top 2 per dept
+ORDER BY DepartmentName, Salary DESC;
+
+-- WHY THIS IS BEST:
+-- Single table scan — window function computed in one pass
+-- CTE makes intent clear and easy to extend (change 2 to N)
+-- JOIN brings in department name without a second subquery
+-- Interviewer can read this without explanation
+```
+
+---
+
+#### Option 4 — Alternative: DENSE_RANK for "Top N Salary Levels"
+
+```sql
+-- Use when: "top 2 DISTINCT salary amounts" matters more than "top 2 people"
+WITH SalaryRanked AS (
+    SELECT
+        Name, DepartmentId, Salary,
+        DENSE_RANK() OVER (PARTITION BY DepartmentId ORDER BY Salary DESC) AS dr
+    FROM Employees
+)
+SELECT Name, DepartmentId, Salary
+FROM SalaryRanked
+WHERE dr <= 2;
+
+-- DENSE_RANK:  1,1,2,2,3  — no gaps, ties share rank
+-- RANK:        1,1,3,4     — gaps after ties
+-- ROW_NUMBER:  1,2,3,4     — always unique, tie-breaking is arbitrary
+```
+
+---
+
+### Rank Function Quick-Reference
+
+```
+Salary: 90k, 90k, 80k, 70k, 70k, 60k
+
+ROW_NUMBER:  1   2   3   4   5   6    ← always unique
+RANK:        1   1   3   4   4   6    ← gaps after ties
+DENSE_RANK:  1   1   2   3   3   4    ← no gaps
+```
+
+| Function | Ties same rank? | Gaps in sequence? | Use when… |
+|----------|----------------|-------------------|-----------|
+| `ROW_NUMBER()` | No | No | Need exactly N rows, deterministic |
+| `RANK()` | Yes | Yes | "Bronze medal" ranking OK |
+| `DENSE_RANK()` | Yes | No | Want top N salary *levels* not people |
+| `NTILE(N)` | Distributes evenly | N/A | Split into quartiles/deciles |
+
+---
+
+### Common SQL Problem Patterns and Their Go-To Technique
+
+| Problem Statement Pattern | Technique | Key Clause |
+|---------------------------|-----------|------------|
+| "Top N per group" | Window Function | `ROW_NUMBER() OVER (PARTITION BY…)` |
+| "Running total / cumulative sum" | Window Function | `SUM(col) OVER (ORDER BY date ROWS UNBOUNDED PRECEDING)` |
+| "Compare current row to previous" | Window Function | `LAG(col) OVER (ORDER BY date)` |
+| "Employees with no orders" | LEFT JOIN + IS NULL or NOT EXISTS | `WHERE o.OrderId IS NULL` |
+| "Nth highest salary" | Window Function or OFFSET-FETCH | `DENSE_RANK() or ORDER BY OFFSET N-1 ROWS FETCH NEXT 1 ROW ONLY` |
+| "Duplicate rows / find duplicates" | GROUP BY + HAVING | `HAVING COUNT(*) > 1` |
+| "Delete duplicates, keep one" | CTE + ROW_NUMBER | `DELETE WHERE rn > 1` |
+| "Pivot rows to columns" | PIVOT or CASE+SUM | `SUM(CASE WHEN category='X' THEN amount END)` |
+| "Hierarchy / org chart" | Recursive CTE | `WITH RCTE AS (anchor UNION ALL recursive)` |
+| "Moving average" | Window Function | `AVG(col) OVER (ORDER BY date ROWS 2 PRECEDING)` |
+| "Gaps and islands" | Window Function | `ROW_NUMBER() difference trick` |
+| "String aggregation" | `STRING_AGG()` | `STRING_AGG(Name, ', ') WITHIN GROUP (ORDER BY Name)` |
+
+---
+
+### SQL Clause Execution Order (Critical for Reasoning)
+
+```
+┌───────────────────────────────────────────────────────────┐
+│              SQL LOGICAL EXECUTION ORDER                  │
+│                                                           │
+│   1. FROM         ← which tables? (includes JOINs)       │
+│   2. WHERE        ← filter raw rows (no aliases yet!)    │
+│   3. GROUP BY     ← group filtered rows                  │
+│   4. HAVING       ← filter groups (aggregates available) │
+│   5. SELECT       ← compute expressions, aliases defined │
+│   6. DISTINCT     ← remove duplicates if specified       │
+│   7. ORDER BY     ← sort (aliases from SELECT available) │
+│   8. TOP / OFFSET ← slice result                         │
+└───────────────────────────────────────────────────────────┘
+
+WHY IT MATTERS:
+  - You CANNOT use a SELECT alias in WHERE (alias not defined yet)
+  - You CAN use a SELECT alias in ORDER BY (defined before ORDER BY runs)
+  - Window functions run AFTER WHERE but can be referenced in outer query
+  - HAVING filters on aggregated values; WHERE cannot use aggregate functions
+```
+
+---
+
+### Interview Narration Template
+
+Use this structure when solving problems out loud:
+
+```
+"Let me think through this step by step.
+
+1. OUTPUT: The question asks for [columns], one row per [entity].
+
+2. TABLES: I'll need [table A] for [data] and [table B] for [data],
+   joined on [key]. I'll use [INNER/LEFT] JOIN because [reason].
+
+3. FILTER: I need WHERE [condition] to limit to [scope].
+
+4. AGGREGATION / RANKING: Since we need [top N / sum / count per group],
+   I'll use [GROUP BY / window function] because [reason].
+
+5. APPROACH OPTIONS:
+   - Option A: [subquery] — works but [trade-off]
+   - Option B: [CTE + window function] — cleaner because [reason]
+   I'll go with Option B.
+
+6. EDGE CASES: I should check for NULLs in [column], ties in [ranking],
+   and whether the result should include [zero-count groups].
+
+[Write the query]
+
+7. VERIFY: Let me trace through with [sample data] to confirm the result."
+```
+
+---
 
 ### 1. What is the difference between DELETE, TRUNCATE, and DROP?
 
