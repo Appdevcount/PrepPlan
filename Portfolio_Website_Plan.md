@@ -19,6 +19,7 @@ A modern, AI-integrated portfolio website that showcases your technical expertis
 5. [Database Strategy](#database-strategy)
 6. [AI Integration Showcase](#ai-integration-showcase)
 7. [Detailed Implementation: Interactive Tools](#%EF%B8%8F-detailed-implementation-interactive-tools)
+   - [Architect Quiz Arena](#architect-quiz-arena---full-implementation-blueprint)
 8. [Implementation Phases](#implementation-phases)
 9. [Networking & Visibility Strategy](#networking--visibility-strategy)
 10. [Monetization Opportunities](#monetization-opportunities)
@@ -61,6 +62,7 @@ A modern, AI-integrated portfolio website that showcases your technical expertis
 - **Resume Analyzer** - Help visitors optimize their resumes
 - **Interview Prep Bot** - Interactive Q&A based on your interview guides
 - **Architecture Advisor** - AI-powered system design suggestions
+- **Architect Quiz Arena** - Random scenario-based 10-question quiz per attempt (Azure, .NET, API, SQL, AI, System Design, React) targeting architect-level interview prep
 - **Real-time Sentiment Analysis** - Analyze feedback and comments
 
 #### 3. **Appointment Booking & Mentoring**
@@ -593,9 +595,118 @@ Blob Storage for:
 - Example: "Search my knowledge base" widget
 ```
 
+#### 10. **Scenario-Based Architect Interview Quiz Generator**
+```typescript
+// PURPOSE: Simulate real architect-round interview conditions
+// 10 randomly selected scenario questions per attempt
+// Topics: Azure, .NET/API, SQL, AI/ML, System Design, React
+
+// Quiz Mechanics:
+- 10 questions per attempt (random draw from 200+ question bank)
+- Architect-level framing: "You are the lead architect at a FinTech startup..."
+- 7 topic domains, each weighted equally (≈1-2 questions per domain)
+- Timer per question: 90 seconds (configurable)
+- Total attempt time: ~15 minutes
+- No skip / back navigation (mirrors real interview pressure)
+
+// Topic Domains & Sample Scenario Patterns:
+AZURE:
+  - "Your e-commerce app receives 100k RPM during flash sales. Which Azure services
+     and patterns would you use to handle the spike without over-provisioning?"
+  - Covers: AKS, APIM, Service Bus, Front Door, Redis Cache, Functions
+
+API DESIGN:
+  - "Design a versioned REST API for a multi-tenant SaaS product. How do you handle
+     breaking changes without disrupting existing clients?"
+  - Covers: OpenAPI, API versioning strategies, APIM policies, backward compatibility
+
+.NET / DOTNET:
+  - "A .NET 8 microservice processes 50k records/hour and has growing memory issues.
+     Walk through your diagnosis and optimization approach."
+  - Covers: IAsyncEnumerable, Span<T>, pooling, profiling tools, GC pressure
+
+SQL / DATABASE:
+  - "You inherit a SQL Server database with a 10-second stored proc called on every
+     page load. How do you systematically find and fix the bottleneck?"
+  - Covers: Execution plans, indexes, SARGability, query rewrites, read replicas
+
+AI / ML:
+  - "Your team wants to add a document Q&A feature using Azure OpenAI. Design the
+     architecture from ingestion to retrieval to response generation."
+  - Covers: RAG, embeddings, Azure AI Search, chunking strategy, guardrails
+
+SYSTEM DESIGN:
+  - "Design a real-time collaborative document editor (like Google Docs) for 1M users.
+     Cover storage, sync, conflict resolution, and scaling strategy."
+  - Covers: CRDTs/OT, WebSockets, CQRS, event sourcing, sharding, CDN
+
+REACT / FRONTEND:
+  - "A React dashboard renders 10k rows of live-updating financial data.
+     Describe how you architect it for performance and maintainability."
+  - Covers: Virtualization, memoization, WebSocket/SSE, state colocation, code splitting
+
+// Answer Evaluation Engine:
+- Multiple-choice (4 options) + free-text hybrid
+- AI scoring for free-text using rubric keywords + semantic similarity
+- Each question has: Correct answer, Distractor reasoning, Deep explanation
+- Score breakdown: Correctness + Depth + Clarity (for free-text)
+
+// Results & Feedback:
+- Score card: X/10 with per-topic breakdown
+- "Architect Readiness Index" (0-100 gauge)
+- Per-question: ✅ What you got right | ❌ What you missed | 💡 Deep dive
+- AI-generated personalized study plan based on weak areas
+- Shareable result card (LinkedIn / Twitter image export)
+- "Retry weak topics" — generates a focused 5-question remediation quiz
+
+// Progress Tracking (authenticated users):
+- Attempt history with score trends
+- Topic-level heatmap (strong / needs work / critical gap)
+- Streak tracking (daily practice)
+- Leaderboard (optional, opt-in)
+
+// Question Bank Management (Admin):
+- 200+ curated architect-level questions tagged by topic + difficulty
+- Difficulty tiers: Conceptual → Applied → Scenario → Crisis (real outage scenarios)
+- Weekly AI-generated new questions from trending tech (Azure updates, .NET releases)
+- Community-submitted questions (moderated)
+
+// Technical Implementation:
+Frontend (React + TypeScript):
+  - Quiz state machine: idle → countdown → question → transition → results
+  - Zustand for quiz session state
+  - React Spring / Framer Motion for question transitions
+  - Canvas API for shareable result card image generation
+  - react-timer-hook for countdown
+
+Backend (.NET 8 Minimal API):
+  - GET /quiz/start?topics=azure,dotnet&level=architect → returns 10 random questions
+  - POST /quiz/submit → scores answers, returns result with AI feedback
+  - GET /quiz/history/{userId} → attempt history
+  - Randomization: Weighted reservoir sampling across topic buckets
+
+AI Scoring (Azure OpenAI GPT-4o):
+  - Rubric-based prompt: "Evaluate this answer against the model answer.
+    Score 0-5 on correctness, depth, and practical applicability."
+  - Semantic Kernel for orchestration
+  - Response cached per question to reduce latency and cost
+
+Database:
+  - QuizQuestions table (Id, Topic, DifficultyTier, QuestionText, QuestionType,
+    Options JSON, ModelAnswer, Explanation, Tags, IsActive)
+  - QuizAttempts table (Id, UserId, StartedAt, CompletedAt, TotalScore, TopicScores JSON)
+  - QuizAnswers table (AttemptId, QuestionId, UserAnswer, AiScore, AiFeedback)
+  - Indexes: Topic + IsActive + DifficultyTier for fast random sampling
+
+// Monetization Angle:
+Free tier:  3 attempts/day, 7 topics
+Pro tier:   Unlimited, full AI feedback, history analytics, remediation quizzes
+Team tier:  Bulk seats for hiring managers to share with candidates
+```
+
 ---
 
-## �️ Detailed Implementation: Interactive Tools
+## 🗺️ Detailed Implementation: Interactive Tools
 
 ### **System Design Canvas**
 
@@ -973,6 +1084,302 @@ Result: Data-driven decision with executive buy-in
 - "From idea to proposal in 15 minutes"
 - "Practice system design interviews for free"
 - "Stop undercharging - estimate accurately"
+
+---
+
+### **Architect Quiz Arena - Full Implementation Blueprint**
+
+#### **User Experience Flow**
+
+```
+Landing → Topic Selection → Difficulty → [START QUIZ]
+   │
+   ▼
+┌─────────────────────────────────────────────────────┐
+│  QUIZ SESSION (10 Questions)                         │
+│                                                      │
+│  Progress: ●●●●●○○○○○  Q5 of 10                     │
+│  Time:     01:23 remaining   Topic: Azure            │
+│                                                      │
+│  "You are the lead architect at a healthcare SaaS.   │
+│   Your Azure SQL DB hits 95% DTU at peak hours.      │
+│   You cannot afford downtime. What is your           │
+│   immediate action plan and long-term fix?"          │
+│                                                      │
+│  A) Scale up to a higher DTU tier immediately        │
+│  B) Enable read replicas + query optimization first  │
+│  C) Migrate to Cosmos DB this sprint                 │
+│  D) Add a Redis cache layer for all read queries     │
+│                                                      │
+│  [  Free-text reasoning box (optional, boosts score) ]│
+│                                                      │
+│  [SKIP] ────────────────────── [NEXT →]              │
+└─────────────────────────────────────────────────────┘
+   │
+   ▼
+┌─────────────────────────────────────────────────────┐
+│  RESULTS CARD                                        │
+│                                                      │
+│  Architect Readiness Index: 74/100  🟡 Progressing  │
+│                                                      │
+│  Topic Breakdown:                                    │
+│  Azure        ██████████ 90%  ✅                     │
+│  .NET/API     ████████── 80%  ✅                     │
+│  SQL          ██████──── 60%  ⚠️                     │
+│  AI/ML        ████────── 40%  ❌ Focus here          │
+│  System Design████████── 80%  ✅                     │
+│  React        ██████──── 60%  ⚠️                     │
+│  Security     ████────── 40%  ❌ Focus here          │
+│                                                      │
+│  [📤 Share on LinkedIn]  [🔁 Retry Weak Topics]      │
+│  [📋 Get Study Plan]     [▶ New Full Attempt]        │
+└─────────────────────────────────────────────────────┘
+```
+
+#### **Database Schema**
+
+```sql
+-- Question Bank (200+ architect-level scenario questions)
+CREATE TABLE QuizQuestions (
+    Id          UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    Topic       NVARCHAR(50)  NOT NULL,  -- Azure|DotNet|API|SQL|AI|SystemDesign|React
+    Difficulty  NVARCHAR(20)  NOT NULL,  -- Conceptual|Applied|Scenario|Crisis
+    Scenario    NVARCHAR(2000) NOT NULL, -- "You are the lead architect at a FinTech..."
+    Question    NVARCHAR(1000) NOT NULL,
+    OptionA     NVARCHAR(500),
+    OptionB     NVARCHAR(500),
+    OptionC     NVARCHAR(500),
+    OptionD     NVARCHAR(500),
+    CorrectOption CHAR(1),               -- A/B/C/D
+    ModelAnswer NVARCHAR(4000) NOT NULL, -- Full expert answer
+    Explanation NVARCHAR(4000) NOT NULL, -- Why each option is right/wrong
+    KeyConcepts NVARCHAR(500),           -- "DTU, elastic pool, read replica, index tuning"
+    IsActive    BIT DEFAULT 1,
+    CreatedAt   DATETIME2 DEFAULT GETUTCDATE()
+);
+CREATE INDEX IX_Quiz_Topic_Difficulty ON QuizQuestions (Topic, Difficulty, IsActive);
+
+-- Attempt Sessions
+CREATE TABLE QuizAttempts (
+    Id           UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    UserId       NVARCHAR(200),          -- null = anonymous
+    SessionToken NVARCHAR(100),          -- for anonymous tracking
+    StartedAt    DATETIME2 DEFAULT GETUTCDATE(),
+    CompletedAt  DATETIME2,
+    TotalScore   DECIMAL(5,2),           -- 0-100
+    ReadinessIdx DECIMAL(5,2),           -- weighted composite score
+    TopicScores  NVARCHAR(MAX),          -- JSON: { "Azure": 90, "SQL": 60, ... }
+    QuestionIds  NVARCHAR(MAX)           -- JSON array of 10 question IDs drawn
+);
+
+-- Per-Question Answers
+CREATE TABLE QuizAnswers (
+    Id           UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    AttemptId    UNIQUEIDENTIFIER REFERENCES QuizAttempts(Id),
+    QuestionId   UNIQUEIDENTIFIER REFERENCES QuizQuestions(Id),
+    SelectedOpt  CHAR(1),               -- A/B/C/D
+    FreeText     NVARCHAR(2000),        -- optional reasoning
+    IsCorrect    BIT,
+    McScore      DECIMAL(4,2),          -- 0 or 1 for MC
+    AiScore      DECIMAL(4,2),          -- 0-5 for free-text depth
+    AiFeedback   NVARCHAR(2000),        -- AI-generated per-answer feedback
+    TimeTaken    INT                    -- seconds
+);
+```
+
+#### **Backend: .NET 8 Minimal API Endpoints**
+
+```csharp
+// GET /api/quiz/start?topics=Azure,SQL&level=Scenario
+// Returns 10 randomly sampled questions (weighted by topic)
+app.MapGet("/api/quiz/start", async (
+    [FromQuery] string? topics,
+    [FromQuery] string level,
+    QuizService quiz) =>
+{
+    var topicList = topics?.Split(',') ?? QuizTopic.All;
+    var questions = await quiz.DrawTenQuestionsAsync(topicList, level);
+    var attempt = await quiz.CreateAttemptAsync(questions.Select(q => q.Id));
+    return Results.Ok(new { attemptId = attempt.Id, questions });
+});
+
+// POST /api/quiz/submit
+// Scores all 10 answers; triggers AI scoring for free-text
+app.MapPost("/api/quiz/submit", async (
+    SubmitQuizRequest req,
+    QuizService quiz,
+    AiScoringService ai) =>
+{
+    var mcScores  = quiz.ScoreMultipleChoice(req.Answers);
+    var aiScores  = await ai.ScoreFreeTextAsync(req.Answers);
+    var result    = await quiz.FinalizeAttemptAsync(req.AttemptId, mcScores, aiScores);
+    return Results.Ok(result); // ReadinessIndex, TopicBreakdown, PerQuestionFeedback
+});
+
+// GET /api/quiz/history/{userId}
+app.MapGet("/api/quiz/history/{userId}", async (string userId, QuizService quiz) =>
+    Results.Ok(await quiz.GetAttemptHistoryAsync(userId)));
+
+// GET /api/quiz/remediation/{attemptId}
+// Generates a focused 5-question quiz for weak topics
+app.MapGet("/api/quiz/remediation/{attemptId}", async (
+    Guid attemptId, QuizService quiz) =>
+    Results.Ok(await quiz.GenerateRemediationQuizAsync(attemptId)));
+```
+
+#### **AI Scoring Prompt (Azure OpenAI / Semantic Kernel)**
+
+```csharp
+// Rubric-based scoring for free-text architect reasoning
+var scoringPrompt = """
+You are a senior software architect evaluating a candidate's answer.
+
+QUESTION: {{$question}}
+MODEL ANSWER: {{$modelAnswer}}
+CANDIDATE ANSWER: {{$candidateAnswer}}
+
+Evaluate on three dimensions (0-5 each):
+1. CORRECTNESS - Are the core facts and patterns accurate?
+2. DEPTH       - Does the answer show architectural thinking (trade-offs, scale, cost)?
+3. PRACTICALITY - Would this work in a real production system?
+
+Respond in JSON:
+{
+  "correctness": <0-5>,
+  "depth": <0-5>,
+  "practicality": <0-5>,
+  "totalScore": <0-15>,
+  "feedback": "<2-3 sentence constructive feedback>",
+  "missedConcepts": ["<concept1>", "<concept2>"]
+}
+""";
+```
+
+#### **React Frontend: Quiz State Machine**
+
+```typescript
+// Zustand store — quiz session state
+type QuizState = {
+  phase: 'idle' | 'countdown' | 'question' | 'transition' | 'results';
+  attemptId: string;
+  questions: Question[];
+  currentIndex: number;
+  answers: Answer[];
+  timeLeft: number;
+  results: QuizResult | null;
+};
+
+// Question card with Framer Motion entrance animation
+const QuestionCard = ({ question, index, total, onAnswer }: Props) => {
+  const [selected, setSelected]   = useState<string | null>(null);
+  const [freeText, setFreeText]   = useState('');
+  const { timeLeft }              = useQuizTimer(90); // 90s per question
+
+  return (
+    <motion.div
+      initial={{ x: 300, opacity: 0 }}
+      animate={{ x: 0, opacity: 1 }}
+      exit={{ x: -300, opacity: 0 }}
+      className="quiz-card"
+    >
+      <QuizProgress current={index + 1} total={total} />
+      <TopicBadge topic={question.topic} />
+      <ScenarioBox scenario={question.scenario} />
+      <p className="question-text">{question.question}</p>
+
+      <OptionGrid
+        options={[question.optionA, question.optionB, question.optionC, question.optionD]}
+        selected={selected}
+        onSelect={setSelected}
+      />
+
+      <FreeTextBox
+        placeholder="Optional: explain your reasoning (improves your score)"
+        value={freeText}
+        onChange={setFreeText}
+      />
+
+      <div className="quiz-footer">
+        <CountdownRing seconds={timeLeft} />
+        <Button onClick={() => onAnswer(selected, freeText)} disabled={!selected}>
+          {index < total - 1 ? 'Next →' : 'Submit Quiz'}
+        </Button>
+      </div>
+    </motion.div>
+  );
+};
+
+// Shareable result card generated with HTML Canvas
+const generateResultCard = (result: QuizResult): string => {
+  const canvas  = document.createElement('canvas');
+  canvas.width  = 1200;
+  canvas.height = 630; // OG image size — perfect for LinkedIn share
+  const ctx     = canvas.getContext('2d')!;
+  // ... draw score, topic bars, readiness badge, branding
+  return canvas.toDataURL('image/png');
+};
+```
+
+#### **Sample Question Bank Entries (7 Topics × 30 Questions each)**
+
+```yaml
+# AZURE — Scenario: Crisis Tier
+scenario: >
+  You are the lead architect at a HealthTech company. Your Azure-hosted patient
+  portal goes down at 2 AM due to a cascading failure starting in Azure SQL.
+  The on-call engineer has limited Azure knowledge. Walk through your incident
+  response and long-term architectural fix.
+question: "Which is your FIRST action after confirming the SQL layer is the root cause?"
+options:
+  A: "Restore from last backup immediately"
+  B: "Scale up to the highest SQL tier to buy time, then diagnose"
+  C: "Check Azure Service Health + DTU metrics, then failover to geo-replica if available"
+  D: "Redeploy the entire application to a different region"
+correct: C
+explanation: >
+  C is correct: geo-replica failover is the fastest path to restoring service
+  while preserving data integrity. A risks data loss. B doesn't fix the root cause.
+  D is too slow and risky without understanding the failure mode.
+keyConcepts: "geo-replication, failover groups, DTU monitoring, Azure Service Health"
+
+# SYSTEM DESIGN — Scenario: Applied Tier
+scenario: >
+  A startup wants to build a URL shortener (like bit.ly) that must handle
+  100M redirects/day globally with < 10ms P99 latency.
+question: "What is the most critical bottleneck to solve first in the read path?"
+options:
+  A: "Use a globally distributed cache (Azure Front Door + Redis) for redirect lookup"
+  B: "Partition the database by short code hash"
+  C: "Use a message queue to process redirects asynchronously"
+  D: "Deploy a separate microservice per geographic region"
+correct: A
+explanation: >
+  A: Redirect lookup is pure read — a distributed CDN cache can serve 99% of
+  traffic without hitting the origin DB. B helps writes. C breaks the synchronous
+  redirect contract. D adds operational complexity without solving latency.
+keyConcepts: "CDN edge caching, cache-aside pattern, read-heavy design, Azure Front Door"
+```
+
+#### **Demo Videos to Create (Quiz-Specific)**
+
+1. **"Take the Architect Quiz"** - 3-minute attempt walkthrough, reveal result card
+2. **"How AI Scores Your Answers"** - Show rubric scoring on a free-text response
+3. **"From Quiz to Study Plan"** - Weak area → remediation quiz → personalized resources
+4. **"Behind the Questions"** - Show a scenario being built (content marketing)
+
+#### **Monetization Tiers**
+
+```
+FREE            PRO ($9/mo)         TEAM ($49/mo, 5 seats)
+──────────────  ──────────────────  ──────────────────────────
+3 attempts/day  Unlimited attempts  Bulk licenses
+7 topics        All 7 topics        Custom question sets
+MC only         MC + AI free-text   Candidate assessment mode
+No history      Full history        Team leaderboard
+No share card   Shareable card      White-label result cards
+                Remediation quizzes Manager dashboard
+                Study plan PDF
+```
 
 ---
 
