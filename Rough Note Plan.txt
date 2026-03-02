@@ -10,7 +10,7 @@ Behv 1
 Reactmd 2
 AI Integ Initiatives 
 dotnet+SQL 1 hr each quick coding md go thru
-
+gptqs
 
 
 
