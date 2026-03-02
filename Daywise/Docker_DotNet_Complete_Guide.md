@@ -8210,3 +8210,706 @@ Remember: Containerization is a journey. Start small, iterate, and continuously 
 **Last Updated**: 2024  
 **Author**: Docker for .NET Developers Guide  
 **License**: Free to use and distribute
+
+
+# Docker & Docker Compose Commands — Mind Map
+
+## Legend
+```
+  ★  = Very commonly used flag / option
+  -x  = Short flag
+  --long  = Long flag (same option)
+  ▸  = Allowed values / enum
+  →  = What it does / result
+```
+---
+
+```
+DOCKER COMMANDS
+│
+├──────────────────────────────────────────────────────────────
+│  IMAGE MANAGEMENT
+├──────────────────────────────────────────────────────────────
+│
+│  ┌─── docker pull  <image[:tag]>
+│  │    ★ -a  / --all-tags             pull every tag of the image
+│  │       --platform linux/amd64      pull for specific OS/arch
+│  │       --quiet / -q                suppress verbose output
+│  │       --disable-content-trust     skip image verification
+│  │
+│  ├─── docker build  <context>
+│  │    ★ -t  / --tag       name:tag          tag the built image
+│  │    ★ -f  / --file      Dockerfile.prod   alternate Dockerfile path
+│  │    ★ --no-cache                          ignore layer cache
+│  │    ★ --build-arg  KEY=VALUE              pass ARG to Dockerfile
+│  │    ★ --target     stage-name             stop at named build stage
+│  │       --platform  linux/amd64|arm64      cross-platform build
+│  │       --pull                             always pull fresh base image
+│  │       --progress  ▸ plain|tty|auto       output format
+│  │       --secret    id=mysecret,src=file   mount secret (no layer leak)
+│  │       --ssh       default=$SSH_AUTH_SOCK forward SSH agent
+│  │       --label     key=value              add image metadata label
+│  │       -q  / --quiet                      suppress build output
+│  │       --iidfile   path                   write image ID to file
+│  │       --cache-from image                 external cache source
+│  │       --output    type=local,dest=./out  export build output
+│  │
+│  ├─── docker push  <name[:tag]>
+│  │    ★ --all-tags / -a              push all tags for image
+│  │       --quiet / -q                suppress output
+│  │       --disable-content-trust
+│  │
+│  ├─── docker images  /  docker image ls
+│  │    ★ -a  / --all                  show intermediate layers too
+│  │    ★ -q  / --quiet                image IDs only
+│  │    ★ -f  / --filter               filter output
+│  │           dangling=true           → untagged images
+│  │           label=key=value
+│  │           before=image / since=image
+│  │           reference=name:tag
+│  │       --format  "{{.ID}}\t{{.Repository}}:{{.Tag}}\t{{.Size}}"
+│  │       --no-trunc                  show full image ID
+│  │       --digests                   show SHA256 digest
+│  │
+│  ├─── docker rmi  /  docker image rm  <image [image…]>
+│  │    ★ -f  / --force                force remove (even if tagged)
+│  │       --no-prune                  keep untagged parent images
+│  │
+│  ├─── docker tag  <SOURCE>  <TARGET>
+│  │       (no flags; just: docker tag ubuntu:22.04 myrepo/ubuntu:latest)
+│  │
+│  ├─── docker history  <image>
+│  │       --no-trunc                  show full commands
+│  │       -q  / --quiet               layer IDs only
+│  │       --format "{{.CreatedBy}}"
+│  │       -H  / --human               human-readable sizes (default)
+│  │
+│  ├─── docker inspect  <name|id>
+│  │    ★ -f  / --format  '{{.NetworkSettings.IPAddress}}'
+│  │       -s  / --size                show filesystem size
+│  │       --type  ▸ container|image|network|volume|node|task
+│  │
+│  ├─── docker save  <image [image…]>
+│  │    ★ -o  / --output  archive.tar  write to file (not stdout)
+│  │
+│  ├─── docker load
+│  │    ★ -i  / --input   archive.tar  read from file (not stdin)
+│  │       -q  / --quiet
+│  │
+│  ├─── docker image prune
+│  │    ★ -a  / --all                  remove ALL unused images
+│  │    ★ -f  / --force                no prompt
+│  │       --filter  until=24h
+│  │
+│  └─── docker image inspect  (alias for docker inspect --type image)
+│
+├──────────────────────────────────────────────────────────────
+│  CONTAINER LIFECYCLE
+├──────────────────────────────────────────────────────────────
+│
+│  ┌─── docker run  <image>  [command]          ← CREATE + START
+│  │    │
+│  │    ├── Identity & Naming
+│  │    │  ★ --name      container-name         assign a name
+│  │    │     --hostname  custom-hostname        override container hostname
+│  │    │     --label  key=value                metadata label
+│  │    │
+│  │    ├── Mode
+│  │    │  ★ -d  / --detach                     run in background
+│  │    │  ★ -it                                interactive + pseudo-TTY
+│  │    │  ★ --rm                               auto-remove on exit
+│  │    │     --init                            use tini as PID 1 (signal handling)
+│  │    │     --sig-proxy   (default true)      proxy signals to process
+│  │    │     --detach-keys "ctrl-p,ctrl-q"     custom detach sequence
+│  │    │
+│  │    ├── Ports
+│  │    │  ★ -p  / --publish  host:container[:udp]    expose port
+│  │    │                     127.0.0.1:8080:80        bind to loopback only
+│  │    │  ★ -P  / --publish-all                      publish all EXPOSE'd ports
+│  │    │
+│  │    ├── Environment
+│  │    │  ★ -e  / --env       KEY=VALUE               set env var
+│  │    │  ★ --env-file        .env                    load env file
+│  │    │
+│  │    ├── Volumes & Mounts
+│  │    │  ★ -v  / --volume    host:container[:ro,z]   bind mount or named volume
+│  │    │  ★ --mount           type=bind,source=,target=,readonly
+│  │    │                      type=volume,source=vol,target=
+│  │    │                      type=tmpfs,target=/tmp,tmpfs-size=100m
+│  │    │     --volumes-from   container-name          mount all volumes from container
+│  │    │     --read-only                              make root filesystem read-only
+│  │    │     --tmpfs          /tmp:size=100m          in-memory mount
+│  │    │
+│  │    ├── Network
+│  │    │  ★ --network         network-name            connect to network
+│  │    │                      ▸ bridge|host|none|container:name
+│  │    │     --network-alias  alias                   DNS alias in network
+│  │    │     --dns            8.8.8.8                 custom DNS server
+│  │    │     --add-host       hostname:ip             extra /etc/hosts entry
+│  │    │     --link           container:alias         legacy; prefer networks
+│  │    │     --ip             172.20.0.5              static IP in network
+│  │    │
+│  │    ├── Resource Limits
+│  │    │  ★ -m  / --memory    512m|2g                 max memory
+│  │    │  ★ --cpus            0.5                     fractional CPUs
+│  │    │     --memory-swap    1g                      memory+swap (= no swap if = memory)
+│  │    │     --memory-reservation  256m               soft limit
+│  │    │     --cpu-shares     512                     relative CPU weight
+│  │    │     --cpu-period / --cpu-quota               precise CPU throttle
+│  │    │     --pids-limit     100                     max processes
+│  │    │     --blkio-weight   500                     I/O weight (10-1000)
+│  │    │     --device         /dev/snd:/dev/snd       expose host device
+│  │    │     --gpus           all|device=0            GPU access
+│  │    │     --shm-size       64m                     /dev/shm size
+│  │    │
+│  │    ├── Restart Policy
+│  │    │  ★ --restart         ▸ no | always | on-failure[:N] | unless-stopped
+│  │    │
+│  │    ├── User & Working Dir
+│  │    │  ★ -w  / --workdir   /app                    working directory
+│  │    │  ★ -u  / --user      uid | uid:gid | user    run as user
+│  │    │
+│  │    ├── Entrypoint & Command
+│  │    │     --entrypoint     /bin/sh                 override ENTRYPOINT
+│  │    │     (everything after image = override CMD)
+│  │    │
+│  │    ├── Security
+│  │    │     --privileged                             full host capabilities (DANGER)
+│  │    │     --cap-add        SYS_PTRACE              add Linux capability
+│  │    │     --cap-drop       ALL                     drop capability
+│  │    │     --security-opt   no-new-privileges:true
+│  │    │     --security-opt   seccomp=profile.json
+│  │    │     --security-opt   apparmor=profile
+│  │    │     --read-only                              immutable root fs
+│  │    │
+│  │    ├── Logging
+│  │    │     --log-driver     ▸ json-file|syslog|journald|fluentd|none|awslogs
+│  │    │     --log-opt        max-size=10m,max-file=3
+│  │    │
+│  │    ├── Health Check
+│  │    │     --health-cmd     "curl -f http://localhost/ || exit 1"
+│  │    │     --health-interval       30s
+│  │    │     --health-timeout        10s
+│  │    │     --health-retries        3
+│  │    │     --health-start-period   15s
+│  │    │     --no-healthcheck        disable
+│  │    │
+│  │    └── IPC / PID / Namespace
+│  │          --ipc            ▸ host | shareable | container:<name>
+│  │          --pid            ▸ host                  share host PID namespace
+│  │          --userns         ▸ host                  share host user namespace
+│  │
+│  ├─── docker create  <image>  [command]      ← like run but doesn't start
+│  │       (all docker run flags apply; returns container ID)
+│  │
+│  ├─── docker start  <container [container…]>
+│  │       -a  / --attach                      attach stdout/stderr
+│  │       -i  / --interactive                 attach stdin
+│  │
+│  ├─── docker stop   <container [container…]>
+│  │    ★ -t  / --time  10                     seconds to wait before SIGKILL
+│  │
+│  ├─── docker restart  <container [container…]>
+│  │       -t  / --time  10
+│  │
+│  ├─── docker kill   <container [container…]>
+│  │       -s  / --signal  ▸ SIGTERM|SIGKILL|SIGHUP|SIGUSR1|...
+│  │
+│  ├─── docker pause   / docker unpause  <container [container…]>
+│  │       (SIGSTOP / SIGCONT via cgroups freezer)
+│  │
+│  ├─── docker rm  <container [container…]>
+│  │    ★ -f  / --force                        stop then remove
+│  │    ★ -v  / --volumes                      remove anonymous volumes too
+│  │       --link                              remove link
+│  │
+│  └─── docker commit  <container>  [repository[:tag]]
+│           -a  / --author   "name <email>"
+│           -m  / --message  "commit message"
+│           -c  / --change   "ENV KEY=val"     apply Dockerfile instruction
+│           -p  / --pause    (default true)    pause container during commit
+│
+├──────────────────────────────────────────────────────────────
+│  CONTAINER INTERACTION & OBSERVATION
+├──────────────────────────────────────────────────────────────
+│
+│  ┌─── docker ps  /  docker container ls
+│  │    ★ -a  / --all                          show stopped containers too
+│  │    ★ -q  / --quiet                        container IDs only
+│  │    ★ -f  / --filter                       filter containers
+│  │           status=▸ running|paused|exited|created|restarting|dead
+│  │           name=mycontainer
+│  │           ancestor=image[:tag]
+│  │           label=key=value
+│  │           network=name|id
+│  │           volume=name|mountpoint
+│  │           publish=port[/proto]
+│  │    ★ --format  "{{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Ports}}"
+│  │       -n  / --last  N                     show last N containers
+│  │       -l  / --latest                      show last container
+│  │       -s  / --size                        show disk usage
+│  │       --no-trunc
+│  │
+│  ├─── docker exec  <container>  <command>
+│  │    ★ -it                                  interactive + TTY (e.g. /bin/bash)
+│  │    ★ -d  / --detach                       run in background
+│  │    ★ -e  / --env  KEY=VALUE               set env for exec session
+│  │       -u  / --user                        run as user
+│  │       -w  / --workdir                     set working dir
+│  │       --privileged                        grant extra privileges
+│  │       --env-file                          load env file
+│  │       --detach-keys  "ctrl-p,ctrl-q"
+│  │
+│  ├─── docker logs  <container>
+│  │    ★ -f  / --follow                       stream log output
+│  │    ★ --tail   50                          last N lines
+│  │    ★ --since  "10m" | "2024-01-01"        logs since time/duration
+│  │       --until  "2024-01-02"
+│  │       -t  / --timestamps                  prepend timestamps
+│  │       --details                           show extra attrs (--log-opt)
+│  │
+│  ├─── docker attach  <container>
+│  │       --no-stdin                          do not attach stdin
+│  │       --sig-proxy  (default true)         ctrl-c → SIGINT to process
+│  │       --detach-keys  "ctrl-p,ctrl-q"
+│  │
+│  ├─── docker cp  <src>  <dst>
+│  │    ★ container:path  host-path            copy FROM container
+│  │    ★ host-path       container:path       copy TO container
+│  │       -a  / --archive                     preserve ownership+timestamps
+│  │       -q  / --quiet                       suppress progress
+│  │       -L  / --follow-link                 follow symlinks in src
+│  │
+│  ├─── docker stats  [container…]
+│  │       -a  / --all                         show stopped containers too
+│  │       --no-stream                         single snapshot (not live)
+│  │       --no-trunc                          full container ID
+│  │       --format "{{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}"
+│  │
+│  ├─── docker top  <container>  [ps options]
+│  │       (shows processes running in container; ps aux flags apply)
+│  │
+│  └─── docker wait  <container>
+│           (blocks until container stops; prints exit code)
+│
+├──────────────────────────────────────────────────────────────
+│  NETWORKING
+├──────────────────────────────────────────────────────────────
+│
+│  ┌─── docker network create  <name>
+│  │    ★ -d  / --driver  ▸ bridge|overlay|host|none|macvlan|ipvlan
+│  │       --subnet       172.18.0.0/16
+│  │       --gateway      172.18.0.1
+│  │       --ip-range     172.18.5.0/24        sub-range for dynamic IPs
+│  │       --attachable                        allow standalone containers (overlay)
+│  │       --internal                          no external access
+│  │       --ipv6                              enable IPv6
+│  │       --label        key=value
+│  │       -o  / --opt    com.docker.network.bridge.name=docker1
+│  │
+│  ├─── docker network ls
+│  │       -f  / --filter  driver=bridge | name=mynet | label=key
+│  │       -q  / --quiet                       IDs only
+│  │       --format
+│  │       --no-trunc
+│  │
+│  ├─── docker network rm  <network [network…]>
+│  │       (no flags; fails if containers still connected)
+│  │
+│  ├─── docker network inspect  <network>
+│  │       -f  / --format  '{{range .Containers}}{{.Name}} {{end}}'
+│  │       -v  / --verbose
+│  │
+│  ├─── docker network connect  <network>  <container>
+│  │       --alias        alias                DNS alias in this network
+│  │       --ip           172.20.0.5           static IPv4
+│  │       --ip6          2001:db8::5          static IPv6
+│  │       --link-local-ip
+│  │
+│  ├─── docker network disconnect  <network>  <container>
+│  │       -f  / --force
+│  │
+│  └─── docker network prune
+│           -f  / --force
+│           --filter  until=24h
+│
+├──────────────────────────────────────────────────────────────
+│  VOLUMES
+├──────────────────────────────────────────────────────────────
+│
+│  ┌─── docker volume create  [name]
+│  │       -d  / --driver  ▸ local|nfs|vieux/sshfs|etc
+│  │       -o  / --opt     type=nfs,o=addr=server,device=:/path  (driver opts)
+│  │       --label         key=value
+│  │
+│  ├─── docker volume ls
+│  │       -f  / --filter  dangling=true|name=vol|driver=local|label=key
+│  │       -q  / --quiet
+│  │       --format
+│  │
+│  ├─── docker volume rm  <volume [volume…]>
+│  │       -f  / --force   (no error if not found)
+│  │
+│  ├─── docker volume inspect  <volume>
+│  │       -f  / --format  '{{.Mountpoint}}'
+│  │
+│  └─── docker volume prune
+│        ★ -f  / --force
+│        ★ -a  / --all                         remove ALL unused (not just anonymous)
+│           --filter  label=key=value
+│
+├──────────────────────────────────────────────────────────────
+│  REGISTRY
+├──────────────────────────────────────────────────────────────
+│
+│  ┌─── docker login  [server]
+│  │    ★ -u  / --username   user
+│  │    ★ --password-stdin               safer: echo $PASS | docker login -u user --password-stdin
+│  │       -p  / --password  pass        (avoid; exposes in shell history)
+│  │
+│  ├─── docker logout  [server]
+│  │
+│  └─── docker search  <term>
+│           -f  / --filter  stars=10 | is-official=true | is-automated=true
+│           --limit         N (default 25, max 100)
+│           --no-trunc
+│           --format
+│
+├──────────────────────────────────────────────────────────────
+│  SYSTEM
+├──────────────────────────────────────────────────────────────
+│
+│  ┌─── docker info
+│  │       -f  / --format  '{{.ServerVersion}}'
+│  │
+│  ├─── docker version
+│  │       -f  / --format
+│  │
+│  ├─── docker system prune
+│  │    ★ -a  / --all                    remove ALL unused images (not just dangling)
+│  │    ★ -f  / --force                  no confirmation prompt
+│  │    ★ --volumes                      also prune volumes
+│  │       --filter  until=24h | label=key
+│  │
+│  ├─── docker system df
+│  │       -v  / --verbose               per-item breakdown
+│  │       --format
+│  │
+│  ├─── docker events
+│  │       -f  / --filter  event=start|stop|die|pull|push|tag|kill|oom
+│  │       -f              type=▸ container|image|network|volume|plugin|daemon
+│  │       --since  "1h" | "2024-01-01"
+│  │       --until  "2024-01-02"
+│  │       --format  '{{.Status}} {{.Actor.Attributes.name}}'
+│  │
+│  └─── docker context  (manage multiple Docker endpoints)
+│           create   name  --docker  host=tcp://remote:2376
+│           use      name
+│           ls
+│           rm       name
+│           inspect  name
+│
+└──────────────────────────────────────────────────────────────
+
+
+═══════════════════════════════════════════════════════════════
+ DOCKER COMPOSE COMMANDS   (docker compose <cmd>)
+═══════════════════════════════════════════════════════════════
+│
+│  ╔═══════════════════════════════════════════════════════╗
+│  ║  Global flags (work with ALL compose commands)       ║
+│  ║  ★ -f / --file     compose.yml   alternate file      ║
+│  ║  ★ -p / --project-name  myapp   override project     ║
+│  ║     --env-file    .env           alternate env file   ║
+│  ║     --profile     prod           activate profile     ║
+│  ║     --ansi        auto|never|always                   ║
+│  ║     --compatibility             v2 compat mode        ║
+│  ║     --project-directory path    override working dir  ║
+│  ╚═══════════════════════════════════════════════════════╝
+│
+├──────────────────────────────────────────────────────────────
+│  LIFECYCLE
+├──────────────────────────────────────────────────────────────
+│
+│  ┌─── docker compose up  [service…]
+│  │    ★ -d  / --detach                      run in background
+│  │    ★ --build                             always rebuild images first
+│  │    ★ --force-recreate                    recreate containers even if config unchanged
+│  │    ★ --remove-orphans                    remove containers for removed services
+│  │    ★ --scale  service=N                  override scale for a service
+│  │       --no-build                         don't build; use existing images
+│  │       --no-recreate                      don't recreate existing containers
+│  │       --no-deps                          don't start linked services
+│  │       --no-start                         create but don't start containers
+│  │       --always-recreate-deps             recreate dependent services too
+│  │       --renew-anon-volumes   -V          recreate anonymous volumes
+│  │       --wait                             wait until services are healthy
+│  │       --wait-timeout  30                 seconds to wait for healthy
+│  │       --quiet-pull                       suppress pull output
+│  │       --dry-run                          show what would happen
+│  │       --pull  ▸ always|missing|never     image pull policy
+│  │       --timestamps                       show timestamps in output
+│  │       --abort-on-container-exit          stop all if any container stops
+│  │       --exit-code-from  service          propagate exit code from service
+│  │
+│  ├─── docker compose down  [service…]
+│  │    ★ -v  / --volumes                     remove named volumes declared in compose
+│  │    ★ --remove-orphans                    remove containers for removed services
+│  │       --rmi  ▸ local|all                 remove images (local=only built locally)
+│  │       -t  / --timeout  10                stop timeout seconds
+│  │       --dry-run
+│  │
+│  ├─── docker compose start   [service…]
+│  ├─── docker compose stop    [service…]
+│  │       -t  / --timeout  10
+│  ├─── docker compose restart [service…]
+│  │       -t  / --timeout  10
+│  ├─── docker compose pause   [service…]
+│  └─── docker compose unpause [service…]
+│
+├──────────────────────────────────────────────────────────────
+│  BUILD & IMAGES
+├──────────────────────────────────────────────────────────────
+│
+│  ┌─── docker compose build  [service…]
+│  │    ★ --no-cache                          ignore layer cache
+│  │    ★ --pull                              always pull latest base image
+│  │       --push                             push after build
+│  │       --progress  ▸ plain|tty|auto
+│  │       --build-arg  KEY=VALUE
+│  │       -q  / --quiet
+│  │       --ssh  default
+│  │       --memory  512m                     memory limit during build
+│  │
+│  ├─── docker compose pull  [service…]
+│  │       --ignore-pull-failures             continue even if pull fails
+│  │       --include-deps                     also pull dependencies
+│  │       -q  / --quiet
+│  │       --policy  ▸ always|missing
+│  │
+│  ├─── docker compose push  [service…]
+│  │       --ignore-push-failures
+│  │       -q  / --quiet
+│  │       --include-deps
+│  │
+│  └─── docker compose images  [service…]
+│           -q  / --quiet                     IDs only
+│           --format  ▸ table|json
+│
+├──────────────────────────────────────────────────────────────
+│  OBSERVE & INSPECT
+├──────────────────────────────────────────────────────────────
+│
+│  ┌─── docker compose ps  [service…]
+│  │    ★ -a  / --all                         show stopped containers
+│  │    ★ -q  / --quiet                       IDs only
+│  │       --services                         list service names only
+│  │       --filter  status=▸ running|paused|exited|restarting
+│  │       --format  ▸ table|json
+│  │       --no-trunc
+│  │
+│  ├─── docker compose logs  [service…]
+│  │    ★ -f  / --follow                      stream output
+│  │    ★ --tail  N                           last N lines per service
+│  │    ★ --since  "1h" | timestamp
+│  │       --until  timestamp
+│  │       -t  / --timestamps
+│  │       --no-color
+│  │       --no-log-prefix                    hide service name prefix
+│  │       --index  N                         logs from instance N (scaled)
+│  │
+│  ├─── docker compose top  [service…]
+│  │       (shows running processes per service)
+│  │
+│  ├─── docker compose events  [service…]
+│  │       --json                             output as JSON stream
+│  │       --dry-run
+│  │
+│  └─── docker compose port  <service>  <private_port>
+│           --protocol  ▸ tcp|udp             (default tcp)
+│           --index     N                     instance N of scaled service
+│
+├──────────────────────────────────────────────────────────────
+│  INTERACT
+├──────────────────────────────────────────────────────────────
+│
+│  ┌─── docker compose exec  <service>  <command>
+│  │    ★ -it                                 interactive + TTY (default for TTY)
+│  │    ★ -d  / --detach                      background
+│  │    ★ -e  / --env  KEY=VALUE
+│  │       -u  / --user
+│  │       -w  / --workdir
+│  │       -T  / --no-TTY                     disable TTY (for piping/scripts)
+│  │       --index  N                         target instance N of scaled service
+│  │       --privileged
+│  │       --dry-run
+│  │
+│  └─── docker compose run  <service>  [command]
+│       ★ --rm                                auto-remove after run
+│       ★ -d  / --detach
+│       ★ -e  / --env  KEY=VALUE
+│       ★ --no-deps                           don't start dependency services
+│          -it
+│          --name     container-name
+│          -p  / --publish  host:container
+│          -v  / --volume   host:container
+│          -u  / --user
+│          -w  / --workdir
+│          -T  / --no-TTY
+│          --entrypoint  /bin/sh
+│          --use-aliases                      use service aliases in network
+│          --quiet-pull
+│          --dry-run
+│          -l  / --label
+│
+├──────────────────────────────────────────────────────────────
+│  CONFIG & PROJECT
+├──────────────────────────────────────────────────────────────
+│
+│  ┌─── docker compose config
+│  │    ★ --services                          list service names
+│  │    ★ --volumes                           list volume names
+│  │       --profiles                         list profiles
+│  │       --images                           list image names
+│  │       --format  ▸ yaml|json
+│  │       --output  file.yml                 write to file
+│  │       --no-interpolate                   don't expand ${VAR}
+│  │       --resolve-image-digests            pin image digests
+│  │       -q  / --quiet                      validate only; no output
+│  │
+│  ├─── docker compose ls
+│  │    ★ -a  / --all                         show stopped projects
+│  │       -q  / --quiet
+│  │       --format  ▸ table|json
+│  │       --filter  status=▸ running|paused|exited
+│  │
+│  ├─── docker compose kill  [service…]
+│  │       -s  / --signal  ▸ SIGTERM|SIGKILL|SIGHUP|SIGUSR1
+│  │       --remove-orphans
+│  │       --dry-run
+│  │
+│  └─── docker compose rm  [service…]
+│           -f  / --force                     no confirmation
+│           -s  / --stop                      stop containers before removing
+│           -v  / --volumes                   remove anonymous volumes
+│           --dry-run
+│
+└──────────────────────────────────────────────────────────────
+```
+
+---
+
+## Common Flag Patterns (memorise these)
+
+```
+Pattern                       Docker run          Compose equivalent
+──────────────────────────────────────────────────────────────────────
+Background                    -d                  up -d
+Interactive shell             -it image /bin/sh   exec -it svc /bin/sh
+Remove on exit                --rm                run --rm svc cmd
+Named container               --name foo          (service name = container name)
+Port mapping                  -p 8080:80          ports: - "8080:80"
+Env variable                  -e KEY=val          environment: KEY: val
+Env file                      --env-file .env     env_file: - .env
+Bind mount                    -v $(pwd):/app       volumes: - .:/app
+Named volume                  -v data:/data        volumes: - data:/data
+Network                       --network mynet     networks: - mynet
+Restart always                --restart always    restart: always
+Memory limit                  -m 512m             mem_limit: 512m
+CPU limit                     --cpus 0.5          cpus: 0.5
+Follow logs                   logs -f name        compose logs -f svc
+Stream stats                  stats               (no direct equivalent)
+Force rebuild + restart       rmi + run           compose up --build --force-recreate
+Clean everything              system prune -a -f  down -v + system prune -a -f
+```
+
+---
+
+## Compose File Structure Cross-Reference
+
+```yaml
+# docker-compose.yml top-level keys
+version:    "3.9"           # legacy; omit for Compose Spec
+
+services:
+  web:                      # → docker compose [cmd] web
+    image:      nginx:alpine
+    build:                  # triggers: compose build
+      context:  .
+      dockerfile: Dockerfile.prod
+      args:     { ENV: prod }
+      target:   runner
+      cache_from: [myimage:cache]
+    ports:      ["8080:80"] # ← -p
+    environment: { KEY: val }# ← -e
+    env_file:   [.env]      # ← --env-file
+    volumes:    [./app:/app]# ← -v
+    networks:   [frontend]  # ← --network
+    depends_on:
+      db: { condition: service_healthy }
+    restart:    unless-stopped  # ← --restart
+    deploy:
+      replicas: 3           # ← --scale web=3
+      resources:
+        limits: { cpus: "0.5", memory: 512M }
+    healthcheck:
+      test: ["CMD","curl","-f","http://localhost/"]
+      interval: 30s
+      timeout:  10s
+      retries:  3
+    command:    ["uvicorn","app:main"]
+    entrypoint: ["/bin/sh","-c"]
+    user:       "1000:1000"
+    working_dir: /app
+    read_only:  true
+    tmpfs:      [/tmp]
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    profiles:   [prod]      # activated with --profile prod
+
+volumes:
+  data:                     # named volume; listed by: compose config --volumes
+    driver: local
+
+networks:
+  frontend:                 # listed by: compose config
+    driver: bridge
+    external: false         # true = pre-existing; compose doesn't create/destroy
+
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+```
+
+---
+
+## Quick-Reference Cheat Sheet
+
+```
+Goal                                          Command
+────────────────────────────────────────────────────────────────────────────────
+Run image interactively and remove            docker run --rm -it ubuntu /bin/bash
+Run detached with name + ports + restart      docker run -d --name app -p 80:80 --restart unless-stopped nginx
+Exec shell in running container               docker exec -it mycontainer /bin/bash
+Tail last 100 lines + follow                  docker logs -f --tail 100 mycontainer
+Copy file out of container                    docker cp mycontainer:/etc/nginx/nginx.conf ./nginx.conf
+Build with custom file + no-cache             docker build -t myapp:v2 -f Dockerfile.prod --no-cache .
+Remove all stopped containers                 docker rm $(docker ps -aq -f status=exited)
+Remove all dangling images                    docker image prune -f
+Full system clean                             docker system prune -a -f --volumes
+List containers with format                   docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+Inspect container IP                          docker inspect -f '{{.NetworkSettings.IPAddress}}' mycontainer
+────────────────────────────────────────────────────────────────────────────────
+Start services in background                  docker compose up -d
+Force rebuild and restart                     docker compose up -d --build --force-recreate
+Tear down + remove volumes                    docker compose down -v --remove-orphans
+Stream all service logs                       docker compose logs -f
+Run one-off command in service                docker compose run --rm web python manage.py migrate
+Scale a service to 3                          docker compose up -d --scale web=3
+Exec into specific scaled instance            docker compose exec --index 2 web /bin/bash
+Validate compose file                         docker compose config -q
+Show running projects                         docker compose ls
+Rebuild single service only                   docker compose build --no-cache web && docker compose up -d web
+────────────────────────────────────────────────────────────────────────────────
+```

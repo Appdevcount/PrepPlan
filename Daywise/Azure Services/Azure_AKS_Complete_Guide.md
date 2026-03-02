@@ -6497,6 +6497,346 @@ START: "I need to run containerized workloads on Azure"
 
 ## Section 47 — kubectl Command Reference
 
+### kubectl Command Mind Map — Full Tree
+
+> **Mental Model:** kubectl is like a Swiss Army knife for Kubernetes. Each blade (subcommand) has a purpose, and flags are the settings on each blade. The tree below maps every major command → its flags/properties → what it controls.
+
+```
+kubectl
+│
+├── ── CLUSTER & CONTEXT ──────────────────────────────────────────────────────
+│   │
+│   ├── config
+│   │   ├── get-contexts                   # List all clusters in kubeconfig
+│   │   │   └── flags: -o name             # Just names (scriptable)
+│   │   ├── current-context                # Show active cluster
+│   │   ├── use-context <name>             # Switch active cluster
+│   │   ├── set-context --current          # Modify current context in-place
+│   │   │   └── --namespace=<ns>           # Change default namespace
+│   │   ├── view                           # Print full kubeconfig
+│   │   │   └── --minify                   # Show only active context
+│   │   └── delete-context <name>          # Remove a cluster entry
+│   │
+│   ├── cluster-info                       # API server URL + addons
+│   │   └── dump                           # Full cluster state dump (debugging)
+│   │
+│   └── version
+│       ├── --client                       # kubectl binary version only
+│       └── --output=yaml                  # Machine-readable version info
+│
+├── ── NAMESPACE ──────────────────────────────────────────────────────────────
+│   │
+│   ├── get namespaces / ns                # List all namespaces
+│   │   └── flags: -o wide | -o yaml
+│   ├── create namespace <name>            # Create a namespace
+│   ├── delete namespace <name>            # Delete namespace + ALL resources in it
+│   └── config set-context --current      # Set default namespace for session
+│       └── --namespace=production
+│
+├── ── GET (read resources) ───────────────────────────────────────────────────
+│   │
+│   ├── get <resource>                     # Core read command
+│   │   │
+│   │   ├── RESOURCE TYPES:
+│   │   │   ├── pods / po                  # Running workload instances
+│   │   │   ├── deployments / deploy       # ReplicaSet managers
+│   │   │   ├── services / svc             # Network endpoints
+│   │   │   ├── configmaps / cm            # Key-value configs
+│   │   │   ├── secrets                    # Encoded sensitive config
+│   │   │   ├── ingress / ing              # HTTP routing rules
+│   │   │   ├── nodes / no                 # Cluster machines
+│   │   │   ├── namespaces / ns            # Logical partitions
+│   │   │   ├── events                     # Cluster event log
+│   │   │   ├── replicasets / rs           # Pod replica controllers
+│   │   │   ├── statefulsets / sts         # Stateful app controllers
+│   │   │   ├── daemonsets / ds            # Per-node pod controllers
+│   │   │   ├── jobs                       # One-time workloads
+│   │   │   ├── cronjobs / cj              # Scheduled jobs
+│   │   │   ├── hpa                        # Horizontal Pod Autoscalers
+│   │   │   ├── pv                         # PersistentVolumes (cluster-wide)
+│   │   │   ├── pvc                        # PersistentVolumeClaims (namespaced)
+│   │   │   ├── serviceaccounts / sa       # Pod identity for API access
+│   │   │   ├── roles                      # Namespace-scoped RBAC
+│   │   │   ├── clusterroles               # Cluster-scoped RBAC
+│   │   │   ├── rolebindings               # Bind role to user/sa (namespaced)
+│   │   │   └── clusterrolebindings        # Bind clusterrole (cluster-wide)
+│   │   │
+│   │   └── FLAGS (apply to all get commands):
+│   │       ├── -n / --namespace <ns>      # Target namespace
+│   │       ├── -A / --all-namespaces      # Show across all namespaces
+│   │       ├── -l / --selector <label>    # Filter by label  e.g. app=api
+│   │       ├── -o wide                    # Extra columns (node, IP)
+│   │       ├── -o yaml                    # Full YAML definition
+│   │       ├── -o json                    # Full JSON definition
+│   │       ├── -o jsonpath='{.items[*].metadata.name}'   # Extract fields
+│   │       ├── -o custom-columns=NAME:.metadata.name     # Custom table
+│   │       ├── -w / --watch               # Live stream changes
+│   │       ├── --show-labels              # Show all labels column
+│   │       └── --field-selector           # Filter by field  e.g. status.phase=Running
+│
+├── ── DESCRIBE (human-readable deep-dive) ────────────────────────────────────
+│   │
+│   ├── describe pod <name>                # Events, conditions, mounts, limits
+│   ├── describe deployment <name>         # Strategy, conditions, replicas
+│   ├── describe node <name>              # Capacity, allocatable, taints
+│   ├── describe service <name>            # Endpoints, selectors, ports
+│   └── describe ingress <name>            # Rules, TLS, backend mapping
+│       └── flags: -n <ns>
+│
+├── ── PODS (runtime operations) ──────────────────────────────────────────────
+│   │
+│   ├── logs <pod>                         # Print container logs
+│   │   ├── -f / --follow                  # Stream live (like tail -f)
+│   │   ├── --tail=<N>                     # Last N lines
+│   │   ├── --since=1h                     # Logs from last 1 hour
+│   │   ├── --since-time=<timestamp>       # Logs since ISO timestamp
+│   │   ├── -c / --container=<name>        # Specific container in pod
+│   │   ├── --previous                     # Logs from CRASHED container
+│   │   └── -l app=simpleapi1              # Logs from ALL matching pods
+│   │
+│   ├── exec -it <pod> -- <cmd>            # Run command inside pod
+│   │   ├── -- /bin/bash                   # Interactive shell
+│   │   ├── -- sh                          # Minimal shell (alpine)
+│   │   ├── -- env                         # Print env vars
+│   │   ├── -- cat /etc/hosts             # Read a file
+│   │   └── -c <container>                 # Target container in multi-container pod
+│   │
+│   ├── port-forward <target> <local>:<pod>
+│   │   ├── pod/<pod-name> 8080:80         # Forward from pod
+│   │   ├── svc/<svc-name> 8080:80         # Forward from service
+│   │   ├── deploy/<deploy> 8080:80        # Forward from deployment
+│   │   └── --address=0.0.0.0             # Bind to all interfaces (share LAN)
+│   │
+│   ├── cp <pod>:<path> <local-path>       # Copy file out of pod
+│   │   └── <local-path> <pod>:<path>      # Copy file into pod
+│   │
+│   └── run <name> --image=<img>           # Create ad-hoc pod (debugging)
+│       ├── -it --rm --restart=Never       # Interactive + auto-delete
+│       ├── --image=busybox                # Network debug (nslookup, wget)
+│       ├── --image=curlimages/curl        # HTTP test
+│       └── -- <command>                   # Override entrypoint
+│
+├── ── DEPLOYMENTS (lifecycle) ────────────────────────────────────────────────
+│   │
+│   ├── apply -f <file|dir>                # Create or update (declarative)
+│   │   ├── -f deployment.yaml             # Single file
+│   │   ├── -f ./manifests/                # All files in directory
+│   │   ├── -R                             # Recursive directory apply
+│   │   └── --dry-run=client              # Validate without applying
+│   │
+│   ├── diff -f <file>                     # Show what WOULD change (safe preview)
+│   │
+│   ├── scale deployment/<name>            # Change replica count
+│   │   └── --replicas=<N>
+│   │
+│   ├── set image deployment/<name>        # Update container image
+│   │   └── <container>=<image>:<tag>
+│   │
+│   ├── rollout                            # Manage deployment rollouts
+│   │   ├── status deployment/<name>       # Watch rollout progress
+│   │   ├── history deployment/<name>      # List revision history
+│   │   │   └── --revision=<N>            # Show specific revision details
+│   │   ├── undo deployment/<name>         # Roll back to previous revision
+│   │   │   └── --to-revision=<N>         # Roll back to specific revision
+│   │   ├── restart deployment/<name>      # Rolling restart (new pods)
+│   │   └── pause / resume <deploy>        # Pause/resume rolling update
+│   │
+│   ├── create deployment <name>           # Imperative create (quick testing)
+│   │   ├── --image=<image>
+│   │   └── --replicas=<N>
+│   │
+│   └── delete deployment/<name>           # Remove deployment
+│       ├── -f <file>                      # Delete by manifest
+│       ├── -l <label>                     # Delete by label selector
+│       └── --grace-period=0               # Force immediate delete
+│
+├── ── SERVICES & NETWORKING ──────────────────────────────────────────────────
+│   │
+│   ├── get svc -n <ns> -o wide            # List services with IPs
+│   ├── describe svc <name>                # Endpoints, selector, port rules
+│   ├── get endpoints <svc>                # Pod IPs behind a service
+│   ├── expose deployment/<name>           # Create service for deployment
+│   │   ├── --port=80
+│   │   ├── --target-port=8080
+│   │   └── --type=ClusterIP|NodePort|LoadBalancer
+│   │
+│   └── run <debug-pod> --image=busybox    # Test DNS / connectivity from inside cluster
+│       └── -- nslookup <svc>.<ns>
+│
+├── ── CONFIG & SECRETS ───────────────────────────────────────────────────────
+│   │
+│   ├── get configmap <name> -o yaml       # View config data
+│   ├── create configmap <name>            # Create from literal/file
+│   │   ├── --from-literal=KEY=VALUE
+│   │   ├── --from-file=config.json        # File key = filename
+│   │   └── --from-env-file=app.env
+│   │
+│   ├── get secret <name> -o yaml          # View secret (base64 encoded)
+│   ├── create secret generic <name>       # Create opaque secret
+│   │   ├── --from-literal=KEY=VALUE
+│   │   └── --from-file=cert.pem
+│   │
+│   └── create secret docker-registry      # Docker pull secret for private registry
+│       ├── --docker-server=<ACR_URL>
+│       ├── --docker-username=<user>
+│       └── --docker-password=<token>
+│
+├── ── RBAC ───────────────────────────────────────────────────────────────────
+│   │
+│   ├── get roles / clusterroles           # List RBAC roles
+│   ├── get rolebindings / clusterrolebindings
+│   ├── describe rolebinding <name>        # Who → what role in namespace
+│   ├── create role <name>                 # Define namespace permissions
+│   │   ├── --verb=get,list,watch
+│   │   └── --resource=pods,deployments
+│   ├── create rolebinding <name>          # Assign role to subject
+│   │   ├── --role=<role>
+│   │   ├── --serviceaccount=<ns>:<sa>
+│   │   └── --user=<AAD_object_id>
+│   └── auth can-i <verb> <resource>       # Check your own permissions
+│       ├── --as=<user>                    # Impersonate for testing
+│       └── -n <ns>
+│
+├── ── STORAGE ────────────────────────────────────────────────────────────────
+│   │
+│   ├── get pv                             # Cluster-wide persistent volumes
+│   ├── get pvc -n <ns>                    # Namespace PV claims
+│   ├── describe pvc <name>                # Binding status, capacity, events
+│   └── delete pvc <name>                  # Release storage (data may be lost!)
+│
+├── ── AUTOSCALING ────────────────────────────────────────────────────────────
+│   │
+│   ├── get hpa -n <ns>                    # Horizontal Pod Autoscalers
+│   ├── describe hpa <name>                # Min/max replicas, current metrics
+│   └── autoscale deployment/<name>        # Create HPA imperatively
+│       ├── --min=2
+│       ├── --max=10
+│       └── --cpu-percent=70
+│
+├── ── OBSERVABILITY & DEBUGGING ──────────────────────────────────────────────
+│   │
+│   ├── top nodes                          # Node CPU/Memory usage
+│   │   └── --sort-by=cpu|memory
+│   ├── top pods -n <ns>                   # Pod CPU/Memory usage
+│   │   └── --sort-by=cpu|memory
+│   ├── get events -n <ns>                 # Recent cluster events (errors visible here)
+│   │   ├── --sort-by=.lastTimestamp       # Sort chronologically
+│   │   └── --field-selector=involvedObject.name=<pod>  # Events for specific pod
+│   ├── describe node <name>               # Node conditions, taints, resource pressure
+│   └── debug node/<node>                  # Node-level debugging shell (K8s 1.23+)
+│       ├── --image=busybox
+│       └── -it
+│
+├── ── APPLY / DELETE / PATCH ─────────────────────────────────────────────────
+│   │
+│   ├── apply -f <file>                    # Declarative create-or-update
+│   ├── delete -f <file>                   # Delete all resources in manifest
+│   ├── delete <resource> <name>           # Delete by type + name
+│   │   ├── --grace-period=0               # Immediate kill (no graceful shutdown)
+│   │   └── --force                        # Force delete stuck pods
+│   └── patch <resource> <name>            # In-place field update (JSON/strategic merge)
+│       ├── --patch '{"spec":{"replicas":5}}'
+│       └── --type=json                    # JSON patch format
+│
+├── ── OUTPUT FORMATS (-o flag) ───────────────────────────────────────────────
+│   │
+│   ├── -o wide                            # Extra columns (IPs, nodes)
+│   ├── -o yaml                            # Full YAML definition
+│   ├── -o json                            # Full JSON definition
+│   ├── -o name                            # Resource type/name only (for scripts)
+│   ├── -o jsonpath='{.spec.replicas}'     # Extract single field with JSONPath
+│   ├── -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}'  # Loop items
+│   └── -o custom-columns=\               # Custom table layout
+│       NAME:.metadata.name,\
+│       IMAGE:.spec.containers[0].image,\
+│       READY:.status.readyReplicas
+│
+└── ── SHORTCUTS & ALIASES ────────────────────────────────────────────────────
+    │
+    ├── kubectl api-resources               # List ALL resource types + short names
+    ├── kubectl api-versions                # List all API groups/versions
+    ├── kubectl explain <resource>          # Inline documentation for a resource
+    │   └── kubectl explain pod.spec.containers.resources
+    ├── kubectl completion bash             # Generate shell completion script
+    └── COMMON ALIASES:
+        ├── k  = kubectl
+        ├── kgp = kubectl get pods
+        ├── kgs = kubectl get svc
+        ├── kgd = kubectl get deploy
+        ├── kaf = kubectl apply -f
+        ├── kdf = kubectl delete -f
+        ├── kl  = kubectl logs -f
+        └── kd  = kubectl describe
+```
+
+---
+
+### kubectl Flag Quick Reference (Most Used)
+
+| Flag | Short | Meaning | Example |
+|------|-------|---------|---------|
+| `--namespace` | `-n` | Target namespace | `-n production` |
+| `--all-namespaces` | `-A` | All namespaces | `kubectl get pods -A` |
+| `--output` | `-o` | Output format | `-o yaml`, `-o wide`, `-o json` |
+| `--watch` | `-w` | Live stream changes | `kubectl get pods -w` |
+| `--selector` | `-l` | Label filter | `-l app=api,env=prod` |
+| `--field-selector` | — | Field filter | `--field-selector=status.phase=Running` |
+| `--follow` | `-f` | Tail logs live | `kubectl logs -f <pod>` |
+| `--previous` | — | Crashed container logs | `kubectl logs --previous <pod>` |
+| `--dry-run` | — | Validate only | `--dry-run=client` |
+| `--force` | — | Skip graceful delete | `kubectl delete pod --force` |
+| `--grace-period` | — | Seconds before kill | `--grace-period=0` |
+| `--from-literal` | — | Inline config/secret | `--from-literal=KEY=VAL` |
+| `--replicas` | — | Desired replica count | `--replicas=5` |
+| `--container` | `-c` | Target container | `-c sidecar` |
+| `--as` | — | Impersonate user | `--as=system:serviceaccount:ns:sa` |
+| `--sort-by` | — | Sort resource list | `--sort-by=.metadata.creationTimestamp` |
+| `--show-labels` | — | Show all labels | `kubectl get pods --show-labels` |
+| `--recursive` | `-R` | Recursive directory | `kubectl apply -f ./k8s/ -R` |
+
+---
+
+### kubectl Decision Tree — "Which command do I need?"
+
+```
+What do you want to do?
+│
+├── READ state
+│   ├── Quick overview?           → kubectl get <resource> -n <ns>
+│   ├── Deep details + events?    → kubectl describe <resource> <name>
+│   ├── Raw YAML/JSON?            → kubectl get <resource> <name> -o yaml
+│   └── Extract a single field?   → kubectl get <resource> <name> -o jsonpath='...'
+│
+├── MODIFY resources
+│   ├── Apply a manifest?         → kubectl apply -f <file>
+│   ├── Preview before applying?  → kubectl diff -f <file>
+│   ├── Scale pods fast?          → kubectl scale deploy/<n> --replicas=<N>
+│   ├── Restart all pods?         → kubectl rollout restart deploy/<n>
+│   ├── Update image?             → kubectl set image deploy/<n> <c>=<image>:<tag>
+│   └── Quick field change?       → kubectl patch <resource> <name> --patch '{...}'
+│
+├── DEBUG a problem
+│   ├── Pod won't start?          → kubectl describe pod <name>  (check Events:)
+│   ├── Container crashed?        → kubectl logs --previous <pod>
+│   ├── Network issue?            → kubectl run debug --image=busybox -it --rm --restart=Never
+│   ├── High resource use?        → kubectl top pods -n <ns> --sort-by=cpu
+│   ├── Recent errors?            → kubectl get events -n <ns> --sort-by=.lastTimestamp
+│   └── Node unhealthy?           → kubectl describe node <name>
+│
+├── ROLLOUT operations
+│   ├── Check rollout progress?   → kubectl rollout status deploy/<name>
+│   ├── View history?             → kubectl rollout history deploy/<name>
+│   ├── Roll back?                → kubectl rollout undo deploy/<name>
+│   └── Roll to specific rev?     → kubectl rollout undo deploy/<name> --to-revision=<N>
+│
+└── PERMISSIONS / RBAC
+    ├── Can I do X?               → kubectl auth can-i <verb> <resource>
+    ├── Can user Y do X?          → kubectl auth can-i <verb> <resource> --as=<user>
+    └── Who has access?           → kubectl get rolebindings -n <ns> -o yaml
+```
+
+---
+
 ### Cluster & Context
 
 ```bash
@@ -15500,4 +15840,628 @@ Does your AKS app require session stickiness?
 > **Total Sections:** 22 Parts, 80+ Topics
 
 
+# Kubernetes Manifest Objects — Expanded Mind Map
 
+## Legend
+```
+  ●  Common field  — shared across 3 or more manifest kinds
+  ◆  Unique field  — specific to this manifest kind only
+  ⊛  Selector     — label / name / ref matching that LINKS objects together
+  ▸  Enum values  — allowed options for a field
+```
+---
+
+```
+K8s Manifest Objects
+│
+│  ╔══════════════════════════════════════════════════════════╗
+│  ║  EVERY manifest shares this metadata block              ║
+│  ║  ● metadata.name          (required)                    ║
+│  ║  ● metadata.namespace     (omit for cluster-scoped)     ║
+│  ║  ● metadata.labels        (key: value pairs)            ║
+│  ║  ● metadata.annotations   (key: value pairs)            ║
+│  ║  ● metadata.finalizers[]  (prevents deletion until done)║
+│  ╚══════════════════════════════════════════════════════════╝
+│
+├─────────────────────────────────────────────────────────────
+│  WORKLOADS
+├─────────────────────────────────────────────────────────────
+│
+│   ┌─── Pod  (base building block; all workloads wrap a pod template)
+│   │
+│   │   spec
+│   │   │
+│   │   ├── containers[]                               ●
+│   │   │   ├── name                                   ●
+│   │   │   ├── image                                  ●
+│   │   │   ├── imagePullPolicy                        ●  ▸ Always | IfNotPresent | Never
+│   │   │   ├── ports[]                                ●
+│   │   │   │   ├── containerPort                      ●
+│   │   │   │   ├── name                               ●  (referenced by Service targetPort)
+│   │   │   │   └── protocol                           ●  ▸ TCP | UDP | SCTP
+│   │   │   ├── env[]                                  ●
+│   │   │   │   ├── name / value                       ●  (literal value)
+│   │   │   │   └── valueFrom                          ●
+│   │   │   │       ├── configMapKeyRef.name / key     ●  ⊛ links to ConfigMap
+│   │   │   │       ├── secretKeyRef.name / key        ●  ⊛ links to Secret
+│   │   │   │       ├── fieldRef.fieldPath             ●  (downward API: pod metadata)
+│   │   │   │       └── resourceFieldRef               ●  (downward API: cpu/mem)
+│   │   │   ├── envFrom[]                              ●
+│   │   │   │   ├── configMapRef.name                  ●  ⊛ links entire ConfigMap
+│   │   │   │   ├── secretRef.name                     ●  ⊛ links entire Secret
+│   │   │   │   └── prefix                             ●  (adds prefix to all keys)
+│   │   │   ├── resources                              ●
+│   │   │   │   ├── requests.cpu / memory              ●  (scheduler uses this)
+│   │   │   │   └── limits.cpu / memory                ●  (enforced at runtime)
+│   │   │   ├── volumeMounts[]                         ●
+│   │   │   │   ├── name                               ●  ⊛ matches spec.volumes[].name
+│   │   │   │   ├── mountPath                          ●
+│   │   │   │   ├── subPath                            ●  (mount single file in volume)
+│   │   │   │   └── readOnly                           ●
+│   │   │   ├── livenessProbe                          ●  (restart if fails)
+│   │   │   │   ├── httpGet.path / port / scheme       ●
+│   │   │   │   ├── exec.command[]                     ●
+│   │   │   │   ├── tcpSocket.port                     ●
+│   │   │   │   ├── initialDelaySeconds                ●
+│   │   │   │   ├── periodSeconds                      ●
+│   │   │   │   ├── failureThreshold                   ●
+│   │   │   │   └── successThreshold                   ●
+│   │   │   ├── readinessProbe                         ●  (remove from Service endpoints if fails)
+│   │   │   │   └── (same sub-fields as livenessProbe) ●
+│   │   │   ├── startupProbe                           ●  (gate liveness until app ready)
+│   │   │   │   └── (same sub-fields as livenessProbe) ●
+│   │   │   ├── securityContext                        ●
+│   │   │   │   ├── runAsUser / runAsGroup             ●
+│   │   │   │   ├── runAsNonRoot                       ●
+│   │   │   │   ├── allowPrivilegeEscalation           ●
+│   │   │   │   ├── readOnlyRootFilesystem             ●
+│   │   │   │   └── capabilities.add[] / drop[]        ●
+│   │   │   ├── command[]                              ●  (overrides ENTRYPOINT)
+│   │   │   ├── args[]                                 ●  (overrides CMD)
+│   │   │   └── lifecycle.postStart / preStop          ●  (hooks)
+│   │   │
+│   │   ├── initContainers[]                           ●  (run sequentially before containers)
+│   │   │   └── (same shape as containers[])           ●
+│   │   │
+│   │   ├── volumes[]                                  ●
+│   │   │   ├── name                                   ●  ⊛ referenced by volumeMounts[].name
+│   │   │   ├── configMap.name                         ●  ⊛ links to ConfigMap
+│   │   │   │   └── items[].key / path                 ●  (mount specific keys as files)
+│   │   │   ├── secret.secretName                      ●  ⊛ links to Secret
+│   │   │   │   └── items[].key / path                 ●
+│   │   │   ├── persistentVolumeClaim.claimName        ●  ⊛ links to PVC
+│   │   │   ├── emptyDir: {}                           ●  (ephemeral; lives with pod)
+│   │   │   │   └── medium: Memory                     ◆  (RAM-backed tmpfs)
+│   │   │   ├── hostPath.path / type                   ◆  (node filesystem; avoid in prod)
+│   │   │   ├── projected.sources[]                    ◆  (combine CM + Secret + SA token)
+│   │   │   └── csi.driver / volumeAttributes          ◆  (CSI inline volume)
+│   │   │
+│   │   ├── serviceAccountName                         ●  ⊛ links to ServiceAccount
+│   │   ├── automountServiceAccountToken               ●  (false to disable token mount)
+│   │   ├── imagePullSecrets[].name                    ●  ⊛ links to Secret (dockerconfig type)
+│   │   │
+│   │   ├── nodeSelector                               ●  ⊛ simple label match on Node
+│   │   ├── tolerations[]                              ●  ⊛ match Node taints
+│   │   │   ├── key / value / operator                 ●
+│   │   │   └── effect ▸ NoSchedule|PreferNoSchedule|NoExecute
+│   │   ├── affinity                                   ●
+│   │   │   ├── nodeAffinity                           ●  ⊛ advanced Node label matching
+│   │   │   │   ├── requiredDuringSchedulingIgnoredDuringExecution
+│   │   │   │   │   └── nodeSelectorTerms[].matchExpressions[]
+│   │   │   │   └── preferredDuringSchedulingIgnoredDuringExecution
+│   │   │   │       └── weight + preference.matchExpressions[]
+│   │   │   ├── podAffinity                            ●  ⊛ co-locate with matching pods
+│   │   │   │   └── requiredDuringScheduling... / preferredDuringScheduling...
+│   │   │   └── podAntiAffinity                        ●  ⊛ spread away from matching pods
+│   │   │
+│   │   ├── topologySpreadConstraints[]                ◆
+│   │   │   ├── maxSkew                                ◆
+│   │   │   ├── topologyKey                            ◆  ⊛ node label key for zones
+│   │   │   ├── whenUnsatisfiable ▸ DoNotSchedule | ScheduleAnyway
+│   │   │   └── labelSelector                          ◆  ⊛ which pods to count
+│   │   │
+│   │   ├── restartPolicy                              ●  ▸ Always(Pod) | OnFailure(Job) | Never
+│   │   ├── terminationGracePeriodSeconds              ●
+│   │   ├── dnsPolicy ▸ ClusterFirst | None | Default  ◆
+│   │   ├── dnsConfig.nameservers[] / searches[]       ◆
+│   │   ├── hostNetwork: true                          ◆  (share node network namespace)
+│   │   ├── hostPID / hostIPC                          ◆
+│   │   ├── priorityClassName                          ●  ⊛ links to PriorityClass
+│   │   └── securityContext (pod-level)                ●
+│   │       ├── runAsUser / runAsGroup / fsGroup       ●
+│   │       ├── runAsNonRoot                           ●
+│   │       └── sysctls[]                              ◆
+│   │
+│   └───────────────────────────────────────────────────────
+│
+│   ┌─── Deployment  (manages ReplicaSets; rolling updates)
+│   │
+│   │   spec
+│   │   ├── replicas                                   ●  (also StatefulSet)
+│   │   ├── selector                                   ●  ⊛ MUST match template.metadata.labels
+│   │   │   └── matchLabels / matchExpressions         ●  ⊛ (immutable after creation)
+│   │   ├── strategy                                   ◆
+│   │   │   ├── type ▸ RollingUpdate | Recreate        ◆
+│   │   │   └── rollingUpdate                          ◆
+│   │   │       ├── maxSurge       (extra pods; default 25%)   ◆
+│   │   │       └── maxUnavailable (pods down; default 25%)    ◆
+│   │   ├── minReadySeconds                            ◆  (wait before marking pod ready)
+│   │   ├── revisionHistoryLimit                       ◆  (kept ReplicaSets; default 10)
+│   │   ├── progressDeadlineSeconds                    ◆  (fail if no progress in N sec)
+│   │   ├── paused                                     ◆  (pause rollout)
+│   │   └── template                                   ●  ⊛ → Pod metadata + spec
+│   │
+│   └───────────────────────────────────────────────────────
+│
+│   ┌─── StatefulSet  (ordered pods; stable identity + storage)
+│   │
+│   │   spec
+│   │   ├── serviceName                                ◆  ⊛ name of Headless Service (required)
+│   │   ├── replicas                                   ●  (also Deployment)
+│   │   ├── selector                                   ●  ⊛ matchLabels (immutable)
+│   │   ├── podManagementPolicy ▸ OrderedReady|Parallel◆
+│   │   ├── updateStrategy                             ◆
+│   │   │   ├── type ▸ RollingUpdate | OnDelete        ◆
+│   │   │   └── rollingUpdate.partition                ◆  (only update pods ≥ partition index)
+│   │   ├── volumeClaimTemplates[]                     ◆  (PVC created per pod; survives pod delete)
+│   │   │   ├── metadata.name                          ◆
+│   │   │   └── spec (accessModes / resources / storageClassName)  ◆
+│   │   ├── persistentVolumeClaimRetentionPolicy       ◆
+│   │   │   ├── whenDeleted ▸ Retain | Delete          ◆
+│   │   │   └── whenScaled  ▸ Retain | Delete          ◆
+│   │   └── template                                   ●  ⊛ → Pod metadata + spec
+│   │
+│   └───────────────────────────────────────────────────────
+│
+│   ┌─── DaemonSet  (one pod per node; no replicas)
+│   │
+│   │   spec
+│   │   ├── selector                                   ●  ⊛ matchLabels (immutable)
+│   │   ├── updateStrategy                             ◆
+│   │   │   ├── type ▸ RollingUpdate | OnDelete        ◆
+│   │   │   └── rollingUpdate.maxUnavailable           ◆
+│   │   ├── minReadySeconds                            ◆
+│   │   └── template                                   ●  ⊛ → Pod metadata + spec
+│   │   ── NO spec.replicas (one pod per matching node) ◆
+│   │
+│   └───────────────────────────────────────────────────────
+│
+│   ┌─── Job  (run-to-completion; batch tasks)
+│   │
+│   │   spec
+│   │   ├── completions                                ◆  (total successful pods needed)
+│   │   ├── parallelism                                ◆  (max pods running simultaneously)
+│   │   ├── completionMode ▸ NonIndexed | Indexed      ◆  (Indexed → env JOB_COMPLETION_INDEX)
+│   │   ├── backoffLimit                               ◆  (retry count before marking failed)
+│   │   ├── backoffLimitPerIndex                       ◆  (per index retry in Indexed mode)
+│   │   ├── activeDeadlineSeconds                      ◆  (hard timeout for entire Job)
+│   │   ├── ttlSecondsAfterFinished                    ◆  (auto-delete after completion)
+│   │   ├── suspend                                    ◆  (pause job; pods are deleted)
+│   │   ├── manualSelector                             ◆  (true to hand-craft selector)
+│   │   ├── selector                                   ●  ⊛ auto-generated unless manualSelector
+│   │   └── template                                   ●  ⊛ → Pod spec (restartPolicy: Never|OnFailure)
+│   │
+│   └───────────────────────────────────────────────────────
+│
+│   ┌─── CronJob  (scheduled Jobs; like cron + Job)
+│   │
+│   │   spec
+│   │   ├── schedule                                   ◆  "min hr dom mon dow" e.g. "*/5 * * * *"
+│   │   ├── timezone                                   ◆  e.g. "America/New_York"
+│   │   ├── concurrencyPolicy ▸ Allow|Forbid|Replace   ◆
+│   │   ├── startingDeadlineSeconds                    ◆  (skip if missed by N sec)
+│   │   ├── suspend                                    ◆  (pause without deleting)
+│   │   ├── successfulJobsHistoryLimit                 ◆  (default 3)
+│   │   ├── failedJobsHistoryLimit                     ◆  (default 1)
+│   │   └── jobTemplate                                ◆  → Job spec (not a pod template directly)
+│   │
+│   └───────────────────────────────────────────────────────
+│
+├─────────────────────────────────────────────────────────────
+│  NETWORKING
+├─────────────────────────────────────────────────────────────
+│
+│   ┌─── Service  (stable IP/DNS endpoint in front of pods)
+│   │
+│   │   spec
+│   │   ├── selector                                   ●  ⊛ key:value → pods by label
+│   │   │   └── (omit → manual Endpoints/EndpointSlice)●  ⊛ headless or external
+│   │   ├── type                                       ◆  ▸ ClusterIP | NodePort | LoadBalancer | ExternalName
+│   │   │   ├── ClusterIP     → internal virtual IP    ◆
+│   │   │   ├── NodePort      → port on every node     ◆
+│   │   │   ├── LoadBalancer  → cloud LB (wraps NP)   ◆
+│   │   │   └── ExternalName  → CNAME alias; no proxy  ◆
+│   │   ├── ports[]                                    ◆
+│   │   │   ├── name                                   ◆  (multi-port: must name each)
+│   │   │   ├── protocol ▸ TCP | UDP | SCTP            ◆
+│   │   │   ├── appProtocol                            ◆  (e.g. kubernetes.io/h2c)
+│   │   │   ├── port                                   ◆  (service-side port)
+│   │   │   ├── targetPort                             ◆  ⊛ pod port number OR named port
+│   │   │   └── nodePort                               ◆  (30000-32767; NodePort/LB only)
+│   │   ├── clusterIP                                  ◆  ("None" → headless; "" → auto-assign)
+│   │   ├── clusterIPs[]                               ◆  (dual-stack IPv4/IPv6)
+│   │   ├── externalName                               ◆  ⊛ FQDN for ExternalName type
+│   │   ├── externalIPs[]                              ◆  (external IPs that route to service)
+│   │   ├── sessionAffinity ▸ None | ClientIP          ◆
+│   │   ├── sessionAffinityConfig.clientIP.timeoutSeconds ◆
+│   │   ├── externalTrafficPolicy ▸ Cluster | Local    ◆  (Local preserves src IP)
+│   │   ├── internalTrafficPolicy ▸ Cluster | Local    ◆
+│   │   ├── loadBalancerIP                             ◆  (request specific LB IP)
+│   │   ├── loadBalancerSourceRanges[]                 ◆  (allowlist CIDRs)
+│   │   └── publishNotReadyAddresses                   ◆  (include unready pods in DNS)
+│   │
+│   └───────────────────────────────────────────────────────
+│
+│   ┌─── Ingress  (HTTP/S routing into the cluster via IngressController)
+│   │
+│   │   metadata.annotations  (controller-specific config)   ◆
+│   │   ├── kubernetes.io/ingress.class                ◆
+│   │   ├── nginx.ingress.kubernetes.io/rewrite-target ◆
+│   │   ├── nginx.ingress.kubernetes.io/ssl-redirect   ◆
+│   │   ├── nginx.ingress.kubernetes.io/proxy-body-size◆
+│   │   ├── nginx.ingress.kubernetes.io/use-regex      ◆
+│   │   └── cert-manager.io/cluster-issuer             ◆  ⊛ links to ClusterIssuer
+│   │
+│   │   spec
+│   │   ├── ingressClassName                           ◆  ⊛ links to IngressClass resource
+│   │   ├── defaultBackend                             ◆  (catch-all if no rule matches)
+│   │   │   └── service.name / port.number             ◆  ⊛ links to Service
+│   │   ├── tls[]                                      ◆
+│   │   │   ├── hosts[]                                ◆
+│   │   │   └── secretName                             ◆  ⊛ links to Secret (kubernetes.io/tls)
+│   │   └── rules[]                                    ◆
+│   │       ├── host                                   ◆  (FQDN; omit for wildcard)
+│   │       └── http.paths[]                           ◆
+│   │           ├── path                               ◆
+│   │           ├── pathType ▸ Exact|Prefix|ImplementationSpecific  ◆
+│   │           └── backend.service.name / port.number ◆  ⊛ links to Service
+│   │
+│   └───────────────────────────────────────────────────────
+│
+│   ┌─── NetworkPolicy  (L3/L4 firewall rules for pods)
+│   │
+│   │   spec
+│   │   ├── podSelector                                ◆  ⊛ which pods THIS policy applies to
+│   │   │   ├── matchLabels {}  (empty = all pods in ns)◆  ⊛
+│   │   │   └── matchExpressions[]                     ◆  ⊛
+│   │   ├── policyTypes[]                              ◆  ▸ Ingress | Egress (or both)
+│   │   ├── ingress[]                                  ◆  (allow inbound rules; omit = deny all in)
+│   │   │   ├── from[]                                 ◆
+│   │   │   │   ├── podSelector.matchLabels            ◆  ⊛ pods in SAME namespace
+│   │   │   │   ├── namespaceSelector.matchLabels      ◆  ⊛ pods in SELECTED namespaces
+│   │   │   │   └── ipBlock.cidr / except[]            ◆  (CIDR-based; for external IPs)
+│   │   │   └── ports[]                                ◆
+│   │   │       ├── port                               ◆
+│   │   │       └── protocol ▸ TCP | UDP               ◆
+│   │   └── egress[]                                   ◆  (allow outbound rules; omit = deny all out)
+│   │       ├── to[]  (same selectors as ingress.from[])◆  ⊛
+│   │       └── ports[].port / protocol                ◆
+│   │
+│   └───────────────────────────────────────────────────────
+│
+├─────────────────────────────────────────────────────────────
+│  CONFIG & SECRETS
+├─────────────────────────────────────────────────────────────
+│
+│   ┌─── ConfigMap  (non-sensitive configuration data)
+│   │
+│   │   ├── data                                       ◆  key: plain-text-value
+│   │   ├── binaryData                                 ◆  key: base64-value
+│   │   └── immutable                                  ◆  (true → prevent changes; better perf)
+│   │   ── consumed via ──────────────────────────────────
+│   │   ├── envFrom[].configMapRef.name                ●  ⊛ all keys → env vars
+│   │   ├── env[].valueFrom.configMapKeyRef.name + key ●  ⊛ single key → env var
+│   │   └── volumes[].configMap.name                   ●  ⊛ keys mounted as files
+│   │       └── items[].key + path                     ●  (selective file mount)
+│   │
+│   └───────────────────────────────────────────────────────
+│
+│   ┌─── Secret  (sensitive data; base64 encoded at rest; use RBAC to guard)
+│   │
+│   │   ├── type                                       ◆
+│   │   │   ├── Opaque                      (generic; default)    ◆
+│   │   │   ├── kubernetes.io/tls           (tls.crt + tls.key)   ◆
+│   │   │   ├── kubernetes.io/dockerconfigjson  (.dockerconfigjson) ◆
+│   │   │   ├── kubernetes.io/service-account-token                 ◆
+│   │   │   └── kubernetes.io/basic-auth    (username + password)  ◆
+│   │   ├── data                                       ◆  key: base64-encoded-value
+│   │   ├── stringData                                 ◆  key: plain-text (write-only shortcut)
+│   │   └── immutable                                  ◆  (true → prevent changes)
+│   │   ── consumed via ──────────────────────────────────
+│   │   ├── envFrom[].secretRef.name                   ●  ⊛ all keys → env vars
+│   │   ├── env[].valueFrom.secretKeyRef.name + key    ●  ⊛ single key → env var
+│   │   ├── volumes[].secret.secretName                ●  ⊛ keys mounted as files
+│   │   └── imagePullSecrets[].name                    ●  ⊛ (dockerconfigjson type)
+│   │
+│   └───────────────────────────────────────────────────────
+│
+├─────────────────────────────────────────────────────────────
+│  STORAGE
+├─────────────────────────────────────────────────────────────
+│
+│   ┌─── PersistentVolume  (PV)  (cluster-scoped storage asset)
+│   │
+│   │   spec
+│   │   ├── capacity.storage                           ◆  e.g. "100Gi"
+│   │   ├── accessModes[]                              ●  (also PVC; must overlap)
+│   │   │   ├── ReadWriteOnce   (RWO) — one node rw   ●
+│   │   │   ├── ReadOnlyMany    (ROX) — many nodes ro  ●
+│   │   │   ├── ReadWriteMany   (RWX) — many nodes rw  ●
+│   │   │   └── ReadWriteOncePod(RWOP)— one pod rw     ◆
+│   │   ├── persistentVolumeReclaimPolicy              ◆
+│   │   │   ├── Retain  — keep data; admin cleans up   ◆
+│   │   │   ├── Delete  — auto-delete on PVC release   ◆
+│   │   │   └── Recycle — deprecated basic scrub       ◆
+│   │   ├── storageClassName                           ●  ⊛ links to StorageClass
+│   │   ├── volumeMode ▸ Filesystem | Block            ●  (also PVC)
+│   │   ├── mountOptions[]                             ◆  (e.g. "hard","nfsvers=4.1")
+│   │   ├── nodeAffinity                               ◆  ⊛ pin PV to specific Nodes
+│   │   │   └── required.nodeSelectorTerms[].matchExpressions[]  ◆  ⊛
+│   │   └── <driver-block>  (exactly one)              ◆
+│   │       ├── csi.driver / volumeHandle / fsType / volumeAttributes  ◆
+│   │       ├── nfs.server / path                      ◆
+│   │       ├── hostPath.path / type                   ◆
+│   │       └── azureDisk / azureFile (legacy)         ◆
+│   │
+│   └───────────────────────────────────────────────────────
+│
+│   ┌─── PersistentVolumeClaim  (PVC)  (user's request for storage)
+│   │
+│   │   spec
+│   │   ├── accessModes[]                              ●  (must be subset of target PV)
+│   │   ├── resources.requests.storage                 ◆  e.g. "20Gi"
+│   │   ├── storageClassName                           ●  ⊛ links to StorageClass (dynamic provisioning)
+│   │   ├── volumeMode ▸ Filesystem | Block            ●
+│   │   ├── volumeName                                 ◆  ⊛ pin-bind to specific PV by name
+│   │   ├── selector.matchLabels                       ◆  ⊛ select PV by labels (static bind)
+│   │   └── dataSource                                 ◆
+│   │       ├── kind ▸ VolumeSnapshot | PersistentVolumeClaim  ◆  ⊛
+│   │       └── name                                   ◆  ⊛ source snapshot or PVC to clone
+│   │
+│   └───────────────────────────────────────────────────────
+│
+│   ┌─── StorageClass  (cluster-scoped; defines HOW to provision PVs)
+│   │
+│   │   ├── provisioner                                ◆  ⊛ driver name (links to CSI driver)
+│   │   │   ├── disk.csi.azure.com                     ◆
+│   │   │   ├── file.csi.azure.com                     ◆
+│   │   │   └── ebs.csi.aws.com / etc.                 ◆
+│   │   ├── parameters {}                              ◆  (driver-specific)
+│   │   │   ├── skuName ▸ Premium_LRS | Standard_LRS   ◆
+│   │   │   ├── kind    ▸ Managed | Shared             ◆
+│   │   │   └── fsType  ▸ ext4 | xfs                   ◆
+│   │   ├── reclaimPolicy ▸ Delete | Retain            ◆
+│   │   ├── allowVolumeExpansion                       ◆  (true → allow resize after bind)
+│   │   ├── mountOptions[]                             ◆
+│   │   ├── volumeBindingMode                          ◆
+│   │   │   ├── Immediate          (provision on PVC create)   ◆
+│   │   │   └── WaitForFirstConsumer (wait for pod scheduling) ◆
+│   │   └── allowedTopologies[]                        ◆  ⊛ restrict to zones/regions
+│   │       └── matchLabelExpressions[].key / values[] ◆  ⊛
+│   │
+│   └───────────────────────────────────────────────────────
+│
+├─────────────────────────────────────────────────────────────
+│  RBAC
+├─────────────────────────────────────────────────────────────
+│
+│   ┌─── ServiceAccount  (identity for processes inside pods)
+│   │
+│   │   ├── metadata.name / namespace                  ●  ⊛ referenced by pod.spec.serviceAccountName
+│   │   ├── automountServiceAccountToken               ◆  (false → disable auto-mount)
+│   │   ├── imagePullSecrets[].name                    ●  ⊛ inherited by pods using this SA
+│   │   └── secrets[]                                  ◆  (legacy token secrets; K8s 1.24+ auto-managed)
+│   │
+│   └───────────────────────────────────────────────────────
+│
+│   ┌─── Role  (namespaced permissions)
+│   │   ClusterRole  (cluster-wide permissions; same structure)
+│   │
+│   │   ├── rules[]                                    ◆
+│   │   │   ├── apiGroups[]                            ◆  ("" = core | "apps" | "batch" | "networking.k8s.io" …)
+│   │   │   ├── resources[]                            ◆  (pods | deployments | secrets | services …)
+│   │   │   ├── resourceNames[]                        ◆  (optional; limit to named instances)
+│   │   │   └── verbs[]                                ◆  (get | list | watch | create | update | patch | delete | *)
+│   │   └── aggregationRule  (ClusterRole only)        ◆
+│   │       └── clusterRoleSelectors[].matchLabels     ◆  ⊛ merge other ClusterRoles by label
+│   │
+│   └───────────────────────────────────────────────────────
+│
+│   ┌─── RoleBinding  (bind Role or ClusterRole in one namespace)
+│   │   ClusterRoleBinding  (cluster-wide binding; same structure)
+│   │
+│   │   ├── subjects[]                                 ◆
+│   │   │   ├── kind ▸ User | Group | ServiceAccount   ◆
+│   │   │   ├── name                                   ◆  ⊛ exact name of user/group/SA
+│   │   │   ├── namespace                              ◆  ⊛ required for ServiceAccount subject
+│   │   │   └── apiGroup: rbac.authorization.k8s.io   ◆
+│   │   └── roleRef                                    ◆  ⊛ (immutable after creation)
+│   │       ├── kind ▸ Role | ClusterRole              ◆  ⊛
+│   │       ├── name                                   ◆  ⊛ name of the Role/ClusterRole
+│   │       └── apiGroup: rbac.authorization.k8s.io   ◆
+│   │
+│   └───────────────────────────────────────────────────────
+│
+├─────────────────────────────────────────────────────────────
+│  AUTOSCALING
+├─────────────────────────────────────────────────────────────
+│
+│   ┌─── HorizontalPodAutoscaler  (HPA)  (scales replicas based on metrics)
+│   │
+│   │   spec
+│   │   ├── scaleTargetRef                             ◆  ⊛ which workload to scale
+│   │   │   ├── apiVersion                             ◆  ⊛
+│   │   │   ├── kind ▸ Deployment | StatefulSet        ◆  ⊛
+│   │   │   └── name                                   ◆  ⊛
+│   │   ├── minReplicas                                ◆
+│   │   ├── maxReplicas                                ◆
+│   │   ├── metrics[]                                  ◆
+│   │   │   ├── type: Resource                         ◆
+│   │   │   │   └── resource.name (cpu|memory)         ◆
+│   │   │   │       └── target.type ▸ Utilization | AverageValue | Value  ◆
+│   │   │   │           └── averageUtilization / averageValue / value      ◆
+│   │   │   ├── type: ContainerResource                ◆  (per-container metrics)
+│   │   │   ├── type: Pods                             ◆
+│   │   │   │   └── pods.metric.name / target.averageValue  ◆
+│   │   │   ├── type: Object                           ◆  (e.g. requests-per-second on Ingress)
+│   │   │   └── type: External                         ◆  (KEDA; external queue depth etc.)
+│   │   └── behavior                                   ◆
+│   │       ├── scaleDown.stabilizationWindowSeconds   ◆  (cool-down; default 300s)
+│   │       ├── scaleDown.policies[].type / value / periodSeconds  ◆
+│   │       ├── scaleUp.stabilizationWindowSeconds     ◆  (default 0)
+│   │       └── scaleUp.policies[].type / value / periodSeconds    ◆
+│   │
+│   └───────────────────────────────────────────────────────
+│
+│   ┌─── VerticalPodAutoscaler  (VPA)  (right-sizes CPU/memory requests)
+│   │
+│   │   spec
+│   │   ├── targetRef                                  ◆  ⊛ same shape as HPA.scaleTargetRef
+│   │   ├── updatePolicy.updateMode                    ◆  ▸ Off | Initial | Recreate | Auto
+│   │   └── resourcePolicy.containerPolicies[]         ◆
+│   │       ├── containerName                          ◆  ⊛ (or "*" for all containers)
+│   │       ├── minAllowed.cpu / memory                ◆
+│   │       ├── maxAllowed.cpu / memory                ◆
+│   │       ├── controlledResources[]                  ◆  (cpu | memory)
+│   │       └── controlledValues ▸ RequestsAndLimits | RequestsOnly  ◆
+│   │
+│   └───────────────────────────────────────────────────────
+│
+├─────────────────────────────────────────────────────────────
+│  POLICY & LIMITS
+├─────────────────────────────────────────────────────────────
+│
+│   ┌─── LimitRange  (default + ceilings per container/pod/PVC in a namespace)
+│   │
+│   │   spec.limits[]                                  ◆
+│   │   ├── type ▸ Container | Pod | PersistentVolumeClaim  ◆
+│   │   ├── default          (applied if limits not set)    ◆
+│   │   │   └── cpu / memory                          ◆
+│   │   ├── defaultRequest   (applied if requests not set)  ◆
+│   │   │   └── cpu / memory                          ◆
+│   │   ├── max              (upper ceiling; request+limit ≤ max)  ◆
+│   │   │   └── cpu / memory / storage (for PVC type)  ◆
+│   │   ├── min              (lower floor)              ◆
+│   │   │   └── cpu / memory                          ◆
+│   │   └── maxLimitRequestRatio                       ◆  (limit must be ≤ ratio × request)
+│   │       └── cpu / memory                          ◆
+│   │
+│   └───────────────────────────────────────────────────────
+│
+│   ┌─── ResourceQuota  (namespace-level aggregate ceilings)
+│   │
+│   │   spec
+│   │   ├── hard {}                                    ◆
+│   │   │   ├── requests.cpu / requests.memory        ◆
+│   │   │   ├── limits.cpu / limits.memory             ◆
+│   │   │   ├── pods                                   ◆
+│   │   │   ├── services / services.nodeports / services.loadbalancers  ◆
+│   │   │   ├── secrets / configmaps / persistentvolumeclaims  ◆
+│   │   │   ├── count/<resource>.<group>               ◆
+│   │   │   └── requests.storage / <storageClassName>.storageclass.storage.k8s.io/requests.storage  ◆
+│   │   ├── scopeSelector                              ◆  ⊛ limit quota to pod subset
+│   │   │   └── matchExpressions[].scopeName / operator / values  ◆  ⊛
+│   │   └── scopes[]                                   ◆  ▸ BestEffort|NotBestEffort|Terminating|NotTerminating
+│   │
+│   └───────────────────────────────────────────────────────
+│
+└─────────────────────────────────────────────────────────────
+   CLUSTER
+└─────────────────────────────────────────────────────────────
+
+    ┌─── Namespace  (isolation boundary; scope for most resources)
+    │
+    │   ├── metadata.name                              ◆
+    │   ├── metadata.labels                            ●  ⊛ targeted by NetworkPolicy namespaceSelector
+    │   └── spec.finalizers[]                          ◆  (e.g. kubernetes; prevent delete until empty)
+    │
+    └───────────────────────────────────────────────────────
+
+    ┌─── Node  (managed by control plane; rarely hand-authored)
+    │
+    │   ├── metadata.labels {}                         ◆  ⊛ targeted by nodeSelector / nodeAffinity
+    │   ├── spec.taints[]                              ◆  ⊛ repel pods unless they tolerate
+    │   │   ├── key / value                            ◆
+    │   │   └── effect ▸ NoSchedule|PreferNoSchedule|NoExecute  ◆
+    │   ├── spec.unschedulable                         ◆  (true = cordoned; kubectl cordon)
+    │   ├── status.conditions[]                        ◆  (Ready | MemoryPressure | DiskPressure …)
+    │   ├── status.capacity.cpu / memory / pods        ◆
+    │   └── status.allocatable.cpu / memory / pods     ◆  (capacity minus system reserved)
+    │
+    └───────────────────────────────────────────────────────
+```
+
+---
+
+## Cross-Object Selector Map
+
+```
+Who selects          ──via──              What it selects
+────────────────────────────────────────────────────────────────────────────────
+Deployment           spec.selector        ──⊛──> Pods (by label)
+StatefulSet          spec.selector        ──⊛──> Pods (by label)
+DaemonSet            spec.selector        ──⊛──> Pods (by label)
+Job                  spec.selector        ──⊛──> Pods (by label; auto-generated)
+Service              spec.selector        ──⊛──> Pods (by label) → Endpoints
+Ingress              spec.rules.backend   ──⊛──> Service (by name)
+Ingress              spec.tls.secretName  ──⊛──> Secret (tls type)
+NetworkPolicy        spec.podSelector     ──⊛──> Pods this policy applies to
+NetworkPolicy        ingress.from.podSelector  ──⊛──> allowed source Pods
+NetworkPolicy        ingress.from.namespaceSelector ──⊛──> allowed source Namespaces
+HPA                  spec.scaleTargetRef  ──⊛──> Deployment / StatefulSet (by name)
+VPA                  spec.targetRef       ──⊛──> Deployment / StatefulSet (by name)
+RoleBinding          roleRef              ──⊛──> Role / ClusterRole (by name)
+RoleBinding          subjects[].name      ──⊛──> User / Group / ServiceAccount
+Pod                  serviceAccountName   ──⊛──> ServiceAccount (by name)
+Pod                  nodeSelector         ──⊛──> Node (by label)
+Pod                  tolerations          ──⊛──> Node taints (key+effect match)
+Pod                  affinity.nodeAffinity──⊛──> Nodes (by label expressions)
+Pod                  affinity.podAffinity ──⊛──> Pods (co-locate by label)
+Pod                  affinity.podAntiAffinity ──⊛──> Pods (spread by label)
+Pod                  env.configMapKeyRef  ──⊛──> ConfigMap (by name + key)
+Pod                  env.secretKeyRef     ──⊛──> Secret (by name + key)
+Pod                  volumes.configMap    ──⊛──> ConfigMap (by name)
+Pod                  volumes.secret       ──⊛──> Secret (by name)
+Pod                  volumes.pvc          ──⊛──> PersistentVolumeClaim (by name)
+PVC                  storageClassName     ──⊛──> StorageClass (by name)
+PVC                  volumeName           ──⊛──> PersistentVolume (by name, static bind)
+PVC                  selector.matchLabels ──⊛──> PersistentVolume (by label, static bind)
+PV                   storageClassName     ──⊛──> StorageClass (by name)
+PV                   nodeAffinity         ──⊛──> Nodes (zone/region pin)
+StorageClass         provisioner          ──⊛──> CSI Driver (by name)
+StatefulSet          spec.serviceName     ──⊛──> Headless Service (by name)
+```
+
+---
+
+## apiVersion Quick Reference
+
+| Kind | apiVersion |
+|---|---|
+| Pod, Service, ConfigMap, Secret, Namespace, PV, PVC, ServiceAccount, LimitRange, ResourceQuota | `v1` |
+| Deployment, StatefulSet, DaemonSet, ReplicaSet | `apps/v1` |
+| Job, CronJob | `batch/v1` |
+| Ingress, NetworkPolicy, IngressClass | `networking.k8s.io/v1` |
+| HPA | `autoscaling/v2` |
+| VPA | `autoscaling.k8s.io/v1` |
+| StorageClass, VolumeSnapshot | `storage.k8s.io/v1` |
+| Role, ClusterRole, RoleBinding, ClusterRoleBinding | `rbac.authorization.k8s.io/v1` |
+| Node | `v1` (rarely authored) |
+
+---
+
+## Minimal Skeleton (every manifest)
+
+```yaml
+apiVersion: <group/version>    #  e.g. apps/v1
+kind:        <Kind>            #  e.g. Deployment
+metadata:
+  name:       my-object        #  ● required
+  namespace:  my-ns            #  ● omit for cluster-scoped kinds
+  labels:                      #  ● key: value — used by selectors
+    app: my-app
+  annotations:                 #  ● key: value — used by controllers/tools
+    note: "human readable"
+spec:
+  ...                          #  kind-specific fields above
+```
