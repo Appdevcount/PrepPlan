@@ -2249,6 +2249,122 @@ if (!response.IsSuccessStatusCode)
 }
 ```
 
+---
+
+### Terraform — Azure Cosmos DB (IaC)
+```hcl
+# ── Cosmos DB Account + SQL API Database + Container ─────────────
+
+resource "azurerm_cosmosdb_account" "cosmos" {
+  name                = "cosmos-myapp-prod"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  offer_type          = "Standard"
+  kind                = "GlobalDocumentDB"    # SQL API (NoSQL); use "MongoDB" for Mongo API
+
+  automatic_failover_enabled = true           # WHY: required for multi-region writes
+
+  # ── Consistency ───────────────────────────────────────────────
+  consistency_policy {
+    consistency_level       = "Session"       # Session = most practical default
+    # ConsistentPrefix: read your own writes across regions
+    # BoundedStaleness: max X seconds / Y operations behind
+    # Strong: linearizable (highest RU cost, disables multi-region writes)
+    max_interval_in_seconds = 5              # only for BoundedStaleness
+    max_staleness_prefix    = 100000
+  }
+
+  # ── Geo-replication ───────────────────────────────────────────
+  geo_location {
+    location          = "eastus2"
+    failover_priority = 0           # WHY: priority 0 = primary write region
+  }
+  geo_location {
+    location          = "westus2"
+    failover_priority = 1           # secondary read region (auto-failover target)
+  }
+
+  # ── Network ───────────────────────────────────────────────────
+  is_virtual_network_filter_enabled = false   # true = VNet integration
+  public_network_access_enabled     = true    # false = private endpoint only
+
+  capabilities {
+    name = "EnableServerless"        # WHY: Serverless = pay per operation (good for spiky)
+    # Remove this block for provisioned throughput
+  }
+}
+
+# ── SQL Database ──────────────────────────────────────────────────
+resource "azurerm_cosmosdb_sql_database" "db" {
+  name                = "myapp"
+  resource_group_name = azurerm_resource_group.rg.name
+  account_name        = azurerm_cosmosdb_account.cosmos.name
+  # Throughput at DB level (shared across containers):
+  # throughput = 400       # RU/s (manual)
+  # Omit for Serverless account
+}
+
+# ── SQL Container (= Collection = Table) ─────────────────────────
+resource "azurerm_cosmosdb_sql_container" "orders" {
+  name                = "orders"
+  resource_group_name = azurerm_resource_group.rg.name
+  account_name        = azurerm_cosmosdb_account.cosmos.name
+  database_name       = azurerm_cosmosdb_sql_database.db.name
+
+  # ── Partition Key — MOST IMPORTANT DECISION ──────────────────
+  partition_key_path    = "/customerId"         # WHY: each customer = logical partition
+  partition_key_version = 2                     # WHY: v2 = hierarchical partition keys
+
+  # Container-level throughput (overrides DB-level):
+  # throughput = 1000    # Omit for Serverless
+
+  # ── TTL ──────────────────────────────────────────────────────
+  default_ttl = -1    # -1 = no expiry at container level (set per-document for selective TTL)
+
+  # ── Indexing Policy ───────────────────────────────────────────
+  indexing_policy {
+    indexing_mode = "consistent"    # consistent = always up-to-date; none = write-optimized
+
+    # WHY included_path: index only what you query to save RUs on writes
+    included_path { path = "/customerId/?" }
+    included_path { path = "/status/?" }
+    included_path { path = "/createdAt/?" }
+
+    # WHY excluded_path: large payload fields (description, metadata) — never queried
+    excluded_path { path = "/description/?" }
+    excluded_path { path = "/metadata/*" }
+    excluded_path { path = "/_etag/?" }
+
+    # Composite index for ORDER BY on multiple fields
+    composite_index {
+      index { path = "/status"; order = "ascending" }
+      index { path = "/createdAt"; order = "descending" }
+    }
+  }
+
+  # ── Unique Key (enforce uniqueness within partition) ─────────
+  unique_key {
+    paths = ["/externalOrderId"]    # WHY: idempotency — same external ID = same document
+  }
+
+  # ── Conflict Resolution (for multi-region writes) ────────────
+  conflict_resolution_policy {
+    mode                          = "LastWriterWins"   # or "Custom" (stored procedure)
+    conflict_resolution_path      = "/_ts"              # timestamp — highest wins
+  }
+}
+
+output "cosmos_connection_string" {
+  value     = azurerm_cosmosdb_account.cosmos.connection_strings[0]
+  sensitive = true
+}
+output "cosmos_endpoint" {
+  value = azurerm_cosmosdb_account.cosmos.endpoint
+}
+```
+
+---
+
 ### Key Interview Q&A
 
 **Q: How do you choose between Cosmos DB and SQL Server?**
