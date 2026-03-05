@@ -548,19 +548,464 @@ CREATE NONCLUSTERED INDEX NIX_Orders_Customer_Date
 ON Orders(CustomerId, OrderDate);              -- CustomerId = equality, OrderDate = range
 ```
 
-### Reading Execution Plans — Key Operators
-```
-SEEK    → Index used correctly, targeted rows fetched     ✅
-SCAN    → Full table/index scan — investigate if table is large ⚠️
-LOOKUP  → Key Lookup after non-clustered seek → add INCLUDE columns ⚠️
-HASH JOIN → Large unsorted inputs, possible missing index ⚠️
-NESTED LOOPS → OK for small outer input, many inner seeks ✅
-SORT    → No supporting index for ORDER BY / GROUP BY → add index ⚠️
-SPILL   → Sort/hash ran out of memory → grant more, tune query ❌
+### Execution Plans — How They Work & How to Analyze Them
 
--- Cost threshold:
--- "Estimated Subtree Cost" > 5 in SSMS plan → investigate
--- "Actual Rows" >> "Estimated Rows" → statistics outdated → UPDATE STATISTICS
+```
+┌───────────────────────────────────────────────────────────────────┐
+│  MENTAL MODEL: Execution Plan = SQL Server's Recipe for Your Query│
+│                                                                   │
+│  You write SQL (WHAT you want).                                  │
+│  The Query Optimizer writes the plan (HOW to get it).            │
+│                                                                   │
+│  Plan = a tree of operators. Data flows right → left.            │
+│  Leaf nodes (rightmost) = data sources (tables, indexes).        │
+│  Root node (leftmost) = final result returned to client.         │
+│                                                                   │
+│  Cost = optimizer's guess at resource usage (not real time).     │
+│  Actual rows vs Estimated rows = accuracy of that guess.         │
+└───────────────────────────────────────────────────────────────────┘
+```
+
+#### Step 1 — How to Get an Execution Plan
+
+```sql
+-- Option A: SSMS keyboard shortcuts
+--   Ctrl+L         → Estimated plan (no query runs, instant)
+--   Ctrl+M → then Ctrl+E  → Actual plan (query runs, real row counts)
+
+-- Option B: T-SQL — Actual plan with statistics (for scripts/automation)
+SET STATISTICS IO ON;      -- shows logical reads per table
+SET STATISTICS TIME ON;    -- shows parse/compile/execute CPU + elapsed ms
+
+SET STATISTICS PROFILE ON; -- text-based actual plan (each operator + row counts)
+
+-- Option C: Get cached plan for a past query (from DMV — no re-run needed)
+SELECT qp.query_plan
+FROM sys.dm_exec_query_stats qs
+CROSS APPLY sys.dm_exec_query_plan(qs.plan_handle) qp
+WHERE qs.sql_handle = <your_handle>;
+-- The query_plan column is clickable XML in SSMS → opens graphical plan
+
+-- Option D: EXPLAIN equivalent for quick text output
+SET SHOWPLAN_TEXT ON;
+GO
+SELECT * FROM Orders WHERE CustomerId = 1;
+GO
+SET SHOWPLAN_TEXT OFF;
+-- Output:
+--   |--Nested Loops(Inner Join)
+--       |--Index Seek(OBJECT:([Orders].[NIX_Orders_CustomerId]),
+--                    SEEK:([CustomerId]=(1)) ORDERED FORWARD)
+--       |--RID Lookup(OBJECT:([Orders]))
+```
+
+#### Step 2 — How to Read the Plan (Direction & Flow)
+
+```
+SSMS Graphical Plan — reading order:
+
+  [SELECT]  ←  [Hash Match]  ←  [Sort]  ←  [Clustered Index Scan: Orders]
+    root         join                           leaf = data source
+    (result)     ↑                              (reads from here first)
+                 [Index Seek: Customers]  ←── another leaf
+
+  Arrow direction: data flows RIGHT → LEFT (leaves to root).
+  Arrow THICKNESS: proportional to row count flowing through that pipe.
+                   Thin arrow after a Seek = few rows (good).
+                   Thick arrow after a Scan = many rows (investigate).
+
+  Node SIZE in SSMS: proportional to relative cost % of that operator.
+                     Large node = expensive step = fix this first.
+
+  Reading order for analysis:
+    1. Find the WIDEST arrow (most rows flowing = most work)
+    2. Find the LARGEST node (highest % cost)
+    3. Check Seeks vs Scans on leaf nodes
+    4. Check for Key Lookups
+    5. Check Estimated vs Actual rows on every operator
+```
+
+#### Step 3 — Every Operator Explained
+
+```
+┌──────────────────────┬────────────────────────────────────────────────────────┐
+│ Operator             │ Meaning + What to Do                                   │
+├──────────────────────┼────────────────────────────────────────────────────────┤
+│ Clustered Index SEEK │ ✅ Best case. B-tree traversal to specific rows.        │
+│                      │    Uses = or BETWEEN on clustered key.                  │
+│                      │    Expected: Estimated Rows ≈ Actual Rows               │
+├──────────────────────┼────────────────────────────────────────────────────────┤
+│ Index SEEK           │ ✅ Non-clustered B-tree traversal.                      │
+│ (non-clustered)      │    Fast if covering index (no lookup needed).           │
+│                      │    Check: does it have a Key Lookup sibling?            │
+├──────────────────────┼────────────────────────────────────────────────────────┤
+│ Clustered Index SCAN │ ⚠️  Reads entire table.                                 │
+│                      │    OK for small tables (<10K rows).                    │
+│                      │    On large tables: find WHERE clause, add index.      │
+├──────────────────────┼────────────────────────────────────────────────────────┤
+│ Index SCAN           │ ⚠️  Reads entire non-clustered index.                   │
+│                      │    May be Forced by: non-sargable predicate,           │
+│                      │    or optimizer decides scan cheaper than seek+lookup. │
+├──────────────────────┼────────────────────────────────────────────────────────┤
+│ Key Lookup           │ ⚠️  After non-clustered seek, goes back to clustered   │
+│ (RID Lookup)         │    index to fetch columns not in the NC index.         │
+│                      │    Fix: add missing columns to INCLUDE clause.         │
+│                      │    If lookup > 1000 rows → add INCLUDE, saves big I/O │
+├──────────────────────┼────────────────────────────────────────────────────────┤
+│ Nested Loops Join    │ ✅ (usually) Outer loop × inner seek.                   │
+│                      │    Fast when outer has FEW rows.                       │
+│                      │    ⚠️  If outer has many rows → many seeks → slow.     │
+│                      │    Optimizer chooses this when inner has index.        │
+├──────────────────────┼────────────────────────────────────────────────────────┤
+│ Hash Match           │ ⚠️  Builds hash table from one input, probes with      │
+│ (Hash Join)          │    other. Used for large unsorted inputs.              │
+│                      │    Signs: missing index on join column, large tables.  │
+│                      │    Warning icon = hash SPILL to tempdb (memory issue). │
+├──────────────────────┼────────────────────────────────────────────────────────┤
+│ Merge Join           │ ✅ Both inputs pre-sorted on join key. Very efficient.  │
+│                      │    Optimizer uses this when indexes provide sort order.│
+├──────────────────────┼────────────────────────────────────────────────────────┤
+│ Sort                 │ ⚠️  No index supports ORDER BY / GROUP BY / DISTINCT.  │
+│                      │    Adds cost proportional to rows × log(rows).        │
+│                      │    Fix: add index with same column order as ORDER BY.  │
+│                      │    Warning icon = sort SPILL to tempdb.               │
+├──────────────────────┼────────────────────────────────────────────────────────┤
+│ Filter               │ ⚠️  Predicate applied AFTER rows retrieved.            │
+│                      │    Means WHERE clause couldn't be pushed into index.   │
+│                      │    Cause: non-sargable function, OR condition, cast.   │
+├──────────────────────┼────────────────────────────────────────────────────────┤
+│ Compute Scalar       │ ✅ (usually) Evaluate expression (YEAR(), ISNULL()...) │
+│                      │    ⚠️  If appears BEFORE index seek: function wraps    │
+│                      │    indexed column → prevents seek (non-sargable).      │
+├──────────────────────┼────────────────────────────────────────────────────────┤
+│ Parallelism          │ Repartition / Gather streams for parallel query.        │
+│ (Exchange)           │    MAXDOP > 1 and optimizer chose parallel plan.       │
+│                      │    CXPACKET waits = one thread waiting for others.    │
+│                      │    Skewed data = one partition does 90% of work.       │
+├──────────────────────┼────────────────────────────────────────────────────────┤
+│ Spool                │ ⚠️  Caches intermediate results in tempdb.             │
+│ (Table/Index Spool)  │    Appears in correlated subqueries, triggers.        │
+│                      │    Fix: rewrite as JOIN or CTE.                       │
+├──────────────────────┼────────────────────────────────────────────────────────┤
+│ Lazy Spool           │ ❌ Very expensive. Re-executes inner tree per row.      │
+│                      │    Cause: correlated subquery in SELECT list.          │
+│                      │    Fix: rewrite as LEFT JOIN.                          │
+└──────────────────────┴────────────────────────────────────────────────────────┘
+```
+
+#### Step 4 — Tooltip Properties to Check on Every Operator
+
+```
+Right-click any operator → Properties (F4) — key fields:
+
+┌───────────────────────────────────────────────────────────────────────────┐
+│ Property              │ What it means                                     │
+├───────────────────────┼───────────────────────────────────────────────────┤
+│ Estimated Rows        │ Optimizer's prediction (from statistics).          │
+│ Actual Rows           │ Real count from execution. Compare to Estimated.  │
+│                       │ Ratio > 10x → statistics are stale/wrong → UPDATE │
+│                       │ STATISTICS or reconsider partition key design.     │
+├───────────────────────┼───────────────────────────────────────────────────┤
+│ Estimated Cost        │ Relative cost % of this operator vs whole plan.   │
+│ (Subtree Cost)        │ Focus on operators > 20% cost.                    │
+├───────────────────────┼───────────────────────────────────────────────────┤
+│ Actual Executions     │ How many times THIS operator ran.                 │
+│                       │ If Nested Loops inner seek executed 50,000 times  │
+│                       │ → outer loop returned 50K rows → too many seeks.  │
+├───────────────────────┼───────────────────────────────────────────────────┤
+│ Output List           │ Columns this operator outputs to parent.           │
+│                       │ Look for columns you don't need (SELECT * smell). │
+├───────────────────────┼───────────────────────────────────────────────────┤
+│ Predicate             │ WHERE clause applied at this operator.            │
+│ Seek Predicate        │ On Index Seek: shows which columns are seeked.    │
+│                       │ Missing your WHERE column here → not seekable.    │
+├───────────────────────┼───────────────────────────────────────────────────┤
+│ Warnings              │ ⚠️ No Join Predicate (Cartesian product)           │
+│                       │ ⚠️ Implicit Conversion (type mismatch)            │
+│                       │ ⚠️ Residual (predicate can't be applied at seek)  │
+│                       │ ⚠️ Spill (Sort/Hash used tempdb — memory too low) │
+├───────────────────────┼───────────────────────────────────────────────────┤
+│ Memory Grant          │ How much memory SQL allocated for Sort/Hash.      │
+│                       │ Spill = grant was too small → query-level hint:   │
+│                       │   OPTION (MIN_GRANT_PERCENT = 25)                 │
+└───────────────────────┴───────────────────────────────────────────────────┘
+```
+
+#### Step 5 — STATISTICS IO + TIME Output (Text-Based)
+```sql
+SET STATISTICS IO ON;
+SET STATISTICS TIME ON;
+
+SELECT o.OrderId, o.Status, c.Name
+FROM Orders o
+JOIN Customers c ON o.CustomerId = c.Id
+WHERE o.Status = 'Pending';
+```
+
+```
+-- Output in Messages tab:
+
+SQL Server parse and compile time:
+   CPU time = 0 ms,  elapsed time = 12 ms.
+
+Table 'Customers'. Scan count 0, logical reads 3, physical reads 0,
+                   read-ahead reads 0, lob logical reads 0.
+Table 'Orders'.    Scan count 1, logical reads 84240, physical reads 0,
+                   read-ahead reads 0, lob logical reads 0.
+
+SQL Server Execution Times:
+   CPU time = 3891 ms,  elapsed time = 4012 ms.
+```
+
+**How to read STATISTICS IO output:**
+```
+Column              Meaning
+────────────────────────────────────────────────────────────────────────
+Scan count          Number of index scans. 0 = seek (no scan). 1 = one
+                    full scan. N = N scans (e.g., nested loop inner).
+
+logical reads       Pages read from buffer pool (8KB each).
+                    84,240 × 8KB = ~657 MB read! Screams missing index.
+                    Compare: Customers = 3 reads (point seek). Perfect.
+                    Rule: > 1,000 logical reads = investigate for index.
+
+physical reads      Pages read from disk (not in buffer cache).
+                    0 = all in memory. Non-zero = cold cache or RAM issue.
+
+read-ahead reads    Pages prefetched (SQL predicts you'll need them).
+                    High = large scan expected. Symptom of missing index.
+
+CPU time (3,891ms)  Time CPU spent. 3.9 seconds for ONE query = problem.
+elapsed time        Wall-clock time including waits (IO, locks).
+                    elapsed >> CPU = waiting (IO, blocking, network).
+                    elapsed ≈ CPU = CPU-bound.
+
+GOAL: logical reads < 100 for OLTP queries. CPU time < 100ms.
+```
+
+#### Step 6 — Full Analysis Walkthrough: Bad Query vs Fixed Query
+
+```sql
+-- ❌ BAD QUERY — causes table scan
+SELECT o.OrderId, o.TotalAmount, c.Name, c.Email
+FROM Orders o
+JOIN Customers c ON o.CustomerId = c.Id
+WHERE YEAR(o.CreatedAt) = 2024
+  AND o.Status = 'Pending';
+```
+
+```
+-- Estimated plan (SSMS text representation):
+-- [SELECT]
+--   └─ [Nested Loops Inner Join]               Cost: 100%
+--        ├─ [Clustered Index SCAN: Orders]      Cost: 94%  ← PROBLEM
+--        │     Scan count: 1
+--        │     Logical reads: 84,240            ← reads entire table
+--        │     Filter: YEAR([CreatedAt])=(2024) ← function prevents seek
+--        │     Estimated rows: 50,000
+--        │     Actual rows: 12,847              ← 4x over-estimated
+--        │
+--        └─ [Clustered Index SEEK: Customers]   Cost: 6%
+--               Seek Predicate: CustomerId = Orders.CustomerId
+--               Actual Executions: 12,847       ← 12K seeks (one per order)
+--               Logical reads: 3 each × 12K = 38,541 total
+
+-- STATISTICS IO:
+-- Orders:    Scan count 1, logical reads 84,240
+-- Customers: Scan count 0, logical reads 38,541
+-- CPU time = 3,891 ms
+```
+
+```
+WHAT THE PLAN IS TELLING YOU:
+  1. Clustered Index SCAN on Orders (94% cost) → entire 8M row table read
+     Why? YEAR(CreatedAt) = non-sargable → SQL can't seek on a function result
+     Fix: Replace with range predicate
+
+  2. Nested Loops × 12,847 executions on Customers
+     OK here (3 reads each = index seek), but if Customers was large → problem
+     Monitor: Actual Executions on inner node
+
+  3. Estimated 50K rows, Actual 12K → statistics off (4x error)
+     Fix: UPDATE STATISTICS dbo.Orders
+```
+
+```sql
+-- ✅ FIXED QUERY
+SELECT o.OrderId, o.TotalAmount, c.Name, c.Email
+FROM Orders o
+JOIN Customers c ON o.CustomerId = c.Id
+WHERE o.CreatedAt >= '2024-01-01'          -- ← sargable range
+  AND o.CreatedAt < '2025-01-01'           -- ← no function wrapper
+  AND o.Status = 'Pending';
+
+-- Add covering index:
+CREATE NONCLUSTERED INDEX NIX_Orders_Status_Created
+ON Orders(Status, CreatedAt)
+INCLUDE (CustomerId, TotalAmount, OrderId); -- WHY: all columns query needs
+```
+
+```
+-- Fixed plan:
+-- [SELECT]
+--   └─ [Nested Loops Inner Join]               Cost: 100%
+--        ├─ [Index SEEK: NIX_Orders_Status_Created]  Cost: 42%  ✅
+--        │     Seek Predicate: Status='Pending'
+--        │                     AND CreatedAt >= '2024-01-01'
+--        │                     AND CreatedAt < '2025-01-01'
+--        │     Scan count: 1
+--        │     Logical reads: 48              ← 84,240 → 48 (1750x fewer!)
+--        │     Actual rows: 12,847
+--        │     Estimated rows: 12,200         ← accurate now (stats updated)
+--        │
+--        └─ [Clustered Index SEEK: Customers]  Cost: 58%
+--               Actual Executions: 12,847
+
+-- STATISTICS IO after fix:
+-- Orders:    Scan count 1, logical reads 48       ← was 84,240
+-- Customers: Scan count 0, logical reads 38,541
+-- CPU time = 142 ms                               ← was 3,891 ms (27x faster)
+```
+
+#### Step 7 — Key Lookup: Spot and Fix It
+
+```
+SYMPTOM in plan:
+  [Nested Loops]
+    ├─ [Index Seek: NIX_Orders_CustomerId]   ← seeks on CustomerId
+    └─ [Key Lookup: Orders]                  ← ⚠️ goes BACK to clustered index
+         Output: TotalAmount, Status, CreatedAt   ← these columns missing from NC index
+
+TOOLTIP on Key Lookup:
+  "Lookup Columns: TotalAmount, Status, CreatedAt"  ← columns to add to INCLUDE
+  Actual Executions: 45,000                          ← 45K extra B-tree traversals!
+  Logical reads: 2 each × 45,000 = 90,000 extra reads
+
+FIX: Add those columns to INCLUDE:
+  ALTER INDEX NIX_Orders_CustomerId ON Orders
+  DROP_EXISTING = ON;  -- rebuild with new columns
+
+  CREATE NONCLUSTERED INDEX NIX_Orders_CustomerId
+  ON Orders(CustomerId)
+  INCLUDE (TotalAmount, Status, CreatedAt);  -- ← now a covering index
+
+RESULT AFTER FIX:
+  [Nested Loops]
+    ├─ [Index Seek: NIX_Orders_CustomerId]   ✅
+    (Key Lookup node is GONE)
+
+RULE OF THUMB:
+  Key Lookup with Executions < 100 → probably OK, low overhead
+  Key Lookup with Executions > 1,000 → add INCLUDE columns
+  Key Lookup with Executions > 10,000 → HIGH PRIORITY fix
+```
+
+#### Step 8 — Common Warning Icons in SSMS Plans
+
+```
+⚠️ Yellow triangle on operator — hover to see message:
+
+"No Join Predicate"
+  → Cartesian product (every row × every row).
+  → Missing ON clause or always-true condition like ON 1=1.
+  → Immediate fix required — can produce billions of rows.
+
+"Type Conversion in Expression"
+  → Column is INT, parameter is VARCHAR (or vice versa).
+  → SQL converts every row → prevents index seek → full scan.
+  → Fix: match data types. Use explicit CAST in the predicate, not on column.
+  → Example: WHERE CustomerId = @id  (where @id is NVARCHAR but col is INT)
+             Fix: DECLARE @id INT = 123  or  WHERE CustomerId = CAST(@id AS INT)
+
+"Spill Level 1/2/3 to TempDB"
+  → Sort or Hash operator ran out of memory grant.
+  → Rows written to tempdb disk → 10-100x slower than in-memory.
+  → Fix options:
+      (a) Add index so Sort is eliminated entirely
+      (b) Increase server memory
+      (c) OPTION (MIN_GRANT_PERCENT = 25) — force larger memory grant
+      (d) Reduce rows before Sort (more selective WHERE clause)
+
+"Residual Predicate"
+  → Predicate partially applied at seek but revalidated after.
+  → On LIKE '%keyword%': leading wildcard means full index scan,
+    residual filter removes non-matches after reading all pages.
+  → Fix: Full-Text Search for wildcard text searches.
+```
+
+#### Step 9 — Estimated vs Actual Rows: The Statistics Story
+
+```
+Ratio: Actual / Estimated   What It Means
+────────────────────────────────────────────────────────────────────────
+0.9 – 1.1                   Excellent. Statistics accurate.
+                            Optimizer chose the right plan.
+
+2 – 5                       Moderate skew. Plan may be suboptimal
+                            but usually acceptable for OLTP.
+
+> 10                        Stale statistics. Optimizer picked wrong
+                            join order, wrong index.
+                            Fix: UPDATE STATISTICS WITH FULLSCAN
+
+> 100                       Critical. Plan is catastrophically wrong.
+                            Often causes Hash Joins where Nested Loops
+                            expected, or table scans on 10M+ rows.
+
+Estimated > Actual          Optimizer expected MORE rows than arrived.
+(over-estimate)             → May have chosen Hash Join (expects large
+                               input) where Nested Loops would be faster.
+
+Actual > Estimated          Optimizer expected FEWER rows (under-estimate)
+(under-estimate)            → May have chosen Nested Loops, inner seeks
+                               100x more times than expected.
+                            → This is the more common performance killer.
+
+HOW TO FIX STATISTICS:
+  -- Single table
+  UPDATE STATISTICS dbo.Orders WITH FULLSCAN;
+
+  -- Whole database (run during low-traffic window)
+  EXEC sp_updatestats;  -- only updates tables with changes since last update
+
+  -- Scheduled (SQL Agent job, daily):
+  EXEC [dbo].[IndexOptimize]  -- Ola Hallengren solution (industry standard)
+    @Databases = 'mydb',
+    @UpdateStatistics = 'ALL',
+    @OnlyModifiedStatistics = 'Y';
+```
+
+#### Summary: 5-Minute Plan Analysis Checklist
+
+```
+When you open an execution plan in SSMS:
+
+□ 1. Any ⚠️ warning icons?
+      → Hover → read message → fix type mismatch or missing join pred first
+
+□ 2. Any SCAN on a large table (> 100K rows)?
+      → Find that table's WHERE clause → is predicate sargable?
+      → Check Missing Index hint (green text at top of plan in SSMS)
+
+□ 3. Any Key Lookup?
+      → Hover → note "Output List" (missing INCLUDE columns)
+      → Check Actual Executions → if > 1,000, add those to INCLUDE
+
+□ 4. Estimated rows vs Actual rows on every operator.
+      → > 10x difference → UPDATE STATISTICS on that table
+
+□ 5. Actual Executions on inner Nested Loops node.
+      → Should equal outer rows. If > 10,000 → outer too fat → add index on outer
+
+□ 6. Any Sort operators?
+      → Look at sort key → add index with same column order
+
+□ 7. SET STATISTICS IO ON → logical reads.
+      → > 1,000 reads for a simple OLTP query = investigate index coverage
+
+□ 8. Hash Match Join on tables you expect to be joined by index?
+      → Check join column has index on BOTH tables
+      → Check statistics — optimizer may have wrong row count estimates
 ```
 
 ### DMVs — Production Troubleshooting Toolkit
@@ -2115,3 +2560,1148 @@ Local UI state? ──Yes──→ useState / useReducer
 ---
 
 *Guide Date: 2026-03-05 | Level: Lead / Senior Developer*
+
+---
+
+---
+
+# Appendix: Sample Outputs & How to Read Them
+
+> Every command and query from the guide above — with realistic sample output, field-by-field annotation, and what to look for in production.
+
+---
+
+## A. Azure Container Apps — CLI Outputs
+
+---
+
+### A1. `az containerapp env create` — Output
+```json
+{
+  "id": "/subscriptions/aaaa-bbbb-cccc/resourceGroups/rg-prod/providers/Microsoft.App/managedEnvironments/cae-prod",
+  "location": "eastus2",
+  "name": "cae-prod",
+  "properties": {
+    "appLogsConfiguration": {
+      "destination": "log-analytics",
+      "logAnalyticsConfiguration": {
+        "customerId": "workspace-guid-here"
+      }
+    },
+    "defaultDomain": "proudsky-abc123.eastus2.azurecontainerapps.io",
+    "provisioningState": "Succeeded",
+    "staticIp": "20.55.140.10",
+    "zoneRedundant": false
+  },
+  "type": "Microsoft.App/managedEnvironments"
+}
+```
+
+**How to read it:**
+```
+Field                    Meaning & What to Check
+─────────────────────────────────────────────────────────────────────
+provisioningState        "Succeeded" = env is ready. "Failed" = check
+                         Activity Log in Azure Portal for details.
+
+defaultDomain            Every app in this env gets a subdomain under
+                         this. e.g. api-service.proudsky-abc123.eastus2
+                         .azurecontainerapps.io
+
+staticIp                 Outbound IP of this environment. Whitelist this
+                         in your SQL Server / downstream firewall rules.
+
+zoneRedundant            false = single zone (non-prod OK)
+                         true  = spans 3 AZs — required for production SLA
+```
+
+---
+
+### A2. `az containerapp create` — Output (abbreviated)
+```json
+{
+  "name": "api-service",
+  "properties": {
+    "configuration": {
+      "activeRevisionsMode": "Single",
+      "ingress": {
+        "external": true,
+        "fqdn": "api-service.proudsky-abc123.eastus2.azurecontainerapps.io",
+        "targetPort": 80,
+        "transport": "Auto"
+      }
+    },
+    "latestReadyRevisionName": "api-service--abc1234",
+    "latestRevisionFqdn": "api-service--abc1234.proudsky-abc123.eastus2.azurecontainerapps.io",
+    "outboundIpAddresses": ["20.55.140.10"],
+    "provisioningState": "Succeeded",
+    "runningStatus": "Running",
+    "template": {
+      "containers": [
+        {
+          "image": "myacr.azurecr.io/api:v2",
+          "name": "api",
+          "resources": { "cpu": 0.5, "ephemeralStorage": "2Gi", "memory": "1Gi" }
+        }
+      ],
+      "scale": {
+        "maxReplicas": 10,
+        "minReplicas": 1
+      }
+    }
+  }
+}
+```
+
+**How to read it:**
+```
+Field                        Meaning & What to Check
+──────────────────────────────────────────────────────────────────────
+fqdn                         Public HTTPS URL for your app. Test with:
+                             curl https://api-service.proudsky...io/health
+
+latestReadyRevisionName      Format: <app-name>--<hash>. Each deploy
+                             creates a new hash. Use this name when
+                             doing traffic splits.
+
+latestRevisionFqdn           Direct URL to THIS revision only — useful
+                             for testing canary before routing traffic.
+
+runningStatus                "Running" = replicas are healthy.
+                             "Degraded" = some replicas failing → check
+                             az containerapp logs show --name api-service
+
+outboundIpAddresses          IPs that downstream services see on requests
+                             from this app — whitelist in firewalls.
+
+resources.ephemeralStorage   Temp disk per replica (2Gi default).
+                             Writes to /tmp only — not persistent.
+```
+
+---
+
+### A3. `az containerapp ingress traffic set` — Output
+```json
+{
+  "fqdn": "api-service.proudsky-abc123.eastus2.azurecontainerapps.io",
+  "traffic": [
+    {
+      "latestRevision": false,
+      "revisionName": "api-service--abc1234",
+      "weight": 80
+    },
+    {
+      "latestRevision": true,
+      "revisionName": "api-service--xyz9999",
+      "weight": 20
+    }
+  ]
+}
+```
+
+**How to read it:**
+```
+Field                  Meaning
+──────────────────────────────────────────────────────────────────────
+traffic[]              Array of revision splits. All weights MUST sum
+                       to 100 — CLI enforces this.
+
+latestRevision: false  Named (previous) revision — pinned by name.
+weight: 80             80% of traffic → old stable version.
+
+latestRevision: true   Current newest revision.
+weight: 20             20% → canary. Monitor error rates here first.
+                       When confident: set to weight: 100, remove old.
+
+HOW TO PROMOTE: After canary validation:
+  az containerapp ingress traffic set \
+    --revision-weight latest=100
+  This removes the old revision from traffic automatically.
+```
+
+---
+
+### A4. `az containerapp logs show --follow` — Log Stream Format
+```
+2026-03-05T10:22:01.123Z  api-service  api  info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://[::]:80
+2026-03-05T10:22:03.441Z  api-service  api  info: OrderController[0]
+      Order created: ord-abc123, customer: c-001
+2026-03-05T10:22:03.552Z  api-service  api  warn: Microsoft.AspNetCore.HttpsPolicy[6]
+      Response code 200 for GET /health in 2ms
+2026-03-05T10:22:15.001Z  api-service  api  fail: OrderService[0]
+      Unhandled exception processing order ord-xyz999
+      System.TimeoutException: DB connection timeout after 30s
+         at OrderRepository.SaveAsync() ...
+```
+
+**How to read it:**
+```
+Column 1 (timestamp)    UTC timestamp — all Container Apps logs in UTC.
+                        Match with your App Insights traces using this.
+
+Column 2 (app name)     Container App name — useful in multi-app envs.
+
+Column 3 (container)    Container name within the app (you can have
+                        multiple containers in one app via sidecars).
+
+Level keywords          info / warn / fail — scan for "fail" in CI
+                        to detect startup errors post-deployment.
+
+USEFUL FILTERS:
+  --tail 50             Last 50 lines (no streaming)
+  --filter "ERROR"      Show only lines containing "ERROR"
+  --format json         Structured JSON output (pipe to jq for queries)
+
+KQL equivalent in Log Analytics:
+  ContainerAppConsoleLogs_CL
+  | where ContainerAppName_s == "api-service"
+  | where Log_s contains "Exception"
+  | order by TimeGenerated desc
+  | take 50
+```
+
+---
+
+## B. SQL Server — DMV Query Sample Outputs
+
+---
+
+### B1. Top 10 Expensive Queries by CPU
+```
+Sample output (formatted for readability):
+
+avg_cpu_ms  avg_reads  execution_count  query_text
+──────────  ─────────  ───────────────  ──────────────────────────────────────────
+ 48,230        82,100            1,204  SELECT o.*, c.Name FROM Orders o
+                                        JOIN Customers c ON o.CustomerId = c.Id
+                                        WHERE o.Status = 'Pending'
+  9,820        14,500           48,310  SELECT * FROM Orders WHERE YEAR(CreatedAt) = 2024
+  3,120         2,900          120,450  SELECT TOP 1 * FROM Orders WHERE OrderId = @p0
+    840           320          890,000  SELECT COUNT(*) FROM AuditLog
+    210            80        2,100,000  SELECT UserId, Name FROM Users WHERE Email = @p0
+```
+
+**How to read it:**
+```
+Column           What It Tells You
+──────────────────────────────────────────────────────────────────────────
+avg_cpu_ms       Average CPU time per execution (microseconds in DMV,
+                 converted to ms here). Row 1: 48 seconds of CPU per run!
+                 → Definitely needs an index or query rewrite.
+
+avg_reads        Logical reads = pages read from buffer pool.
+                 82,100 pages × 8KB = ~641 MB read per execution.
+                 High reads = missing index (scanning) or SELECT *.
+
+execution_count  How often it runs. Row 3: 120K runs × 3,120ms = massive
+                 total CPU. Even a "fast" query × millions of runs = problem.
+
+WHAT TO FIX:
+Row 1: avg_reads 82K → run ACTUAL execution plan → likely TABLE SCAN.
+       Check for missing index on (Status) INCLUDE (CustomerId, Name).
+
+Row 2: YEAR(CreatedAt) → NON-SARGABLE. Fix:
+       WHERE CreatedAt >= '2024-01-01' AND CreatedAt < '2025-01-01'
+
+Row 4: COUNT(*) on AuditLog with 0 avg_reads is suspicious — may be
+       using a cached plan from when table was small. UPDATE STATISTICS.
+```
+
+---
+
+### B2. Missing Index Recommendations
+```
+Sample output:
+
+improvement_measure  create_index_statement
+───────────────────  ──────────────────────────────────────────────────────────────────
+        2,847,234    CREATE INDEX IX_Orders_Status ON dbo.Orders (Status)
+                     INCLUDE (CustomerId, TotalAmount, CreatedAt)
+
+          384,910    CREATE INDEX IX_AuditLog_EntityId ON dbo.AuditLog (EntityId, EntityType)
+                     INCLUDE (CreatedAt, UserId, Action)
+
+           28,441    CREATE INDEX IX_Users_Email ON dbo.Users (Email)
+
+            1,204    CREATE INDEX IX_Orders_AgentId ON dbo.Orders (AgentId)
+                     INCLUDE (Status, CreatedAt)
+```
+
+**How to read it:**
+```
+Column                  Meaning
+──────────────────────────────────────────────────────────────────────
+improvement_measure     SQL Server's estimated benefit score.
+                        = avg_total_user_cost × avg_user_impact
+                          × (seeks + scans intercepted)
+                        Higher = more benefit. NOT a time estimate.
+                        Use as PRIORITY ORDER, not absolute value.
+
+create_index_statement  Ready-to-run T-SQL. BUT:
+                        ⚠ Review before executing in prod:
+                        1. Check if similar index exists (consolidate)
+                        2. Evaluate write overhead (every INSERT/UPDATE
+                           must maintain the index)
+                        3. Run CREATE INDEX ... WITH (ONLINE=ON) in prod
+                           to avoid table lock
+
+RULE OF THUMB:
+  improvement_measure > 100,000 → high priority, create ASAP
+  improvement_measure 10K–100K  → medium, schedule for next maintenance
+  improvement_measure < 10K     → low, batch with other changes
+  Also: SQL Server only keeps ~500 missing index suggestions — reset on restart.
+```
+
+---
+
+### B3. Currently Running Queries
+```
+Sample output:
+
+session_id  status   wait_type        wait_time  blocking_session_id  cpu_time  logical_reads  current_statement
+──────────  ───────  ───────────────  ─────────  ───────────────────  ────────  ─────────────  ─────────────────────────────────────────────────────────
+        55  running  NULL             0          0                    48,210    91,000         SELECT o.*, c.Name FROM Orders o JOIN Customers...
+        67  suspended LCK_M_S        12,500     55                   120       200            UPDATE Orders SET Status='Completed' WHERE OrderId=@p0
+        71  suspended PAGEIOLATCH_SH 3,200      0                    9,800     45,000         SELECT * FROM AuditLog WHERE CreatedAt > '2024-01-01'
+        82  sleeping  ASYNC_NETWORK_IO 28,000   0                    2,100     800            SELECT OrderId, Status FROM Orders WHERE CustomerId=@p0
+```
+
+**How to read it:**
+```
+Column               Meaning & Action
+──────────────────────────────────────────────────────────────────────────
+status
+  running            Actively using CPU right now.
+  suspended          Waiting for something (see wait_type).
+  sleeping           Query done, waiting for client to fetch results.
+
+wait_type
+  NULL               Running — no wait. This is your CPU consumer.
+  LCK_M_S (row 67)  Shared lock wait. Blocked by session 55.
+                     Session 55 holds a lock that 67 needs.
+                     → Kill 55 if it's stuck: KILL 55
+                     → Long-term: shorter transactions, RCSI isolation.
+  PAGEIOLATCH_SH     Reading pages from disk (not in buffer cache).
+  (row 71)           → Add RAM for SQL Server, or fix the scan with index.
+  ASYNC_NETWORK_IO   SQL is done, client reading slowly (row 82).
+  (row 82)           → App is streaming a large result set. Paginate instead.
+
+wait_time            How long (ms) this wait has lasted. 12,500 = 12.5 sec.
+                     Long waits + blocking = user-facing timeouts.
+
+blocking_session_id  Non-zero = this session is BLOCKED by that session.
+                     Row 67 blocked by 55. Trace the chain upward
+                     to find the ROOT blocker (has blocking_session_id = 0).
+
+logical_reads        91,000 reads for one query → enormous scan.
+                     Cross-reference with missing index DMV (B2 above).
+
+IMMEDIATE TRIAGE STEPS:
+  1. Find rows where wait_time > 5000 → active incident
+  2. Find root blocker (blocking_session_id = 0, status = running/sleeping)
+  3. Check their current_statement — is it a long transaction?
+  4. If stuck: KILL <session_id> (confirm with dev first)
+  5. Long-term: move to RCSI, reduce transaction scope
+```
+
+---
+
+### B4. Index Fragmentation
+```
+Sample output:
+
+table_name   index_name                    avg_fragmentation_pct  page_count
+───────────  ────────────────────────────  ─────────────────────  ──────────
+Orders       CIX_Orders_Id                 67.3                   284,100     ← REBUILD
+Orders       NIX_Orders_CustomerId_Status  34.1                   48,200      ← REBUILD
+AuditLog     CIX_AuditLog_Id               22.8                   920,000     ← REORGANIZE
+Users        NIX_Users_Email               8.4                    12,300      ← OK
+Sessions     NIX_Sessions_Token            2.1                    4,100       ← OK
+```
+
+**How to read it:**
+```
+avg_fragmentation_pct   Threshold → Action
+────────────────────────────────────────────────────────────────────────
+> 30%                   REBUILD   — rewrites index from scratch (fast reads,
+                                    but holds schema lock briefly unless ONLINE)
+10–30%                  REORGANIZE — defragments in-place, always online,
+                                    slower than rebuild but safe for prod hours
+< 10%                   SKIP      — fragmentation not worth fixing
+
+page_count              Index size in 8KB pages.
+                        Don't REBUILD tiny indexes (<1000 pages) — overhead
+                        not worth it. Focus on large, heavily fragmented ones.
+
+FIX COMMANDS:
+  -- Rebuild (large fragmentation, large index)
+  ALTER INDEX CIX_Orders_Id ON dbo.Orders
+  REBUILD WITH (ONLINE = ON, SORT_IN_TEMPDB = ON);   -- ONLINE avoids lock
+
+  -- Reorganize (medium fragmentation, or non-enterprise edition)
+  ALTER INDEX NIX_Orders_CustomerId_Status ON dbo.Orders REORGANIZE;
+
+WHY IT MATTERS:
+  Fragmented index = SQL reads extra pages (half-empty pages).
+  67% fragmentation on Orders CIX: for every 1000 data pages,
+  SQL reads ~1730 pages. That's the extra I/O causing PAGEIOLATCH waits.
+
+SCHEDULE:
+  Run this DMV weekly. Automate with SQL Agent job or Ola Hallengren scripts.
+```
+
+---
+
+### B5. Blocking Chain
+```
+Sample output:
+
+blocker  blocked  wait_type  wait_time  blocked_query
+───────  ───────  ─────────  ─────────  ────────────────────────────────────────────
+55       67       LCK_M_S    15,200     UPDATE Orders SET Status='Completed' WHERE...
+55       71       LCK_M_U    14,800     UPDATE Orders SET RetryCount=RetryCount+1...
+67       88       LCK_M_X    3,100      SELECT * FROM Orders WITH (UPDLOCK) WHERE...
+```
+
+**How to read it:**
+```
+Reading the chain:
+  Session 55 → blocks 67 and 71 directly
+  Session 67 → blocks 88 (because 67 is itself blocked, it holds locks too)
+
+  Full chain: 55 → 67 → 88 (and 55 → 71)
+
+Root blocker = 55 (it appears only in the "blocker" column, never in "blocked")
+
+TO DIAGNOSE ROOT BLOCKER (session 55):
+  SELECT r.status, r.wait_type, SUBSTRING(t.text,1,500) AS sql_text,
+         s.last_request_start_time, s.open_transaction_count
+  FROM sys.dm_exec_requests r
+  CROSS APPLY sys.dm_exec_sql_text(r.sql_handle) t
+  JOIN sys.dm_exec_sessions s ON r.session_id = s.session_id
+  WHERE r.session_id = 55;
+
+COMMON ROOT CAUSES:
+  open_transaction_count > 0 + status = sleeping
+    → App opened a transaction, did work, forgot to COMMIT/ROLLBACK.
+      Fix: add try/finally { connection.Rollback() } or use using(var tx=...)
+
+  Long-running UPDATE without index
+    → Holds row locks for the duration. Fix: add index, smaller batches.
+
+wait_type meanings on blocked side:
+  LCK_M_S   = wants Shared lock (for SELECT)
+  LCK_M_U   = wants Update lock (pre-cursor to X)
+  LCK_M_X   = wants Exclusive lock (for UPDATE/DELETE)
+  LCK_M_SCH_M = Schema modification lock (ALTER TABLE in progress)
+```
+
+---
+
+### B6. Statistics Age / Modification Counter
+```
+Sample output:
+
+table_name   stat_name                  last_updated          rows      rows_sampled  modification_counter
+───────────  ─────────────────────────  ────────────────────  ────────  ────────────  ────────────────────
+Orders       _WA_Sys_CustomerId_Orders  2026-01-15 03:00:00   8,420,000  84,200        2,840,000     ← STALE
+AuditLog     _WA_Sys_EntityId_AuditLog  2026-03-04 03:00:00  45,200,000  452,000       1,200,000     ← STALE
+Users        PK_Users                   2026-03-05 02:00:00     420,000  420,000          12,000     ← OK
+```
+
+**How to read it:**
+```
+Column                  Meaning
+────────────────────────────────────────────────────────────────────────
+last_updated            When SQL last sampled the data distribution.
+                        Jan 15 → nearly 2 months old → statistics stale.
+
+rows                    Total rows in the table now.
+
+rows_sampled            How many rows SQL sampled last time it updated stats.
+                        84,200 of 8.4M = 1% sample → low accuracy for
+                        skewed data distributions.
+
+modification_counter    Rows inserted/updated/deleted since last update.
+                        2,840,000 changes on Orders = SQL's estimated row
+                        counts (used by query optimizer) are 34% wrong!
+                        This causes bad execution plans → slow queries.
+
+AUTO UPDATE threshold:  SQL auto-updates stats when 20% of rows change
+                        (for tables < 500K rows). For large tables (8.4M):
+                        threshold = 20% = 1.68M → already exceeded here.
+                        But auto-update may not have fired yet (async).
+
+FIX:
+  UPDATE STATISTICS dbo.Orders WITH FULLSCAN;   -- 100% sample, most accurate
+  UPDATE STATISTICS dbo.AuditLog;               -- default sample (faster)
+
+SCHEDULE IN PRODUCTION:
+  -- Nightly after index rebuild (rebuild auto-updates stats)
+  -- After bulk load operations
+  -- When query plans suddenly get worse (first thing to check)
+```
+
+---
+
+## C. Cosmos DB — SDK Sample Outputs
+
+---
+
+### C1. Point Read Response
+```csharp
+var response = await container.ReadItemAsync<Order>(
+    id: "ord-abc123",
+    partitionKey: new PartitionKey("c-001"));
+
+// Console.WriteLine($"RU consumed: {response.RequestCharge}");
+```
+
+```
+RU consumed: 1.0
+```
+
+**How to read it:**
+```
+Value   Meaning
+──────────────────────────────────────────────────────────────────────
+1.0 RU  Point read (id + partitionKey) = always ~1 RU regardless of
+        document size (up to 1KB). For larger docs, it scales linearly.
+        This is the MINIMUM cost operation in Cosmos DB.
+
+        Compare to a cross-partition query returning 100 docs: ~25–50 RU
+        → 25–50x more expensive than point reads.
+
+IMPLICATION: Design your data model so your hot-path operations
+             are point reads. Denormalize to avoid joins.
+```
+
+---
+
+### C2. Query Iterator — Page-by-Page Output
+```csharp
+double totalRU = 0;
+int pageNumber = 0;
+while (iterator.HasMoreResults)
+{
+    var page = await iterator.ReadNextAsync();
+    totalRU += page.RequestCharge;
+    pageNumber++;
+    Console.WriteLine($"Page {pageNumber}: {page.Count} items, {page.RequestCharge} RU");
+}
+Console.WriteLine($"Total: {totalRU} RU across {pageNumber} pages");
+```
+
+```
+-- Single-partition query (customerId = "c-001", 215 matching docs):
+Page 1: 100 items, 12.4 RU
+Page 2: 100 items, 11.9 RU
+Page 3: 15 items, 2.3 RU
+Total: 26.6 RU across 3 pages
+
+-- Cross-partition query (no partitionKey filter, same 215 docs, 8 partitions):
+Page 1: 100 items, 89.2 RU
+Page 2: 100 items, 84.7 RU
+Page 3: 15 items, 31.1 RU
+Total: 205.0 RU across 3 pages
+```
+
+**How to read it:**
+```
+Scenario              RU     Explanation
+─────────────────────────────────────────────────────────────────────
+Single-partition      26.6   Only 1 physical partition queried.
+                             Cost scales with docs returned + index scan.
+
+Cross-partition       205.0  All 8 partitions queried in parallel,
+                             results merged. RU = sum of all partitions.
+                             ~7.7× more expensive for same result.
+
+page.RequestCharge           RU for THIS page. Add across pages for total.
+                             Log this to Application Insights to track
+                             query cost over time.
+
+MaxItemCount = 100           Pages of 100 docs. Smaller pages = more
+                             round trips but lower per-request RU.
+
+RULE: If total RU > 50 for a query on your hot path,
+      reconsider your partition key or data model.
+```
+
+---
+
+### C3. Patch Operation Response
+```csharp
+var patchResponse = await container.PatchItemAsync<Order>(...);
+Console.WriteLine($"Patch RU: {patchResponse.RequestCharge}");
+Console.WriteLine($"ETag: {patchResponse.ETag}");
+```
+
+```
+Patch RU: 10.8
+ETag: "00000000-0000-0000-f8c5-b3d2a1e09a00"
+```
+
+**How to read it:**
+```
+Field    Meaning
+──────────────────────────────────────────────────────────────────────
+Patch RU 10.8 RU for updating 3 fields on one document.
+         Compare: full Replace (UpsertItem of whole doc) = ~12–15 RU.
+         Patch is cheaper because only modified fields are transmitted.
+
+ETag     Optimistic concurrency token. Store this if you need
+         conditional updates (next update passes this ETag via
+         ItemRequestOptions.IfMatchEtag — fails with 412 if doc
+         was modified by someone else between your read and write).
+         Use for: shopping cart, inventory counts, any shared state.
+```
+
+---
+
+### C4. Transactional Batch Response
+```csharp
+using var batchResponse = await batch.ExecuteAsync();
+Console.WriteLine($"Batch success: {batchResponse.IsSuccessStatusCode}");
+Console.WriteLine($"Total RU: {batchResponse.RequestCharge}");
+for (int i = 0; i < batchResponse.Count; i++)
+{
+    var op = batchResponse[i];
+    Console.WriteLine($"  Op[{i}]: {op.StatusCode} ({op.RequestCharge} RU)");
+}
+```
+
+```
+-- SUCCESS case:
+Batch success: True
+Total RU: 42.3
+  Op[0]: Created (10.2 RU)     -- CreateItem: order
+  Op[1]: Created (8.1 RU)      -- CreateItem: orderLine1
+  Op[2]: Created (8.4 RU)      -- CreateItem: orderLine2
+  Op[3]: OK (15.6 RU)          -- PatchItem: cart status
+
+-- FAILURE case (e.g., unique constraint violation on Op[0]):
+Batch success: False
+Total RU: 3.1
+  Op[0]: Conflict (3.1 RU)     -- duplicate id — ENTIRE batch rolled back
+  Op[1]: FailedDependency       -- not attempted (batch atomic)
+  Op[2]: FailedDependency
+  Op[3]: FailedDependency
+```
+
+**How to read it:**
+```
+IsSuccessStatusCode    True = ALL operations committed atomically.
+                       False = ALL operations rolled back (atomic guarantee).
+
+StatusCode per op:
+  Created (201)        Document created.
+  OK (200)             Patch/replace succeeded.
+  Conflict (409)       Duplicate id — document already exists.
+  FailedDependency     This op not attempted (prior op in batch failed).
+  PreconditionFailed   ETag mismatch (optimistic concurrency failure).
+
+RequestCharge per op   RU for individual operation within the batch.
+Total RU               Billed even on failure (the index traversal cost).
+
+KEY INSIGHT: Batch = same partitionKey for ALL ops. If you try to
+             batch across partition keys → ArgumentException at build time.
+```
+
+---
+
+## D. Integration Testing — Test Runner Output
+
+---
+
+### D1. xUnit + TestContainers — Console Output on Run
+```
+-- Starting test run...
+
+[xUnit.net 00:00:00.12]   Starting: ApiTests
+[xUnit.net 00:00:01.30]   Testcontainers: Creating container for image postgres:16-alpine
+[xUnit.net 00:00:03.82]   Testcontainers: Container started (id: 3fa7c2b1)
+[xUnit.net 00:00:03.83]   Host: localhost, Port: 52341
+[xUnit.net 00:00:04.10]   Applying EF Core migrations...
+[xUnit.net 00:00:04.88]   Migrations applied. Database ready.
+[xUnit.net 00:00:04.90]   WebApplicationFactory: Starting test host...
+
+  OrderTests
+    [PASS] CreateOrder_ValidRequest_Returns201WithOrderId             00:00:00.342
+    [PASS] CreateOrder_DuplicateIdempotencyKey_Returns200SameOrder    00:00:00.218
+    [FAIL] CreateOrder_InvalidCustomerId_Returns422                   00:00:00.119
+
+  ── FAILURE: CreateOrder_InvalidCustomerId_Returns422
+     Expected: StatusCode 422 (UnprocessableEntity)
+     Actual:   StatusCode 400 (BadRequest)
+     at OrderTests.CreateOrder_InvalidCustomerId_Returns422() line 87
+
+  BillingIntegrationTests
+    [PASS] ChargeOnOrderCreated_PublishesPaymentEvent                 00:00:00.441
+    [PASS] ChargeOnOrderCreated_DBFailure_RollsBackTransaction        00:00:00.882
+
+[xUnit.net 00:00:06.22]   Testcontainers: Removing container 3fa7c2b1
+[xUnit.net 00:00:07.14]   Finished: ApiTests
+
+Tests:     4 passed, 1 failed, 0 skipped
+Time:      7.14 seconds
+```
+
+**How to read it:**
+```
+Section                      What to look for
+──────────────────────────────────────────────────────────────────────
+Container startup time       3.82 − 1.30 = 2.5 sec to start Postgres.
+(lines 3–5)                  First run pulls image (~5–10 sec). Cached
+                             on subsequent runs. Use IClassFixture to
+                             start ONCE per test class, not per test.
+
+Migration time (line 7)      0.78 sec for migrations. If slow: check
+                             you're not rebuilding the DB per test.
+                             Use Respawn to reset data, not the DB.
+
+[PASS] with timing           342ms for HTTP round-trip in test.
+                             If > 2s: check DB query plans, missing index,
+                             or await deadlock in async test code.
+
+[FAIL] with expected/actual  StatusCode mismatch: API returns 400 but
+                             test expects 422. Options:
+                             (a) Fix the API to return 422 (correct)
+                             (b) Fix the assertion if 400 is correct
+                             Line number tells you exactly where to look.
+
+Container cleanup (last line) Testcontainers auto-removes on dispose.
+                              If tests crash mid-run, orphaned containers
+                              may remain → run: docker ps -a | grep test
+
+Total time: 7.14 sec         Healthy for integration tests. If > 30 sec:
+                             profile startup, parallelize with [assembly: CollectionBehavior(MaxParallelThreads = 4)]
+```
+
+---
+
+### D2. Fake Event Publisher — Assertion Output on Failure
+```
+FluentAssertions failure:
+
+Expected collection to contain a single item matching
+  e.CustomerId == "c-test-1"
+but found 0 matching items in
+  [OrderCreatedEvent { OrderId=ord-abc, CustomerId="c-test-2", Total=99.99 }]
+```
+
+**How to read it:**
+```
+The test published an event with CustomerId = "c-test-2"
+but the assertion checked for "c-test-1".
+
+Likely bug: wrong CustomerId used in test arrange section,
+OR the handler is reading from a different request field.
+
+Check: The CreateOrderRequest in the test uses CustomerId = "c-test-1" ?
+       The OrderService correctly propagates CustomerId to the event ?
+       The FakeEventPublisher.Clear() was called at the start of this test ?
+```
+
+---
+
+## E. Redis / Cache — CLI and SDK Outputs
+
+---
+
+### E1. Redis CLI — All Data Types
+```bash
+# Connect
+redis-cli -h myredis.redis.cache.windows.net -p 6380 --tls -a <password>
+
+# --- STRING ---
+SET product:123 "{\"id\":123,\"name\":\"Widget\",\"price\":29.99}" EX 300
+# Output:
+OK
+
+GET product:123
+# Output:
+"{\"id\":123,\"name\":\"Widget\",\"price\":29.99}"
+
+TTL product:123
+# Output:
+298    ← seconds remaining before expiry (started at 300)
+       -1 = no expiry (permanent), -2 = key doesn't exist
+
+# --- HASH ---
+HSET user:456 name "Alice" email "alice@ex.com" plan "premium"
+# Output:
+(integer) 3    ← number of NEW fields added (existing fields updated don't count)
+
+HGET user:456 name
+# Output:
+"Alice"
+
+HGETALL user:456
+# Output:
+1) "name"
+2) "Alice"
+3) "email"
+4) "alice@ex.com"
+5) "plan"
+6) "premium"
+
+# Why alternating? Redis returns flat array: [field1, value1, field2, value2, ...]
+
+# --- LIST ---
+LPUSH notifications:user:456 "{\"msg\":\"Order shipped\"}" "{\"msg\":\"Payment received\"}"
+# Output:
+(integer) 2    ← total items in list now
+
+LRANGE notifications:user:456 0 -1
+# Output:
+1) "{\"msg\":\"Payment received\"}"    ← LPUSH = left push, so LAST pushed = index 0
+2) "{\"msg\":\"Order shipped\"}"
+
+# -1 = last element. LRANGE 0 9 = first 10 items.
+
+# --- SET ---
+SADD visitors:2026-03-05 "user-001" "user-002" "user-001"
+# Output:
+(integer) 2    ← only 2 added (user-001 duplicate ignored — sets are unique!)
+
+SCARD visitors:2026-03-05
+# Output:
+(integer) 2    ← cardinality (count of unique members)
+
+# --- SORTED SET (leaderboard) ---
+ZADD leaderboard 1500 "player-001" 2300 "player-002" 900 "player-003"
+# Output:
+(integer) 3    ← members added
+
+ZREVRANGE leaderboard 0 2 WITHSCORES
+# Output:
+1) "player-002"    ← rank 1 (highest score)
+2) "2300"
+3) "player-001"    ← rank 2
+4) "1500"
+5) "player-003"    ← rank 3
+6) "900"
+# ZREVRANGE = highest first. ZRANGE = lowest first.
+
+ZRANK leaderboard "player-001"
+# Output:
+(integer) 1    ← 0-indexed rank. 0 = lowest (ZRANK), use ZREVRANK for top rank.
+
+ZREVRANK leaderboard "player-001"
+# Output:
+(integer) 1    ← rank 1 from top (0 = highest scorer = player-002)
+```
+
+---
+
+### E2. Distributed Lock — Step-by-Step Output
+```bash
+# Acquire lock (SET NX = only set if Not eXists)
+SET lock:order:ord-123 "instance-a-guid-here" NX PX 30000
+# Output when lock acquired:
+OK
+
+# Output when lock already held by another instance:
+(nil)    ← null = lock not acquired, someone else holds it
+
+# Check who holds the lock
+GET lock:order:ord-123
+# Output:
+"instance-b-guid-here"    ← different instance holds it!
+
+# Release (only if you own it — using Lua for atomicity)
+EVAL "if redis.call('get',KEYS[1])==ARGV[1] then return redis.call('del',KEYS[1]) else return 0 end" 1 lock:order:ord-123 "instance-a-guid-here"
+# Output when you own it:
+(integer) 1    ← deleted successfully
+
+# Output when you DON'T own it (race condition prevented):
+(integer) 0    ← not deleted (someone else's lock, or already expired)
+```
+
+**How to read it:**
+```
+Value    Meaning
+──────────────────────────────────────────────────────────────────────
+OK       Lock acquired. Proceed with critical section.
+
+(nil)    Lock not acquired. Options:
+         (a) Retry after short sleep (polling — simple)
+         (b) Fail fast and tell caller to retry
+         (c) Use Lua pub/sub to wait for release (advanced)
+
+PX 30000 Lock expires after 30,000ms = 30 seconds.
+         WHY: if your process crashes, lock auto-releases.
+         Set to max expected critical section duration + margin.
+
+Lua script atomicity:
+  Without Lua: GET → compare → DEL has TOCTOU race:
+    1. You GET → your value matches
+    2. Lock expires → other instance acquires
+    3. You DEL → you delete their lock! ← BUG
+
+  With Lua: GET + compare + DEL is ONE atomic operation.
+            No other command can run between them.
+
+(integer) 0 from Lua = you tried to release but didn't own it.
+         Log this as a warning — your critical section took longer
+         than the lock TTL (lock expired while you were working).
+         Fix: increase PX value or use lock renewal pattern.
+```
+
+---
+
+### E3. IMemoryCache — Eviction Callback Output
+```csharp
+entry.RegisterPostEvictionCallback((key, value, reason, state) =>
+    _logger.LogInformation("Cache evicted: {Key}, reason: {Reason}", key, reason));
+```
+
+```
+-- Log output examples:
+
+info: ProductService[0]
+      Cache evicted: products:all, reason: Expired
+      // TTL hit — normal, expected. Cache will be refilled on next request.
+
+info: ProductService[0]
+      Cache evicted: products:all, reason: Capacity
+      // Memory pressure evicted this. Consider:
+      // 1. Increase MemoryCache size limit (SizeLimit in options)
+      // 2. Set lower Priority on less important cache entries
+      // 3. Reduce number of cached items
+
+info: ProductService[0]
+      Cache evicted: products:all, reason: Removed
+      // Explicit _cache.Remove("products:all") was called.
+      // Expected on data update — correct invalidation behavior.
+```
+
+**How to read it:**
+```
+Reason      What happened
+────────────────────────────────────────────────────────────────────────────
+Expired     AbsoluteExpiration or SlidingExpiration hit. Normal.
+            If this happens too frequently on hot data → increase TTL.
+
+Capacity    MemoryCache evicted to free memory (LRU-ish policy).
+            ALERT: if you see this frequently, cached data keeps getting
+            evicted before it's useful → increase cache size or reduce
+            what you cache. Check: services.AddMemoryCache(o => o.SizeLimit = 500)
+
+Removed     Manual eviction via cache.Remove(key). Expected on data writes.
+
+Replaced    A new value was set for the same key while old was cached.
+            Common in stampede recovery — second request also filled cache.
+
+None        Entry was never evicted — still in cache (you see this when
+            using GetOrCreate and the item is still warm).
+```
+
+---
+
+## F. React — Browser DevTools & Console Outputs
+
+---
+
+### F1. React DevTools — Component Re-render Profiler
+```
+-- React Profiler output (Flamegraph view):
+Render #1 (commit duration: 12ms)
+  App                    2ms  ──────────────────────────────
+    AuthProvider         1ms  ──────────────────────
+      Sidebar            0.2ms ────
+      OrderList          8ms  ──────────────────────────────────────────────────
+        OrderItem(1)     0.4ms ──
+        OrderItem(2)     0.4ms ──
+        OrderItem(3)   ...×47 more
+      CreateOrderForm    0.8ms ────────
+
+Render #2 (after adding one order, commit duration: 1ms)
+  App                    0ms  (skipped — React.memo)
+    AuthProvider         0ms  (skipped)
+      OrderList          0.9ms ───────
+        OrderItem(NEW)   0.5ms ──
+        [all others]     0ms  (skipped — React.memo stable props)
+      CreateOrderForm    0.3ms ──
+```
+
+**How to read it:**
+```
+commit duration    Total time React spent updating the DOM for this render.
+                   < 16ms = 60fps (smooth)
+                   > 16ms = frame drop, user sees jank
+
+Component colors (DevTools):
+  Gray    = did not re-render (React.memo worked ✓)
+  Yellow  = re-rendered but fast (<1ms) — OK
+  Orange  = re-rendered, took 1–10ms — investigate
+  Red     = re-rendered, took >10ms — OPTIMIZE THIS
+
+OrderList (8ms on render #1):
+  Rendering 50 OrderItems × 0.4ms = 20ms total work.
+  Fix: React.memo on OrderItem ✓ (render #2 shows 0ms for existing items)
+       useVirtualizer if list > 200 items
+
+Render #2 savings:
+  Only NEW item rendered (0.5ms vs 12ms total). React.memo + stable
+  useCallback props prevented 49 unnecessary re-renders.
+  → This is correct behavior — memoization is working.
+```
+
+---
+
+### F2. React Query DevTools — Cache State
+```
+-- React Query DevTools panel (browser extension):
+
+QueryKey                  Status    Updated          StaleTime  Data
+────────────────────────  ────────  ───────────────  ─────────  ──────────────────
+['orders', 'c-001']       fresh     2s ago           5m 0s      [{id:'ord-1'...}]
+['orders', 'c-002']       stale     6m ago           expired    [{id:'ord-5'...}]
+['products']              loading   just now         5m 0s      undefined
+['users', 'u-001']        error     30s ago          5m 0s      null
+
+Mutations:
+  createOrder             idle      last: 2m ago     success    {id:'ord-new-1'}
+```
+
+**How to read it:**
+```
+Status   Meaning & Behavior
+──────────────────────────────────────────────────────────────────────────
+fresh    Data fetched recently, within staleTime (5 min).
+         React Query WON'T refetch when component mounts.
+         User gets cached data instantly.
+
+stale    Data older than staleTime.
+         On next component mount or window focus → React Query
+         refetches in background. User sees stale data immediately,
+         then fresh data updates (stale-while-revalidate pattern).
+
+loading  Fetching right now — no cached data. Show spinner.
+
+error    Fetch failed. React Query retried 2 times (default), gave up.
+         Data = null. Component's error state shows error message.
+         Will retry on next window focus.
+
+QueryKey ['orders', 'c-001'] vs ['orders', 'c-002']:
+         Different keys = different cache entries. Changing customerId
+         in a component → new cache entry → possible loading state.
+         WHY: this is correct — different customers = different data.
+
+invalidateQueries(['orders']):
+         Marks ALL keys starting with 'orders' as stale.
+         If components are currently mounted → immediate background refetch.
+         If not mounted → refetch on next mount.
+```
+
+---
+
+### F3. useEffect — Common Console Warnings and Fixes
+```javascript
+// WARNING 1: Missing dependency
+Warning: React Hook useEffect has a missing dependency: 'userId'.
+Either include it or remove the dependency array.
+
+// Your code:
+useEffect(() => {
+    fetchUser(userId);  // ← uses userId
+}, []);                 // ← but not listed here!
+
+// Fix:
+useEffect(() => {
+    fetchUser(userId);
+}, [userId]);           // ← add it. Effect now re-runs when userId changes.
+
+// ─────────────────────────────────────────────────────────────
+
+// WARNING 2: setState on unmounted component (React 17 and below)
+Warning: Can't perform a React state update on an unmounted component.
+This is a no-op, but it indicates a memory leak.
+
+// Your code:
+useEffect(() => {
+    fetch('/api/orders').then(r => r.json()).then(setOrders);  // no cleanup!
+}, []);
+
+// Fix:
+useEffect(() => {
+    const controller = new AbortController();
+    fetch('/api/orders', { signal: controller.signal })
+        .then(r => r.json())
+        .then(setOrders)
+        .catch(e => { if (e.name !== 'AbortError') setError(e); });
+    return () => controller.abort();   // ← cleanup cancels fetch on unmount
+}, []);
+
+// ─────────────────────────────────────────────────────────────
+
+// WARNING 3: Infinite loop
+// Symptom: browser tab freezes, Network tab shows hundreds of requests/sec
+
+// Your code (bug):
+const [data, setData] = useState([]);
+useEffect(() => {
+    fetch('/api').then(r => r.json()).then(d => setData(d));
+}, [data]);  // ← data changes → effect runs → setData → data changes → loop!
+
+// Fix: don't put state that the effect SETS in its own dependency array
+useEffect(() => {
+    fetch('/api').then(r => r.json()).then(d => setData(d));
+}, []);   // ← empty = run once on mount only
+```
+
+---
+
+### F4. Zustand — DevTools State Snapshot
+```javascript
+// Redux DevTools (works with Zustand via middleware)
+
+// Action logged:
+{
+  "type": "addItem",
+  "payload": { "id": "p-123", "name": "Widget", "price": 29.99, "qty": 1 }
+}
+
+// State before:
+{
+  "items": [
+    { "id": "p-100", "name": "Gadget", "price": 49.99, "qty": 2 }
+  ]
+}
+
+// State after:
+{
+  "items": [
+    { "id": "p-100", "name": "Gadget", "price": 49.99, "qty": 2 },
+    { "id": "p-123", "name": "Widget", "price": 29.99, "qty": 1 }
+  ]
+}
+
+// Time-travel: click any past action to "jump" UI to that state.
+// Useful for reproducing bugs: "the cart was wrong AFTER this addItem"
+```
+
+**How to read it:**
+```
+State diff     Shows exactly what changed between actions.
+               Green lines = added, red lines = removed.
+               No change = React Query data (managed separately).
+
+Action type    Matches the function name in your Zustand store:
+               "addItem" → const addItem = (item) => set(state => ...)
+
+DEBUGGING WORKFLOW:
+  1. Reproduce the bug in the browser
+  2. Open Redux DevTools → find the action where state went wrong
+  3. Click "Jump to state" → UI reverts to that exact state
+  4. Check if the action's payload is correct
+     - Wrong payload → bug in the component calling the action
+     - Correct payload, wrong state after → bug in the store reducer
+```
+
+---
+
+*Appendix Date: 2026-03-05 | Covers: All CLI commands, SQL DMVs, Cosmos DB SDK, Integration Test output, Redis CLI, React DevTools*
