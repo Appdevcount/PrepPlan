@@ -257,6 +257,142 @@ var revisionResource = await app.GetContainerAppRevision("api-service--v2").GetA
 await revisionResource.Value.ActivateRevisionAsync();
 ```
 
+---
+
+### Terraform — Azure Container Apps (IaC)
+```hcl
+# main.tf — Container Apps environment + app
+
+terraform {
+  required_providers {
+    azurerm = { source = "hashicorp/azurerm", version = "~> 3.90" }
+  }
+}
+
+provider "azurerm" {
+  features {}
+}
+
+# ── Variables ────────────────────────────────────────────────────
+variable "resource_group" { default = "rg-myapp-prod" }
+variable "location"       { default = "eastus2" }
+variable "acr_login_server" { description = "e.g. myacr.azurecr.io" }
+variable "image_tag"        { default = "latest" }
+
+# ── Resource Group ────────────────────────────────────────────────
+resource "azurerm_resource_group" "rg" {
+  name     = var.resource_group
+  location = var.location
+}
+
+# ── Log Analytics (required by Container Apps environment) ────────
+resource "azurerm_log_analytics_workspace" "law" {
+  name                = "law-myapp"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  sku                 = "PerGB2018"
+  retention_in_days   = 30
+}
+
+# ── Container Apps Environment ────────────────────────────────────
+resource "azurerm_container_app_environment" "env" {
+  name                       = "cae-myapp-prod"
+  location                   = azurerm_resource_group.rg.location
+  resource_group_name        = azurerm_resource_group.rg.name
+  log_analytics_workspace_id = azurerm_log_analytics_workspace.law.id
+  # WHY workload_profile: enables Dedicated tier for consistent CPU (not Consumption)
+  workload_profile {
+    name                  = "Warm"
+    workload_profile_type = "D4"   # 4 CPU, 8 GB RAM per instance
+    minimum_count         = 1
+    maximum_count         = 5
+  }
+}
+
+# ── Container App ────────────────────────────────────────────────
+resource "azurerm_container_app" "api" {
+  name                         = "ca-api-service"
+  container_app_environment_id = azurerm_container_app_environment.env.id
+  resource_group_name          = azurerm_resource_group.rg.name
+  revision_mode                = "Multiple"   # WHY: enables traffic splitting / canary
+
+  identity {
+    type = "SystemAssigned"                   # WHY: managed identity for Key Vault / ACR
+  }
+
+  # Registry credentials via managed identity (no passwords)
+  registry {
+    server   = var.acr_login_server
+    identity = "System"
+  }
+
+  template {
+    min_replicas = 1
+    max_replicas = 10
+
+    container {
+      name   = "api"
+      image  = "${var.acr_login_server}/api-service:${var.image_tag}"
+      cpu    = 0.5
+      memory = "1Gi"
+
+      env {
+        name        = "ConnectionStrings__Default"
+        secret_name = "db-connection-string"    # references secret defined below
+      }
+      env {
+        name  = "ASPNETCORE_ENVIRONMENT"
+        value = "Production"
+      }
+    }
+
+    # ── KEDA HTTP scaling rule ──────────────────────────────────
+    http_scale_rule {
+      name                = "http-scaler"
+      concurrent_requests = "100"    # scale up when >100 concurrent requests per replica
+    }
+  }
+
+  # ── Ingress ───────────────────────────────────────────────────
+  ingress {
+    external_enabled = true
+    target_port      = 80
+    transport        = "http"
+
+    traffic_weight {
+      label           = "current"
+      latest_revision = true
+      percentage      = 100
+    }
+  }
+
+  # ── Secrets (stored in Container Apps — reference Key Vault in prod) ──
+  secret {
+    name  = "db-connection-string"
+    value = "Server=...;Initial Catalog=mydb;..."
+  }
+}
+
+# ── Outputs ──────────────────────────────────────────────────────
+output "container_app_url" {
+  value = azurerm_container_app.api.ingress[0].fqdn
+}
+output "managed_identity_principal_id" {
+  value = azurerm_container_app.api.identity[0].principal_id
+}
+```
+```bash
+# Deploy
+terraform init
+terraform plan -out=tfplan
+terraform apply tfplan
+
+# Update image tag (zero-downtime rolling update)
+terraform apply -var="image_tag=v2.3.1"
+```
+
+---
+
 ### Key Interview Q&A
 
 **Q: Container Apps vs AKS — when do you choose each?**
@@ -481,6 +617,667 @@ foreach (var msg in dlqMessages)
     }
 }
 ```
+
+### ServiceBusMessage — Complete Property Reference
+
+```csharp
+// Every settable property on ServiceBusMessage explained:
+var message = new ServiceBusMessage(body: BinaryData.FromObjectAsJson(order))
+{
+    // ── IDENTITY ──────────────────────────────────────────────────────────
+    MessageId = order.Id.ToString(),
+    // WHY: String (max 128 chars). Used for duplicate detection (dedup window
+    //      set on queue/topic: RequiresDuplicateDetection = true).
+    //      Service Bus discards a message with same MessageId within the window.
+    //      If not set: Service Bus assigns a random GUID. Always set it yourself
+    //      so you control idempotency.
+
+    CorrelationId = Activity.Current?.TraceId.ToString() ?? Guid.NewGuid().ToString(),
+    // WHY: Free-form string. Use for distributed tracing (pass W3C trace ID).
+    //      Also usable in CorrelationRuleFilter subscription filters.
+
+    // ── ROUTING ───────────────────────────────────────────────────────────
+    SessionId = order.CustomerId.ToString(),
+    // WHY: Enables session-based FIFO. Only valid if queue/topic has
+    //      RequiresSession = true. Messages with same SessionId go to
+    //      the same consumer in order. Leave null for non-session queues.
+
+    ReplyTo = "orders-reply-queue",
+    // WHY: Request/Reply pattern. Receiver knows which queue to send response to.
+    //      Consumer reads this and sends reply to that queue.
+
+    ReplyToSessionId = correlationId,
+    // WHY: Pair with ReplyTo in request/reply when reply queue is session-enabled.
+    //      Lets requester filter for its specific reply.
+
+    To = "billing-service",
+    // WHY: Informational routing hint. Not used by Service Bus for routing
+    //      (subscriptions/filters do that). Useful for logging/tracing.
+
+    Subject = "OrderCreated",
+    // WHY: Formerly called "Label". Short human-readable event name.
+    //      Appears in portal message browser. Can be used in SqlRuleFilter:
+    //      Filter = new SqlRuleFilter("sys.subject = 'OrderCreated'")
+
+    // ── TIMING ────────────────────────────────────────────────────────────
+    TimeToLive = TimeSpan.FromHours(24),
+    // WHY: Message expires after this duration. Expired messages go to DLQ
+    //      if the queue has DeadLetteringOnMessageExpiration = true.
+    //      If not set: inherits queue/topic default TTL.
+    //      Use to prevent processing stale orders.
+
+    ScheduledEnqueueTime = DateTimeOffset.UtcNow.AddMinutes(30),
+    // WHY: Message won't be visible in queue until this time.
+    //      Perfect for: reminder notifications, delayed retries,
+    //      future-scheduled jobs. Stored as "scheduled" state, not in flight.
+    //      Cancel with: await sender.CancelScheduledMessageAsync(sequenceNumber)
+
+    // ── CONTENT ───────────────────────────────────────────────────────────
+    ContentType = "application/json",
+    // WHY: MIME type of the body. Not enforced by Service Bus (informational).
+    //      Helps consumers know how to deserialize the body.
+    //      Standards: "application/json", "application/xml", "text/plain"
+
+    // ── CUSTOM APPLICATION PROPERTIES ─────────────────────────────────────
+    ApplicationProperties =
+    {
+        ["OrderType"]   = order.Type,       // string
+        ["Priority"]    = order.Priority,   // string
+        ["Amount"]      = order.Total,      // double (not decimal — not supported)
+        ["IsRetry"]     = false,            // bool
+        ["RetryCount"]  = 0,                // int
+        // WHY: Used in SqlRuleFilter and CorrelationRuleFilter on subscriptions.
+        //      Supported types: string, int, long, double, bool, DateTime, Guid.
+        //      ⚠️ decimal is NOT supported — use double.
+        //      ⚠️ Max 64 properties, total < 64 KB including body.
+    }
+};
+```
+
+---
+
+### Receive Modes — PeekLock vs ReceiveAndDelete
+
+```csharp
+// ── MODE 1: PeekLock (default — at-least-once) ──────────────────────────────
+// Message stays in queue, locked for you. You must Settle it.
+await using var receiver = client.CreateReceiver("orders",
+    new ServiceBusReceiverOptions
+    {
+        ReceiveMode = ServiceBusReceiveMode.PeekLock,   // default
+        PrefetchCount = 10  // WHY: pre-fetch 10 msgs from broker to local buffer.
+                            //      Reduces round trips. Set to MaxConcurrentCalls.
+    });
+
+var msg = await receiver.ReceiveMessageAsync(maxWaitTime: TimeSpan.FromSeconds(5));
+if (msg != null)
+{
+    try
+    {
+        await ProcessAsync(msg.Body.ToObjectFromJson<Order>());
+        await receiver.CompleteMessageAsync(msg);   // ← DELETE from queue
+    }
+    catch (BusinessException ex)
+    {
+        await receiver.DeadLetterMessageAsync(msg,  // ← move to DLQ
+            deadLetterReason: "BusinessRuleViolation",
+            deadLetterErrorDescription: ex.Message);
+    }
+    catch (TransientException)
+    {
+        await receiver.AbandonMessageAsync(msg);    // ← return to queue, increment DeliveryCount
+    }
+}
+// If you do NOTHING: lock expires → message returns to queue automatically.
+// Lock duration set on queue (default 60s). Renew with:
+// await receiver.RenewMessageLockAsync(msg);  // for long-running processing
+
+// ── MODE 2: ReceiveAndDelete (at-most-once) ──────────────────────────────────
+// Message immediately DELETED from queue on receive. No settlement needed.
+await using var receiver2 = client.CreateReceiver("orders",
+    new ServiceBusReceiverOptions
+    {
+        ReceiveMode = ServiceBusReceiveMode.ReceiveAndDelete
+        // ⚠️ If your process crashes after receive but before processing:
+        //    message is LOST — no recovery. No Complete/Abandon methods available.
+        // USE WHEN: telemetry, audit logs, analytics events where loss is acceptable.
+    });
+
+var msg2 = await receiver2.ReceiveMessageAsync();
+if (msg2 != null)
+{
+    await ProcessAsync(msg2.Body.ToObjectFromJson<Order>());
+    // No settlement call needed — already deleted on receive
+}
+```
+
+---
+
+### ServiceBusReceiver — Direct Pull Methods (vs Processor)
+
+```csharp
+// WHY USE RECEIVER DIRECTLY (vs Processor)?
+// Processor = push-based, continuous background loop (long-running service)
+// Receiver = pull-based, you control when/how many to receive (batch jobs, CLI tools)
+
+await using var receiver = client.CreateReceiver("orders");
+
+// ── Receive single message (with timeout) ────────────────────────────────────
+ServiceBusReceivedMessage? msg =
+    await receiver.ReceiveMessageAsync(maxWaitTime: TimeSpan.FromSeconds(10));
+// Returns null if queue empty after timeout. Does NOT throw if empty.
+
+// ── Receive a batch ──────────────────────────────────────────────────────────
+IReadOnlyList<ServiceBusReceivedMessage> batch =
+    await receiver.ReceiveMessagesAsync(
+        maxMessages: 20,                        // upper bound (may get fewer)
+        maxWaitTime: TimeSpan.FromSeconds(5));   // returns early if queue drains
+
+foreach (var m in batch)
+{
+    await ProcessAsync(m);
+    await receiver.CompleteMessageAsync(m);
+}
+
+// ── Peek without consuming (non-destructive inspection) ──────────────────────
+// Peek does NOT lock the message — another consumer can still receive it.
+// Use for: monitoring, debugging, admin tools.
+IReadOnlyList<ServiceBusReceivedMessage> peeked =
+    await receiver.PeekMessagesAsync(maxMessages: 10);
+
+foreach (var m in peeked)
+{
+    Console.WriteLine($"Seq:{m.SequenceNumber} | Id:{m.MessageId} | Enqueued:{m.EnqueuedTime}");
+    // ⚠️ Cannot Complete/Abandon a peeked message — it has no lock token.
+}
+
+// Peek from a specific sequence number (for paging through queue):
+var peekedPage2 = await receiver.PeekMessagesAsync(
+    maxMessages: 10,
+    fromSequenceNumber: peeked.Last().SequenceNumber + 1);
+
+// ── Renew lock (for long-running processing) ─────────────────────────────────
+// Default lock duration on queue = 60s. Renew before it expires.
+var lockRenewalTask = Task.Run(async () =>
+{
+    while (!processingComplete)
+    {
+        await Task.Delay(TimeSpan.FromSeconds(45));    // renew every 45s
+        await receiver.RenewMessageLockAsync(msg!);   // extends by another lock duration
+    }
+});
+```
+
+---
+
+### Message Deferral — Full Pattern
+
+```csharp
+// SCENARIO: OrderLine message arrives BEFORE its parent Order message.
+//           Can't process OrderLine without Order. Defer it, process later.
+
+await using var receiver = client.CreateReceiver("order-events");
+
+// ── Step 1: Receive out-of-order message, defer it ───────────────────────────
+var msg = await receiver.ReceiveMessageAsync();
+if (msg != null && !await OrderExistsAsync(msg.ApplicationProperties["OrderId"].ToString()!))
+{
+    // Store the SequenceNumber — this is your "handle" to retrieve it later
+    var sequenceNumber = msg.SequenceNumber;
+    await _deferredStore.SaveAsync(
+        key: $"deferred:{msg.ApplicationProperties["OrderId"]}",
+        value: sequenceNumber.ToString());
+
+    await receiver.DeferMessageAsync(msg,
+        propertiesToModify: new Dictionary<string, object>
+        {
+            ["DeferredReason"] = "ParentOrderNotFound",  // custom tracking property
+            ["DeferredAt"] = DateTimeOffset.UtcNow.ToString("O")
+        });
+    // Message state: Active → Deferred. Won't appear in normal receive.
+    // It stays in queue indefinitely (subject to TTL).
+}
+
+// ── Step 2: Later, when Order arrives, retrieve the deferred OrderLine ────────
+var order = await receiver.ReceiveMessageAsync();  // gets the parent Order
+await ProcessOrderAsync(order);
+await receiver.CompleteMessageAsync(order);
+
+// Now retrieve all deferred messages waiting for this order:
+var deferredSeqStr = await _deferredStore.GetAsync($"deferred:{order.MessageId}");
+if (long.TryParse(deferredSeqStr, out var deferredSeq))
+{
+    // Must use same receiver (same queue) to retrieve deferred message
+    var deferred = await receiver.ReceiveDeferredMessageAsync(deferredSeq);
+    await ProcessOrderLineAsync(deferred);
+    await receiver.CompleteMessageAsync(deferred);
+    await _deferredStore.DeleteAsync($"deferred:{order.MessageId}");
+}
+
+// ── Retrieve multiple deferred messages ──────────────────────────────────────
+var sequenceNumbers = new long[] { 1001L, 1005L, 1009L };
+IReadOnlyList<ServiceBusReceivedMessage> deferredBatch =
+    await receiver.ReceiveDeferredMessagesAsync(sequenceNumbers);
+```
+
+---
+
+### Scheduled Messages
+
+```csharp
+// WHY: Enqueue a message that won't be visible until a future time.
+// Use cases: send reminder email in 3 days, retry after backoff, future job.
+
+await using var sender = client.CreateSender("notifications");
+
+// ── Option A: ScheduledEnqueueTime on message ────────────────────────────────
+var message = new ServiceBusMessage(BinaryData.FromObjectAsJson(reminder))
+{
+    ScheduledEnqueueTime = DateTimeOffset.UtcNow.AddDays(3),
+    MessageId = $"reminder-{userId}-{appointmentId}"
+};
+await sender.SendMessageAsync(message);
+// Message is in "Scheduled" state — not receivable until ScheduledEnqueueTime.
+
+// ── Option B: ScheduleMessageAsync (returns cancellable sequence number) ──────
+long sequenceNumber = await sender.ScheduleMessageAsync(
+    message: new ServiceBusMessage(BinaryData.FromObjectAsJson(reminder))
+    {
+        MessageId = $"reminder-{userId}-{appointmentId}"
+    },
+    scheduledEnqueueTime: DateTimeOffset.UtcNow.AddDays(3));
+
+// Store sequenceNumber if you might need to cancel:
+await _reminderStore.SaveSequenceNumberAsync(userId, appointmentId, sequenceNumber);
+
+// ── Cancel a scheduled message before it fires ────────────────────────────────
+var seq = await _reminderStore.GetSequenceNumberAsync(userId, appointmentId);
+await sender.CancelScheduledMessageAsync(seq);
+// After cancel: message is deleted. If already fired (past time): throws exception.
+
+// ── Schedule a batch ─────────────────────────────────────────────────────────
+var sequenceNumbers = await sender.ScheduleMessagesAsync(
+    messages: reminders.Select(r => new ServiceBusMessage(BinaryData.FromObjectAsJson(r))
+    {
+        ScheduledEnqueueTime = r.SendAt,
+        MessageId = r.Id
+    }),
+    scheduledEnqueueTime: DateTimeOffset.UtcNow.AddHours(1));
+// Note: all messages in batch get the SAME ScheduledEnqueueTime.
+// For different times: schedule individually or use ApplicationProperties.
+```
+
+---
+
+### ServiceBusAdministrationClient — Runtime Management
+
+```csharp
+// WHY: Programmatically create/update queues, topics, subscriptions, rules.
+// Also: inspect live queue state (message counts, sizes).
+// NuGet: Azure.Messaging.ServiceBus (includes administration)
+
+var adminClient = new ServiceBusAdministrationClient(
+    "myns.servicebus.windows.net",
+    new DefaultAzureCredential());
+
+// ── Create Queue ─────────────────────────────────────────────────────────────
+await adminClient.CreateQueueAsync(new CreateQueueOptions("orders")
+{
+    MaxSizeInMegabytes = 5120,                       // 5 GB queue size
+    DefaultMessageTimeToLive = TimeSpan.FromDays(7), // message TTL
+    LockDuration = TimeSpan.FromSeconds(60),         // PeekLock duration
+    MaxDeliveryCount = 10,                           // attempts before DLQ
+    RequiresDuplicateDetection = true,
+    DuplicateDetectionHistoryTimeWindow = TimeSpan.FromMinutes(10),
+    RequiresSession = false,
+    EnableDeadLetteringOnMessageExpiration = true,   // expired → DLQ
+    AutoDeleteOnIdle = TimeSpan.FromDays(7),         // delete queue if idle 7 days
+    EnablePartitioning = false                       // partitioning = higher throughput
+});
+
+// ── Create Topic + Subscriptions ─────────────────────────────────────────────
+await adminClient.CreateTopicAsync(new CreateTopicOptions("orders-topic")
+{
+    MaxSizeInMegabytes = 5120,
+    DefaultMessageTimeToLive = TimeSpan.FromHours(24),
+    EnablePartitioning = false
+});
+
+await adminClient.CreateSubscriptionAsync(
+    new CreateSubscriptionOptions("orders-topic", "billing")
+    {
+        MaxDeliveryCount = 5,
+        LockDuration = TimeSpan.FromSeconds(60),
+        DeadLetteringOnMessageExpiration = true,
+        // Auto-delete subscription if no receivers connected for N days:
+        AutoDeleteOnIdle = TimeSpan.MaxValue
+    },
+    new CreateRuleOptions
+    {
+        Name = "BillingFilter",
+        Filter = new SqlRuleFilter("OrderType IN ('Insurance','Pharmacy')"),
+        Action = new SqlRuleAction("SET Priority = 'High'")  // modify on match
+    });
+
+// ── Get Queue Runtime Info (live message counts) ──────────────────────────────
+QueueRuntimeProperties runtimeProps =
+    await adminClient.GetQueueRuntimePropertiesAsync("orders");
+
+Console.WriteLine($"Active messages:       {runtimeProps.ActiveMessageCount}");
+Console.WriteLine($"Dead-letter messages:  {runtimeProps.DeadLetterMessageCount}");
+Console.WriteLine($"Scheduled messages:    {runtimeProps.ScheduledMessageCount}");
+Console.WriteLine($"Transferred to DLQ:    {runtimeProps.TransferDeadLetterMessageCount}");
+Console.WriteLine($"Total message count:   {runtimeProps.TotalMessageCount}");
+Console.WriteLine($"Size on disk:          {runtimeProps.SizeInBytes / 1024 / 1024} MB");
+Console.WriteLine($"Created at:            {runtimeProps.CreatedAt}");
+Console.WriteLine($"Last accessed:         {runtimeProps.AccessedAt}");
+
+// ── Get Topic Subscription Runtime Info ──────────────────────────────────────
+SubscriptionRuntimeProperties subProps =
+    await adminClient.GetSubscriptionRuntimePropertiesAsync("orders-topic", "billing");
+Console.WriteLine($"Billing subscription backlog: {subProps.ActiveMessageCount}");
+
+// ── Check if queue exists, update settings ────────────────────────────────────
+if (await adminClient.QueueExistsAsync("orders"))
+{
+    var queueProps = await adminClient.GetQueueAsync("orders");
+    queueProps.Value.MaxDeliveryCount = 15;   // increase retry attempts
+    await adminClient.UpdateQueueAsync(queueProps.Value);
+}
+
+// ── List all queues ────────────────────────────────────────────────────────────
+await foreach (var queue in adminClient.GetQueuesAsync())
+{
+    Console.WriteLine($"{queue.Name} | MaxDelivery:{queue.MaxDeliveryCount} | Session:{queue.RequiresSession}");
+}
+
+// ── Add/Remove Rules on existing subscription ─────────────────────────────────
+// Remove the default $Default rule (matches everything) first:
+await adminClient.DeleteRuleAsync("orders-topic", "billing", "$Default");
+
+// Add a correlation filter (faster than SQL filter — O(1) hash):
+await adminClient.CreateRuleAsync("orders-topic", "billing",
+    new CreateRuleOptions
+    {
+        Name = "CorrelationFilter",
+        Filter = new CorrelationRuleFilter
+        {
+            CorrelationId = "order-created",
+            ApplicationProperties = { ["Region"] = "US-East" }
+        }
+    });
+```
+
+---
+
+### Retry Policy & Client Configuration
+
+```csharp
+// WHY: Transient errors (network blip, Service Bus throttling) are common.
+// Configure retry policy at client level — applies to ALL operations.
+
+var client = new ServiceBusClient(
+    "myns.servicebus.windows.net",
+    new DefaultAzureCredential(),
+    new ServiceBusClientOptions
+    {
+        // ── Retry Policy ─────────────────────────────────────────────────
+        RetryOptions = new ServiceBusRetryOptions
+        {
+            Mode = ServiceBusRetryMode.Exponential,
+            // Exponential = 1s, 2s, 4s, 8s... (with jitter)
+            // Fixed       = same delay each time
+
+            MaxRetries = 5,
+            // Total attempts = MaxRetries + 1 (initial try).
+            // Applies to: Send, Receive, Complete, Abandon, etc.
+
+            Delay = TimeSpan.FromSeconds(1),
+            // Exponential: base delay (doubles each retry).
+            // Fixed: constant delay between retries.
+
+            MaxDelay = TimeSpan.FromSeconds(30),
+            // Cap on exponential backoff. Won't wait longer than this.
+
+            TryTimeout = TimeSpan.FromSeconds(60),
+            // Timeout for a SINGLE attempt (before it fails and retries).
+            // Set higher for slow networks or large messages.
+        },
+
+        // ── Transport ────────────────────────────────────────────────────
+        TransportType = ServiceBusTransportType.AmqpWebSockets,
+        // AmqpTcp (default): port 5671 — fastest, lowest latency.
+        // AmqpWebSockets:    port 443 — use when port 5671 is blocked by firewall.
+        //                    Corporate networks often block non-standard ports.
+
+        // ── Connection ──────────────────────────────────────────────────
+        // Idle timeout for AMQP connection — reconnects automatically after.
+        // Default: no idle timeout (always-on connection).
+    });
+
+// ── Per-Operation Timeout (override retry for specific call) ─────────────────
+var receiver = client.CreateReceiver("orders");
+var msg = await receiver.ReceiveMessageAsync(
+    maxWaitTime: TimeSpan.FromSeconds(30));
+// maxWaitTime = how long to wait if queue is EMPTY. Not the same as RetryOptions.TryTimeout.
+// Returns null if nothing arrives within maxWaitTime (no exception).
+
+// ── Health Check (check namespace connectivity) ───────────────────────────────
+// Pattern: try to get queue properties as a connectivity probe
+try
+{
+    var adminClient = new ServiceBusAdministrationClient("myns.servicebus.windows.net", credential);
+    var props = await adminClient.GetQueueAsync("orders");
+    // Success → namespace is reachable and queue exists
+    healthCheckResult = HealthCheckResult.Healthy($"Queue: {props.Value.Name}");
+}
+catch (ServiceBusException ex) when (ex.Reason == ServiceBusFailureReason.MessagingEntityNotFound)
+{
+    healthCheckResult = HealthCheckResult.Unhealthy("orders queue does not exist");
+}
+catch (Exception ex)
+{
+    healthCheckResult = HealthCheckResult.Unhealthy($"Service Bus unreachable: {ex.Message}");
+}
+```
+
+---
+
+### Transactional Send (Outbox Pattern)
+
+```csharp
+// WHY: Ensure a DB write and a message publish are atomic.
+// If DB succeeds but message send fails → inconsistency.
+// If message send succeeds but DB fails → inconsistency.
+// Solution: Service Bus transactions (client-side, not distributed 2PC).
+
+// ── Service Bus transaction: send to multiple entities atomically ─────────────
+await using var sender1 = client.CreateSender("billing-queue");
+await using var sender2 = client.CreateSender("inventory-queue");
+
+// Start a transaction (scoped to single namespace — not cross-namespace!)
+ServiceBusTransactionContext txContext;
+using (var ts = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled))
+{
+    txContext = await client.CreateTransactionAsync();   // returns a transaction handle
+
+    await sender1.SendMessageAsync(billingMsg, txContext);
+    await sender2.SendMessageAsync(inventoryMsg, txContext);
+
+    ts.Complete();  // commit both sends atomically
+}
+// IMPORTANT: TransactionScope here manages the Service Bus transaction.
+// This is NOT a DTC transaction — does NOT span SQL Server + Service Bus.
+
+// ── True Outbox Pattern (DB + Service Bus eventual consistency) ───────────────
+// 1. In same DB transaction: write order + write OutboxMessage row
+// 2. Background job reads OutboxMessage, sends to Service Bus, marks as Sent
+// This guarantees exactly-once publishing even if step 2 crashes and retries.
+
+// Step 1 (in OrderService):
+await using var dbTx = await _db.Database.BeginTransactionAsync();
+_db.Orders.Add(order);
+_db.OutboxMessages.Add(new OutboxMessage
+{
+    Id = Guid.NewGuid(),
+    Payload = JsonSerializer.Serialize(new OrderCreatedEvent(order.Id, order.CustomerId)),
+    EventType = nameof(OrderCreatedEvent),
+    CreatedAt = DateTime.UtcNow,
+    SentAt = null  // null = not yet published
+});
+await _db.SaveChangesAsync();
+await dbTx.CommitAsync();  // ← DB transaction: order + outbox row committed together
+
+// Step 2 (OutboxPublisher background service):
+var pending = await _db.OutboxMessages
+    .Where(m => m.SentAt == null)
+    .OrderBy(m => m.CreatedAt)
+    .Take(100)
+    .ToListAsync();
+
+foreach (var outboxMsg in pending)
+{
+    await _sender.SendMessageAsync(new ServiceBusMessage(outboxMsg.Payload)
+    {
+        MessageId = outboxMsg.Id.ToString(),   // WHY: dedup — safe to retry
+        Subject = outboxMsg.EventType
+    });
+    outboxMsg.SentAt = DateTime.UtcNow;
+}
+await _db.SaveChangesAsync();   // mark as sent (idempotent — OK if duplicate)
+```
+
+---
+
+### Processor vs Receiver — When to Use Which
+
+```
+┌────────────────────────┬────────────────────────────────────────────────────┐
+│                        │ ServiceBusProcessor        ServiceBusReceiver       │
+├────────────────────────┼────────────────────────────────────────────────────┤
+│ Pattern                │ Push (continuous loop)     Pull (you control)       │
+│ Use case               │ Long-running worker svc    Batch jobs, CLI tools    │
+│ Concurrency            │ MaxConcurrentCalls=N       Manual Task.WhenAll      │
+│ Lock renewal           │ Automatic                  Manual RenewMessageLock  │
+│ Error handling         │ ProcessErrorAsync event    try/catch per message    │
+│ Start/Stop             │ StartProcessingAsync()     Call ReceiveMessageAsync  │
+│                        │ StopProcessingAsync()      when needed              │
+│ Prefetch               │ PrefetchCount option       PrefetchCount option     │
+│ Session support        │ CreateSessionProcessor()   CreateReceiver(session)  │
+│ Graceful shutdown      │ StopProcessingAsync waits  Drain receive loop       │
+│                        │ for in-flight to finish    with CancellationToken   │
+└────────────────────────┴────────────────────────────────────────────────────┘
+
+CHOOSE Processor when:
+  - ASP.NET Core hosted service (IHostedService)
+  - Need automatic lock renewal
+  - Want managed concurrency (10 parallel handlers)
+  - Production microservice consuming continuously
+
+CHOOSE Receiver when:
+  - Azure Function (has its own trigger framework)
+  - Batch processing: drain queue at midnight, process, stop
+  - CLI/admin tool: peek messages for debugging
+  - Need fine-grained pull control (rate limiting)
+  - Integration tests (receive & assert specific messages)
+```
+
+---
+
+### Terraform — Azure Service Bus (IaC)
+```hcl
+# ── Service Bus Namespace + Queue + Topic + Subscription ─────────
+
+resource "azurerm_servicebus_namespace" "sb" {
+  name                = "sb-myapp-prod"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  sku                 = "Standard"      # Standard = topics; Premium = VNet, private endpoints
+  # For Premium:
+  # sku              = "Premium"
+  # premium_messaging_partitions = 1   # 1, 2, or 4
+}
+
+# ── Queue (point-to-point, single consumer) ──────────────────────
+resource "azurerm_servicebus_queue" "orders" {
+  name         = "orders-queue"
+  namespace_id = azurerm_servicebus_namespace.sb.id
+
+  max_delivery_count              = 10           # after 10 failures → dead-letter
+  lock_duration                   = "PT1M"       # ISO 8601: 1 minute lock (PeekLock)
+  default_message_time_to_live    = "P7D"        # messages expire after 7 days
+  dead_lettering_on_message_expiration = true    # expired messages → DLQ
+  requires_duplicate_detection    = true         # WHY: dedup within 10min window
+  duplicate_detection_history_time_window = "PT10M"
+  enable_partitioning             = false        # true = 16 partitions (Standard tier)
+  requires_session                = false        # true = ordered per session
+}
+
+# ── Dead-Letter Queue is created automatically — no resource needed
+# Access via: {queue_name}/$DeadLetterQueue
+
+# ── Topic + Subscriptions (pub/sub, multiple consumers) ──────────
+resource "azurerm_servicebus_topic" "order_events" {
+  name         = "order-events"
+  namespace_id = azurerm_servicebus_namespace.sb.id
+
+  default_message_time_to_live = "P7D"
+  requires_duplicate_detection = true
+  duplicate_detection_history_time_window = "PT10M"
+}
+
+resource "azurerm_servicebus_subscription" "billing_sub" {
+  name               = "billing-subscription"
+  topic_id           = azurerm_servicebus_topic.order_events.id
+  max_delivery_count = 10
+  lock_duration      = "PT1M"
+  dead_lettering_on_message_expiration = true
+}
+
+resource "azurerm_servicebus_subscription" "notifications_sub" {
+  name               = "notifications-subscription"
+  topic_id           = azurerm_servicebus_topic.order_events.id
+  max_delivery_count = 10
+  lock_duration      = "PT1M"
+}
+
+# ── SQL Filter on subscription (only specific messages) ──────────
+resource "azurerm_servicebus_subscription_rule" "billing_filter" {
+  name            = "high-value-orders"
+  subscription_id = azurerm_servicebus_subscription.billing_sub.id
+  filter_type     = "SqlFilter"
+  sql_filter      = "OrderTotal > 1000 AND OrderType = 'Premium'"
+  # WHY: billing only processes high-value premium orders via SQL filter
+}
+
+# ── Authorization Rule (Sender / Receiver RBAC) ───────────────────
+resource "azurerm_servicebus_namespace_authorization_rule" "sender" {
+  name         = "orders-sender"
+  namespace_id = azurerm_servicebus_namespace.sb.id
+  listen       = false
+  send         = true
+  manage       = false
+}
+
+resource "azurerm_servicebus_namespace_authorization_rule" "receiver" {
+  name         = "orders-receiver"
+  namespace_id = azurerm_servicebus_namespace.sb.id
+  listen       = true
+  send         = false
+  manage       = false
+}
+
+output "servicebus_connection_string" {
+  value     = azurerm_servicebus_namespace.sb.default_primary_connection_string
+  sensitive = true
+}
+output "sender_connection_string" {
+  value     = azurerm_servicebus_namespace_authorization_rule.sender.primary_connection_string
+  sensitive = true
+}
+```
+
+---
 
 ### Key Interview Q&A
 
@@ -1138,6 +1935,102 @@ END
 | `SOS_SCHEDULER_YIELD` | CPU-bound query yielding | Optimize query, add CPU |
 | `WRITELOG` | Waiting to write to transaction log | Faster disk for log, batch writes |
 
+---
+
+### Terraform — Azure SQL Server (IaC)
+```hcl
+# ── SQL Server + Database + Firewall + Elastic Pool (optional) ────
+
+variable "sql_admin_login"    { default = "sqladmin" }
+variable "sql_admin_password" {
+  sensitive = true
+  # In CI/CD: export TF_VAR_sql_admin_password="..." or use Key Vault
+}
+
+resource "azurerm_mssql_server" "sql" {
+  name                         = "sql-myapp-prod"
+  resource_group_name          = azurerm_resource_group.rg.name
+  location                     = azurerm_resource_group.rg.location
+  version                      = "12.0"              # SQL Server 2019 compatible
+  administrator_login          = var.sql_admin_login
+  administrator_login_password = var.sql_admin_password
+
+  # WHY: Managed Identity for Azure AD auth (no passwords in connection strings)
+  azuread_administrator {
+    login_username = "AzureAD Admin"
+    object_id      = data.azurerm_client_config.current.object_id
+  }
+
+  minimum_tls_version = "1.2"
+
+  identity {
+    type = "SystemAssigned"   # WHY: needed for Azure AD authentication
+  }
+}
+
+# ── Database ─────────────────────────────────────────────────────
+resource "azurerm_mssql_database" "db" {
+  name      = "myapp-prod"
+  server_id = azurerm_mssql_server.sql.id
+  sku_name  = "GP_Gen5_2"           # General Purpose, 2 vCores (serverless: "GP_S_Gen5_1")
+
+  # Serverless (auto-pause after idle — good for dev/test):
+  # sku_name                    = "GP_S_Gen5_1"
+  # auto_pause_delay_in_minutes = 60
+  # min_capacity                = 0.5
+
+  max_size_gb                 = 32
+  collation                   = "SQL_Latin1_General_CP1_CI_AS"
+  zone_redundant              = false         # true for Business Critical + geo-redundancy
+  read_scale                  = false         # true = read-only replicas for reporting
+  geo_backup_enabled          = true
+
+  short_term_retention_policy {
+    retention_days           = 7
+    backup_interval_in_hours = 12
+  }
+
+  long_term_retention_policy {
+    weekly_retention  = "P4W"   # keep 4 weekly backups
+    monthly_retention = "P3M"   # keep 3 monthly backups
+    yearly_retention  = "P1Y"
+    week_of_year      = 1
+  }
+}
+
+# ── Firewall: allow Azure services (for Container Apps / Functions) ──
+resource "azurerm_mssql_firewall_rule" "allow_azure" {
+  name             = "AllowAzureServices"
+  server_id        = azurerm_mssql_server.sql.id
+  start_ip_address = "0.0.0.0"
+  end_ip_address   = "0.0.0.0"
+  # WHY: "0.0.0.0–0.0.0.0" is a magic value that means "allow Azure services"
+  #       not actually opens all IPs
+}
+
+# ── Private Endpoint (production recommendation — no public internet) ──
+resource "azurerm_private_endpoint" "sql_pe" {
+  name                = "pe-sql-myapp"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  subnet_id           = azurerm_subnet.private.id
+
+  private_service_connection {
+    name                           = "sql-connection"
+    private_connection_resource_id = azurerm_mssql_server.sql.id
+    subresource_names              = ["sqlServer"]
+    is_manual_connection           = false
+  }
+}
+
+output "sql_connection_string" {
+  value     = "Server=${azurerm_mssql_server.sql.fully_qualified_domain_name};Database=${azurerm_mssql_database.db.name};Authentication=Active Directory Default;"
+  sensitive = false   # no password — uses managed identity
+}
+```
+
+---
+
 ### Key Interview Q&A
 
 **Q: Query runs fine in dev but slow in prod — why?**
@@ -1386,14 +2279,713 @@ Choose SQL Server when:
 ## 5. Integration Testing — .NET
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  MENTAL MODEL: Integration Tests = Reality Check                │
-│  Unit test: "does this method work in isolation?"              │
-│  Integration test: "does the whole slice work together?"       │
-│  Use real DB, real HTTP pipeline, mock only external services  │
-│  Goal: catch wiring bugs that unit tests miss                  │
-└─────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────┐
+│  MENTAL MODEL: Integration Tests = The Proof of Wiring             │
+│                                                                    │
+│  Unit test:       "does this method compute the right result?"     │
+│  Integration test:"does this HTTP call hit the DB and return 201?"│
+│                                                                    │
+│  Pyramid:  Unit (fast, many) → Integration (medium) → E2E (slow)  │
+│                                                                    │
+│  Real DB + real HTTP pipeline + mock ONLY external systems         │
+│  = catch DI misconfigurations, EF mapping bugs, auth wiring issues│
+└────────────────────────────────────────────────────────────────────┘
 ```
+
+### Why Integration Tests Catch What Unit Tests Miss
+```
+Unit test misses                    Integration test catches
+─────────────────────────────────   ──────────────────────────────────
+EF Core query is wrong              Real SQL runs, returns wrong data
+DI registration is missing          Factory starts, DI throws on build
+Auth middleware not wired           401 instead of 200
+Model validation not applied        400 instead of 201
+FluentValidation not registered     Pass-through of invalid data
+Middleware order wrong              Wrong behavior in pipeline
+CQRS handler not registered         MediatR throws unhandled type
+```
+
+---
+
+### Step 0 — NuGet Packages (What to Install)
+```xml
+<!-- YourProject.IntegrationTests.csproj -->
+<ItemGroup>
+  <!-- Core: in-memory HTTP server wrapping your real app -->
+  <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.*" />
+
+  <!-- Test framework -->
+  <PackageReference Include="xunit" Version="2.*" />
+  <PackageReference Include="xunit.runner.visualstudio" Version="2.*" />
+  <PackageReference Include="FluentAssertions" Version="6.*" />
+
+  <!-- Spin up real Docker containers for DB, Redis, etc. -->
+  <PackageReference Include="Testcontainers" Version="3.*" />
+  <PackageReference Include="Testcontainers.MsSql" Version="3.*" />
+  <PackageReference Include="Testcontainers.PostgreSql" Version="3.*" />
+  <PackageReference Include="Testcontainers.Redis" Version="3.*" />
+
+  <!-- Reset DB between tests without DROP/CREATE -->
+  <PackageReference Include="Respawn" Version="6.*" />
+
+  <!-- Fake HTTP responses for external services -->
+  <PackageReference Include="WireMock.Net" Version="1.*" />
+
+  <!-- Reference your actual app project -->
+  <ProjectReference Include="..\YourApi\YourApi.csproj" />
+</ItemGroup>
+```
+
+---
+
+### Step 1 — Make Program.cs Testable
+```csharp
+// ❌ BAD — WebApplicationFactory cannot find the entry point
+// internal sealed class Program { }  ← internal by default in .NET 6+
+
+// ✅ GOOD — expose Program as partial so tests can reference it
+// At the very bottom of Program.cs, add:
+public partial class Program { }    // ← zero code, just makes it public
+```
+```
+WHY: WebApplicationFactory<Program> needs Program as a generic type argument.
+If Program is internal, the test project (different assembly) cannot see it.
+Adding `public partial class Program { }` is the standard .NET fix.
+```
+
+---
+
+### Step 2 — WebApplicationFactory: What It Does
+```
+                        ┌────────────────────────────────────────┐
+                        │  WebApplicationFactory<Program>        │
+                        │                                        │
+Request                 │  ┌────────────────────────────────┐   │
+─────► HttpClient ─────►│  │  Kestrel (in-memory transport) │   │
+                        │  │  Your real middleware pipeline  │   │
+Response                │  │  Your real DI container        │   │
+◄─────                 │  │  Your real controllers/endpoints│   │
+                        │  └────────────────────────────────┘   │
+                        │                                        │
+                        │  ConfigureWebHost() → override services│
+                        │  (swap real DB → test container DB)    │
+                        └────────────────────────────────────────┘
+
+Key insight: NO actual network socket. HttpClient talks in-process.
+             Your full middleware stack runs. Real routing, real auth.
+```
+
+---
+
+### Step 3 — Custom Factory: Full Production-Ready Setup
+```csharp
+// ApiFactory.cs — one file that owns ALL test infrastructure
+public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
+{
+    // ── Testcontainers ──────────────────────────────────────────
+    private readonly MsSqlContainer _db = new MsSqlBuilder()
+        .WithPassword("Test@1234!")                   // SQL Server 2022 in Docker
+        .WithImage("mcr.microsoft.com/mssql/server:2022-latest")
+        .Build();
+
+    private readonly RedisContainer _redis = new RedisBuilder().Build();
+
+    // ── Respawn ─────────────────────────────────────────────────
+    private Respawner _respawner = default!;
+    private SqlConnection _connection = default!;
+
+    // ── WireMock for external HTTP services ─────────────────────
+    public WireMockServer ExternalPaymentApi { get; } =
+        WireMockServer.Start();                        // random port, fake HTTP server
+
+    // ── Override services ────────────────────────────────────────
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        builder.UseEnvironment("Testing");             // WHY: appsettings.Testing.json loaded
+
+        builder.ConfigureServices(services =>
+        {
+            // 1. Remove real DB, replace with test container DB
+            services.RemoveAll<DbContextOptions<AppDbContext>>();
+            services.AddDbContext<AppDbContext>(opts =>
+                opts.UseSqlServer(_db.GetConnectionString()));
+
+            // 2. Remove real Redis, replace with test container
+            services.RemoveAll<IConnectionMultiplexer>();
+            services.AddSingleton<IConnectionMultiplexer>(_ =>
+                ConnectionMultiplexer.Connect(_redis.GetConnectionString()));
+
+            // 3. Replace external payment API URL with WireMock URL
+            services.Configure<PaymentOptions>(opts =>
+                opts.BaseUrl = ExternalPaymentApi.Urls[0]);
+
+            // 4. Replace Service Bus with fake (no Azurite needed for most tests)
+            services.RemoveAll<ServiceBusClient>();
+            services.AddSingleton<IEventPublisher, FakeEventPublisher>();
+
+            // 5. Replace auth: accept any JWT signed with test key
+            services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+                .AddJwtBearer(opts =>
+                {
+                    opts.TokenValidationParameters = new TokenValidationParameters
+                    {
+                        ValidateIssuer = false,
+                        ValidateAudience = false,
+                        ValidateLifetime = false,              // WHY: tests don't care about expiry
+                        IssuerSigningKey = new SymmetricSecurityKey(
+                            Encoding.UTF8.GetBytes("super-secret-test-key-32-chars!!")),
+                    };
+                });
+        });
+
+        // Suppress startup logs in test output (optional but clean)
+        builder.ConfigureLogging(logging => logging.SetMinimumLevel(LogLevel.Warning));
+    }
+
+    // ── Lifecycle ────────────────────────────────────────────────
+    public async Task InitializeAsync()
+    {
+        // Start containers in parallel
+        await Task.WhenAll(_db.StartAsync(), _redis.StartAsync());
+
+        // Apply EF migrations against the test container DB
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Database.MigrateAsync();
+
+        // Prepare Respawn (must happen AFTER migrations, so tables exist)
+        _connection = new SqlConnection(_db.GetConnectionString());
+        await _connection.OpenAsync();
+        _respawner = await Respawner.CreateAsync(_connection, new RespawnerOptions
+        {
+            DbAdapter = DbAdapter.SqlServer,
+            TablesToIgnore = ["__EFMigrationsHistory"]  // keep migrations table
+        });
+        await _connection.CloseAsync();
+    }
+
+    // ── DB Reset Helper (called by each test class) ──────────────
+    public async Task ResetDatabaseAsync()
+    {
+        await _connection.OpenAsync();
+        await _respawner.ResetAsync(_connection);  // DELETE all rows — faster than DROP/CREATE
+        await _connection.CloseAsync();
+    }
+
+    // ── JWT Helper ───────────────────────────────────────────────
+    public string GenerateTestJwt(string userId = "test-user-1",
+        string role = "User", string[]? permissions = null)
+    {
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, userId),
+            new(ClaimTypes.Role, role),
+        };
+        if (permissions != null)
+            claims.AddRange(permissions.Select(p => new Claim("permission", p)));
+
+        var key = new SymmetricSecurityKey(
+            Encoding.UTF8.GetBytes("super-secret-test-key-32-chars!!"));
+        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+        var token = new JwtSecurityToken(claims: claims, signingCredentials: creds);
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    public new async Task DisposeAsync()
+    {
+        await _connection.DisposeAsync();
+        await Task.WhenAll(_db.DisposeAsync().AsTask(), _redis.DisposeAsync().AsTask());
+        ExternalPaymentApi.Dispose();
+        await base.DisposeAsync();
+    }
+}
+```
+
+---
+
+### Step 4 — Collection Fixture (One Container for All Tests)
+```csharp
+// ────────────────────────────────────────────────────────────────
+// IMPORTANT: Without [CollectionDefinition], each test CLASS gets
+// its own factory = Docker containers start/stop per class = SLOW.
+// With [CollectionDefinition] + ICollectionFixture, ONE factory
+// is shared across ALL test classes in the collection.
+// ────────────────────────────────────────────────────────────────
+
+// 1. Define the collection
+[CollectionDefinition("Integration")]
+public class IntegrationCollection : ICollectionFixture<ApiFactory> { }
+
+// 2. Tag every test class with [Collection("Integration")]
+[Collection("Integration")]
+public class OrderTests : IAsyncLifetime          // IAsyncLifetime for per-class setup
+{
+    private readonly HttpClient _client;
+    protected readonly ApiFactory Factory;
+
+    public OrderTests(ApiFactory factory)
+    {
+        Factory = factory;
+        _client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,            // WHY: test redirects explicitly
+            HandleCookies = true
+        });
+
+        // Inject Bearer token for every request
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", factory.GenerateTestJwt());
+    }
+
+    // Per test-CLASS reset — runs once before all tests in THIS class
+    public async Task InitializeAsync() => await Factory.ResetDatabaseAsync();
+    public Task DisposeAsync() => Task.CompletedTask;
+}
+```
+
+---
+
+### Step 5 — Test Data Builder Pattern
+```csharp
+// ❌ BAD — raw object construction scattered everywhere
+var request = new CreateOrderRequest { CustomerId = "c1", Items = [...] };
+
+// ✅ GOOD — builder that has sensible defaults, easy to override
+public class OrderRequestBuilder
+{
+    private string _customerId = Guid.NewGuid().ToString();  // unique per test
+    private List<OrderItemDto> _items = [new("SKU-001", 1, 19.99m)];
+    private string? _idempotencyKey;
+
+    public OrderRequestBuilder WithCustomer(string id) { _customerId = id; return this; }
+    public OrderRequestBuilder WithItem(string sku, int qty, decimal price)
+    {
+        _items.Add(new(sku, qty, price)); return this;
+    }
+    public OrderRequestBuilder WithIdempotencyKey(string key)
+    {
+        _idempotencyKey = key; return this;
+    }
+
+    public (CreateOrderRequest Request, string? IdempotencyKey) Build()
+        => (new CreateOrderRequest { CustomerId = _customerId, Items = _items }, _idempotencyKey);
+}
+
+// Usage in tests — readable and isolated
+var (req, key) = new OrderRequestBuilder()
+    .WithCustomer("vip-customer")
+    .WithItem("PREMIUM-SKU", 3, 99.99m)
+    .Build();
+```
+
+---
+
+### Step 6 — Full End-to-End Test: Every Pattern in One Place
+```csharp
+[Collection("Integration")]
+public class OrderTests : IAsyncLifetime
+{
+    private readonly HttpClient _client;
+    private readonly ApiFactory _factory;
+    private readonly FakeEventPublisher _publisher;
+
+    public OrderTests(ApiFactory factory)
+    {
+        _factory = factory;
+        _client = factory.CreateClient();
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer",
+                factory.GenerateTestJwt(userId: "user-123", role: "Customer"));
+
+        // Resolve the fake publisher registered in factory
+        _publisher = factory.Services.GetRequiredService<IEventPublisher>()
+            as FakeEventPublisher ?? throw new InvalidOperationException();
+    }
+
+    // ── Happy path: create order ─────────────────────────────────
+    [Fact]
+    public async Task CreateOrder_ValidRequest_Returns201_And_PublishesEvent()
+    {
+        // Arrange
+        _publisher.Clear();                        // WHY: events from previous test may linger
+        var (req, _) = new OrderRequestBuilder()
+            .WithItem("SKU-A", 2, 50.00m)
+            .Build();
+
+        // Act
+        var response = await _client.PostAsJsonAsync("/api/orders", req);
+
+        // Assert — HTTP
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        var order = await response.Content.ReadFromJsonAsync<OrderResponse>();
+        order!.Id.Should().NotBeEmpty();
+        order.Status.Should().Be("Pending");
+        order.Total.Should().Be(100.00m);          // 2 × $50
+
+        // Assert — Location header (REST best practice)
+        response.Headers.Location!.ToString()
+            .Should().Contain($"/api/orders/{order.Id}");
+
+        // Assert — Database state (read directly from DB, not via API)
+        await VerifyDatabaseAsync(order.Id, expectedStatus: "Pending");
+
+        // Assert — Domain event published
+        var events = _publisher.GetPublished<OrderCreatedEvent>();
+        events.Should().ContainSingle(e =>
+            e.OrderId == order.Id && e.CustomerId == "user-123");
+    }
+
+    // ── Validation: missing required field ──────────────────────
+    [Fact]
+    public async Task CreateOrder_MissingItems_Returns400WithErrors()
+    {
+        var req = new CreateOrderRequest { CustomerId = "c1", Items = [] }; // empty items
+
+        var response = await _client.PostAsJsonAsync("/api/orders", req);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
+        problem!.Errors.Should().ContainKey("Items");
+    }
+
+    // ── Auth: unauthenticated request ───────────────────────────
+    [Fact]
+    public async Task CreateOrder_NoToken_Returns401()
+    {
+        _client.DefaultRequestHeaders.Authorization = null;  // remove token
+        var response = await _client.PostAsJsonAsync("/api/orders", new { });
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    // ── Auth: insufficient role ──────────────────────────────────
+    [Fact]
+    public async Task GetAllOrders_AsCustomer_Returns403()
+    {
+        // Customer role should not access admin endpoint
+        var response = await _client.GetAsync("/api/admin/orders");
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    // ── Idempotency: same key twice = same result ────────────────
+    [Fact]
+    public async Task CreateOrder_SameIdempotencyKey_ReturnsSameOrder()
+    {
+        var key = Guid.NewGuid().ToString();
+        var (req, _) = new OrderRequestBuilder().Build();
+
+        var r1 = await SendWithIdempotencyKey(req, key);
+        var r2 = await SendWithIdempotencyKey(req, key);
+
+        var o1 = await r1.Content.ReadFromJsonAsync<OrderResponse>();
+        var o2 = await r2.Content.ReadFromJsonAsync<OrderResponse>();
+        o1!.Id.Should().Be(o2!.Id);
+        r2.StatusCode.Should().Be(HttpStatusCode.OK);   // 2nd = 200, not 201
+    }
+
+    // ── External HTTP mock (WireMock) ───────────────────────────
+    [Fact]
+    public async Task CreateOrder_WhenPaymentFails_Returns402()
+    {
+        // Configure WireMock to return payment failure
+        _factory.ExternalPaymentApi
+            .Given(Request.Create().WithPath("/payments").UsingPost())
+            .RespondWith(Response.Create()
+                .WithStatusCode(402)
+                .WithBodyAsJson(new { error = "insufficient_funds" }));
+
+        var (req, _) = new OrderRequestBuilder().Build();
+        var response = await _client.PostAsJsonAsync("/api/orders", req);
+
+        response.StatusCode.Should().Be(HttpStatusCode.PaymentRequired);
+    }
+
+    // ── Helper: verify DB directly ──────────────────────────────
+    private async Task VerifyDatabaseAsync(Guid orderId, string expectedStatus)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var order = await db.Orders.FindAsync(orderId);
+        order.Should().NotBeNull();
+        order!.Status.Should().Be(expectedStatus);
+    }
+
+    private async Task<HttpResponseMessage> SendWithIdempotencyKey(
+        CreateOrderRequest req, string key)
+    {
+        var http = new HttpRequestMessage(HttpMethod.Post, "/api/orders")
+        {
+            Content = JsonContent.Create(req)
+        };
+        http.Headers.Add("Idempotency-Key", key);
+        return await _client.SendAsync(http);
+    }
+
+    public async Task InitializeAsync() => await _factory.ResetDatabaseAsync();
+    public Task DisposeAsync() => Task.CompletedTask;
+}
+```
+
+---
+
+### Step 7 — Testing Service Bus Consumers Directly
+```csharp
+// Pattern 1: Unit-test the handler in isolation
+// Use ServiceBusModelFactory to create a real ServiceBusReceivedMessage
+[Fact]
+public async Task OrderCreatedHandler_ValidMessage_CreatesInvoice()
+{
+    // ServiceBusModelFactory is part of Azure.Messaging.ServiceBus — no mocking needed
+    var @event = new OrderCreatedEvent(
+        OrderId: Guid.NewGuid(), CustomerId: "c-1", Total: 99.99m);
+
+    var sbMessage = ServiceBusModelFactory.ServiceBusReceivedMessage(
+        body: BinaryData.FromObjectAsJson(@event),
+        messageId: Guid.NewGuid().ToString(),
+        correlationId: "test-correlation");
+
+    // Create a real ServiceBusMessageActions mock
+    var actions = Substitute.For<ServiceBusMessageActions>();
+
+    // Resolve the handler from DI (it has real dependencies)
+    using var scope = _factory.Services.CreateScope();
+    var handler = scope.ServiceProvider.GetRequiredService<OrderCreatedHandler>();
+
+    // Act
+    await handler.HandleAsync(sbMessage, actions, CancellationToken.None);
+
+    // Assert
+    await actions.Received(1).CompleteMessageAsync(sbMessage, default);
+
+    using var dbScope = _factory.Services.CreateScope();
+    var db = dbScope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var invoice = await db.Invoices.FirstOrDefaultAsync(i => i.CustomerId == "c-1");
+    invoice.Should().NotBeNull();
+}
+
+// Pattern 2: Integration test with Azurite (Service Bus emulator)
+// (Requires Testcontainers.Azurite or a real Service Bus dev namespace)
+[Fact]
+public async Task OrderProcessor_E2E_MessageFlowsFromQueueToDatabase()
+{
+    // Use Azurite container (see TestContainers section below)
+    var sender = _factory.Services.GetRequiredService<ServiceBusSender>();
+    var message = new ServiceBusMessage(BinaryData.FromObjectAsJson(
+        new OrderCreatedEvent(Guid.NewGuid(), "c-2", 149.99m)));
+
+    await sender.SendMessageAsync(message);
+
+    // Wait for processor to handle it (poll with timeout)
+    var deadline = DateTime.UtcNow.AddSeconds(10);
+    Invoice? invoice = null;
+    while (DateTime.UtcNow < deadline && invoice == null)
+    {
+        await Task.Delay(200);
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        invoice = await db.Invoices.FirstOrDefaultAsync(i => i.CustomerId == "c-2");
+    }
+    invoice.Should().NotBeNull("processor should handle message within 10s");
+}
+```
+
+---
+
+### Step 8 — TestContainers: All Container Types
+```csharp
+// ── SQL Server ───────────────────────────────────────────────────
+var sql = new MsSqlBuilder()
+    .WithPassword("StrongP@ss1")
+    .WithImage("mcr.microsoft.com/mssql/server:2022-latest")
+    .Build();
+
+// ── PostgreSQL ───────────────────────────────────────────────────
+var postgres = new PostgreSqlBuilder()
+    .WithDatabase("testdb")
+    .WithUsername("test")
+    .WithPassword("test")
+    .Build();
+
+// ── Redis ────────────────────────────────────────────────────────
+var redis = new RedisBuilder()
+    .WithImage("redis:7-alpine")      // lightweight image
+    .Build();
+
+// ── MongoDB ──────────────────────────────────────────────────────
+var mongo = new MongoDbBuilder()
+    .WithUsername("test").WithPassword("test")
+    .Build();
+
+// ── Azurite (Azure Storage + Service Bus emulator) ───────────────
+var azurite = new AzuriteBuilder()
+    .WithInMemoryPersistence()        // no file system needed in CI
+    .Build();
+
+// ── Start in parallel to save time ──────────────────────────────
+await Task.WhenAll(sql.StartAsync(), redis.StartAsync(), azurite.StartAsync());
+
+// Connection strings are available after StartAsync()
+string connStr = sql.GetConnectionString();     // "Server=localhost,12345;..."
+string redisConn = redis.GetConnectionString(); // "localhost:12346"
+```
+
+---
+
+### Step 9 — Respawn: Database Reset Deep Dive
+```csharp
+// WHY Respawn over DROP/CREATE:
+// DROP + CREATE migrations takes 3-15 seconds per test class
+// Respawn: DELETE all rows via foreign-key-aware graph traversal → ~50ms
+
+// Setup (once after migrations)
+var respawner = await Respawner.CreateAsync(connection, new RespawnerOptions
+{
+    DbAdapter = DbAdapter.SqlServer,         // or DbAdapter.Postgres
+    TablesToIgnore = [                        // tables that should NOT be cleared
+        "__EFMigrationsHistory",             // keep migration history
+        "LookupCountries",                   // reference data seeded once
+        "LookupCurrencies"
+    ],
+    TablesToInclude = null,                  // null = all tables except TablesToIgnore
+    SchemasToExclude = ["dbo_readonly"],     // skip read-only schemas
+    WithReseed = true,                        // reset IDENTITY columns to 0
+});
+
+// Reset (before each test class)
+await connection.OpenAsync();
+await respawner.ResetAsync(connection);      // DELETE in correct FK order
+await connection.CloseAsync();
+
+// Lifecycle pattern in factory:
+// ┌─ Test Class 1 starts ─────────────────────────────────────────┐
+// │  InitializeAsync() → ResetDatabaseAsync() → all tables empty  │
+// │  Test A runs, creates orders 1,2,3                            │
+// │  Test B runs, creates orders 4,5 (sees A's data if parallel!) │
+// └───────────────────────────────────────────────────────────────┘
+// ┌─ Test Class 2 starts ─────────────────────────────────────────┐
+// │  InitializeAsync() → ResetDatabaseAsync() → orders gone       │
+// │  Test C runs on a clean slate                                 │
+// └───────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Step 10 — Fake Event Publisher / Captured Events
+```csharp
+public class FakeEventPublisher : IEventPublisher
+{
+    private readonly ConcurrentBag<object> _published = new();
+
+    public Task PublishAsync<T>(T @event, CancellationToken ct = default)
+    {
+        _published.Add(@event!);
+        return Task.CompletedTask;
+    }
+
+    public IReadOnlyList<T> GetPublished<T>() => _published.OfType<T>().ToList();
+    public bool WasPublished<T>(Func<T, bool> predicate) =>
+        _published.OfType<T>().Any(predicate);
+    public void Clear() => _published.Clear();
+}
+
+// Assert exactly one event with specific values
+var events = _publisher.GetPublished<OrderCreatedEvent>();
+events.Should().HaveCount(1);
+events[0].OrderId.Should().Be(expectedOrderId);
+
+// Assert NO events published (e.g., failed request should not publish)
+var events = _publisher.GetPublished<OrderCreatedEvent>();
+events.Should().BeEmpty("failed validation should not publish domain events");
+```
+
+---
+
+### Step 11 — Seeding Test Data in DB
+```csharp
+// ── Option A: Seed via EF Core directly ─────────────────────────
+private async Task SeedAsync(AppDbContext db, params Order[] orders)
+{
+    db.Orders.AddRange(orders);
+    await db.SaveChangesAsync();
+}
+
+// ── Option B: Seed via API endpoint ─────────────────────────────
+// Preferred: validates the full creation pipeline
+var seedResponse = await _client.PostAsJsonAsync("/api/orders", seedRequest);
+seedResponse.EnsureSuccessStatusCode();
+var seeded = await seedResponse.Content.ReadFromJsonAsync<OrderResponse>();
+
+// ── Use in test ──────────────────────────────────────────────────
+[Fact]
+public async Task GetOrder_ExistingOrder_Returns200WithDetails()
+{
+    // Seed
+    using var scope = _factory.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var order = Order.Create("cust-1", [new OrderLine("SKU-1", 1, 10m)]);
+    db.Orders.Add(order);
+    await db.SaveChangesAsync();
+
+    // Act
+    var response = await _client.GetAsync($"/api/orders/{order.Id}");
+
+    // Assert
+    response.StatusCode.Should().Be(HttpStatusCode.OK);
+    var result = await response.Content.ReadFromJsonAsync<OrderResponse>();
+    result!.Id.Should().Be(order.Id);
+}
+```
+
+---
+
+### Step 12 — Avoiding Flaky Tests: Rules
+```
+Rule 1: Never depend on insertion order
+        ✓ Sort results before asserting, or use .ContainSingle(predicate)
+
+Rule 2: Never share mutable state between tests
+        ✓ Use unique IDs per test (Guid.NewGuid())
+        ✓ Use IAsyncLifetime.InitializeAsync to reset DB per class
+
+Rule 3: Never use Thread.Sleep — use polling with timeout
+        ✓ while (DateTime.UtcNow < deadline) { await Task.Delay(100); ... }
+
+Rule 4: Be specific in assertions
+        ✗ result.Should().NotBeNull()
+        ✓ result.OrderId.Should().Be(expectedId)
+
+Rule 5: Test one behaviour per test
+        ✗ "CreateOrder_WorksCorrectly"
+        ✓ "CreateOrder_ValidRequest_Returns201"
+        ✓ "CreateOrder_ValidRequest_PublishesOrderCreatedEvent"
+
+Rule 6: Make tests independent of clock
+        ✓ Inject IDateTimeProvider / TimeProvider (mockable)
+        ✗ DateTime.UtcNow.AddDays(1) hardcoded in production code
+```
+
+---
+
+### Step 13 — CI/CD: Running Integration Tests
+```yaml
+# GitHub Actions — integration tests with Docker (Testcontainers uses Docker socket)
+- name: Run Integration Tests
+  run: dotnet test tests/YourProject.IntegrationTests --no-build
+  env:
+    DOCKER_HOST: unix:///var/run/docker.sock    # Linux runners have Docker by default
+    TESTCONTAINERS_RYUK_DISABLED: "true"        # WHY: Ryuk (cleanup container) causes issues
+                                                 # in some CI environments
+
+# Azure DevOps
+- task: DotNetCoreCLI@2
+  displayName: 'Integration Tests'
+  inputs:
+    command: 'test'
+    projects: '**/*IntegrationTests*.csproj'
+  env:
+    DOCKER_HOST: unix:///var/run/docker.sock
+```
+
+---
 
 ### WebApplicationFactory — Full HTTP Pipeline Testing
 ```csharp
@@ -1642,13 +3234,25 @@ Integration tests:
 ## 6. Modular Monolith Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  MENTAL MODEL: Modular Monolith = Microservices in One Process │
-│  Strong module boundaries enforced at compile time             │
-│  Modules communicate via in-process messaging, not HTTP        │
-│  Can extract a module to a service when needed                 │
-│  "Deploy as one, design as many"                               │
-└─────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│  MENTAL MODEL: Modular Monolith = Microservices in One Process   │
+│                                                                  │
+│  Traditional monolith: one big ball of mud, everything touches  │
+│                         everything, can't change without fear   │
+│                                                                  │
+│  Microservices: fully isolated, but distributed system tax      │
+│                 (network failures, distributed tracing, devops) │
+│                                                                  │
+│  Modular Monolith: strong domain BOUNDARIES like microservices  │
+│                    but ONE process, NO network between modules  │
+│                    "Pay domain tax, not distributed systems tax"│
+│                                                                  │
+│  Key rules:                                                      │
+│  1. Each module owns its DB schema — NO cross-module table joins │
+│  2. Cross-module calls only via events / public module API      │
+│  3. Boundaries enforced by architecture tests (NetArchTest)     │
+│  4. "Deploy as one, design as many"                             │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 ### Architecture Diagram
@@ -1819,26 +3423,511 @@ public void Modules_ShouldOnlyCommunicate_ViaSharedKernel()
 }
 ```
 
+---
+
+### Domain Layer — Aggregate Roots, Value Objects, Domain Events
+```csharp
+// ── Aggregate Root (Orders.Domain) ──────────────────────────────
+// WHY: Aggregate Root is the consistency boundary. ALL changes to
+//      the aggregate go through the root. No one else touches internals.
+
+public class Order : AggregateRoot                  // base class holds domain events
+{
+    public Guid Id { get; private set; }
+    public string CustomerId { get; private set; } = default!;
+    public Money TotalAmount { get; private set; } = default!;
+    public OrderStatus Status { get; private set; }
+    private readonly List<OrderLine> _lines = [];
+    public IReadOnlyList<OrderLine> Lines => _lines.AsReadOnly();
+
+    private Order() { }  // WHY: EF Core needs parameterless ctor (private = not public API)
+
+    // Factory method = the ONLY way to create an Order
+    public static Order Create(string customerId, IReadOnlyList<OrderLineInput> inputs)
+    {
+        if (!inputs.Any()) throw new DomainException("Order must have at least one line");
+
+        var order = new Order
+        {
+            Id = Guid.NewGuid(),
+            CustomerId = customerId,
+            Status = OrderStatus.Pending
+        };
+        foreach (var i in inputs)
+            order._lines.Add(OrderLine.Create(i.Sku, i.Quantity, i.Price));
+
+        order.TotalAmount = Money.From(order._lines.Sum(l => l.LineTotal.Amount));
+
+        // Raise domain event — will be dispatched AFTER SaveChanges
+        order.AddDomainEvent(new OrderCreatedEvent(order.Id, customerId, order.TotalAmount));
+        return order;
+    }
+
+    public void Cancel(string reason)
+    {
+        if (Status != OrderStatus.Pending)
+            throw new DomainException($"Cannot cancel order in status {Status}");
+        Status = OrderStatus.Cancelled;
+        AddDomainEvent(new OrderCancelledEvent(Id, reason));
+    }
+}
+
+// ── Value Object (immutable, compared by value not reference) ────
+public record Money(decimal Amount, string Currency)
+{
+    public static Money From(decimal amount, string currency = "USD")
+    {
+        if (amount < 0) throw new DomainException("Money cannot be negative");
+        return new Money(amount, currency);
+    }
+    public Money Add(Money other)
+    {
+        if (Currency != other.Currency) throw new DomainException("Currency mismatch");
+        return new Money(Amount + other.Amount, Currency);
+    }
+}
+
+// ── AggregateRoot base (SharedKernel) ───────────────────────────
+public abstract class AggregateRoot
+{
+    private readonly List<IDomainEvent> _events = [];
+    public IReadOnlyList<IDomainEvent> DomainEvents => _events.AsReadOnly();
+    protected void AddDomainEvent(IDomainEvent @event) => _events.Add(@event);
+    public void ClearDomainEvents() => _events.Clear();
+}
+
+// ── Domain Event ─────────────────────────────────────────────────
+public record OrderCreatedEvent(Guid OrderId, string CustomerId, Money Total)
+    : IDomainEvent
+{
+    public Guid EventId { get; } = Guid.NewGuid();
+    public DateTime OccurredAt { get; } = DateTime.UtcNow;
+}
+```
+
+---
+
+### Application Layer — CQRS with MediatR (Commands & Queries)
+```csharp
+// ── COMMAND: side effect, returns Result (not data) ──────────────
+public record CreateOrderCommand(string CustomerId, List<OrderLineInput> Items)
+    : IRequest<Result<Guid>>;
+
+public class CreateOrderCommandHandler
+    : IRequestHandler<CreateOrderCommand, Result<Guid>>
+{
+    private readonly IOrderRepository _repo;
+    private readonly IUnitOfWork _uow;
+
+    public async Task<Result<Guid>> Handle(
+        CreateOrderCommand cmd, CancellationToken ct)
+    {
+        var order = Order.Create(cmd.CustomerId, cmd.Items);
+        await _repo.AddAsync(order, ct);
+        await _uow.CommitAsync(ct);          // SaveChanges + dispatch domain events
+        return Result.Success(order.Id);
+    }
+}
+
+// ── QUERY: no side effects, returns data ─────────────────────────
+public record GetOrderQuery(Guid OrderId) : IRequest<Result<OrderDto>>;
+
+public class GetOrderQueryHandler : IRequestHandler<GetOrderQuery, Result<OrderDto>>
+{
+    private readonly IOrderReadRepository _read;   // WHY: separate read repo = no EF tracking
+
+    public async Task<Result<OrderDto>> Handle(GetOrderQuery q, CancellationToken ct)
+    {
+        var order = await _read.GetByIdAsync(q.OrderId, ct);
+        if (order is null) return Result.NotFound<OrderDto>($"Order {q.OrderId} not found");
+        return Result.Success(order.ToDto());
+    }
+}
+
+// ── API endpoint wires to commands ───────────────────────────────
+// Orders.API/OrderEndpoints.cs
+public static class OrderEndpoints
+{
+    public static void MapOrderEndpoints(this IEndpointRouteBuilder app)
+    {
+        var group = app.MapGroup("/api/orders").RequireAuthorization();
+
+        group.MapPost("/", async (CreateOrderRequest req,
+            ISender sender, CancellationToken ct) =>
+        {
+            var cmd = new CreateOrderCommand(req.CustomerId, req.Items);
+            var result = await sender.Send(cmd, ct);
+            return result.IsSuccess
+                ? Results.Created($"/api/orders/{result.Value}", result.Value)
+                : Results.BadRequest(result.Error);
+        });
+
+        group.MapGet("/{id:guid}", async (Guid id, ISender sender, CancellationToken ct) =>
+        {
+            var result = await sender.Send(new GetOrderQuery(id), ct);
+            return result.IsSuccess ? Results.Ok(result.Value) : Results.NotFound();
+        });
+    }
+}
+```
+
+---
+
+### Pipeline Behaviors — Validation, Logging, Unit of Work
+```csharp
+// Pipeline behaviors wrap EVERY command/query — like middleware for MediatR
+// Request → [LoggingBehavior] → [ValidationBehavior] → [Handler]
+
+// ── 1. Logging Behavior ──────────────────────────────────────────
+public class LoggingBehavior<TRequest, TResponse>
+    : IPipelineBehavior<TRequest, TResponse>
+    where TRequest : notnull
+{
+    private readonly ILogger<LoggingBehavior<TRequest, TResponse>> _logger;
+
+    public async Task<TResponse> Handle(TRequest request,
+        RequestHandlerDelegate<TResponse> next, CancellationToken ct)
+    {
+        var name = typeof(TRequest).Name;
+        _logger.LogInformation("Handling {Request}: {@Payload}", name, request);
+        var sw = Stopwatch.StartNew();
+        var response = await next();
+        _logger.LogInformation("Handled {Request} in {Elapsed}ms", name, sw.ElapsedMilliseconds);
+        return response;
+    }
+}
+
+// ── 2. Validation Behavior (FluentValidation) ────────────────────
+public class ValidationBehavior<TRequest, TResponse>
+    : IPipelineBehavior<TRequest, TResponse>
+    where TRequest : notnull
+{
+    private readonly IEnumerable<IValidator<TRequest>> _validators;
+
+    public async Task<TResponse> Handle(TRequest request,
+        RequestHandlerDelegate<TResponse> next, CancellationToken ct)
+    {
+        if (!_validators.Any()) return await next();
+
+        var context = new ValidationContext<TRequest>(request);
+        var failures = _validators
+            .Select(v => v.Validate(context))
+            .SelectMany(r => r.Errors)
+            .Where(f => f != null)
+            .ToList();
+
+        if (failures.Any())
+            throw new ValidationException(failures);    // caught by exception middleware
+
+        return await next();
+    }
+}
+
+// Validator (defined next to the command, in Application layer)
+public class CreateOrderCommandValidator : AbstractValidator<CreateOrderCommand>
+{
+    public CreateOrderCommandValidator()
+    {
+        RuleFor(x => x.CustomerId).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.Items).NotEmpty().WithMessage("Order must have at least one item");
+        RuleForEach(x => x.Items).ChildRules(item =>
+        {
+            item.RuleFor(i => i.Sku).NotEmpty();
+            item.RuleFor(i => i.Quantity).GreaterThan(0);
+            item.RuleFor(i => i.Price).GreaterThan(0);
+        });
+    }
+}
+
+// ── 3. Unit of Work Behavior ─────────────────────────────────────
+// Wraps commands in a transaction + dispatches domain events after SaveChanges
+public class UnitOfWorkBehavior<TRequest, TResponse>
+    : IPipelineBehavior<TRequest, TResponse>
+    where TRequest : ICommand  // marker interface — only for commands, not queries
+{
+    private readonly AppDbContext _db;
+    private readonly IDomainEventDispatcher _dispatcher;
+
+    public async Task<TResponse> Handle(TRequest request,
+        RequestHandlerDelegate<TResponse> next, CancellationToken ct)
+    {
+        var result = await next();                   // run the command handler
+
+        // Collect all domain events from tracked aggregates
+        var aggregates = _db.ChangeTracker.Entries<AggregateRoot>()
+            .Where(e => e.Entity.DomainEvents.Any())
+            .Select(e => e.Entity)
+            .ToList();
+
+        var events = aggregates.SelectMany(a => a.DomainEvents).ToList();
+        aggregates.ForEach(a => a.ClearDomainEvents());
+
+        await _db.SaveChangesAsync(ct);              // persist to DB
+
+        // Dispatch events AFTER successful save
+        foreach (var @event in events)
+            await _dispatcher.DispatchAsync(@event, ct);
+
+        return result;
+    }
+}
+
+// Register in module:
+services.AddMediatR(cfg =>
+{
+    cfg.RegisterServicesFromAssembly(typeof(OrdersModule).Assembly);
+    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
+    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(UnitOfWorkBehavior<,>));
+});
+```
+
+---
+
+### Outbox Pattern — Reliable Domain Event Dispatch
+```
+WHY: If you publish events BEFORE SaveChanges → save fails → event already sent (phantom event)
+     If you publish events AFTER SaveChanges  → publish fails → event lost (data inconsistency)
+     Outbox: save events IN SAME TRANSACTION as data, publish separately → guaranteed at-least-once
+
+┌───────────────────────────────────────────────────────────────────────┐
+│  Request                                                              │
+│    → Command Handler creates Order + adds event to OutboxMessages     │
+│    → SaveChanges (Order + OutboxMessage in ONE DB transaction)        │
+│                                                                       │
+│  Background Worker (OutboxProcessor runs every 5s)                   │
+│    → SELECT * FROM OutboxMessages WHERE ProcessedAt IS NULL           │
+│    → Publish to MediatR / Service Bus                                 │
+│    → UPDATE OutboxMessages SET ProcessedAt = NOW()                    │
+└───────────────────────────────────────────────────────────────────────┘
+```
+```csharp
+// ── 1. OutboxMessage entity ──────────────────────────────────────
+public class OutboxMessage
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Type { get; set; } = default!;        // fully qualified event type name
+    public string Payload { get; set; } = default!;     // JSON serialized event
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? ProcessedAt { get; set; }           // null = not yet processed
+    public string? Error { get; set; }
+}
+
+// ── 2. Add to DbContext ──────────────────────────────────────────
+public class AppDbContext : DbContext
+{
+    public DbSet<Order> Orders => Set<Order>();
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+}
+
+// ── 3. Intercept SaveChanges to write events to Outbox ───────────
+// In UnitOfWorkBehavior — before SaveChanges:
+var domainEvents = GetAllDomainEvents(_db);
+foreach (var @event in domainEvents)
+{
+    _db.OutboxMessages.Add(new OutboxMessage
+    {
+        Type = @event.GetType().AssemblyQualifiedName!,
+        Payload = JsonSerializer.Serialize(@event, @event.GetType())
+    });
+}
+await _db.SaveChangesAsync(ct);   // events + data in one transaction
+
+// ── 4. Background processor (Hangfire or IHostedService) ─────────
+public class OutboxProcessor : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            await ProcessOutboxAsync(ct);
+            await Task.Delay(TimeSpan.FromSeconds(5), ct);
+        }
+    }
+
+    private async Task ProcessOutboxAsync(CancellationToken ct)
+    {
+        using var scope = _services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var publisher = scope.ServiceProvider.GetRequiredService<IPublisher>();
+
+        var messages = await db.OutboxMessages
+            .Where(m => m.ProcessedAt == null)
+            .OrderBy(m => m.CreatedAt)
+            .Take(20)                                     // process in batches
+            .ToListAsync(ct);
+
+        foreach (var msg in messages)
+        {
+            try
+            {
+                var type = Type.GetType(msg.Type)!;
+                var @event = (IDomainEvent)JsonSerializer.Deserialize(msg.Payload, type)!;
+                await publisher.Publish(@event, ct);      // in-process dispatch
+                msg.ProcessedAt = DateTime.UtcNow;
+            }
+            catch (Exception ex)
+            {
+                msg.Error = ex.Message;                   // dead-letter: mark failed
+            }
+        }
+        await db.SaveChangesAsync(ct);
+    }
+}
+```
+
+---
+
+### Module Public API — Contracts Between Modules
+```csharp
+// ── Problem: Billing needs to know if an Order exists ────────────
+// BAD: Billing.Application references Orders.Infrastructure.OrderRepository
+// GOOD: Orders module exposes a contract (interface) in SharedKernel
+
+// SharedKernel/Contracts/IOrderFacade.cs
+public interface IOrderFacade
+{
+    Task<OrderSummary?> GetOrderSummaryAsync(Guid orderId, CancellationToken ct = default);
+}
+
+// record in SharedKernel — value object safe to share
+public record OrderSummary(Guid Id, string CustomerId, decimal Total, string Status);
+
+// Orders.Infrastructure implements the facade
+public class OrderFacade : IOrderFacade
+{
+    private readonly OrdersDbContext _db;
+    public async Task<OrderSummary?> GetOrderSummaryAsync(Guid orderId, CancellationToken ct)
+    {
+        return await _db.Orders
+            .Where(o => o.Id == orderId)
+            .Select(o => new OrderSummary(o.Id, o.CustomerId, o.TotalAmount.Amount, o.Status.ToString()))
+            .FirstOrDefaultAsync(ct);
+    }
+}
+
+// Billing can now use IOrderFacade — no direct DB dependency
+public class GenerateInvoiceHandler : IRequestHandler<GenerateInvoiceCommand>
+{
+    private readonly IOrderFacade _orders;   // registered by Orders module
+    public async Task Handle(GenerateInvoiceCommand cmd, CancellationToken ct)
+    {
+        var order = await _orders.GetOrderSummaryAsync(cmd.OrderId, ct)
+            ?? throw new NotFoundException($"Order {cmd.OrderId}");
+        // ... generate invoice
+    }
+}
+```
+
+---
+
+### EF Core Per-Module: Separate DbContext + Schema
+```csharp
+// Orders module gets its own DbContext — COMPLETELY isolated from Billing.DbContext
+public class OrdersDbContext : DbContext
+{
+    public OrdersDbContext(DbContextOptions<OrdersDbContext> options) : base(options) { }
+
+    public DbSet<Order> Orders => Set<Order>();
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+
+    protected override void OnModelCreating(ModelBuilder model)
+    {
+        model.HasDefaultSchema("orders");           // WHY: schema isolation in SQL Server
+
+        model.Entity<Order>(b =>
+        {
+            b.ToTable("Orders");                    // orders.Orders
+            b.HasKey(o => o.Id);
+            b.Property(o => o.CustomerId).HasMaxLength(100).IsRequired();
+            b.OwnsOne(o => o.TotalAmount, m =>      // WHY: Money is a value object
+            {
+                m.Property(x => x.Amount).HasColumnName("TotalAmount").HasColumnType("decimal(18,2)");
+                m.Property(x => x.Currency).HasColumnName("Currency").HasMaxLength(3);
+            });
+            b.HasMany(o => o.Lines).WithOne()
+                .HasForeignKey("OrderId").OnDelete(DeleteBehavior.Cascade);
+        });
+    }
+}
+
+// Migrations are PER DbContext (separate migrations folder per module)
+// Orders: dotnet ef migrations add Init --context OrdersDbContext --output-dir Migrations/Orders
+// Billing: dotnet ef migrations add Init --context BillingDbContext --output-dir Migrations/Billing
+```
+
+---
+
+### Full Request Flow — Order to Billing (End to End)
+```
+Browser / API Client
+       │
+       ▼  POST /api/orders
+  ┌────────────────────────────────────────────────────┐
+  │  Orders.API — OrderEndpoints.MapPost               │
+  │  → ISender.Send(CreateOrderCommand)                │
+  └────────────────────┬───────────────────────────────┘
+                       │  MediatR pipeline:
+                       │  LoggingBehavior
+                       │  ValidationBehavior (FluentValidation)
+                       │  UnitOfWorkBehavior
+                       ▼
+  ┌────────────────────────────────────────────────────┐
+  │  CreateOrderCommandHandler                         │
+  │  → Order.Create(customerId, items)                 │
+  │  → order.AddDomainEvent(OrderCreatedEvent)         │
+  │  → _repo.AddAsync(order)                           │
+  └────────────────────┬───────────────────────────────┘
+                       │  UnitOfWorkBehavior:
+                       │  → writes OrderCreatedEvent → OutboxMessages
+                       │  → SaveChanges (Order + OutboxMessage in 1 TX)
+                       │  → Returns 201 Created to client
+                       │
+  ┌────────────────────▼───────────────────────────────┐
+  │  OutboxProcessor (background, 5s loop)             │
+  │  → reads OutboxMessages WHERE ProcessedAt IS NULL  │
+  │  → IPublisher.Publish(OrderCreatedEvent)           │
+  └────────────────────┬───────────────────────────────┘
+                       │  MediatR dispatches to ALL handlers:
+                       ▼
+  ┌─────────────────────────────┐  ┌─────────────────────────┐
+  │  Billing module             │  │  Notifications module   │
+  │  ChargeCustomerHandler      │  │  SendConfirmationEmail  │
+  │  → creates Invoice          │  │  → enqueues email       │
+  └─────────────────────────────┘  └─────────────────────────┘
+```
+
+---
+
 ### Modular Monolith vs Microservices vs Monolith
 | Dimension | Monolith | Modular Monolith | Microservices |
 |-----------|----------|-----------------|---------------|
 | Deployment | Single | Single | Per service |
 | DB | Shared schema | Separate schema per module | Separate DB per service |
-| Communication | Direct call | In-process events | HTTP/gRPC/queue |
+| Communication | Direct call | In-process events / facades | HTTP/gRPC/queue |
+| Cross-module join | Direct SQL JOIN | Facade or event-driven | API call |
 | Complexity | Low | Medium | High |
 | Scalability | Whole app | Whole app | Per service |
-| Best for | MVP / small teams | Growing teams, unclear boundaries | Large teams, proven boundaries |
+| Distributed tracing | Not needed | Not needed | Required |
+| Testing | Simple | Medium (DI isolation) | Complex (contracts) |
+| Best for | MVP / small teams | Growing teams, unclear bounds | Large teams, proven bounds |
 
 ### Key Interview Q&A
 
 **Q: How does a modular monolith differ from a clean architecture monolith?**
 > Clean Architecture is about **layer boundaries** (Domain → Application → Infrastructure). Modular Monolith is about **domain/feature boundaries** — each module is a vertical slice with its own layers. A modular monolith can use clean architecture within each module.
 
+**Q: What is the Outbox pattern and why do you need it?**
+> Without an outbox, you face the "dual write" problem: save to DB AND publish an event — if one fails, you get inconsistency. The Outbox writes events to the SAME DB transaction as data, then a background processor reliably publishes them separately. This gives at-least-once delivery without distributed transactions.
+
+**Q: How do modules communicate without sharing the DB?**
+> Two patterns: (1) **Facade** — one module exposes an `IOrderFacade` interface in SharedKernel; the other module's handler uses it via DI. (2) **Domain events** — modules subscribe to events via MediatR `INotificationHandler`. The Outbox pattern makes this reliable. No cross-module EF `DbContext` access ever.
+
 **Q: How do you prevent modules from sharing database tables?**
-> (1) Separate `DbContext` per module (different schema prefix: `orders.*`, `billing.*`). (2) Architecture tests (NetArchTest) that verify no cross-module EF `DbSet` access. (3) Each module owns migrations for its schema. (4) Read-only projections if one module needs another's data.
+> (1) Separate `DbContext` per module (different schema prefix: `orders.*`, `billing.*`). (2) Architecture tests (NetArchTest) that verify no cross-module EF `DbSet` access. (3) Each module owns migrations for its schema. (4) Read-only facade contracts if one module needs another's data.
 
 **Q: When would you extract a module into a microservice?**
-> When: (1) Module needs independent scaling (e.g., report generation is CPU-heavy). (2) Module needs a different deployment cadence. (3) Team ownership requires isolation. (4) Module would benefit from a different technology stack. The modular design makes extraction safer — the interface/event contracts are already defined.
+> When: (1) Module needs independent scaling. (2) Module needs a different deployment cadence. (3) Team ownership requires isolation. (4) Different tech stack. The modular design makes extraction MUCH safer — event contracts and interfaces are already defined.
 
 ---
 
@@ -2479,6 +4568,933 @@ function useAsync<T>(asyncFn: () => Promise<T>) {
     return { state, execute };
 }
 ```
+
+---
+
+### useMemo — Deep Dive
+
+```
+┌───────────────────────────────────────────────────────────────────┐
+│  MENTAL MODEL: useMemo = Spreadsheet cell with a formula         │
+│  Only recalculates when its inputs (dependencies) change.        │
+│  The rest of the time it returns the cached result.             │
+│                                                                   │
+│  Two purposes:                                                    │
+│  1. Skip expensive computation on every render                   │
+│  2. Preserve REFERENTIAL IDENTITY of objects/arrays              │
+│     (so React.memo children don't re-render)                     │
+└───────────────────────────────────────────────────────────────────┘
+```
+
+#### Purpose 1 — Skip Expensive Computation
+```tsx
+// PROBLEM: expensive filter/sort runs on EVERY render, even when
+// unrelated state changes (e.g., a modal opens, a counter ticks)
+function OrderDashboard({ orders, filters, theme }) {
+    // ❌ BAD — runs on every render
+    const filtered = orders
+        .filter(o => o.status === filters.status && o.total >= filters.minAmount)
+        .sort((a, b) => b.createdAt - a.createdAt);
+    // If orders = 50,000 items, this is heavy work every time theme changes.
+
+    return <div className={theme}><OrderTable data={filtered} /></div>;
+}
+
+// ✅ GOOD — only recomputes when orders or filters change
+function OrderDashboard({ orders, filters, theme }) {
+    const filtered = useMemo(
+        () => orders
+            .filter(o => o.status === filters.status && o.total >= filters.minAmount)
+            .sort((a, b) => b.createdAt - a.createdAt),
+        [orders, filters.status, filters.minAmount]  // ← NOT theme
+        // WHY: theme is not in deps → theme change skips this computation
+    );
+
+    return <div className={theme}><OrderTable data={filtered} /></div>;
+}
+```
+
+#### Purpose 2 — Referential Identity (The Hidden Power)
+```tsx
+// PROBLEM: object created inline gets a NEW reference on every render
+// even if values are the same → React.memo child always re-renders
+
+const ParentComponent = ({ userId }) => {
+    const [count, setCount] = useState(0);
+
+    // ❌ BAD — new object reference every render (count changes → new obj)
+    const apiConfig = { endpoint: '/api/orders', userId };
+    //  apiConfig === apiConfig (previous render) → FALSE (different reference)
+    //  React.memo(OrderList) sees new prop → re-renders even though userId unchanged
+
+    return (
+        <>
+            <button onClick={() => setCount(c => c + 1)}>{count}</button>
+            <OrderList config={apiConfig} />  {/* always re-renders! */}
+        </>
+    );
+};
+
+// ✅ GOOD — stable reference, only changes when userId changes
+const ParentComponent = ({ userId }) => {
+    const [count, setCount] = useState(0);
+
+    const apiConfig = useMemo(
+        () => ({ endpoint: '/api/orders', userId }),
+        [userId]  // same object reference until userId changes
+    );
+
+    return (
+        <>
+            <button onClick={() => setCount(c => c + 1)}>{count}</button>
+            <OrderList config={apiConfig} />  {/* skips re-render when count changes */}
+        </>
+    );
+};
+
+// Same problem with arrays:
+// ❌ BAD
+const columns = ['id', 'status', 'total'];  // new array every render
+
+// ✅ GOOD — if columns never change, define OUTSIDE the component
+const COLUMNS = ['id', 'status', 'total'];  // module-level constant
+
+// Or if columns depend on props:
+const columns = useMemo(
+    () => visibleFields.map(f => ({ key: f, label: t(f) })),
+    [visibleFields, t]
+);
+```
+
+#### The Dependency Array — Common Mistakes
+```tsx
+// MISTAKE 1: Missing dependency → stale value
+const total = useMemo(() => {
+    return items.reduce((sum, i) => sum + i.price * quantity, 0);
+    //                                              ^^^^^^^^
+}, [items]);  // ← quantity missing! Uses stale quantity from closure
+
+// FIX: include ALL variables from outer scope used inside
+const total = useMemo(() => {
+    return items.reduce((sum, i) => sum + i.price * quantity, 0);
+}, [items, quantity]);
+
+// MISTAKE 2: Object/function in deps → new reference every render → memo never hits
+const config = { pageSize: 10 };  // new object each render
+const result = useMemo(() => processData(data, config), [data, config]);
+// config is a new object every render → useMemo recomputes every time!
+
+// FIX: either destructure stable primitives or memoize the config too
+const { pageSize } = config;
+const result = useMemo(() => processData(data, pageSize), [data, pageSize]);
+
+// MISTAKE 3: Over-memoizing trivial computations
+// ❌ POINTLESS — comparison + memo overhead > computation cost
+const isValid = useMemo(() => name.length > 0, [name]);
+// FIX: just inline it
+const isValid = name.length > 0;
+
+// MISTAKE 4: Using useMemo for side effects
+// ❌ WRONG — useMemo is for values, not side effects
+useMemo(() => {
+    fetch('/api/log', { method: 'POST', body: JSON.stringify({ event: 'viewed' }) });
+}, [userId]);
+// FIX: use useEffect for side effects
+```
+
+#### When to Use vs NOT Use useMemo
+```
+USE useMemo when:
+✓ Computation > ~1ms (filter/sort/map on >1000 items, complex math)
+✓ Result is an object/array passed as prop to a React.memo component
+✓ Result is used as a dependency in useEffect or useCallback
+✓ Heavy chart/graph data transformations (D3, Recharts data prep)
+
+SKIP useMemo when:
+✗ Simple calculations (string concat, boolean check, field access)
+✗ Component renders infrequently anyway (<10 renders expected)
+✗ The value is a primitive (number, string) — primitives compare by value
+✗ You're not sure — profile first with React DevTools Profiler
+
+RULE: Profile before memoizing. Premature useMemo adds code complexity
+      and the memoization itself has overhead (closure + comparison).
+      useMemo shines when you MEASURE a render performance problem.
+```
+
+---
+
+### useCallback — Deep Dive
+
+```
+┌───────────────────────────────────────────────────────────────────┐
+│  MENTAL MODEL: useCallback = useMemo for functions               │
+│  useMemo(() => value, deps)    → memoized VALUE                  │
+│  useCallback(fn, deps)         → memoized FUNCTION REFERENCE     │
+│                                                                   │
+│  They are identical under the hood:                              │
+│  useCallback(fn, deps) === useMemo(() => fn, deps)              │
+│                                                                   │
+│  Purpose: give a STABLE function reference so child components   │
+│  wrapped in React.memo don't re-render just because the parent   │
+│  re-rendered (which would create a new function object).         │
+└───────────────────────────────────────────────────────────────────┘
+```
+
+#### The Core Problem It Solves
+```tsx
+// Why functions cause unnecessary re-renders:
+
+function ParentList({ items }) {
+    const [filter, setFilter] = useState('all');
+
+    // ❌ BAD: new function reference on every render (even filter unchanged)
+    const handleDelete = (id: string) => {
+        deleteItem(id);
+    };
+
+    return items.map(item =>
+        // React.memo on Row is USELESS — handleDelete is always new
+        <Row key={item.id} item={item} onDelete={handleDelete} />
+    );
+}
+
+// ✅ GOOD: stable reference — only changes if deleteItem changes
+function ParentList({ items }) {
+    const [filter, setFilter] = useState('all');
+
+    const handleDelete = useCallback((id: string) => {
+        deleteItem(id);
+    }, [deleteItem]);  // ← only recreate if deleteItem changes
+
+    return items.map(item =>
+        // Now React.memo on Row actually works — same function reference
+        <Row key={item.id} item={item} onDelete={handleDelete} />
+    );
+}
+
+const Row = React.memo(({ item, onDelete }: RowProps) => {
+    console.log('Row rendered:', item.id);  // only logs when item or onDelete changes
+    return <button onClick={() => onDelete(item.id)}>{item.name}</button>;
+});
+```
+
+#### The Stale Closure Problem — The Most Common Bug
+```tsx
+// PROBLEM: function captures value from render at the time it was created
+function Counter() {
+    const [count, setCount] = useState(0);
+
+    // ❌ BAD: handleClick closes over the INITIAL count (0)
+    //         useCallback with [] deps → created once → always sees count = 0
+    const handleClick = useCallback(() => {
+        setCount(count + 1);  // count is stale — always 0!
+    }, []);  // ← count not in deps → stale closure
+
+    // After 3 clicks: count still shows 1, not 3!
+}
+
+// ✅ FIX 1: Add count to dependencies (function recreated when count changes)
+const handleClick = useCallback(() => {
+    setCount(count + 1);
+}, [count]);  // ← now captures current count, but function recreates often
+
+// ✅ FIX 2: Functional update (BEST — no stale closure, stable reference)
+const handleClick = useCallback(() => {
+    setCount(prev => prev + 1);  // ← always gets latest state, NO dep needed
+}, []);  // stable reference + correct value ← this is the right pattern
+
+// ✅ FIX 3: useRef for values you need in callback but don't want as deps
+function useEventCallback<T extends (...args: any[]) => any>(fn: T): T {
+    const ref = useRef(fn);
+    useLayoutEffect(() => { ref.current = fn; });  // always points to latest fn
+    return useCallback((...args: any[]) => ref.current(...args), []) as T;
+}
+// Usage: const stableHandler = useEventCallback(expensiveCallback);
+// → stable reference, always calls latest version — useful for event handlers
+```
+
+#### useCallback with useEffect Dependencies — Avoiding Infinite Loops
+```tsx
+// PROBLEM: function in useEffect deps → recreated on render → effect runs → state changes → render → loop
+function SearchComponent({ query }) {
+    const [results, setResults] = useState([]);
+
+    // ❌ BAD: fetchResults is new every render → useEffect runs every render
+    const fetchResults = async () => {
+        const data = await api.search(query);
+        setResults(data);
+    };
+
+    useEffect(() => {
+        fetchResults();
+    }, [fetchResults]);  // ← new function every render → infinite loop!
+}
+
+// ✅ FIX 1: useCallback stabilizes fetchResults
+function SearchComponent({ query }) {
+    const [results, setResults] = useState([]);
+
+    const fetchResults = useCallback(async () => {
+        const data = await api.search(query);
+        setResults(data);
+    }, [query]);  // ← only recreates when query changes (correct!)
+
+    useEffect(() => {
+        fetchResults();
+    }, [fetchResults]);  // ← runs only when query changes, no loop
+}
+
+// ✅ FIX 2 (simpler): inline the function inside useEffect (eliminate useCallback)
+function SearchComponent({ query }) {
+    const [results, setResults] = useState([]);
+
+    useEffect(() => {
+        const fetchResults = async () => {
+            const data = await api.search(query);
+            setResults(data);
+        };
+        fetchResults();
+    }, [query]);  // ← query is primitive → React compares by value, no loop
+    // WHY: if function isn't used outside useEffect, no need to hoist it out
+}
+```
+
+#### Practical useCallback Patterns
+```tsx
+// Pattern 1: Stable event handlers for large lists
+function OrderTable({ orders }: { orders: Order[] }) {
+    const [selectedId, setSelectedId] = useState<string | null>(null);
+
+    // Without useCallback: new fn every render → all 1000 OrderRow re-render
+    // With useCallback: stable fn → only clicked row re-renders (if memo'd)
+    const handleSelect = useCallback((id: string) => {
+        setSelectedId(id);
+    }, []);  // ← no deps: setSelectedId from useState is always stable
+
+    return orders.map(o =>
+        <OrderRow key={o.id} order={o} onSelect={handleSelect} isSelected={o.id === selectedId} />
+    );
+}
+
+// Pattern 2: Callbacks passed to custom hooks
+function useOrderActions(orderId: string) {
+    const approve = useCallback(async () => {
+        await api.approveOrder(orderId);
+    }, [orderId]);  // recreates only when orderId changes
+
+    const reject = useCallback(async (reason: string) => {
+        await api.rejectOrder(orderId, reason);
+    }, [orderId]);
+
+    return { approve, reject };
+}
+
+// Pattern 3: Debounced search with useCallback
+function SearchBar({ onSearch }: { onSearch: (q: string) => void }) {
+    // Memoize the debounced function so it's not recreated on each render
+    const debouncedSearch = useCallback(
+        debounce((query: string) => onSearch(query), 300),
+        [onSearch]  // stable if parent wrapped onSearch in useCallback
+    );
+
+    return <input onChange={e => debouncedSearch(e.target.value)} />;
+}
+
+// Pattern 4: useCallback with parameters via closure
+function TodoList({ todos }: { todos: Todo[] }) {
+    const handleToggle = useCallback((id: string) => {
+        // id captured in closure from each call-site
+        dispatch({ type: 'TOGGLE', payload: id });
+    }, [dispatch]);  // dispatch from useReducer is always stable
+
+    return todos.map(todo => (
+        <TodoItem
+            key={todo.id}
+            todo={todo}
+            onToggle={() => handleToggle(todo.id)}  // ← ⚠️ this creates new fn
+            // Better: pass handleToggle and have TodoItem call it with own id
+            onToggle={handleToggle}  // ← TodoItem calls: onToggle(todo.id)
+        />
+    ));
+}
+```
+
+#### useMemo vs useCallback vs React.memo — The Full Picture
+```
+┌──────────────────┬──────────────────────────┬───────────────────────────────────────┐
+│                  │ What it memoizes         │ When to use                           │
+├──────────────────┼──────────────────────────┼───────────────────────────────────────┤
+│ useMemo          │ A computed VALUE          │ Expensive computation, referentially  │
+│                  │ (any JS value)            │ stable object/array for child props   │
+├──────────────────┼──────────────────────────┼───────────────────────────────────────┤
+│ useCallback      │ A FUNCTION reference      │ Handler passed to React.memo child,   │
+│                  │                          │ function used as useEffect dependency  │
+├──────────────────┼──────────────────────────┼───────────────────────────────────────┤
+│ React.memo       │ A COMPONENT's output      │ Child component re-renders too often, │
+│                  │ (skips re-render)         │ props are stable (primitives or memo'd)│
+└──────────────────┴──────────────────────────┴───────────────────────────────────────┘
+
+They work TOGETHER:
+  React.memo(Child)         → only re-renders if props change (by reference)
+  useCallback(fn, [])       → stable function ref → React.memo sees same prop
+  useMemo(() => obj, [dep]) → stable object ref  → React.memo sees same prop
+
+If you use React.memo WITHOUT useCallback/useMemo on parent functions/objects:
+  React.memo is useless — the prop reference always changes.
+
+CORRECT SEQUENCE:
+  1. Measure with React DevTools Profiler (is this component actually slow?)
+  2. If yes: wrap in React.memo
+  3. If parent passes functions → wrap those in useCallback
+  4. If parent passes objects/arrays → wrap those in useMemo
+```
+
+---
+
+### Redux Toolkit (RTK) — Complete Guide
+
+```
+┌───────────────────────────────────────────────────────────────────┐
+│  MENTAL MODEL: Redux = Single Source of Truth                    │
+│  All app state in ONE store (a big JavaScript object)           │
+│  State is READ-ONLY — only actions can change it                │
+│  Reducers = pure functions: (state, action) → newState          │
+│                                                                   │
+│  Redux Toolkit = Redux + Immer + Thunk + DevTools baked in      │
+│  "Redux without the boilerplate"                                 │
+│                                                                   │
+│  Data flow (unidirectional):                                     │
+│  UI → dispatch(action) → reducer → new state → UI re-renders   │
+└───────────────────────────────────────────────────────────────────┘
+```
+
+#### Core Architecture
+```
+Store
+├── ordersSlice    (state.orders)
+│   ├── state: { items[], status, error, filters }
+│   ├── reducers: setFilter, clearAll
+│   └── extraReducers: fetchOrders.pending/fulfilled/rejected
+│
+├── authSlice      (state.auth)
+│   ├── state: { user, token, isAuthenticated }
+│   └── reducers: setUser, logout
+│
+└── cartSlice      (state.cart)
+    ├── state: { items[], total }
+    └── reducers: addItem, removeItem, updateQty, clear
+```
+
+#### Step 1 — createSlice (Reducers + Actions in One)
+```tsx
+// npm install @reduxjs/toolkit react-redux
+
+import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+
+interface OrdersState {
+    items: Order[];
+    status: 'idle' | 'loading' | 'succeeded' | 'failed';
+    error: string | null;
+    filters: {
+        status: string;
+        dateRange: [string, string] | null;
+    };
+    selectedOrderId: string | null;
+}
+
+const initialState: OrdersState = {
+    items: [],
+    status: 'idle',
+    error: null,
+    filters: { status: 'all', dateRange: null },
+    selectedOrderId: null,
+};
+
+export const ordersSlice = createSlice({
+    name: 'orders',   // WHY: prefix for all action types: 'orders/setFilter'
+
+    initialState,
+
+    reducers: {
+        // WHY: Immer is built-in — you CAN "mutate" state here safely.
+        //      Immer intercepts mutations and produces immutable updates.
+
+        setFilter: (state, action: PayloadAction<Partial<OrdersState['filters']>>) => {
+            state.filters = { ...state.filters, ...action.payload };
+            // Looks like mutation but Immer makes this immutable internally
+        },
+
+        selectOrder: (state, action: PayloadAction<string | null>) => {
+            state.selectedOrderId = action.payload;
+        },
+
+        orderUpdated: (state, action: PayloadAction<Order>) => {
+            const idx = state.items.findIndex(o => o.id === action.payload.id);
+            if (idx !== -1) {
+                state.items[idx] = action.payload;  // Immer: direct assignment OK!
+            }
+        },
+
+        clearOrders: (state) => {
+            state.items = [];
+            state.status = 'idle';
+            state.error = null;
+        },
+
+        // Prepare callback: transform payload before it reaches reducer
+        orderAdded: {
+            reducer: (state, action: PayloadAction<Order>) => {
+                state.items.push(action.payload);
+            },
+            prepare: (order: Partial<Order>) => ({
+                payload: {
+                    id: crypto.randomUUID(),
+                    createdAt: new Date().toISOString(),
+                    status: 'Pending',
+                    ...order,
+                } as Order
+            })
+        }
+    },
+
+    // extraReducers: handle actions from OUTSIDE this slice (e.g., async thunks)
+    extraReducers: (builder) => {
+        builder
+            .addCase(fetchOrders.pending, (state) => {
+                state.status = 'loading';
+                state.error = null;
+            })
+            .addCase(fetchOrders.fulfilled, (state, action) => {
+                state.status = 'succeeded';
+                state.items = action.payload;           // replace entire list
+                // OR: upsert (add new, update existing):
+                // ordersAdapter.upsertMany(state, action.payload);
+            })
+            .addCase(fetchOrders.rejected, (state, action) => {
+                state.status = 'failed';
+                state.error = action.payload as string ?? action.error.message ?? 'Unknown error';
+            })
+            // Handle actions from OTHER slices
+            .addCase(authSlice.actions.logout, (state) => {
+                // Clear orders when user logs out
+                return initialState;  // OR: state.items = []
+            });
+    }
+});
+
+// Export actions (auto-generated from reducers object)
+export const { setFilter, selectOrder, orderUpdated, clearOrders, orderAdded } = ordersSlice.actions;
+
+// Export reducer (goes into store)
+export default ordersSlice.reducer;
+```
+
+#### Step 2 — createAsyncThunk (Async Actions)
+```tsx
+import { createAsyncThunk } from '@reduxjs/toolkit';
+
+// createAsyncThunk auto-generates 3 action types:
+//   'orders/fetchOrders/pending'
+//   'orders/fetchOrders/fulfilled'
+//   'orders/fetchOrders/rejected'
+
+export const fetchOrders = createAsyncThunk(
+    'orders/fetchOrders',          // action type prefix
+    async (filters: OrderFilters, thunkAPI) => {
+        try {
+            const response = await api.getOrders(filters);
+            return response.data;  // becomes action.payload in .fulfilled
+        } catch (err: any) {
+            // Return a rejected action with custom error payload
+            return thunkAPI.rejectWithValue(err.response?.data?.message ?? err.message);
+        }
+    },
+    {
+        // Prevent duplicate concurrent requests (if already fetching, skip)
+        condition: (_, { getState }) => {
+            const { orders } = getState() as RootState;
+            return orders.status !== 'loading';  // false = cancel this dispatch
+        }
+    }
+);
+
+// Thunk with multiple dispatches (for complex workflows)
+export const approveOrderWithNotification = createAsyncThunk(
+    'orders/approve',
+    async (orderId: string, { dispatch, getState }) => {
+        const order = await api.approveOrder(orderId);
+
+        // Dispatch other actions from within a thunk
+        dispatch(orderUpdated(order));
+        dispatch(notificationsSlice.actions.add({
+            type: 'success',
+            message: `Order ${orderId} approved`
+        }));
+
+        return order;
+    }
+);
+
+// Dispatch with result handling (in a component):
+const handleApprove = async (id: string) => {
+    const resultAction = await dispatch(approveOrderWithNotification(id));
+
+    if (approveOrderWithNotification.fulfilled.match(resultAction)) {
+        toast.success('Approved!');
+    } else {
+        toast.error(resultAction.error.message ?? 'Failed');
+    }
+};
+```
+
+#### Step 3 — configureStore
+```tsx
+// store/index.ts
+import { configureStore } from '@reduxjs/toolkit';
+import ordersReducer from './ordersSlice';
+import authReducer from './authSlice';
+import cartReducer from './cartSlice';
+import { ordersApi } from './ordersApiSlice';  // RTK Query (see below)
+
+export const store = configureStore({
+    reducer: {
+        orders: ordersReducer,
+        auth: authReducer,
+        cart: cartReducer,
+        [ordersApi.reducerPath]: ordersApi.reducer,  // RTK Query reducer
+    },
+
+    middleware: (getDefaultMiddleware) =>
+        getDefaultMiddleware({
+            // Customize serializability check (warn if non-serializable in state)
+            serializableCheck: {
+                ignoredActions: ['persist/PERSIST'],  // if using redux-persist
+            }
+        })
+        .concat(ordersApi.middleware)    // RTK Query middleware (cache, polling)
+        .concat(loggingMiddleware),      // custom middleware
+
+    devTools: process.env.NODE_ENV !== 'production',
+    // WHY: Redux DevTools — time-travel, action log, state diff
+    //      NEVER enable in production (exposes full state tree)
+});
+
+// TypeScript: infer types from store
+export type RootState = ReturnType<typeof store.getState>;
+export type AppDispatch = typeof store.dispatch;
+
+// Typed hooks (use THESE instead of raw useSelector/useDispatch)
+export const useAppSelector = useSelector.withTypes<RootState>();
+export const useAppDispatch = useDispatch.withTypes<AppDispatch>();
+```
+
+#### Step 4 — useSelector & useDispatch in Components
+```tsx
+// Typed selectors (always use typed versions)
+import { useAppSelector, useAppDispatch } from '../store';
+import { setFilter, fetchOrders, selectOrder } from '../store/ordersSlice';
+
+function OrderDashboard() {
+    const dispatch = useAppDispatch();
+
+    // ── useSelector — subscribe to slice of state ──────────────────────────
+    const orders = useAppSelector(state => state.orders.items);
+    const status = useAppSelector(state => state.orders.status);
+    const filters = useAppSelector(state => state.orders.filters);
+    const user = useAppSelector(state => state.auth.user);
+
+    // ── Memoized selector (avoid expensive recomputation) ──────────────────
+    // Re-runs only when orders or filters change (not on every selector call)
+    const filteredOrders = useAppSelector(state =>
+        state.orders.items.filter(o =>
+            filters.status === 'all' || o.status === filters.status
+        )
+    );
+    // ⚠️ Problem: inline function in useSelector creates new result array
+    //             every render → causes re-render of any component using it.
+    // Fix: use createSelector (see Selectors section below)
+
+    // ── Dispatch actions ────────────────────────────────────────────────────
+    useEffect(() => {
+        if (status === 'idle') {
+            dispatch(fetchOrders(filters));  // async thunk
+        }
+    }, [dispatch, status, filters]);
+
+    const handleFilterChange = (newFilter: string) => {
+        dispatch(setFilter({ status: newFilter }));  // sync action
+    };
+
+    const handleSelect = (id: string) => {
+        dispatch(selectOrder(id));
+    };
+
+    if (status === 'loading') return <Spinner />;
+    if (status === 'failed') return <Error />;
+
+    return (
+        <div>
+            <FilterBar value={filters.status} onChange={handleFilterChange} />
+            {filteredOrders.map(o =>
+                <OrderCard key={o.id} order={o} onClick={() => handleSelect(o.id)} />
+            )}
+        </div>
+    );
+}
+```
+
+#### Step 5 — createSelector (Memoized Selectors — Reselect)
+```tsx
+import { createSelector } from '@reduxjs/toolkit';  // reselect is built-in
+
+// WHY: useAppSelector with inline function = new array ref every call
+//      createSelector memoizes → only recomputes when inputs change
+
+// Input selectors (cheap, grab raw state)
+const selectAllOrders = (state: RootState) => state.orders.items;
+const selectFilter = (state: RootState) => state.orders.filters.status;
+const selectMinAmount = (state: RootState) => state.orders.filters.minAmount;
+
+// Output selector (expensive, memoized)
+export const selectFilteredOrders = createSelector(
+    [selectAllOrders, selectFilter, selectMinAmount],  // input selectors
+    (orders, statusFilter, minAmount) => {             // result function
+        // Only runs when orders, statusFilter, or minAmount change
+        return orders
+            .filter(o => statusFilter === 'all' || o.status === statusFilter)
+            .filter(o => o.total >= (minAmount ?? 0))
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }
+);
+
+// Selector with parameters (factory pattern)
+export const makeSelectOrdersByCustomer = () =>
+    createSelector(
+        [selectAllOrders, (_: RootState, customerId: string) => customerId],
+        (orders, customerId) => orders.filter(o => o.customerId === customerId)
+    );
+
+// Usage in component:
+function CustomerOrders({ customerId }: { customerId: string }) {
+    // Create selector instance PER component instance (not shared — avoids cache collision)
+    const selectOrdersByCustomer = useMemo(makeSelectOrdersByCustomer, []);
+    const orders = useAppSelector(state => selectOrdersByCustomer(state, customerId));
+    // ← memoized: only recomputes when state.orders.items or customerId changes
+}
+```
+
+#### Step 6 — RTK Query (Data Fetching Built Into Redux)
+```tsx
+// WHY: RTK Query = React Query but integrated with Redux store.
+//      Auto-generates hooks, caches responses, handles loading/error states,
+//      tags-based cache invalidation. For API-heavy apps with Redux already.
+
+import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+
+export const ordersApi = createApi({
+    reducerPath: 'ordersApi',    // key in Redux store
+    baseQuery: fetchBaseQuery({
+        baseUrl: '/api/',
+        // Auth header on every request:
+        prepareHeaders: (headers, { getState }) => {
+            const token = (getState() as RootState).auth.token;
+            if (token) headers.set('Authorization', `Bearer ${token}`);
+            return headers;
+        }
+    }),
+    tagTypes: ['Order', 'Customer'],  // for cache invalidation
+
+    endpoints: (builder) => ({
+        // ── GET (query) ────────────────────────────────────────────────────
+        getOrders: builder.query<Order[], OrderFilters>({
+            query: (filters) => ({
+                url: 'orders',
+                params: filters,
+            }),
+            providesTags: (result) =>
+                result
+                    ? [...result.map(({ id }) => ({ type: 'Order' as const, id })),
+                       { type: 'Order', id: 'LIST' }]
+                    : [{ type: 'Order', id: 'LIST' }],
+            // WHY: providesTags — tells RTK Query WHICH cache entries this
+            //      query populates. When invalidated, auto-refetch triggers.
+        }),
+
+        getOrderById: builder.query<Order, string>({
+            query: (id) => `orders/${id}`,
+            providesTags: (_, __, id) => [{ type: 'Order', id }],
+        }),
+
+        // ── POST/PUT/DELETE (mutation) ─────────────────────────────────────
+        createOrder: builder.mutation<Order, CreateOrderRequest>({
+            query: (body) => ({
+                url: 'orders',
+                method: 'POST',
+                body,
+            }),
+            invalidatesTags: [{ type: 'Order', id: 'LIST' }],
+            // WHY: invalidatesTags — after create, RTK Query auto-refetches
+            //      any query that providesTags matching 'Order LIST'.
+        }),
+
+        updateOrderStatus: builder.mutation<Order, { id: string; status: string }>({
+            query: ({ id, ...body }) => ({
+                url: `orders/${id}/status`,
+                method: 'PATCH',
+                body,
+            }),
+            invalidatesTags: (_, __, { id }) => [
+                { type: 'Order', id },           // invalidate this specific order
+                { type: 'Order', id: 'LIST' },   // invalidate the list
+            ],
+            // Optimistic update (show change immediately, rollback on error)
+            async onQueryStarted({ id, status }, { dispatch, queryFulfilled }) {
+                const patch = dispatch(
+                    ordersApi.util.updateQueryData('getOrders', undefined, (draft) => {
+                        const order = draft.find(o => o.id === id);
+                        if (order) order.status = status;
+                    })
+                );
+                try { await queryFulfilled; }
+                catch { patch.undo(); }  // rollback on error
+            }
+        }),
+
+        deleteOrder: builder.mutation<void, string>({
+            query: (id) => ({ url: `orders/${id}`, method: 'DELETE' }),
+            invalidatesTags: (_, __, id) => [{ type: 'Order', id }],
+        }),
+    })
+});
+
+// Auto-generated hooks (naming: use + endpoint name + Query/Mutation)
+export const {
+    useGetOrdersQuery,
+    useGetOrderByIdQuery,
+    useCreateOrderMutation,
+    useUpdateOrderStatusMutation,
+    useDeleteOrderMutation,
+} = ordersApi;
+
+// ── Usage in component ────────────────────────────────────────────────────
+function OrderList({ filters }: { filters: OrderFilters }) {
+    // Automatic: loading, error, caching, background refetch, deduplication
+    const {
+        data: orders,
+        isLoading,        // true ONLY on first load (no cached data)
+        isFetching,       // true on any fetch (including background refresh)
+        isError,
+        error,
+        refetch           // manually trigger refetch
+    } = useGetOrdersQuery(filters, {
+        pollingInterval: 30_000,    // auto-refetch every 30s
+        skip: !filters.customerId,  // don't fetch if no customerId
+        refetchOnMountOrArgChange: true,  // refetch if component remounts
+        selectFromResult: ({ data, ...rest }) => ({
+            // Transform/filter before component receives it (memoized):
+            data: data?.filter(o => o.priority === 'High'),
+            ...rest
+        })
+    });
+
+    const [updateStatus, { isLoading: isUpdating }] = useUpdateOrderStatusMutation();
+
+    const handleApprove = async (id: string) => {
+        try {
+            await updateStatus({ id, status: 'Approved' }).unwrap();
+            // .unwrap() → throws on error (instead of returning error object)
+            toast.success('Approved!');
+        } catch (err) {
+            toast.error('Failed to approve');
+        }
+    };
+
+    if (isLoading) return <Spinner />;
+    if (isError) return <Error message={error.toString()} />;
+
+    return (
+        <ul>
+            {orders?.map(o => (
+                <li key={o.id}>
+                    {o.id}
+                    <button onClick={() => handleApprove(o.id)} disabled={isUpdating}>
+                        Approve
+                    </button>
+                </li>
+            ))}
+        </ul>
+    );
+}
+```
+
+#### Redux Middleware — Custom Logging / Error Handling
+```tsx
+// Custom middleware (runs between dispatch and reducer)
+const loggingMiddleware = (store: MiddlewareAPI) => (next: Dispatch) => (action: Action) => {
+    console.group(action.type);
+    console.log('dispatching:', action);
+    const result = next(action);           // call next middleware / reducer
+    console.log('next state:', store.getState());
+    console.groupEnd();
+    return result;
+};
+
+const errorMiddleware = (store: MiddlewareAPI) => (next: Dispatch) => (action: Action) => {
+    if (action.type.endsWith('/rejected')) {
+        // Centralized error logging for all failed async thunks
+        const payload = (action as any).payload;
+        const error = (action as any).error;
+        Sentry.captureException(new Error(payload ?? error?.message), {
+            extra: { action: action.type }
+        });
+    }
+    return next(action);
+};
+```
+
+#### Redux Toolkit vs Zustand vs Context
+```
+┌─────────────────────┬──────────────────┬─────────────────┬───────────────────┐
+│ Criteria            │ Redux Toolkit    │ Zustand         │ Context API       │
+├─────────────────────┼──────────────────┼─────────────────┼───────────────────┤
+│ Boilerplate         │ Medium (RTK low) │ Very low        │ Low               │
+│ Bundle size         │ ~12KB            │ ~1KB            │ 0 (built-in)      │
+│ DevTools            │ Excellent        │ Good            │ Basic             │
+│ Time-travel debug   │ Yes              │ Yes (middleware) │ No                │
+│ Async actions       │ createAsyncThunk │ Manual/async fn  │ Manual useEffect  │
+│ Data fetching       │ RTK Query        │ Needs React Query│ Needs React Query │
+│ Learning curve      │ High             │ Very Low        │ Low               │
+│ Team convention     │ Forces patterns  │ Flexible        │ Flexible          │
+│ Best for            │ Large teams,     │ Medium apps,    │ Auth/theme/locale │
+│                     │ complex flows,   │ quick state,    │ low-freq updates  │
+│                     │ enterprise       │ small teams     │                   │
+└─────────────────────┴──────────────────┴─────────────────┴───────────────────┘
+
+DECISION RULE:
+  New project + small team → Zustand + React Query
+  Enterprise + large team + already using Redux → Redux Toolkit + RTK Query
+  Auth/theme only → Context API
+  Never mix Redux + React Query for the same data (pick one)
+```
+
+#### Redux Interview Q&A
+
+**Q: What is the difference between a reducer and an action?**
+> An **action** is a plain object `{ type: string, payload?: any }` — it describes WHAT happened ("order approved"). A **reducer** is a pure function `(state, action) => newState` — it describes HOW state changes in response. Actions are dispatched by the UI; reducers handle them.
+
+**Q: Why must reducers be pure functions?**
+> Redux DevTools time-travel works by replaying actions through reducers. If reducers have side effects (API calls, random values, Date.now()), replaying produces different results — time-travel breaks. Pure functions: same input → always same output, no side effects.
+
+**Q: What does Immer do in Redux Toolkit?**
+> Immer wraps your reducer with a Proxy that intercepts "mutations". When you write `state.items.push(newItem)` in a slice reducer, Immer records the mutation and produces a new immutable state object. The original state is never modified. This eliminates the spread-heavy `{ ...state, items: [...state.items, newItem] }` pattern.
+
+**Q: createSelector vs inline selector — why does it matter?**
+> `useAppSelector(s => s.orders.items.filter(...))` creates a new array reference every call → any component using this selector re-renders on EVERY state change (even unrelated). `createSelector` memoizes: if `s.orders.items` and filter params didn't change, returns the exact same array reference → no unnecessary re-render.
+
+**Q: RTK Query vs React Query — when to choose?**
+> RTK Query when you already use Redux and want your server state in the Redux store (single store for everything, shared cache between unrelated components via Redux, powerful DevTools integration). React Query when you want a lighter solution, don't need Redux for other state, or are using Zustand. Both solve the same problem — pick one, don't mix them for the same data.
+
+---
 
 ### Key Interview Q&A
 
