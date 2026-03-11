@@ -15,6 +15,539 @@
 
 ---
 
+## 🗺️ APIM Features Mindmap - Complete Overview
+
+```
+                                    ┌─────────────────────────────────────┐
+                                    │   AZURE API MANAGEMENT (APIM)      │
+                                    │     "Smart API Gateway"             │
+                                    └──────────────┬──────────────────────┘
+                                                   │
+                    ┌──────────────────────────────┼──────────────────────────────┐
+                    │                              │                              │
+            ┌───────▼────────┐            ┌───────▼────────┐            ┌────────▼───────┐
+            │   CORE ARCH    │            │   POLICY       │            │   ADVANCED     │
+            │   COMPONENTS   │            │   PIPELINE     │            │   FEATURES     │
+            └───────┬────────┘            └───────┬────────┘            └────────┬───────┘
+                    │                              │                              │
+        ┌───────────┼───────────┐                 │                              │
+        │           │           │                 │                              │
+        ▼           ▼           ▼                 │                              │
+  ┌─────────┐ ┌─────────┐ ┌─────────┐           │                              │
+  │ Gateway │ │ Mgmt    │ │ Dev     │           │                              │
+  │ Runtime │ │ Plane   │ │ Portal  │           │                              │
+  └─────────┘ └─────────┘ └─────────┘           │                              │
+                                                  │                              │
+                                                  │                              │
+════════════════════════════════════════════════════════════════════════════════════════════
+
+🔐 SECURITY & AUTHENTICATION
+│
+├─ JWT Validation
+│  ├─ Azure AD/Entra ID
+│  ├─ OAuth 2.0 / OpenID Connect
+│  ├─ Custom Token Validation
+│  ├─ Claim-based Authorization
+│  └─ Audience & Issuer Validation
+│
+├─ Rate Limiting & Quotas
+│  ├─ rate-limit-by-key (calls per period)
+│  ├─ quota-by-key (monthly limits)
+│  ├─ Key options: Subscription, IP, User, Custom
+│  └─ Bandwidth throttling
+│
+├─ IP Filtering
+│  ├─ Whitelist (allow)
+│  ├─ Blacklist (forbid)
+│  └─ IP ranges
+│
+├─ CORS (Cross-Origin)
+│  ├─ Allowed origins
+│  ├─ Allowed methods
+│  ├─ Allowed headers
+│  ├─ Exposed headers
+│  └─ Credentials support
+│
+├─ Authentication Methods
+│  ├─ Subscription Keys
+│  ├─ Client Certificates
+│  ├─ Managed Identity
+│  └─ Basic Auth
+│
+└─ Header Validation
+   ├─ check-header
+   └─ Required headers enforcement
+
+════════════════════════════════════════════════════════════════════════════════════════════
+
+🔄 TRANSFORMATION & ROUTING
+│
+├─ Request Transformation
+│  ├─ set-body (JSON/XML manipulation)
+│  ├─ set-header (add/modify/remove)
+│  ├─ set-query-parameter
+│  ├─ rewrite-uri (URL rewriting)
+│  ├─ SOAP ↔ REST conversion
+│  ├─ xml-to-json / json-to-xml
+│  └─ find-and-replace (string patterns)
+│
+├─ Response Transformation
+│  ├─ Body transformation
+│  ├─ Header manipulation
+│  ├─ Status code override
+│  ├─ Content filtering (remove sensitive)
+│  ├─ Data enrichment
+│  └─ Collection mapping
+│
+├─ Backend Routing
+│  ├─ set-backend-service (dynamic URL)
+│  ├─ Conditional routing (A/B, Canary)
+│  ├─ Environment-based routing
+│  ├─ Load balancing
+│  ├─ Service Fabric integration
+│  ├─ Dapr integration
+│  └─ Multi-backend aggregation
+│
+└─ Protocol Bridging
+   ├─ REST to SOAP
+   ├─ SOAP to REST
+   ├─ GraphQL to REST
+   └─ WebSocket support
+
+════════════════════════════════════════════════════════════════════════════════════════════
+
+⚡ PERFORMANCE & CACHING
+│
+├─ Response Caching
+│  ├─ cache-lookup (check cache)
+│  ├─ cache-store (save response)
+│  ├─ Cache key variations
+│  │  ├─ vary-by-header
+│  │  ├─ vary-by-query-parameter
+│  │  └─ vary-by-developer
+│  ├─ TTL configuration
+│  └─ cache-store-value / cache-lookup-value
+│
+├─ Request Optimization
+│  ├─ Compression
+│  ├─ Parallel external calls (send-request mode="new")
+│  └─ Request batching
+│
+└─ Backend Optimization
+   ├─ Connection pooling
+   ├─ Timeout management
+   └─ retry policy (exponential backoff)
+
+════════════════════════════════════════════════════════════════════════════════════════════
+
+🎯 POLICY PIPELINE (Request Flow)
+│
+├─ 1️⃣ INBOUND Policies (Before Backend)
+│  │
+│  ├─ Authentication & Authorization
+│  │  ├─ validate-jwt
+│  │  ├─ check-header
+│  │  └─ authentication-managed-identity
+│  │
+│  ├─ Rate Limiting & Quotas
+│  │  ├─ rate-limit-by-key
+│  │  └─ quota-by-key
+│  │
+│  ├─ Request Validation
+│  │  ├─ validate-content (OpenAPI schema)
+│  │  ├─ validate-parameters
+│  │  └─ validate-headers
+│  │
+│  ├─ Request Transformation
+│  │  ├─ set-body
+│  │  ├─ set-header
+│  │  ├─ set-query-parameter
+│  │  └─ rewrite-uri
+│  │
+│  ├─ Caching
+│  │  └─ cache-lookup
+│  │
+│  ├─ Security
+│  │  ├─ ip-filter
+│  │  └─ cors
+│  │
+│  ├─ External Calls
+│  │  └─ send-request (data enrichment)
+│  │
+│  └─ Routing
+│     └─ set-backend-service
+│
+├─ 2️⃣ BACKEND Policies (Request Forwarding)
+│  │
+│  ├─ forward-request (default)
+│  ├─ retry (fault tolerance)
+│  ├─ mock-response (testing)
+│  ├─ choose (conditional routing)
+│  └─ return-response (skip backend)
+│
+├─ 3️⃣ OUTBOUND Policies (After Backend)
+│  │
+│  ├─ Response Transformation
+│  │  ├─ set-body
+│  │  ├─ set-header
+│  │  ├─ set-status
+│  │  ├─ xml-to-json
+│  │  └─ find-and-replace
+│  │
+│  ├─ Caching
+│  │  └─ cache-store
+│  │
+│  ├─ Security
+│  │  ├─ Remove sensitive headers
+│  │  └─ Add security headers (HSTS, X-Frame-Options)
+│  │
+│  ├─ Response Enhancement
+│  │  ├─ jsonp
+│  │  └─ Add metadata
+│  │
+│  └─ Logging & Metrics
+│     ├─ log-to-eventhub
+│     ├─ emit-metric
+│     └─ set-variable
+│
+└─ 4️⃣ ON-ERROR Policies (Error Handling)
+   │
+   ├─ Error Detection
+   │  ├─ context.LastError.Reason
+   │  ├─ context.LastError.Message
+   │  ├─ context.LastError.Scope
+   │  └─ context.LastError.Section
+   │
+   ├─ Custom Error Responses
+   │  ├─ return-response
+   │  ├─ set-status
+   │  └─ set-body (error format)
+   │
+   ├─ Error Logging
+   │  └─ log-to-eventhub
+   │
+   └─ Circuit Breaker Pattern
+      └─ Cache-based state management
+
+════════════════════════════════════════════════════════════════════════════════════════════
+
+📊 MONITORING & OBSERVABILITY
+│
+├─ Built-in Analytics
+│  ├─ Request metrics
+│  ├─ Response times
+│  ├─ Error rates
+│  └─ API usage statistics
+│
+├─ Application Insights
+│  ├─ Distributed tracing
+│  ├─ Custom metrics (emit-metric)
+│  ├─ Performance monitoring
+│  └─ Dependency tracking
+│
+├─ Logging
+│  ├─ log-to-eventhub
+│  ├─ Request/response logging
+│  ├─ Audit trails
+│  └─ trace policy
+│
+├─ Correlation
+│  ├─ x-correlation-id
+│  ├─ context.RequestId
+│  └─ Distributed tracing headers
+│
+└─ Alerts & Notifications
+   ├─ Threshold alerts
+   ├─ Anomaly detection
+   └─ Health monitoring
+
+════════════════════════════════════════════════════════════════════════════════════════════
+
+🏗️ ADVANCED PATTERNS & SCENARIOS
+│
+├─ API Composition (Aggregation)
+│  ├─ Multiple send-request calls
+│  ├─ Parallel backend calls
+│  ├─ Response merging
+│  └─ BFF (Backend for Frontend) pattern
+│
+├─ Resilience Patterns
+│  ├─ Circuit Breaker
+│  ├─ Retry with exponential backoff
+│  ├─ Timeout management
+│  ├─ Fallback responses
+│  └─ Bulkhead isolation
+│
+├─ Deployment Patterns
+│  ├─ Blue-Green deployment
+│  ├─ Canary releases
+│  ├─ A/B testing
+│  ├─ Feature flags
+│  └─ Traffic splitting
+│
+├─ GraphQL Support
+│  ├─ GraphQL to REST mapping
+│  ├─ Query parsing
+│  └─ Response transformation
+│
+├─ WebSocket APIs
+│  ├─ Upgrade request validation
+│  ├─ Persistent connections
+│  └─ Bi-directional communication
+│
+├─ SOAP Services
+│  ├─ WSDL import
+│  ├─ SOAP passthrough
+│  └─ REST facade for SOAP
+│
+└─ Event-Driven Integration
+   ├─ Event Hub logging
+   ├─ Service Bus integration
+   └─ Event Grid triggers
+
+════════════════════════════════════════════════════════════════════════════════════════════
+
+🔧 CONFIGURATION & MANAGEMENT
+│
+├─ Policy Scopes (Inheritance)
+│  ├─ Global (All APIs)
+│  ├─ Product (Subscription tier)
+│  ├─ API (Specific API)
+│  └─ Operation (HTTP method/path)
+│
+├─ Policy Fragments
+│  ├─ Reusable policy blocks
+│  ├─ include-fragment
+│  └─ DRY principle
+│
+├─ Named Values
+│  ├─ Configuration storage
+│  ├─ Key Vault integration
+│  ├─ Secret management
+│  └─ {{named-value}} syntax
+│
+├─ Backend Configuration
+│  ├─ Backend entities
+│  ├─ Service URLs
+│  ├─ Certificates
+│  └─ Credentials
+│
+├─ API Versions & Revisions
+│  ├─ Version sets
+│  ├─ Header/query/path versioning
+│  ├─ Revisions (minor changes)
+│  └─ Version migration
+│
+├─ Products
+│  ├─ API grouping
+│  ├─ Subscription management
+│  ├─ Access control
+│  └─ Terms of use
+│
+└─ Developer Portal
+   ├─ API documentation
+   ├─ Interactive testing
+   ├─ Subscription self-service
+   └─ Code samples
+
+════════════════════════════════════════════════════════════════════════════════════════════
+
+🌐 INTEGRATION & CONNECTIVITY
+│
+├─ Azure Services Integration
+│  ├─ Azure AD/Entra ID (Authentication)
+│  ├─ Key Vault (Secrets)
+│  ├─ Application Insights (Monitoring)
+│  ├─ Event Hub (Logging)
+│  ├─ Service Bus (Messaging)
+│  ├─ Azure Functions (Backend)
+│  ├─ App Service (Backend)
+│  ├─ Logic Apps (Workflows)
+│  └─ Azure Monitor (Metrics)
+│
+├─ Managed Identity
+│  ├─ System-assigned
+│  ├─ User-assigned
+│  ├─ authentication-managed-identity
+│  └─ Backend authentication
+│
+├─ Virtual Network Integration
+│  ├─ Internal mode (private)
+│  ├─ External mode (public gateway)
+│  ├─ VNet injection
+│  └─ Private endpoints
+│
+├─ Service Fabric
+│  ├─ sf-service-instance-name
+│  ├─ Partition key routing
+│  └─ Microservices backend
+│
+├─ Dapr Integration
+│  ├─ dapr-app-id
+│  ├─ Service invocation
+│  └─ State management
+│
+└─ External Services
+   ├─ send-request (HTTP calls)
+   ├─ OAuth token acquisition
+   └─ Third-party APIs
+
+════════════════════════════════════════════════════════════════════════════════════════════
+
+📝 POLICY CONTEXT OBJECT (Available Variables)
+│
+├─ Request Properties
+│  ├─ context.Request.Method
+│  ├─ context.Request.Url (full URL)
+│  ├─ context.Request.Url.Path
+│  ├─ context.Request.Url.Query
+│  ├─ context.Request.Headers
+│  ├─ context.Request.Body.As<T>()
+│  ├─ context.Request.IpAddress
+│  ├─ context.Request.MatchedParameters
+│  └─ context.Request.Certificate
+│
+├─ Response Properties
+│  ├─ context.Response.StatusCode
+│  ├─ context.Response.StatusReason
+│  ├─ context.Response.Headers
+│  └─ context.Response.Body.As<T>()
+│
+├─ API & Product Info
+│  ├─ context.Api.Id / Name / Path
+│  ├─ context.Product.Name
+│  ├─ context.Operation.Id / Name / Method
+│  ├─ context.Subscription.Id / Key / Name
+│  └─ context.User.Id / Email
+│
+├─ Runtime Context
+│  ├─ context.RequestId (correlation)
+│  ├─ context.Deployment.Region
+│  ├─ context.Elapsed (TimeSpan)
+│  ├─ context.Variables (custom vars)
+│  └─ context.LastError (in on-error)
+│
+└─ Helper Methods
+   ├─ .AsJwt() (parse JWT)
+   ├─ .As<JObject>() (parse JSON)
+   ├─ .GetValueOrDefault()
+   └─ String manipulation methods
+
+════════════════════════════════════════════════════════════════════════════════════════════
+
+🎚️ APIM TIERS & CAPABILITIES
+│
+├─ Consumption (Serverless)
+│  ├─ Pay-per-execution
+│  ├─ Auto-scaling
+│  ├─ No SLA
+│  └─ No VNet support
+│
+├─ Developer (Dev/Test)
+│  ├─ Low cost
+│  ├─ No SLA
+│  ├─ Single unit
+│  └─ No production use
+│
+├─ Basic (Small Production)
+│  ├─ 99.95% SLA
+│  ├─ Up to 2 units
+│  ├─ No VNet
+│  └─ 1000 req/sec per unit
+│
+├─ Standard (Mid-size Production)
+│  ├─ 99.95% SLA
+│  ├─ Up to 4 units
+│  ├─ VNet support
+│  └─ 2500 req/sec per unit
+│
+└─ Premium (Enterprise)
+   ├─ 99.99% SLA (multi-region)
+   ├─ Unlimited units
+   ├─ Multi-region deployment
+   ├─ VNet injection
+   ├─ Self-hosted gateway
+   └─ 4000 req/sec per unit
+
+════════════════════════════════════════════════════════════════════════════════════════════
+
+💡 COMMON USE CASES & SCENARIOS
+│
+├─ API Security Gateway
+│  └─ JWT validation + Rate limiting + IP filtering
+│
+├─ Legacy Modernization
+│  └─ SOAP to REST transformation
+│
+├─ Multi-Backend Aggregation
+│  └─ BFF pattern with send-request
+│
+├─ API Monetization
+│  └─ Products + Quotas + Subscriptions
+│
+├─ A/B Testing & Canary
+│  └─ Conditional routing + Traffic splitting
+│
+├─ API Versioning
+│  └─ Header/path/query versioning
+│
+├─ Request/Response Logging
+│  └─ log-to-eventhub with PII masking
+│
+├─ Caching Layer
+│  └─ cache-lookup + cache-store
+│
+├─ Circuit Breaker
+│  └─ Cache-based state + retry logic
+│
+└─ API Facade
+   └─ Transform internal APIs to public contracts
+
+════════════════════════════════════════════════════════════════════════════════════════════
+
+🎯 QUICK DECISION TREE
+
+Need authentication? → validate-jwt
+Need rate limiting? → rate-limit-by-key
+Need to modify request? → set-body / set-header (inbound)
+Need to modify response? → set-body / set-header (outbound)
+Need caching? → cache-lookup (inbound) + cache-store (outbound)
+Need to call another service? → send-request
+Need routing logic? → choose + set-backend-service
+Need error handling? → on-error section
+Need logging? → log-to-eventhub / emit-metric
+Need to test without backend? → mock-response
+
+════════════════════════════════════════════════════════════════════════════════════════════
+```
+
+## 🧠 Memory Aids
+
+### **Acronym: "SMART CAPE"**
+- **S**ecurity (JWT, Rate Limits, CORS)
+- **M**onitoring (Logging, Metrics)
+- **A**uthentication (Tokens, Keys)
+- **R**outing (Backend selection)
+- **T**ransformation (Request/Response)
+- **C**aching (Performance)
+- **A**ggregation (Multi-backend)
+- **P**olicy Pipeline (Inbound→Backend→Outbound→Error)
+- **E**rror Handling (On-Error section)
+
+### **Policy Flow: "I BEO"** *(I Be Out)*
+1. **I**nbound (before backend)
+2. **B**ackend (forwarding)
+3. **(E) Out**bound (after backend)  
+4. **(O) On**-Error (when things fail)
+
+### **Scope Hierarchy: "G-P-A-O"** *(Grandpa Operating)*
+1. **G**lobal
+2. **P**roduct
+3. **A**PI
+4. **O**peration
+
+---
+
 ## What is Azure APIM
 
 **Azure API Management** is a fully managed service that enables you to publish, secure, transform, maintain, and monitor APIs. It acts as a **facade** or **gateway** between your backend services and API consumers.

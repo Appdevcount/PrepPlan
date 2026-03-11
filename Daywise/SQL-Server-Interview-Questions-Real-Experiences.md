@@ -168,6 +168,118 @@ Is the problem about RANKING or COMPARISON within groups?
 
 > **Key Insight:** CTEs and derived tables produce the **same execution plan** in SQL Server — CTEs win on readability. Temp tables win when you need an **index on intermediate results**.
 
+Markdown
+
+---
+
+### Sample Queries — One Example per Decision Tree Outcome (Simple)
+
+> Use these as “templates” during interviews. Replace table/column names as needed.
+
+#### 1) Ranking / Comparison within groups → WINDOW FUNCTIONS
+```sql
+-- Top 2 salaries per department
+SELECT Name, DepartmentId, Salary
+FROM (
+    SELECT
+        Name, DepartmentId, Salary,
+        ROW_NUMBER() OVER (PARTITION BY DepartmentId ORDER BY Salary DESC) AS rn
+    FROM Employees
+) x
+WHERE rn <= 2;
+
+2) Hierarchy / Recursive structure → RECURSIVE CTE
+SQL
+
+-- Org chart: list employee hierarchy
+WITH Org AS (
+    SELECT EmployeeId, Name, ManagerId, 0 AS Level
+    FROM Employees
+    WHERE ManagerId IS NULL
+
+    UNION ALL
+
+    SELECT e.EmployeeId, e.Name, e.ManagerId, o.Level + 1
+    FROM Employees e
+    INNER JOIN Org o ON e.ManagerId = o.EmployeeId
+)
+SELECT * FROM Org
+OPTION (MAXRECURSION 100);
+
+3) Logic reused multiple times → CTE (WITH clause)
+SQL
+
+-- Reuse the same filtered dataset twice
+WITH ActiveOrders AS (
+    SELECT OrderId, CustomerId, TotalAmount
+    FROM Orders
+    WHERE Status = 'Active'
+)
+SELECT
+    (SELECT COUNT(*) FROM ActiveOrders) AS ActiveOrderCount,
+    (SELECT SUM(TotalAmount) FROM ActiveOrders) AS ActiveRevenue;
+
+4) One-time intermediate result in FROM → DERIVED TABLE (subquery in FROM)
+SQL
+
+-- Customers whose total spend > 1000
+SELECT CustomerId, TotalSpend
+FROM (
+    SELECT CustomerId, SUM(TotalAmount) AS TotalSpend
+    FROM Orders
+    GROUP BY CustomerId
+) s
+WHERE s.TotalSpend > 1000;
+
+5) Scalar value filter (single value comparison) → SUBQUERY in WHERE
+SQL
+
+-- Employees earning above average salary
+SELECT EmployeeId, Name, Salary
+FROM Employees
+WHERE Salary > (SELECT AVG(Salary) FROM Employees);
+
+6) Set membership check → EXISTS (correlated) / IN
+SQL
+
+-- Customers who have at least one order
+SELECT c.CustomerId, c.Name
+FROM Customers c
+WHERE EXISTS (
+    SELECT 1
+    FROM Orders o
+    WHERE o.CustomerId = c.CustomerId
+);
+
+7) Pivot / Unpivot rows to columns → Conditional Aggregation (simple pivot)
+SQL
+
+-- Sales by category as columns (pivot-like)
+SELECT
+    FORMAT(o.OrderDate, 'yyyy-MM') AS [Month],
+    SUM(CASE WHEN p.Category = 'Electronics' THEN oi.Qty * oi.UnitPrice ELSE 0 END) AS Electronics,
+    SUM(CASE WHEN p.Category = 'Books'       THEN oi.Qty * oi.UnitPrice ELSE 0 END) AS Books
+FROM Orders o
+JOIN OrderItems oi ON oi.OrderId = o.OrderId
+JOIN Products p ON p.ProductId = oi.ProductId
+GROUP BY FORMAT(o.OrderDate, 'yyyy-MM')
+ORDER BY [Month];
+
+8) Otherwise → SIMPLE JOIN + GROUP BY + HAVING
+SQL
+
+-- Total orders and revenue per customer (only customers with >= 3 orders)
+SELECT
+    c.CustomerId,
+    c.Name,
+    COUNT(*) AS OrderCount,
+    SUM(o.TotalAmount) AS TotalRevenue
+FROM Customers c
+JOIN Orders o ON o.CustomerId = c.CustomerId
+GROUP BY c.CustomerId, c.Name
+HAVING COUNT(*) >= 3
+ORDER BY TotalRevenue DESC;
+```
 ---
 
 ### Step 5 — VALIDATE: The Edge Case Checklist

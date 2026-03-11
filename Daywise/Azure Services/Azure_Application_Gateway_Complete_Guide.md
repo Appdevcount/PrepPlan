@@ -16,6 +16,1663 @@
 
 ---
 
+## 🗺️ Application Gateway Features Mindmap - Complete Overview
+
+```
+                                ┌──────────────────────────────────────────┐
+                                │   AZURE APPLICATION GATEWAY              │
+                                │   "Layer 7 Load Balancer & WAF"          │
+                                └───────────────────┬──────────────────────┘
+                                                    │
+                    ┌───────────────────────────────┼───────────────────────────────┐
+                    │                               │                               │
+            ┌───────▼────────┐            ┌────────▼────────┐            ┌─────────▼────────┐
+            │   CORE ARCH    │            │   ROUTING &     │            │   SECURITY &     │
+            │   COMPONENTS   │            │   TRAFFIC       │            │   PROTECTION     │
+            └───────┬────────┘            └────────┬────────┘            └─────────┬────────┘
+                    │                               │                               │
+                    │                               │                               │
+                    ▼                               ▼                               ▼
+
+════════════════════════════════════════════════════════════════════════════════════════════
+
+📐 CORE ARCHITECTURE & COMPONENTS
+│
+├─ Service Characteristics
+│  ├─ Layer 7 (Application Layer) Load Balancer
+│  ├─ Regional Service (Single Azure Region)
+│  ├─ Fully Managed PaaS
+│  ├─ Application-Aware Routing
+│  ├─ High Availability Built-in
+│  └─ Virtual Appliance (deployed in VNet subnet)
+│
+├─ Frontend Configuration
+│  ├─ Public IP Address
+│  │  ├─ Standard SKU (Static)
+│  │  ├─ Basic SKU (Dynamic) - v1 only
+│  │  ├─ IPv4 Support
+│  │  └─ DDoS Protection Standard compatible
+│  │
+│  ├─ Private IP Address
+│  │  ├─ Internal-only access
+│  │  ├─ Static or Dynamic
+│  │  └─ Within VNet address space
+│  │
+│  └─ Dual Configuration (Both Public & Private)
+│
+├─ Listeners (Traffic Receivers)
+│  ├─ Basic Listener
+│  │  ├─ Single site hosting
+│  │  ├─ Port + Protocol match
+│  │  ├─ One-to-one mapping
+│  │  └─ No hostname filtering
+│  │
+│  ├─ Multi-Site Listener
+│  │  ├─ Multiple hostnames/domains
+│  │  ├─ Host header matching
+│  │  ├─ Wildcard hostname support (*.contoso.com)
+│  │  ├─ SNI (Server Name Indication)
+│  │  └─ Multiple SSL certificates
+│  │
+│  ├─ Listener Properties
+│  │  ├─ Protocol (HTTP/HTTPS)
+│  │  ├─ Port (standard: 80, 443)
+│  │  ├─ Frontend IP (public/private)
+│  │  ├─ SSL Certificate (HTTPS only)
+│  │  └─ Host Name (optional)
+│  │
+│  └─ Advanced Listener Features
+│     ├─ Custom Error Pages
+│     ├─ SSL Policy Configuration
+│     └─ HTTP/2 Support (default enabled)
+│
+├─ Backend Pools (Target Servers)
+│  ├─ Supported Backend Types
+│  │  ├─ Azure VMs (with NIC)
+│  │  ├─ VM Scale Sets (VMSS)
+│  │  ├─ Azure App Services
+│  │  ├─ IP Addresses (internal/external)
+│  │  ├─ FQDN (Fully Qualified Domain Names)
+│  │  ├─ On-premises servers (via VPN/ExpressRoute)
+│  │  └─ Empty pools (allowed for future use)
+│  │
+│  ├─ Pool Configuration
+│  │  ├─ Multiple backends per pool
+│  │  ├─ Mix different backend types
+│  │  ├─ No port specification (defined in HTTP Settings)
+│  │  └─ Dynamic membership changes
+│  │
+│  └─ Backend Selection Logic
+│     ├─ Round-robin (default)
+│     ├─ Session affinity (cookie-based)
+│     ├─ Health probe status
+│     └─ Connection draining support
+│
+├─ HTTP Settings (Backend Communication)
+│  ├─ Protocol Configuration
+│  │  ├─ HTTP (port 80 default)
+│  │  ├─ HTTPS (port 443 default)
+│  │  ├─ Custom ports
+│  │  └─ Backend protocol override
+│  │
+│  ├─ Session Management
+│  │  ├─ Cookie-Based Affinity (Enabled/Disabled)
+│  │  ├─ Application Gateway Cookie
+│  │  ├─ Session stickiness
+│  │  └─ Affinity timeout
+│  │
+│  ├─ Connection Settings
+│  │  ├─ Request Timeout (1-86400 seconds)
+│  │  ├─ Connection Draining (graceful shutdown)
+│  │  ├─ Drain Timeout (1-3600 seconds)
+│  │  ├─ Connection Pool
+│  │  └─ Keep-Alive settings
+│  │
+│  ├─ Host Name Override
+│  │  ├─ Pick from backend target
+│  │  ├─ Override with custom hostname
+│  │  ├─ Required for App Service backends
+│  │  └─ SNI extension support
+│  │
+│  ├─ Path Override
+│  │  ├─ Modify backend path
+│  │  ├─ Add prefix/suffix
+│  │  └─ Rewrite URL path
+│  │
+│  └─ Probe Association
+│     ├─ Default probe (automatic)
+│     ├─ Custom probe (user-defined)
+│     └─ Probe-based health monitoring
+│
+├─ Health Probes (Backend Monitoring)
+│  ├─ Default Probes
+│  │  ├─ Automatic creation
+│  │  ├─ Protocol from HTTP Settings
+│  │  ├─ Path: /
+│  │  ├─ Interval: 30 seconds
+│  │  ├─ Timeout: 30 seconds
+│  │  └─ Unhealthy threshold: 3
+│  │
+│  ├─ Custom Probes
+│  │  ├─ Protocol (HTTP/HTTPS)
+│  │  ├─ Custom path (/health, /api/status)
+│  │  ├─ Host name (custom or from backend)
+│  │  ├─ Interval (1-86400 seconds)
+│  │  ├─ Timeout (1-86400 seconds)
+│  │  ├─ Unhealthy threshold (1-20)
+│  │  └─ Port (custom or from HTTP Settings)
+│  │
+│  ├─ Health Check Criteria
+│  │  ├─ Status Code Matching (200-399 default)
+│  │  ├─ Multiple status codes supported
+│  │  ├─ Response body matching
+│  │  └─ Minimum healthy backends
+│  │
+│  └─ Probe Results
+│     ├─ Healthy (backend available)
+│     ├─ Unhealthy (backend unavailable)
+│     ├─ Unknown (probe not configured)
+│     └─ Draining (connection draining active)
+│
+├─ Request Routing Rules (Traffic Flow)
+│  ├─ Basic Routing Rule
+│  │  ├─ One listener → One backend pool
+│  │  ├─ Simple one-to-one mapping
+│  │  ├─ No path-based logic
+│  │  └─ Priority-based execution
+│  │
+│  ├─ Path-Based Routing Rule
+│  │  ├─ URL path maps
+│  │  ├─ Multiple path patterns
+│  │  ├─ Different backends per path
+│  │  ├─ Default backend (catch-all)
+│  │  └─ Priority ordering
+│  │
+│  ├─ Rule Components
+│  │  ├─ Listener (traffic receiver)
+│  │  ├─ Backend Pool (target servers)
+│  │  ├─ HTTP Settings (communication config)
+│  │  ├─ URL Path Map (optional)
+│  │  ├─ Rewrite Rule Set (optional)
+│  │  └─ Redirect Configuration (optional)
+│  │
+│  └─ Rule Priority
+│     ├─ Lower number = higher priority
+│     ├─ Range: 1-20000
+│     ├─ First matching rule executes
+│     └─ No default priority (must specify)
+│
+└─ Gateway IP Configuration
+   ├─ Subnet Association
+   │  ├─ Dedicated subnet required
+   │  ├─ Minimum /28 subnet size
+   │  ├─ /24 recommended for scaling
+   │  └─ No other resources in subnet
+   │
+   ├─ Subnet Requirements
+   │  ├─ Must be empty initially
+   │  ├─ NSG allowed (with specific rules)
+   │  ├─ UDR allowed (with caution)
+   │  └─ Service endpoints supported
+   │
+   └─ IP Addressing
+      ├─ Dynamic private IP allocation
+      ├─ Internal gateway communication
+      └─ Azure infrastructure reserved IPs
+
+════════════════════════════════════════════════════════════════════════════════════════════
+
+🛣️ ROUTING & TRAFFIC MANAGEMENT
+│
+├─ URL-Based Routing
+│  ├─ Path Patterns
+│  │  ├─ /api/* → API Backend Pool
+│  │  ├─ /images/* → Image Server Pool
+│  │  ├─ /video/* → Video Backend Pool
+│  │  ├─ /static/* → Static Content Pool
+│  │  └─ /* (default/catch-all backend)
+│  │
+│  ├─ Path Matching Rules
+│  │  ├─ Prefix matching
+│  │  ├─ Wildcard support (*)
+│  │  ├─ Case-sensitive matching
+│  │  ├─ Longest match wins
+│  │  └─ Query strings ignored
+│  │
+│  └─ URL Path Map Configuration
+│     ├─ Default backend pool (mandatory)
+│     ├─ Default HTTP settings (mandatory)
+│     ├─ Multiple path rules
+│     └─ Rule-specific redirects
+│
+├─ Multi-Site Hosting
+│  ├─ Host-Based Routing
+│  │  ├─ www.contoso.com → Backend Pool A
+│  │  ├─ www.fabrikam.com → Backend Pool B
+│  │  ├─ api.contoso.com → API Pool
+│  │  └─ *.contoso.com → Wildcard Pool
+│  │
+│  ├─ Multi-Site Configuration
+│  │  ├─ Host name in listener
+│  │  ├─ SNI support (TLS extension)
+│  │  ├─ Multiple SSL certificates
+│  │  ├─ Per-site routing rules
+│  │  └─ Up to 100+ sites per gateway
+│  │
+│  └─ Hostname Matching
+│     ├─ Exact match
+│     ├─ Wildcard match (*.domain.com)
+│     ├─ Case-insensitive
+│     └─ Host header validation
+│
+├─ Redirection (Traffic Forwarding)
+│  ├─ HTTP to HTTPS Redirect
+│  │  ├─ Permanent (301)
+│  │  ├─ Temporary (302, 307)
+│  │  ├─ Path preserved
+│  │  └─ Query string preserved
+│  │
+│  ├─ Redirection Types
+│  │  ├─ Protocol redirect (HTTP→HTTPS)
+│  │  ├─ URL redirect (path change)
+│  │  ├─ Site redirect (domain change)
+│  │  └─ External URL redirect
+│  │
+│  ├─ Redirect Configuration
+│  │  ├─ Target listener (internal)
+│  │  ├─ Target URL (external)
+│  │  ├─ Include path (yes/no)
+│  │  ├─ Include query string (yes/no)
+│  │  └─ Redirect type (permanent/temporary)
+│  │
+│  └─ Use Cases
+│     ├─ Force HTTPS
+│     ├─ Domain migration
+│     ├─ Maintenance pages
+│     └─ Legacy URL support
+│
+├─ Header Rewriting
+│  ├─ Request Header Rewrite
+│  │  ├─ Add custom headers
+│  │  ├─ Modify existing headers
+│  │  ├─ Remove headers
+│  │  ├─ X-Forwarded-For preservation
+│  │  ├─ Client IP injection
+│  │  └─ Correlation ID addition
+│  │
+│  ├─ Response Header Rewrite
+│  │  ├─ Add security headers
+│  │  ├─ Remove server info headers
+│  │  ├─ HSTS (Strict-Transport-Security)
+│  │  ├─ X-Frame-Options
+│  │  ├─ X-Content-Type-Options
+│  │  └─ Custom application headers
+│  │
+│  ├─ Rewrite Conditions
+│  │  ├─ HTTP header comparison
+│  │  ├─ Server variable check
+│  │  ├─ Pattern matching (regex)
+│  │  └─ Multiple conditions (AND/OR)
+│  │
+│  └─ Rewrite Rule Sets
+│     ├─ Multiple rules per set
+│     ├─ Sequential execution
+│     ├─ Rule priority (sequence)
+│     └─ Reusable across rules
+│
+├─ URL Rewriting
+│  ├─ Path Modification
+│  │  ├─ Rewrite backend path
+│  │  ├─ Add/remove prefix
+│  │  ├─ Path parameter extraction
+│  │  └─ Dynamic path construction
+│  │
+│  ├─ Query String Modification
+│  │  ├─ Add query parameters
+│  │  ├─ Remove parameters
+│  │  ├─ Modify parameter values
+│  │  └─ Preserve/override
+│  │
+│  └─ Rewrite Scenarios
+│     ├─ API versioning (v1 → v2)
+│     ├─ Backend compatibility
+│     ├─ URL normalization
+│     └─ Path translation
+│
+└─ Load Balancing Algorithm
+   ├─ Round-Robin (default)
+   │  ├─ Equal distribution
+   │  ├─ Sequential selection
+   │  └─ No weight consideration
+   │
+   ├─ Session Affinity Override
+   │  ├─ Cookie-based stickiness
+   │  ├─ Same backend per session
+   │  └─ Affinity timeout handling
+   │
+   └─ Health-Based Selection
+      ├─ Only healthy backends
+      ├─ Automatic failover
+      └─ Connection draining support
+
+════════════════════════════════════════════════════════════════════════════════════════════
+
+🔐 SECURITY & PROTECTION
+│
+├─ Web Application Firewall (WAF)
+│  ├─ WAF Capabilities
+│  │  ├─ OWASP Top 10 Protection
+│  │  ├─ Bot Protection
+│  │  ├─ DDoS Mitigation (Layer 7)
+│  │  ├─ SQL Injection prevention
+│  │  ├─ Cross-Site Scripting (XSS) prevention
+│  │  ├─ Remote File Inclusion (RFI) protection
+│  │  ├─ Request size limits
+│  │  └─ Geo-filtering
+│  │
+│  ├─ WAF Modes
+│  │  ├─ Detection Mode
+│  │  │  ├─ Monitor only
+│  │  │  ├─ Log violations
+│  │  │  ├─ No blocking
+│  │  │  └─ Testing/tuning phase
+│  │  │
+│  │  └─ Prevention Mode
+│  │     ├─ Block malicious requests
+│  │     ├─ Return 403 Forbidden
+│  │     ├─ Log blocked requests
+│  │     └─ Production mode
+│  │
+│  ├─ WAF Rule Sets
+│  │  ├─ Managed Rule Sets
+│  │  │  ├─ OWASP Core Rule Set (CRS)
+│  │  │  ├─ CRS 3.2 (latest)
+│  │  │  ├─ CRS 3.1
+│  │  │  ├─ CRS 3.0
+│  │  │  ├─ Microsoft Bot Manager
+│  │  │  └─ Automatic updates
+│  │  │
+│  │  ├─ Custom Rules
+│  │  │  ├─ IP allow/deny lists
+│  │  │  ├─ Geo-blocking
+│  │  │  ├─ Rate limiting per IP
+│  │  │  ├─ Custom pattern matching
+│  │  │  ├─ Priority-based execution
+│  │  │  └─ Allow/Block/Log actions
+│  │  │
+│  │  └─ Rule Exclusions
+│  │     ├─ Disable specific rules
+│  │     ├─ Request header exclusions
+│  │     ├─ Request body exclusions
+│  │     ├─ Cookie exclusions
+│  │     └─ False positive handling
+│  │
+│  ├─ WAF Policy
+│  │  ├─ Policy-based configuration (v2)
+│  │  ├─ Reusable across gateways
+│  │  ├─ Per-site policies
+│  │  ├─ Per-URI policies
+│  │  ├─ Policy settings
+│  │  │  ├─ Request body inspection
+│  │  │  ├─ Max request body size (128 KB)
+│  │  │  ├─ File upload limit (4 GB)
+│  │  │  └─ Request body check
+│  │  │
+│  │  └─ Policy Association
+│  │     ├─ Global (entire gateway)
+│  │     ├─ Per-listener
+│  │     ├─ Per-path rule
+│  │     └─ Inheritance hierarchy
+│  │
+│  └─ WAF Logging & Monitoring
+│     ├─ Firewall logs
+│     ├─ Rule match details
+│     ├─ Blocked request logs
+│     ├─ Anomaly scores
+│     └─ Integration with Azure Monitor
+│
+├─ SSL/TLS Configuration
+│  ├─ SSL Termination (Offloading)
+│  │  ├─ Decrypt at gateway
+│  │  ├─ HTTP to backend
+│  │  ├─ Certificate at gateway only
+│  │  ├─ Reduced backend CPU load
+│  │  └─ Centralized cert management
+│  │
+│  ├─ End-to-End SSL
+│  │  ├─ HTTPS to gateway
+│  │  ├─ HTTPS to backend
+│  │  ├─ Certificate at both ends
+│  │  ├─ Trusted root certificates
+│  │  └─ Maximum security
+│  │
+│  ├─ SSL Bridging
+│  │  ├─ Decrypt then re-encrypt
+│  │  ├─ Inspect traffic at gateway
+│  │  ├─ Different certs (frontend/backend)
+│  │  └─ WAF inspection possible
+│  │
+│  ├─ Certificate Management
+│  │  ├─ PFX/PEM format support
+│  │  ├─ Azure Key Vault integration
+│  │  │  ├─ Managed Identity authentication
+│  │  │  ├─ Automatic certificate rotation
+│  │  │  ├─ Secret references
+│  │  │  └─ Centralized storage
+│  │  │
+│  │  ├─ Self-Signed Certificates (testing)
+│  │  ├─ CA-Signed Certificates (production)
+│  │  ├─ Wildcard Certificates
+│  │  ├─ SAN (Subject Alternative Name) Certs
+│  │  └─ Certificate expiration monitoring
+│  │
+│  ├─ SSL Policy Configuration
+│  │  ├─ Predefined Policies
+│  │  │  ├─ AppGwSslPolicy20150501 (legacy)
+│  │  │  ├─ AppGwSslPolicy20170401
+│  │  │  ├─ AppGwSslPolicy20170401S (strict)
+│  │  │  ├─ AppGwSslPolicy20220101 (latest)
+│  │  │  └─ AppGwSslPolicy20220101S (strictest)
+│  │  │
+│  │  ├─ Custom SSL Policy
+│  │  │  ├─ TLS version (1.0, 1.1, 1.2, 1.3)
+│  │  │  ├─ Cipher suites selection
+│  │  │  ├─ Cipher order enforcement
+│  │  │  └─ Security vs compatibility balance
+│  │  │
+│  │  └─ Recommended Settings
+│  │     ├─ TLS 1.2+ only
+│  │     ├─ Strong cipher suites only
+│  │     ├─ Disable weak ciphers
+│  │     └─ Perfect Forward Secrecy (PFS)
+│  │
+│  ├─ Mutual TLS (mTLS)
+│  │  ├─ Client certificate authentication
+│  │  ├─ Trusted root CA certificates
+│  │  ├─ Certificate validation
+│  │  ├─ Certificate revocation check
+│  │  └─ SSL profile configuration
+│  │
+│  └─ SSL/TLS Best Practices
+│     ├─ Use TLS 1.2 or higher
+│     ├─ Disable SSL 3.0, TLS 1.0, TLS 1.1
+│     ├─ Strong cipher suites only
+│     ├─ Certificate auto-renewal
+│     └─ Regular security audits
+│
+├─ Network Security
+│  ├─ Network Security Groups (NSG)
+│  │  ├─ Allowed on App Gateway subnet
+│  │  ├─ Required inbound rules:
+│  │  │  ├─ Internet → 65200-65535 (management)
+│  │  │  ├─ Internet → 80, 443 (application traffic)
+│  │  │  ├─ GatewayManager service tag
+│  │  │  └─ AzureLoadBalancer service tag
+│  │  │
+│  │  ├─ Outbound rules:
+│  │  │  ├─ Backend subnet access
+│  │  │  ├─ Internet access (for external backends)
+│  │  │  └─ Azure service access
+│  │  │
+│  │  └─ NSG Best Practices
+│  │     ├─ Allow required management ports
+│  │     ├─ Restrict source IPs if possible
+│  │     ├─ Document all rules
+│  │     └─ Regular rule review
+│  │
+│  ├─ User-Defined Routes (UDR)
+│  │  ├─ Supported with limitations
+│  │  ├─ Don't override 0.0.0.0/0 to Internet
+│  │  ├─ Preserve Azure infrastructure routes
+│  │  ├─ Network Virtual Appliance (NVA) considerations
+│  │  └─ Test thoroughly before production
+│  │
+│  ├─ Private Link Support
+│  │  ├─ Private connectivity to App Gateway
+│  │  ├─ Private endpoints from other VNets
+│  │  ├─ No public IP required
+│  │  ├─ Cross-region private connectivity
+│  │  └─ On-premises access via ExpressRoute
+│  │
+│  └─ DDoS Protection
+│     ├─ Basic (always enabled, free)
+│     ├─ Standard (enhanced, additional cost)
+│     ├─ Layer 3/4 protection
+│     ├─ Traffic monitoring
+│     └─ Attack mitigation
+│
+├─ Authentication & Authorization
+│  ├─ Client Certificate Authentication
+│  │  ├─ mTLS support
+│  │  ├─ Certificate validation
+│  │  └─ Trusted CA configuration
+│  │
+│  ├─ Backend Authentication
+│  │  ├─ Backend certificates
+│  │  ├─ Trusted root certificates
+│  │  └─ Certificate whitelist
+│  │
+│  └─ Header-Based Authentication
+│     ├─ Custom headers
+│     ├─ Header rewriting for auth tokens
+│     └─ Integration with Azure AD
+│
+└─ Compliance & Security Features
+   ├─ PCI DSS Compliance
+   ├─ HIPAA Compliance
+   ├─ SOC 1/2/3 Compliance
+   ├─ ISO 27001 Certified
+   ├─ Encryption at rest
+   └─ Encryption in transit
+
+════════════════════════════════════════════════════════════════════════════════════════════
+
+⚡ PERFORMANCE & SCALABILITY
+│
+├─ Autoscaling (v2 SKU)
+│  ├─ Capacity Units (CU)
+│  │  ├─ Compute Units (CPU/processing)
+│  │  ├─ Persistent Connections (2,500 per CU)
+│  │  ├─ Throughput (2.22 Mbps per CU)
+│  │  └─ Highest of three determines CU
+│  │
+│  ├─ Autoscale Configuration
+│  │  ├─ Minimum Capacity (0-100 instances)
+│  │  ├─ Maximum Capacity (2-125 instances)
+│  │  ├─ Automatic scaling based on load
+│  │  ├─ Scale-out time: ~6-7 minutes
+│  │  └─ Scale-in time: ~30 minutes
+│  │
+│  ├─ Fixed Capacity (v2)
+│  │  ├─ Set specific instance count
+│  │  ├─ No autoscaling
+│  │  ├─ Predictable costs
+│  │  └─ Manual scaling required
+│  │
+│  └─ v1 SKU Scaling (Legacy)
+│     ├─ Manual instance count (1-32)
+│     ├─ Small/Medium/Large sizes
+│     ├─ No autoscaling
+│     └─ Downtime during scaling
+│
+├─ Protocol Support
+│  ├─ HTTP/1.1
+│  │  ├─ Standard web traffic
+│  │  ├─ Keep-alive support
+│  │  └─ Pipeline support
+│  │
+│  ├─ HTTP/2
+│  │  ├─ Enabled by default (v2)
+│  │  ├─ Better performance
+│  │  ├─ Multiplexing
+│  │  ├─ Header compression
+│  │  └─ Server push (not supported)
+│  │
+│  ├─ WebSocket
+│  │  ├─ Native support
+│  │  ├─ Bidirectional communication
+│  │  ├─ Real-time applications
+│  │  └─ Long-lived connections
+│  │
+│  └─ TCP/UDP
+│     └─ Not supported (use Azure Load Balancer)
+│
+├─ Session Management
+│  ├─ Cookie-Based Affinity
+│  │  ├─ Application Gateway cookie (ApplicationGatewayAffinity)
+│  │  ├─ Sticky sessions
+│  │  ├─ Same backend per cookie
+│  │  ├─ Backend-level affinity
+│  │  └─ Configurable per HTTP Setting
+│  │
+│  ├─ Connection Draining
+│  │  ├─ Graceful backend removal
+│  │  ├─ Complete existing connections
+│  │  ├─ No new connections to draining backend
+│  │  ├─ Drain timeout (1-3600 seconds)
+│  │  └─ Health probe shows "Draining" status
+│  │
+│  └─ Session Timeout
+│     ├─ Request timeout setting
+│     ├─ Idle connection timeout
+│     └─ Keep-alive management
+│
+├─ Connection Optimization
+│  ├─ Connection Pooling
+│  │  ├─ Reuse backend connections
+│  │  ├─ Reduced connection overhead
+│  │  ├─ Improved throughput
+│  │  └─ Automatic management
+│  │
+│  ├─ Keep-Alive
+│  │  ├─ TCP keep-alive
+│  │  ├─ HTTP keep-alive
+│  │  ├─ Reduced latency
+│  │  └─ Connection reuse
+│  │
+│  └─ Connection Limits
+│     ├─ Frontend: 20,000 connections per instance
+│     ├─ Backend: Determined by backend capacity
+│     └─ Capacity unit calculation
+│
+├─ Performance Features
+│  ├─ Response Caching
+│  │  └─ Not natively supported (use Azure CDN)
+│  │
+│  ├─ Compression
+│  │  └─ Not natively supported (backend handles it)
+│  │
+│  ├─ Static Content Acceleration
+│  │  └─ Consider Azure CDN for static content
+│  │
+│  └─ Request Buffering
+│     ├─ Full request buffering at gateway
+│     ├─ Protects backend from slow clients
+│     └─ Improves backend performance
+│
+└─ Throughput & Capacity
+   ├─ Standard_v2 / WAF_v2 Performance
+   │  ├─ ~125 instances max
+   │  ├─ ~2.22 Mbps per capacity unit
+   │  ├─ ~10 Gbps+ throughput potential
+   │  └─ Sub-second latency
+   │
+   ├─ v1 Performance (Legacy)
+   │  ├─ Small: ~200 Mbps
+   │  ├─ Medium: ~500 Mbps
+   │  ├─ Large: ~1250 Mbps
+   │  └─ WAF reduces throughput ~30%
+   │
+   └─ Performance Factors
+      ├─ SSL/TLS overhead
+      ├─ WAF processing
+      ├─ Rule complexity
+      ├─ Backend response time
+      └─ Network latency
+
+════════════════════════════════════════════════════════════════════════════════════════════
+
+🏗️ HIGH AVAILABILITY & RESILIENCE
+│
+├─ Zone Redundancy (v2 SKU)
+│  ├─ Availability Zones
+│  │  ├─ Deploy across zones 1, 2, 3
+│  │  ├─ Automatic instance distribution
+│  │  ├─ No manual configuration needed
+│  │  └─ Available in zone-supported regions
+│  │
+│  ├─ Zone Redundancy Benefits
+│  │  ├─ 99.99% SLA (vs 99.95% single zone)
+│  │  ├─ Automatic failover
+│  │  ├─ No downtime during zone failure
+│  │  ├─ No data loss
+│  │  └─ Transparent to applications
+│  │
+│  └─ Zone Configuration
+│     ├─ Specify zones during creation
+│     ├─ Cannot change after deployment
+│     ├─ All instances distributed equally
+│     └─ Public IP must be zone-redundant
+│
+├─ Instance Distribution
+│  ├─ Multiple Instances
+│  │  ├─ Minimum 2 instances recommended
+│  │  ├─ Active-active configuration
+│  │  ├─ Load distributed across instances
+│  │  └─ No single point of failure
+│  │
+│  ├─ Instance Health Monitoring
+│  │  ├─ Azure monitors instance health
+│  │  ├─ Automatic instance replacement
+│  │  ├─ No user intervention needed
+│  │  └─ Continuous availability
+│  │
+│  └─ Scaling Events
+│     ├─ No downtime during scale out
+│     ├─ No downtime during scale in
+│     ├─ Connection draining during scale in
+│     └─ Graceful instance addition/removal
+│
+├─ Backend Redundancy
+│  ├─ Multiple Backend Servers
+│  │  ├─ At least 2 backends per pool
+│  │  ├─ Distribute across availability zones
+│  │  ├─ Different fault domains
+│  │  └─ Load distribution across healthy backends
+│  │
+│  ├─ Health-Based Routing
+│  │  ├─ Only route to healthy backends
+│  │  ├─ Automatic failover to healthy servers
+│  │  ├─ Health probe monitoring
+│  │  └─ No manual intervention
+│  │
+│  ├─ Backend Pool Strategies
+│  │  ├─ VM Scale Sets (auto-scaling backends)
+│  │  ├─ Availability Sets (fault domain separation)
+│  │  ├─ Zone-distributed VMs
+│  │  └─ Multi-region backends (with Front Door)
+│  │
+│  └─ Graceful Degradation
+│     ├─ Connection draining
+│     ├─ No abrupt disconnections
+│     ├─ Complete in-flight requests
+│     └─ Configurable drain timeout
+│
+├─ Disaster Recovery
+│  ├─ Regional Redundancy
+│  │  ├─ Deploy in multiple regions
+│  │  ├─ Use Azure Traffic Manager or Front Door
+│  │  ├─ Active-active setup
+│  │  └─ DNS-based failover
+│  │
+│  ├─ Backup & Configuration
+│  │  ├─ Export configuration (ARM template)
+│  │  ├─ Script-based deployment
+│  │  ├─ Infrastructure as Code (Bicep/Terraform)
+│  │  └─ Version control configuration
+│  │
+│  └─ Recovery Objectives
+│     ├─ RTO (Recovery Time Objective)
+│     ├─ RPO (Recovery Point Objective)
+│     ├─ Automated failover
+│     └─ Testing DR procedures
+│
+├─ SLA & Uptime
+│  ├─ v2 SKU (Zone Redundant)
+│  │  ├─ 99.99% SLA (multi-zone)
+│  │  ├─ ~4 minutes downtime/month max
+│  │  └─ Requires 2+ instances across zones
+│  │
+│  ├─ v2 SKU (Single Zone)
+│  │  ├─ 99.95% SLA
+│  │  ├─ ~22 minutes downtime/month max
+│  │  └─ Requires 2+ instances
+│  │
+│  ├─ v1 SKU
+│  │  ├─ 99.95% SLA
+│  │  ├─ Requires 2+ instances
+│  │  └─ No zone redundancy
+│  │
+│  └─ SLA Requirements
+│     ├─ Multiple instances mandatory
+│     ├─ Same update domain
+│     ├─ Same fault domain protection
+│     └─ Azure-managed uptime
+│
+└─ Update & Maintenance
+   ├─ Managed Updates
+   │  ├─ Azure-managed patching
+   │  ├─ Zero-downtime updates
+   │  ├─ Rolling update strategy
+   │  └─ No user action required
+   │
+   ├─ Planned Maintenance
+   │  ├─ Notification in advance
+   │  ├─ Update domains utilized
+   │  ├─ No service interruption
+   │  └─ Configuration changes applied
+   │
+   └─ Unplanned Maintenance
+      ├─ Automatic failover
+      ├─ Instance replacement
+      ├─ Health monitoring
+      └─ Self-healing infrastructure
+
+════════════════════════════════════════════════════════════════════════════════════════════
+
+📊 MONITORING & DIAGNOSTICS
+│
+├─ Metrics (Azure Monitor)
+│  ├─ Health Metrics
+│  │  ├─ Healthy Host Count (per backend pool)
+│  │  ├─ Unhealthy Host Count (critical alert)
+│  │  ├─ Total healthy/unhealthy ratio
+│  │  └─ Backend status over time
+│  │
+│  ├─ Traffic Metrics
+│  │  ├─ Total Requests
+│  │  ├─ Requests per second (RPS)
+│  │  ├─ Failed Requests
+│  │  ├─ Current Connections
+│  │  ├─ New Connections per second
+│  │  └─ Connection state distribution
+│  │
+│  ├─ Performance Metrics
+│  │  ├─ Backend Response Time (latency)
+│  │  ├─ Application Gateway Total Time
+│  │  ├─ First Byte Response Time
+│  │  ├─ Last Byte Response Time
+│  │  └─ Response time percentiles (95th, 99th)
+│  │
+│  ├─ HTTP Status Metrics
+│  │  ├─ HTTP 2xx responses (success)
+│  │  ├─ HTTP 3xx responses (redirects)
+│  │  ├─ HTTP 4xx responses (client errors)
+│  │  ├─ HTTP 5xx responses (server errors)
+│  │  └─ Status code distribution
+│  │
+│  ├─ Capacity Metrics (v2)
+│  │  ├─ Current Capacity Units
+│  │  ├─ Compute Units consumed
+│  │  ├─ Throughput (bytes/sec)
+│  │  ├─ Instance Count
+│  │  └─ Estimated Billed Capacity Units
+│  │
+│  ├─ SSL/TLS Metrics
+│  │  ├─ Client TLS Protocol version
+│  │  ├─ Backend TLS Protocol version
+│  │  ├─ SSL/TLS handshake time
+│  │  └─ Certificate expiration status
+│  │
+│  └─ Throughput Metrics
+│     ├─ Bytes Sent (outbound)
+│     ├─ Bytes Received (inbound)
+│     ├─ Throughput (Mbps)
+│     └─ Bandwidth utilization
+│
+├─ Diagnostic Logs
+│  ├─ Access Logs
+│  │  ├─ Client IP address
+│  │  ├─ Request timestamp
+│  │  ├─ HTTP method & URI
+│  │  ├─ HTTP status code
+│  │  ├─ Response size
+│  │  ├─ User-Agent
+│  │  ├─ Time taken (total)
+│  │  ├─ Backend server contacted
+│  │  ├─ SSL cipher used
+│  │  └─ Request/response headers
+│  │
+│  ├─ Performance Logs
+│  │  ├─ Gateway instance ID
+│  │  ├─ Healthy/unhealthy host count
+│  │  ├─ Request count per backend
+│  │  ├─ Average response time
+│  │  ├─ Failed request count
+│  │  └─ Throughput statistics
+│  │
+│  ├─ Firewall Logs (WAF)
+│  │  ├─ Matched rule ID
+│  │  ├─ Rule set version
+│  │  ├─ Action taken (allow/block/log)
+│  │  ├─ Anomaly score
+│  │  ├─ Request details
+│  │  ├─ Client IP & location
+│  │  └─ Attack category
+│  │
+│  └─ Activity Logs
+│     ├─ Configuration changes
+│     ├─ Resource operations
+│     ├─ Scaling events
+│     ├─ Administrative actions
+│     └─ RBAC changes
+│
+├─ Log Destinations
+│  ├─ Log Analytics Workspace
+│  │  ├─ Advanced querying (KQL)
+│  │  ├─ Long-term retention
+│  │  ├─ Visualization & dashboards
+│  │  ├─ Cross-resource correlation
+│  │  └─ Alert integration
+│  │
+│  ├─ Storage Account
+│  │  ├─ Long-term archival
+│  │  ├─ Compliance requirements
+│  │  ├─ Cost-effective storage
+│  │  └─ Raw log preservation
+│  │
+│  ├─ Event Hub
+│  │  ├─ Real-time streaming
+│  │  ├─ SIEM integration
+│  │  ├─ Third-party tools
+│  │  └─ Custom processing
+│  │
+│  └─ Partner Solutions
+│     ├─ Splunk
+│     ├─ Datadog
+│     ├─ Sumo Logic
+│     └─ Other monitoring platforms
+│
+├─ Alerts & Notifications
+│  ├─ Metric-Based Alerts
+│  │  ├─ Unhealthy host count > 0
+│  │  ├─ Failed requests threshold
+│  │  ├─ High response time
+│  │  ├─ Capacity units near max
+│  │  ├─ HTTP 5xx errors spike
+│  │  └─ Custom threshold alerts
+│  │
+│  ├─ Log-Based Alerts
+│  │  ├─ WAF blocks exceeding limit
+│  │  ├─ Specific error patterns
+│  │  ├─ Configuration changes
+│  │  └─ Security events
+│  │
+│  ├─ Action Groups
+│  │  ├─ Email notifications
+│  │  ├─ SMS alerts
+│  │  ├─ Webhook calls
+│  │  ├─ Logic Apps integration
+│  │  ├─ Azure Functions trigger
+│  │  ├─ ITSM integration
+│  │  └─ Runbook automation
+│  │
+│  └─ Smart Alerts
+│     ├─ Anomaly detection
+│     ├─ Machine learning-based
+│     ├─ Adaptive thresholds
+│     └─ Reduced alert noise
+│
+├─ Troubleshooting Tools
+│  ├─ Backend Health View
+│  │  ├─ Real-time backend status
+│  │  ├─ Per-instance health
+│  │  ├─ Probe details
+│  │  └─ Error messages
+│  │
+│  ├─ Connection Troubleshoot
+│  │  ├─ Network Watcher integration
+│  │  ├─ Connectivity tests
+│  │  ├─ Hop-by-hop analysis
+│  │  └─ NSG rule verification
+│  │
+│  ├─ Resource Health
+│  │  ├─ Platform health status
+│  │  ├─ Historical health view
+│  │  ├─ Planned maintenance info
+│  │  └─ Downtime root cause
+│  │
+│  └─ Diagnostic Settings
+│     ├─ Enable all log categories
+│     ├─ Send to Log Analytics
+│     ├─ Configure retention
+│     └─ Verify log flow
+│
+└─ Integration & Visualization
+   ├─ Azure Monitor Workbooks
+   │  ├─ Pre-built workbooks
+   │  ├─ Custom visualizations
+   │  ├─ Interactive dashboards
+   │  └─ Parameterized queries
+   │
+   ├─ Application Insights
+   │  ├─ E2E transaction tracking
+   │  ├─ Dependency mapping
+   │  ├─ Failure analysis
+   │  └─ User behavior analytics
+   │
+   ├─ Azure Dashboards
+   │  ├─ Real-time metrics
+   │  ├─ Multiple resource views
+   │  ├─ Shared team dashboards
+   │  └─ Custom tile layouts
+   │
+   └─ Power BI
+      ├─ Advanced analytics
+      ├─ Custom reports
+      ├─ Business intelligence
+      └─ Executive dashboards
+
+════════════════════════════════════════════════════════════════════════════════════════════
+
+🌐 CONNECTIVITY & INTEGRATION
+│
+├─ Virtual Network Integration
+│  ├─ Subnet Requirements
+│  │  ├─ Dedicated subnet mandatory
+│  │  ├─ Minimum /28 (16 IPs)
+│  │  ├─ Recommended /24 (256 IPs) for scaling
+│  │  ├─ Cannot share with other resources
+│  │  ├─ Must be empty during initial deployment
+│  │  └─ Address space within VNet CIDR
+│  │
+│  ├─ Subnet Configuration
+│  │  ├─ NSG support (with specific rules)
+│  │  ├─ UDR support (with limitations)
+│  │  ├─ Service endpoints allowed
+│  │  ├─ No delegation required
+│  │  └─ No private endpoints in same subnet
+│  │
+│  ├─ VNet Peering
+│  │  ├─ Access backends in peered VNets
+│  │  ├─ Global VNet peering supported
+│  │  ├─ Requires proper routing
+│  │  └─ NSG rules must permit traffic
+│  │
+│  └─ VNet Service Endpoints
+│     ├─ Direct Azure service access
+│     ├─ Microsoft.Storage
+│     ├─ Microsoft.Sql
+│     ├─ Microsoft.KeyVault
+│     └─ Improved security & performance
+│
+├─ Hybrid Connectivity
+│  ├─ VPN Gateway
+│  │  ├─ Site-to-Site (S2S) VPN
+│  │  ├─ Access on-premises backends
+│  │  ├─ Encrypted tunnel
+│  │  ├─ Routing configuration
+│  │  └─ Gateway subnet required
+│  │
+│  ├─ ExpressRoute
+│  │  ├─ Private connection to Azure
+│  │  ├─ Higher bandwidth
+│  │  ├─ Lower latency
+│  │  ├─ More reliable
+│  │  └─ Dedicated circuit
+│  │
+│  ├─ On-Premises Backend Routing
+│  │  ├─ Backend pool with on-prem IPs
+│  │  ├─ Custom DNS resolution
+│  │  ├─ Health probe considerations
+│  │  └─ Firewall rules required
+│  │
+│  └─ Hybrid Scenarios
+│     ├─ Cloud + on-premises backends
+│     ├─ Gradual migration
+│     ├─ Disaster recovery
+│     └─ Data residency requirements
+│
+├─ Multi-Region & Global
+│  ├─ Regional Deployment
+│  │  ├─ Single Azure region per gateway
+│  │  ├─ Multiple gateways for multi-region
+│  │  ├─ Independent configuration
+│  │  └─ Region-specific backends
+│  │
+│  ├─ Azure Front Door Integration
+│  │  ├─ Global load balancing
+│  │  ├─ Front Door → App Gateway per region
+│  │  ├─ CDN capabilities
+│  │  ├─ Global WAF
+│  │  └─ Cross-region failover
+│  │
+│  ├─ Traffic Manager Integration
+│  │  ├─ DNS-based routing
+│  │  ├─ Performance-based routing
+│  │  ├─ Geographic routing
+│  │  ├─ Priority-based failover
+│  │  └─ Multi-region DR
+│  │
+│  └─ Private Link Cross-Region
+│     ├─ Private endpoints in remote VNets
+│     ├─ Global VNet peering
+│     ├─ ExpressRoute Global Reach
+│     └─ Secured cross-region access
+│
+├─ Azure Service Integration
+│  ├─ Backend Services
+│  │  ├─ Azure Virtual Machines
+│  │  ├─ VM Scale Sets (VMSS)
+│  │  ├─ Azure App Service
+│  │  ├─ Azure Kubernetes Service (AKS)
+│  │  ├─ Azure Container Instances
+│  │  ├─ Azure Spring Apps
+│  │  ├─ Azure API Management
+│  │  └─ Azure Functions
+│  │
+│  ├─ Security Services
+│  │  ├─ Azure Key Vault (certificates)
+│  │  ├─ Azure Active Directory (authentication)
+│  │  ├─ Microsoft Entra ID
+│  │  ├─ Azure DDoS Protection
+│  │  └─ Azure Firewall (network security)
+│  │
+│  ├─ Monitoring Services
+│  │  ├─ Azure Monitor
+│  │  ├─ Application Insights
+│  │  ├─ Log Analytics
+│  │  ├─ Network Watcher
+│  │  └─ Azure Sentinel (SIEM)
+│  │
+│  └─ DevOps Services
+│     ├─ Azure DevOps (CI/CD)
+│     ├─ GitHub Actions
+│     ├─ ARM Templates
+│     ├─ Bicep
+│     └─ Terraform
+│
+├─ DNS Configuration
+│  ├─ Public DNS
+│  │  ├─ A record to public IP
+│  │  ├─ CNAME to gateway FQDN
+│  │  ├─ Multiple DNS records for multi-site
+│  │  └─ Azure DNS or external DNS
+│  │
+│  ├─ Private DNS
+│  │  ├─ Azure Private DNS Zones
+│  │  ├─ Internal name resolution
+│  │  ├─ VNet-linked DNS zones
+│  │  └─ Custom DNS servers
+│  │
+│  └─ DNS Management
+│     ├─ TTL configuration
+│     ├─ Health check integration
+│     ├─ Failover DNS records
+│     └─ DNSSEC support
+│
+└─ API & Management
+   ├─ Azure Portal
+   │  ├─ GUI-based management
+   │  ├─ Configuration wizards
+   │  ├─ Monitoring dashboards
+   │  └─ Backend health view
+   │
+   ├─ Azure CLI
+   │  ├─ Command-line automation
+   │  ├─ Scripting support
+   │  ├─ Cross-platform
+   │  └─ CI/CD integration
+   │
+   ├─ PowerShell
+   │  ├─ Automation scripts
+   │  ├─ Bulk operations
+   │  ├─ Windows integration
+   │  └─ Azure Automation
+   │
+   ├─ REST API
+   │  ├─ Programmatic access
+   │  ├─ Custom tooling
+   │  ├─ Integration scenarios
+   │  └─ Webhook triggers
+   │
+   └─ SDKs
+      ├─ .NET SDK
+      ├─ Python SDK
+      ├─ Java SDK
+      ├─ Node.js SDK
+      └─ Go SDK
+
+════════════════════════════════════════════════════════════════════════════════════════════
+
+💰 COST & SKU DETAILS
+│
+├─ SKU Comparison Matrix
+│  ├─ v1 SKU (Legacy - Not Recommended)
+│  │  ├─ Standard_Small
+│  │  │  ├─ 2 instances
+│  │  │  ├─ ~200 Mbps throughput
+│  │  │  ├─ No autoscaling
+│  │  │  └─ No zone redundancy
+│  │  │
+│  │  ├─ Standard_Medium
+│  │  │  ├─ 2 instances
+│  │  │  ├─ ~500 Mbps throughput
+│  │  │  ├─ No autoscaling
+│  │  │  └─ No zone redundancy
+│  │  │
+│  │  ├─ Standard_Large
+│  │  │  ├─ 2 instances
+│  │  │  ├─ ~1250 Mbps throughput
+│  │  │  ├─ No autoscaling
+│  │  │  └─ No zone redundancy
+│  │  │
+│  │  ├─ WAF_Medium
+│  │  │  ├─ WAF protection included
+│  │  │  ├─ ~500 Mbps throughput (reduced)
+│  │  │  ├─ OWASP rule sets
+│  │  │  └─ No autoscaling
+│  │  │
+│  │  └─ WAF_Large
+│  │     ├─ WAF protection included
+│  │     ├─ ~1250 Mbps throughput (reduced)
+│  │     ├─ OWASP rule sets
+│  │     └─ No autoscaling
+│  │
+│  └─ v2 SKU (Recommended)
+│     ├─ Standard_v2
+│     │  ├─ Autoscaling (0-125 instances)
+│     │  ├─ Zone redundancy
+│     │  ├─ Static VIP
+│     │  ├─ Header rewriting
+│     │  ├─ HTTP/2 support
+│     │  ├─ Key Vault integration
+│     │  ├─ Better performance
+│     │  ├─ Capacity Units-based pricing
+│     │  └─ No WAF (add separately)
+│     │
+│     └─ WAF_v2
+│        ├─ All Standard_v2 features
+│        ├─ WAF protection included
+│        ├─ OWASP CRS 3.2
+│        ├─ Bot protection
+│        ├─ Custom rules
+│        ├─ Per-site WAF policies
+│        ├─ Managed rule sets
+│        └─ Higher pricing
+│
+├─ Pricing Components
+│  ├─ Fixed Hourly Cost
+│  │  ├─ Charged per hour (always running)
+│  │  ├─ Varies by SKU & region
+│  │  ├─ ~$0.25/hour (Standard_v2, US regions)
+│  │  ├─ Includes first 5 Capacity Units
+│  │  └─ ~$143/month minimum (v2)
+│  │
+│  ├─ Capacity Units Cost (v2)
+│  │  ├─ Beyond first 5 CU included
+│  │  ├─ ~$0.008 per CU per hour
+│  │  ├─ Based on highest of:
+│  │  │  ├─ Compute Units (CPU)
+│  │  │  ├─ Persistent Connections / 2,500
+│  │  │  └─ Throughput (Mbps) / 2.22
+│  │  └─ Autoscaling charges more during peaks
+│  │
+│  ├─ Data Processing (v1 only)
+│  │  ├─ Charged per GB processed
+│  │  ├─ ~$0.008 per GB
+│  │  ├─ Inbound + outbound data
+│  │  └─ Not applicable to v2
+│  │
+│  ├─ WAF Additional Cost
+│  │  ├─ WAF_v2 SKU higher base rate
+│  │  ├─ ~$0.36/hour (vs $0.25)
+│  │  ├─ Policy-based pricing
+│  │  └─ Rule evaluation cost
+│  │
+│  └─ Outbound Data Transfer
+│     ├─ Standard Azure egress rates
+│     ├─ First 5 GB/month free
+│     ├─ ~$0.087/GB (5-10 TB)
+│     └─ Reduced rates for higher volume
+│
+├─ Cost Optimization Strategies
+│  ├─ Right-Sizing
+│  │  ├─ Monitor capacity unit usage
+│  │  ├─ Adjust min/max autoscale settings
+│  │  ├─ Remove unused resources
+│  │  └─ Consolidate applications
+│  │
+│  ├─ Reserved Capacity
+│  │  ├─ 1-year commitment: ~30% savings
+│  │  ├─ 3-year commitment: ~50% savings
+│  │  ├─ Predictable workloads
+│  │  └─ Pay upfront or monthly
+│  │
+│  ├─ Multi-Site Hosting
+│  │  ├─ Host multiple websites per gateway
+│  │  ├─ Share fixed costs
+│  │  ├─ Path-based routing efficiency
+│  │  └─ Reduce gateway sprawl
+│  │
+│  ├─ Autoscaling Configuration
+│  │  ├─ Set realistic min capacity
+│  │  ├─ Limit max capacity appropriately
+│  │  ├─ Scale based on actual usage patterns
+│  │  └─ Avoid over-provisioning
+│  │
+│  ├─ Azure Hybrid Benefit
+│  │  └─ Not applicable (PaaS service)
+│  │
+│  └─ Dev/Test Optimization
+│     ├─ Use smaller instances for dev/test
+│     ├─ Stop when not in use (not possible)
+│     ├─ Shared dev gateway for multiple teams
+│     └─ Lower min capacity for non-prod
+│
+├─ Cost Monitoring
+│  ├─ Azure Cost Management
+│  │  ├─ Track spending trends
+│  │  ├─ Set budget alerts
+│  │  ├─ Cost analysis reports
+│  │  └─ Forecast future costs
+│  │
+│  ├─ Capacity Unit Monitoring
+│  │  ├─ Track CU usage metric
+│  │  ├─ Identify cost drivers
+│  │  ├─ Correlate with traffic patterns
+│  │  └─ Optimize configurations
+│  │
+│  └─ Tags for Cost Allocation
+│     ├─ Department tags
+│     ├─ Project tags
+│     ├─ Environment tags
+│     └─ Cost center tags
+│
+└─ Pricing Example (Standard_v2)
+   ├─ Base: ~$180/month (720 hours × $0.25)
+   ├─ Includes: First 5 CU
+   ├─ Additional CU: $0.008/CU/hour
+   ├─ Example Load:
+   │  ├─ 10 Capacity Units average
+   │  ├─ Extra 5 CU × 720 hours × $0.008
+   │  ├─ = $28.80/month additional
+   │  └─ Total: ~$209/month
+   └─ WAF_v2 adds ~$80-100/month to base
+
+════════════════════════════════════════════════════════════════════════════════════════════
+
+🎯 USE CASES & SCENARIOS
+│
+├─ Web Application Load Balancing
+│  ├─ Multi-Tier Applications
+│  │  ├─ Frontend web servers
+│  │  ├─ API middleware tier
+│  │  ├─ Path-based routing
+│  │  └─ Backend database tier
+│  │
+│  ├─ Microservices Architecture
+│  │  ├─ Route by URL path to services
+│  │  ├─ /users → User Service
+│  │  ├─ /orders → Order Service
+│  │  └─ /products → Product Service
+│  │
+│  └─ Single Page Applications (SPA)
+│     ├─ Static content routing
+│     ├─ API gateway pattern
+│     └─ WebSocket support
+│
+├─ Multi-Site Hosting
+│  ├─ Multiple Domains
+│  │  ├─ www.company-a.com
+│  │  ├─ www.company-b.com
+│  │  ├─ Separate backends per site
+│  │  └─ Individual SSL certificates
+│  │
+│  ├─ Subdomain Hosting
+│  │  ├─ app.company.com
+│  │  ├─ api.company.com
+│  │  ├─ admin.company.com
+│  │  └─ Shared or separate backends
+│  │
+│  └─ White-Label SaaS
+│     ├─ customer1.saas.com
+│     ├─ customer2.saas.com
+│     ├─ Tenant isolation
+│     └─ Custom branding per tenant
+│
+├─ API Gateway Pattern
+│  ├─ API Management
+│  │  ├─ Central entry point for APIs
+│  │  ├─ API versioning (/v1, /v2)
+│  │  ├─ Rate limiting per client
+│  │  └─ WAF protection for APIs
+│  │
+│  ├─ Backend for Frontend (BFF)
+│  │  ├─ Aggregate multiple backend calls
+│  │  ├─ Transform responses
+│  │  ├─ Mobile vs web backends
+│  │  └─ Simplified client integration
+│  │
+│  └─ RESTful Services
+│     ├─ HTTPS termination
+│     ├─ Authentication/authorization
+│     ├─ Request/response transformation
+│     └─ Analytics & monitoring
+│
+├─ Security Scenarios
+│  ├─ WAF Protection
+│  │  ├─ OWASP Top 10 mitigation
+│  │  ├─ Bot protection
+│  │  ├─ DDoS mitigation (Layer 7)
+│  │  └─ Custom rule enforcement
+│  │
+│  ├─ SSL/TLS Offloading
+│  │  ├─ Centralized certificate management
+│  │  ├─ Reduce backend CPU load
+│  │  ├─ Enforce TLS 1.2+
+│  │  └─ Strong cipher suites
+│  │
+│  └─ Zero Trust Architecture
+│     ├─ mTLS authentication
+│     ├─ Header-based auth injection
+│     ├─ Private Link connectivity
+│     └─ Network segmentation
+│
+├─ Deployment Patterns
+│  ├─ Blue-Green Deployment
+│  │  ├─ Blue environment (current)
+│  │  ├─ Green environment (new)
+│  │  ├─ Instant switch via routing rule
+│  │  └─ Easy rollback capability
+│  │
+│  ├─ Canary Releases
+│  │  ├─ Route 5% traffic to new version
+│  │  ├─ Gradual increase after validation
+│  │  ├─ Monitor metrics & errors
+│  │  └─ Rollback if issues detected
+│  │
+│  └─ A/B Testing
+│     ├─ Route based on user segment
+│     ├─ Header-based routing
+│     ├─ Cookie-based routing
+│     └─ Feature flag integration
+│
+├─ Hybrid Cloud Scenarios
+│  ├─ Cloud Bursting
+│  │  ├─ On-premises primary
+│  │  ├─ Azure for overflow traffic
+│  │  ├─ Seamless failover
+│  │  └─ Cost-effective scaling
+│  │
+│  ├─ Migration Scenarios
+│  │  ├─ Gradual migration to cloud
+│  │  ├─ Route old requests on-prem
+│  │  ├─ Route new requests to Azure
+│  │  └─ Minimize migration risk
+│  │
+│  └─ Data Residency
+│     ├─ Process in specific region
+│     ├─ Route based on user location
+│     ├─ Compliance requirements
+│     └─ Local data processing
+│
+├─ Internal Applications
+│  ├─ Private App Gateway (internal IP)
+│  │  ├─ No internet exposure
+│  │  ├─ VPN/ExpressRoute access
+│  │  ├─ Internal corporate apps
+│  │  └─ Enhanced security
+│  │
+│  ├─ Partner Extranet
+│  │  ├─ Private Link connectivity
+│  │  ├─ Partner VNet access
+│  │  ├─ No public exposure
+│  │  └─ Secure B2B integration
+│  │
+│  └─ Dev/Test Environments
+│     ├─ Internal-only access
+│     ├─ Lower SKU for cost savings
+│     ├─ Isolated from production
+│     └─ Testing new configurations
+│
+└─ Advanced Patterns
+   ├─ Global Load Balancing
+   │  ├─ Front Door + App Gateway
+   │  ├─ Region-level load balancing
+   │  ├─ Cross-region failover
+   │  └─ Latency-based routing
+   │
+   ├─ Edge Computing
+   │  ├─ Regional processing
+   │  ├─ Content transformation
+   │  ├─ Protocol conversion
+   │  └─ Request enrichment
+   │
+   └─ Service Mesh Integration
+      ├─ Ingress controller for AKS
+      ├─ Istio integration
+      ├─ Traffic management
+      └─ Observability
+
+════════════════════════════════════════════════════════════════════════════════════════════
+
+🆚 SERVICE COMPARISON & DECISION MATRIX
+│
+├─ Application Gateway vs Azure Load Balancer
+│  ├─ Feature Comparison
+│  │  ├─ Layer: App Gateway (L7) | Load Balancer (L4)
+│  │  ├─ Protocol: HTTP/HTTPS/WebSocket | TCP/UDP (any)
+│  │  ├─ Routing: URL/Host-based | IP/Port only
+│  │  ├─ SSL: Termination + E2E | No SSL features
+│  │  ├─ WAF: Yes | No
+│  │  ├─ Scope: Regional | Regional
+│  │  ├─ Price: Moderate-High | Low
+│  │  └─ Health Probes: HTTP/HTTPS | TCP/HTTP
+│  │
+│  └─ When to Choose
+│     ├─ App Gateway: Web apps, SSL, WAF, L7 routing
+│     └─ Load Balancer: Non-HTTP, simple L4, cost-sensitive
+│
+├─ Application Gateway vs Azure Front Door
+│  ├─ Feature Comparison
+│  │  ├─ Scope: Regional | Global (multi-region)
+│  │  ├─ Routing: Within region | Cross-region
+│  │  ├─ CDN: No (use separate) | Yes (built-in)
+│  │  ├─ Caching: No native | Yes (edge caching)
+│  │  ├─ SSL: Yes | Yes
+│  │  ├─ WAF: Yes | Yes (global WAF)
+│  │  ├─ Latency: Low (single region) | Lower (edge POP)
+│  │  ├─ Failover: Within region | Cross-region
+│  │  └─ Price: Moderate | Higher
+│  │
+│  └─ When to Choose
+│     ├─ App Gateway: Single region, advanced L7
+│     ├─ Front Door: Global apps, CDN, multi-region
+│     └─ Combined: Front Door → Regional App Gateways
+│
+├─ Application Gateway vs Traffic Manager
+│  ├─ Feature Comparison
+│  │  ├─ Layer: L7 (Application) | DNS-level
+│  │  ├─ Routing: Real-time | DNS resolution
+│  │  ├─ Load Balancing: Yes | No (DNS only)
+│  │  ├─ SSL Termination: Yes | No
+│  │  ├─ Geographic Routing: No | Yes
+│  │  ├─ Performance Routing: Within region | Global
+│  │  ├─ Protocols: HTTP/HTTPS | Any (DNS-level)
+│  │  └─ TTL: N/A | DNS TTL delay
+│  │
+│  └─ When to Choose
+│     ├─ App Gateway: L7 load balancing, SSL
+│     ├─ Traffic Manager: DNS routing, any protocol
+│     └─ Combined: Traffic Manager → Regional App Gateways
+│
+├─ Application Gateway vs API Management
+│  ├─ Feature Comparison
+│  │  ├─ Primary Purpose: Load balancer | API gateway
+│  │  ├─ API Management: Limited | Extensive
+│  │  ├─ Developer Portal: No | Yes
+│  │  ├─ Rate Limiting: Via WAF | Built-in quota/throttling
+│  │  ├─ Authentication: SSL, mTLS | OAuth, JWT, keys
+│  │  ├─ Transformation: Headers, URL | Full request/response
+│  │  ├─ Monitoring: Standard | API-specific analytics
+│  │  ├─ Caching: No native | Response caching
+│  │  └─ Price: Moderate | Moderate-High
+│  │
+│  └─ When to Choose
+│     ├─ App Gateway: General web load balancing
+│     ├─ APIM: API-first, monetization, policies
+│     └─ Combined: APIM → App Gateway → Backends
+│
+└─ Decision Tree
+   ├─ Need L4 load balancing? → Azure Load Balancer
+   ├─ Need global distribution? → Azure Front Door
+   ├─ Need DNS-based routing? → Traffic Manager
+   ├─ API-first with management? → API Management
+   ├─ Regional web apps with L7? → Application Gateway
+   └─ Complex scenarios? → Combination of services
+
+════════════════════════════════════════════════════════════════════════════════════════════
+
+🧠 MEMORY AIDS & QUICK REFERENCE
+│
+├─ Acronym: "SMART PROWL"
+│  ├─ S - Security (WAF, SSL/TLS, mTLS)
+│  ├─ M - Multi-site hosting
+│  ├─ A - Autoscaling (v2)
+│  ├─ R - Routing (URL & host-based)
+│  ├─ T - Termination (SSL offloading)
+│  ├─ P - Probes (health monitoring)
+│  ├─ R - Redundancy (zone redundancy)
+│  ├─ O - Observability (metrics & logs)
+│  ├─ W - WebSocket support
+│  └─ L - Layer 7 load balancing
+│
+├─ Component Flow: "FLBHPR"
+│  ├─ F - Frontend (public/private IP)
+│  ├─ L - Listener (port, protocol, host)
+│  ├─ B - Backend pool (target servers)
+│  ├─ H - HTTP settings (communication config)
+│  ├─ P - Probe (health checks)
+│  └─ R - Rule (ties everything together)
+│
+├─ SKU Selection: "v2 Always"
+│  ├─ v2 = Modern features
+│  ├─ v1 = Legacy (avoid)
+│  ├─ Standard_v2 = No WAF
+│  └─ WAF_v2 = With WAF protection
+│
+├─ Routing Types: "BPM"
+│  ├─ B - Basic (one-to-one)
+│  ├─ P - Path-based (URL routing)
+│  └─ M - Multi-site (host-based)
+│
+├─ SSL Modes: "TOE"
+│  ├─ T - Termination (decrypt at gateway)
+│  ├─ O - Offloading (same as termination)
+│  └─ E - End-to-end (decrypt & re-encrypt)
+│
+├─ Health Probe States: "HUD"
+│  ├─ H - Healthy (backend available)
+│  ├─ U - Unhealthy (backend down)
+│  └─ D - Draining (graceful removal)
+│
+├─ Critical Metrics: "HU-FRT"
+│  ├─ H - Healthy host count
+│  ├─ U - Unhealthy host count
+│  ├─ F - Failed requests
+│  ├─ R - Response time
+│  └─ T - Total requests
+│
+└─ Quick Decision Matrix
+   ├─ Public web app? → Public IP + SSL + WAF
+   ├─ Internal app? → Private IP only
+   ├─ Multiple domains? → Multi-site listener
+   ├─ Path routing? → URL path map
+   ├─ API security? → WAF + SSL + mTLS
+   ├─ High availability? → Zone redundancy + 2+ instances
+   ├─ Cost-sensitive? → Autoscale with low min capacity
+   └─ Global app? → Front Door + regional App Gateways
+
+════════════════════════════════════════════════════════════════════════════════════════════
+```
+
+## 🔑 Key Takeaways
+
+### **Always Remember:**
+1. **v2 SKU is the standard** - Always use Standard_v2 or WAF_v2 (never v1)
+2. **Dedicated subnet required** - Minimum /28, recommend /24
+3. **Layer 7 only** - HTTP/HTTPS/WebSocket (use Load Balancer for L4)
+4. **Regional service** - Deploy in each region, use Front Door for global
+5. **Health probes are critical** - Always configure custom probes
+6. **Zone redundancy for HA** - Deploy across zones for 99.99% SLA
+7. **WAF in prevention mode** - Start in detection, move to prevention after tuning
+
+### **Common Gotchas:**
+- ❌ NSG rules must allow 65200-65535 for management
+- ❌ Cannot change zones after creation
+- ❌ Autoscaling takes 6-7 minutes
+- ❌ UDRs can break connectivity if misconfigured
+- ❌ Backend timeouts must match application response times
+- ❌ Fixed cost regardless of traffic (always running)
+
+### **Best Practices Checklist:**
+- ✅ Use v2 SKU (Standard_v2 or WAF_v2)
+- ✅ Enable zone redundancy (3 zones)
+- ✅ Configure autoscaling (min: 2, max: realistic)
+- ✅ Enable WAF in prevention mode
+- ✅ Use TLS 1.2+ only
+- ✅ Configure custom health probes
+- ✅ Enable diagnostic logging
+- ✅ Set up alerts for unhealthy hosts
+- ✅ Use Key Vault for certificates
+- ✅ Tag resources for cost tracking
+- ✅ Multiple backends per pool
+- ✅ Connection draining enabled
+- ✅ Regular security audits
+
+---
+
 ## Overview
 
 **Azure Application Gateway** is a web traffic load balancer that enables you to manage traffic to your web applications. It operates at the **Application Layer (OSI Layer 7)** and provides advanced request routing, SSL/TLS termination, Web Application Firewall (WAF), and autoscaling capabilities.
