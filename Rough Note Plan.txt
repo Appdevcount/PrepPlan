@@ -2,6 +2,32 @@
 Key idea is to act with elevated expertise and not do same mistakes
 
 
+React-2
+Ang -2
+DSA 3
+Per API SQL EF pdf 1
+Quickprep-TA
+API-SQL-SDF-MockInT
+AzureSvcs- APPGateway-APIM-AKS-Func-SBus
+DDD-CA-CQRS-MArch
+
+DistMsg
+Prod Failure
+ADR md
+
+Linkdin saves
+ASD
+SYS DESIGN prob
+
+---
+Durable task
+Intg test
+ACA
+
+
+==========================
+===========================
+
 Intro and Answer Approach 2
 AKS helm practice 2
 ASD 2
