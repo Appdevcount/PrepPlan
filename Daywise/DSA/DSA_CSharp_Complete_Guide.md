@@ -6567,15 +6567,18 @@ public class LRUCache {
 
 ```csharp
 string ReverseString(string s) {
+    // STEP 1: Convert to mutable char array (strings are immutable in C#)
     char[] chars = s.ToCharArray();  // convert to mutable array
     int left = 0, right = chars.Length - 1;
 
+    // STEP 2: Two-pointer swap from both ends converging inward
     while (left < right) {
         // Swap characters at both ends, then move pointers inward
         (chars[left], chars[right]) = (chars[right], chars[left]);
         left++;
         right--;
     }
+    // STEP 3: Convert char array back to string
     return new string(chars);  // convert char array back to string
 }
 // Input: "hello" → Output: "olleh"
@@ -6590,8 +6593,10 @@ string ReverseString(string s) {
 
 ```csharp
 bool IsPrime(int n) {
+    // STEP 1: Edge case — numbers < 2 are not prime by definition
     if (n < 2) return false;  // 0 and 1 are not prime by definition
 
+    // STEP 2: Trial division up to √n — any factor above √n has a paired factor below it
     // WHY check up to √n? If n = a × b, the smaller factor must be ≤ √n.
     // So if no factor found up to √n, none exists beyond either.
     for (int i = 2; i * i <= n; i++) {
@@ -6612,7 +6617,9 @@ bool IsPrime(int n) {
 ```csharp
 // ITERATIVE — O(n) time, O(1) space (PREFERRED)
 void PrintFibonacci(int n) {
+    // STEP 1: Seed with the first two Fibonacci values
     int a = 0, b = 1;  // first two Fibonacci numbers
+    // STEP 2: Slide the window forward n times, printing each value
     for (int i = 0; i < n; i++) {
         Console.Write(a + " ");
         int next = a + b;  // calculate next before overwriting
@@ -6689,14 +6696,17 @@ void SwapTuple(ref int a, ref int b) => (a, b) = (b, a);
 
 ```csharp
 (int largest, int secondLargest) FindTop2(int[] arr) {
+    // STEP 1: Initialize both trackers to minimum value
     int first = int.MinValue;   // largest seen so far
     int second = int.MinValue;  // second largest seen so far
 
     foreach (int num in arr) {
         if (num > first) {
+            // STEP 2: New largest found — demote old first to second
             second = first;  // old largest drops to second place
             first = num;     // new largest takes first place
         } else if (num > second && num != first) {
+            // STEP 3: Not a new largest but beats second — update second
             // num is between second and first — but not a duplicate of first
             second = num;
         }
@@ -6827,9 +6837,11 @@ bool IsPalindrome(string s) {
 
 ```csharp
 int FindMissing(int[] arr, int n) {
+    // STEP 1: Compute expected sum using Gauss formula n*(n+1)/2
     // Sum of 1 to n = n*(n+1)/2 (Gauss formula)
     // Missing number = expected sum - actual sum
     int expectedSum = n * (n + 1) / 2;
+    // STEP 2: Subtract actual sum — the difference is the missing number
     int actualSum = arr.Sum();  // or use a loop: foreach(int x in arr) actualSum += x;
     return expectedSum - actualSum;
 }
@@ -6838,6 +6850,7 @@ int FindMissing(int[] arr, int n) {
 
 // BONUS: XOR approach (handles overflow for very large n)
 int FindMissingXOR(int[] arr, int n) {
+    // STEP 1: XOR all numbers 1..n, then XOR all array values — only missing remains
     int xor = 0;
     for (int i = 1; i <= n; i++) xor ^= i;   // XOR of 1..n
     foreach (int num in arr) xor ^= num;       // XOR with array values
@@ -6854,9 +6867,11 @@ int FindMissingXOR(int[] arr, int n) {
 ```csharp
 void BubbleSort(int[] arr) {
     int n = arr.Length;
+    // STEP 1: Outer pass — each pass guarantees the next largest is in its final position
     for (int i = 0; i < n - 1; i++) {
         bool swapped = false;  // optimization: if no swap in a pass, array is sorted
 
+        // STEP 2: Inner scan — bubble larger element rightward by comparing adjacent pairs
         // Each pass bubbles the i-th largest element to position n-1-i
         for (int j = 0; j < n - i - 1; j++) {
             if (arr[j] > arr[j+1]) {
@@ -6864,6 +6879,7 @@ void BubbleSort(int[] arr) {
                 swapped = true;
             }
         }
+        // STEP 3: Early exit if no swaps occurred — array is already sorted
         if (!swapped) break;  // early exit: already sorted — saves O(n) in best case
     }
 }
@@ -7252,9 +7268,11 @@ int CountWords(string sentence) {
 
 ```csharp
 int[] MergeSorted(int[] a, int[] b) {
+    // STEP 1: Allocate result array large enough to hold both inputs
     int[] result = new int[a.Length + b.Length];
     int i = 0, j = 0, k = 0;  // i=pointer for a, j=pointer for b, k=result index
 
+    // STEP 2: Merge by always taking the smaller of the two current front elements
     // Compare elements from both arrays; take the smaller one
     while (i < a.Length && j < b.Length) {
         if (a[i] <= b[j])
@@ -7263,6 +7281,7 @@ int[] MergeSorted(int[] a, int[] b) {
             result[k++] = b[j++];  // take from b, advance j
     }
 
+    // STEP 3: Drain any remaining elements from either array
     // Copy remaining elements (one array might not be exhausted)
     while (i < a.Length) result[k++] = a[i++];
     while (j < b.Length) result[k++] = b[j++];
@@ -7985,12 +8004,15 @@ WHERE Salary > (SELECT AVG(Salary) FROM Employees);
 
 ```csharp
 public int MaxProfit(int[] prices) {
+    // STEP 1: Initialize min price and max profit trackers
     int minPrice = int.MaxValue;  // cheapest buy price seen so far
     int maxProfit = 0;            // best profit seen so far
 
     foreach (int price in prices) {
+        // STEP 2: Update the cheapest buy price seen so far
         // Update cheapest buy price if today is cheaper
         minPrice = Math.Min(minPrice, price);
+        // STEP 3: Update best profit if selling at today's price beats current best
         // Update best profit if selling today (after buying at minPrice) is better
         maxProfit = Math.Max(maxProfit, price - minPrice);
     }
@@ -8035,12 +8057,14 @@ bool ContainsDuplicate(int[] nums) {
 
 ```csharp
 public int NumIslands(char[][] grid) {
+    // STEP 1: Scan the grid for unvisited land cells
     int count = 0;
     int rows = grid.Length, cols = grid[0].Length;
 
     for (int r = 0; r < rows; r++) {
         for (int c = 0; c < cols; c++) {
             if (grid[r][c] == '1') {  // found an unvisited land cell
+                // STEP 2: Each new land cell found is a new island — DFS to sink it
                 count++;
                 DFS(grid, r, c);  // "sink" the entire connected island
             }
@@ -8049,9 +8073,11 @@ public int NumIslands(char[][] grid) {
     return count;
 
     void DFS(char[][] g, int r, int c) {
+        // STEP 3: Base case — out of bounds, water, or already visited (sunk)
         // Out of bounds or water or already sunk — stop
         if (r < 0 || r >= rows || c < 0 || c >= cols || g[r][c] != '1') return;
         g[r][c] = '0';  // mark as visited by "sinking" (changing to water)
+        // STEP 4: Recursively sink all 4 connected neighbors
         // Explore all 4 neighbors (up, down, left, right)
         DFS(g, r-1, c); DFS(g, r+1, c);
         DFS(g, r, c-1); DFS(g, r, c+1);
@@ -8076,8 +8102,10 @@ public int NumIslands(char[][] grid) {
 public string LongestCommonPrefix(string[] strs) {
     if (strs.Length == 0) return "";
 
+    // STEP 1: Seed prefix with the first word
     string prefix = strs[0];  // start with first word as candidate prefix
 
+    // STEP 2: For each subsequent word, shrink prefix until it matches the word's start
     for (int i = 1; i < strs.Length; i++) {
         // Shrink prefix until the current string starts with it
         while (!strs[i].StartsWith(prefix)) {
@@ -8103,11 +8131,13 @@ public int[] ProductExceptSelf(int[] nums) {
     int n = nums.Length;
     int[] result = new int[n];
 
+    // STEP 1: Left pass — result[i] = product of all elements to the LEFT of i
     // PASS 1: result[i] = product of all elements to the LEFT of i
     result[0] = 1;  // nothing to the left of index 0
     for (int i = 1; i < n; i++)
         result[i] = result[i-1] * nums[i-1];  // extend left product
 
+    // STEP 2: Right pass — multiply each result[i] by the right-side product
     // PASS 2: multiply by product of all elements to the RIGHT of i
     int rightProduct = 1;  // accumulate right product as we scan right-to-left
     for (int i = n-1; i >= 0; i--) {
@@ -8153,6 +8183,7 @@ public int FindDuplicate(int[] nums) {
     // There's a cycle because one value (the duplicate) points to the same node twice.
     // Use Floyd's cycle detection (Phase 1: find meeting point, Phase 2: find cycle start).
 
+    // STEP 1: Floyd's Phase 1 — advance fast/slow until they meet inside the cycle
     int slow = nums[0], fast = nums[0];
 
     // PHASE 1: Find meeting point inside cycle
@@ -8161,12 +8192,14 @@ public int FindDuplicate(int[] nums) {
         fast = nums[nums[fast]];    // move 2 steps
     } while (slow != fast);
 
+    // STEP 2: Floyd's Phase 2 — reset slow to head, advance both 1-step to find cycle entry
     // PHASE 2: Find entry point of cycle = duplicate number
     slow = nums[0];  // reset slow to start
     while (slow != fast) {
         slow = nums[slow];  // both move 1 step now
         fast = nums[fast];
     }
+    // STEP 3: Meeting point is the duplicate number (the cycle entry)
     return slow;  // they meet at the duplicate
 }
 // Input: [1,3,4,2,2] → 2
@@ -8190,14 +8223,17 @@ public IList<IList<int>> LevelOrder(TreeNode root) {
     var result = new List<IList<int>>();
     if (root == null) return result;
 
+    // STEP 1: Seed BFS queue with the root node
     var queue = new Queue<TreeNode>();
     queue.Enqueue(root);
 
     while (queue.Count > 0) {
+        // STEP 2: Snapshot level size so we only process this level's nodes
         // Snapshot level size BEFORE enqueuing next level's nodes
         int levelSize = queue.Count;
         var level = new List<int>();
 
+        // STEP 3: Process all nodes at this level; enqueue their children for the next level
         for (int i = 0; i < levelSize; i++) {
             var node = queue.Dequeue();
             level.Add(node.val);
@@ -8286,14 +8322,18 @@ public bool IsBalanced(TreeNode root) {
 }
 
 int CheckHeight(TreeNode node) {
+    // STEP 1: Base case — null node has height 0
     if (node == null) return 0;  // empty tree has height 0
 
+    // STEP 2: Recursively check left subtree; propagate -1 (unbalanced) immediately
     int left = CheckHeight(node.left);
     if (left == -1) return -1;   // early exit: left subtree already unbalanced
 
+    // STEP 3: Recursively check right subtree; propagate -1 (unbalanced) immediately
     int right = CheckHeight(node.right);
     if (right == -1) return -1;  // early exit: right subtree already unbalanced
 
+    // STEP 4: Check balance at current node; signal upward if unbalanced
     // If height difference > 1, signal unbalanced upward with -1
     if (Math.Abs(left - right) > 1) return -1;
 
@@ -8314,17 +8354,21 @@ public IList<int> FindAnagrams(string s, string p) {
     var result = new List<int>();
     if (s.Length < p.Length) return result;
 
+    // STEP 1: Build frequency arrays for pattern and the initial window
     int[] pCount = new int[26];  // frequency of each char in pattern p
     int[] wCount = new int[26];  // frequency in current window of s
     foreach (char c in p) pCount[c - 'a']++;
 
     for (int i = 0; i < s.Length; i++) {
+        // STEP 2: Expand window right — include new character
         wCount[s[i] - 'a']++;  // expand window: add right character
 
+        // STEP 3: Shrink window left — remove character that slides out
         // Shrink window: remove character that's sliding out of window
         if (i >= p.Length)
             wCount[s[i - p.Length] - 'a']--;
 
+        // STEP 4: If window frequencies match pattern frequencies, record start index
         // If frequencies match → window is an anagram of p
         if (pCount.SequenceEqual(wCount))
             result.Add(i - p.Length + 1);  // start index of this window
@@ -8365,9 +8409,11 @@ bool IsMirror(TreeNode left, TreeNode right) {
 ```csharp
 public IList<int> SpiralOrder(int[][] matrix) {
     var result = new List<int>();
+    // STEP 1: Set up 4 boundary pointers
     int top = 0, bottom = matrix.Length - 1;
     int left = 0, right = matrix[0].Length - 1;
 
+    // STEP 2: Traverse the spiral layer by layer, shrinking boundaries inward
     while (top <= bottom && left <= right) {
         // Traverse RIGHT across top row
         for (int c = left; c <= right; c++) result.Add(matrix[top][c]);
@@ -8402,6 +8448,7 @@ public IList<int> SpiralOrder(int[][] matrix) {
 
 ```csharp
 public double MyPow(double x, int n) {
+    // STEP 1: Handle negative exponent — flip base, negate exponent
     long N = n;  // use long to handle int.MinValue (negating it overflows int!)
     if (N < 0) { x = 1.0 / x; N = -N; }  // negative exponent → flip base, make N positive
 
@@ -8409,8 +8456,11 @@ public double MyPow(double x, int n) {
 }
 
 double FastPow(double x, long n) {
+    // STEP 2: Base case — x^0 = 1
     if (n == 0) return 1;          // x^0 = 1 (base case)
+    // STEP 3: Compute x^(n/2) ONCE — halve exponent (D&C saves O(n) → O(log n))
     double half = FastPow(x, n/2); // compute x^(n/2) ONCE (saves half the recursion)
+    // STEP 4: Combine — square for even exponent; one extra factor for odd
     if (n % 2 == 0)
         return half * half;        // even: x^n = (x^(n/2))²
     else
@@ -8428,9 +8478,11 @@ double FastPow(double x, long n) {
 
 ```csharp
 public IList<IList<int>> Subsets(int[] nums) {
+    // STEP 1: Seed result with the empty subset
     var result = new List<IList<int>>();
     result.Add(new List<int>());  // empty subset is always included
 
+    // STEP 2: For each number, double the result by adding num to every existing subset
     foreach (int num in nums) {
         // For each existing subset, create a new subset with num added
         int size = result.Count;  // snapshot current count (don't process newly added ones)
@@ -8502,18 +8554,22 @@ public TreeNode LowestCommonAncestor(TreeNode root, TreeNode p, TreeNode q) {
 
 ```csharp
 public int MaxProduct(int[] nums) {
+    // STEP 1: Seed both max and min trackers with the first element
     // WHY track both max AND min? A negative × negative = positive (big surprise!)
     // We need to track the minimum (most negative) product in case the next number is negative.
     int maxProd = nums[0], minProd = nums[0], result = nums[0];
 
     for (int i = 1; i < nums.Length; i++) {
+        // STEP 2: If current element is negative, swap max/min (negative flips signs)
         // When nums[i] is negative, max and min SWAP (negative flips sign)
         if (nums[i] < 0) (maxProd, minProd) = (minProd, maxProd);
 
+        // STEP 3: Extend or restart — take max/min of continuing vs starting fresh
         // Extend existing subarray or start fresh with current element
         maxProd = Math.Max(nums[i], maxProd * nums[i]);
         minProd = Math.Min(nums[i], minProd * nums[i]);
 
+        // STEP 4: Update global best
         result = Math.Max(result, maxProd);
     }
     return result;
@@ -8548,9 +8604,11 @@ public int MissingNumber(int[] nums) {
 ```csharp
 public void Rotate(int[] nums, int k) {
     int n = nums.Length;
+    // STEP 1: Normalize k — rotation by n is identity, so use k % n
     k %= n;  // handle k > n (k=7, n=5 is same as k=2)
     if (k == 0) return;
 
+    // STEP 2: Triple reverse — reverse all, then first k, then remaining
     // TRICK: reverse the whole array, then reverse first k, then reverse rest
     // Why it works: reversing shifts elements to their final positions.
     Reverse(nums, 0, n-1);      // reverse all:    [4,5,1,2,3] for k=2, [1,2,3,4,5]
@@ -8573,15 +8631,18 @@ public void Rotate(int[] nums, int k) {
 
 ```csharp
 public bool IsPalindrome(int x) {
+    // STEP 1: Quick guards — negatives and trailing-zero numbers can't be palindromes
     if (x < 0) return false;        // negative numbers are never palindromes
     if (x != 0 && x % 10 == 0) return false;  // trailing zero (like 10) can't be palindrome
 
+    // STEP 2: Reverse only the back half of the number — stop when reversed ≥ remaining
     int reversed = 0;
     // Only reverse HALF the number (stop when reversed catches up to remaining digits)
     while (x > reversed) {
         reversed = reversed * 10 + x % 10;  // take last digit of x, append to reversed
         x /= 10;                             // remove last digit from x
     }
+    // STEP 3: Compare: both halves must match (skip middle digit for odd-length)
     // For odd-length numbers (e.g., 12321): middle digit is in reversed/10
     return x == reversed || x == reversed / 10;
 }
@@ -8620,6 +8681,7 @@ public void MoveZeroes(int[] nums) {
 
 ```csharp
 public string DecodeString(string s) {
+    // STEP 1: Initialize stacks for repeat counts and partial strings before each '['
     var countStack = new Stack<int>();   // stores repeat counts
     var strStack = new Stack<string>(); // stores strings built before current bracket
     var current = new StringBuilder();  // current string being built
@@ -8627,19 +8689,23 @@ public string DecodeString(string s) {
 
     foreach (char c in s) {
         if (char.IsDigit(c)) {
+            // STEP 2: Build multi-digit repeat count
             k = k * 10 + (c - '0');  // handle multi-digit numbers (e.g., "12[a]")
         } else if (c == '[') {
+            // STEP 3: Save current state and start a fresh segment inside brackets
             countStack.Push(k);           // save current count
             strStack.Push(current.ToString()); // save current string built so far
             current.Clear();  // start fresh inside brackets
             k = 0;
         } else if (c == ']') {
+            // STEP 4: Close bracket — repeat inner segment and prepend saved outer string
             int repeat = countStack.Pop();
             string inner = current.ToString();
             current.Clear();
             current.Append(strStack.Pop());  // restore string before this bracket
             for (int i = 0; i < repeat; i++) current.Append(inner);  // repeat inner
         } else {
+            // STEP 5: Regular character — append to current segment
             current.Append(c);  // regular character
         }
     }
@@ -8660,6 +8726,7 @@ public string DecodeString(string s) {
 public int MinPathSum(int[][] grid) {
     int rows = grid.Length, cols = grid[0].Length;
 
+    // STEP 1: Fill DP table in-place — each cell stores minimum path sum to reach it
     // Modify grid in-place to store minimum path sums (space optimization)
     // dp[i][j] = minimum sum to reach cell (i,j) from (0,0)
     for (int i = 0; i < rows; i++) {
@@ -8667,6 +8734,7 @@ public int MinPathSum(int[][] grid) {
             if (i == 0 && j == 0) continue;  // start cell: keep original value
             else if (i == 0) grid[i][j] += grid[i][j-1];   // top row: only come from left
             else if (j == 0) grid[i][j] += grid[i-1][j];   // left col: only come from above
+            // STEP 2: Interior cells — take minimum of coming from above or from the left
             else grid[i][j] += Math.Min(grid[i-1][j], grid[i][j-1]);  // min of above or left
         }
     }
@@ -8684,11 +8752,13 @@ public int MinPathSum(int[][] grid) {
 
 ```csharp
 public int[] SortedSquares(int[] nums) {
+    // STEP 1: Two pointers from both ends; fill result from right (largest) to left
     int n = nums.Length;
     int[] result = new int[n];
     int left = 0, right = n - 1;
     int pos = n - 1;  // fill result from right to left (largest squares first)
 
+    // STEP 2: Compare squares at both ends; place the larger one at the current back position
     while (left <= right) {
         int leftSq = nums[left] * nums[left];
         int rightSq = nums[right] * nums[right];
@@ -8722,11 +8792,13 @@ public int[] SortedSquares(int[] nums) {
 
 ```csharp
 public int RomanToInt(string s) {
+    // STEP 1: Build the Roman numeral value map
     var values = new Dictionary<char, int> {
         ['I']=1, ['V']=5, ['X']=10, ['L']=50,
         ['C']=100, ['D']=500, ['M']=1000
     };
 
+    // STEP 2: Sum values; subtract when current symbol is less than the next (e.g., IV=4)
     int total = 0;
     for (int i = 0; i < s.Length; i++) {
         int curr = values[s[i]];
@@ -8747,8 +8819,10 @@ public int RomanToInt(string s) {
 
 ```csharp
 public bool IsHappy(int n) {
+    // STEP 1: Track visited numbers — if we revisit a number, there's a cycle (not happy)
     var seen = new HashSet<int>();
     while (n != 1 && seen.Add(n)) {  // Add returns false if n was already in set (cycle!)
+        // STEP 2: Replace n with the sum of squares of its digits
         int sum = 0;
         while (n > 0) {
             int digit = n % 10;   // extract last digit
@@ -8757,6 +8831,7 @@ public bool IsHappy(int n) {
         }
         n = sum;
     }
+    // STEP 3: n==1 means happy; anything else means we hit a cycle
     return n == 1;  // either reached 1 (happy) or cycle detected (not happy)
 }
 // Input: 19 → true (1²+9²=82, 8²+2²=68, ... eventually reaches 1)
@@ -8774,6 +8849,7 @@ public int GetSum(int a, int b) {
     // Use bit manipulation to simulate addition:
     // XOR: gives sum bits WITHOUT carry (1+0=1, 0+1=1, 1+1=0)
     // AND + shift: gives carry bits (1+1 carries 1 to next position)
+    // STEP 1: Iteratively apply XOR (sum without carry) and AND-shift (carry) until no carry
     while (b != 0) {
         int carry = (a & b) << 1;  // AND gives positions where carry occurs, shift left to next bit
         a = a ^ b;                 // XOR gives sum without carry
@@ -8796,21 +8872,27 @@ public bool Exist(char[][] board, string word) {
     int rows = board.Length, cols = board[0].Length;
 
     bool DFS(int r, int c, int idx) {
+        // STEP 1: Base case — all characters matched
         if (idx == word.Length) return true;  // found all characters!
+        // STEP 2: Guard — out of bounds or wrong character
         if (r < 0 || r >= rows || c < 0 || c >= cols) return false;  // out of bounds
         if (board[r][c] != word[idx]) return false;   // wrong character
 
+        // STEP 3: Mark cell as visited in-place to avoid reuse on this path
         char temp = board[r][c];
         board[r][c] = '#';  // mark as visited (in-place — no extra visited array)
 
+        // STEP 4: Explore all 4 neighbors for the next character
         // Explore all 4 directions
         bool found = DFS(r+1,c,idx+1) || DFS(r-1,c,idx+1)
                   || DFS(r,c+1,idx+1) || DFS(r,c-1,idx+1);
 
+        // STEP 5: Backtrack — restore cell so other paths can use it
         board[r][c] = temp;  // UN-MARK: restore for other paths (backtracking)
         return found;
     }
 
+    // STEP 6: Try starting DFS from every cell in the grid
     for (int r = 0; r < rows; r++)
         for (int c = 0; c < cols; c++)
             if (DFS(r, c, 0)) return true;  // try starting from every cell
@@ -8825,6 +8907,7 @@ public bool Exist(char[][] board, string word) {
 
 ```csharp
 public int HammingWeight(int n) {
+    // STEP 1: Use Brian Kernighan's trick — each n &= (n-1) clears the lowest set bit
     int count = 0;
     while (n != 0) {
         n &= n - 1;  // KEY TRICK: clears the LOWEST set bit
@@ -8868,9 +8951,11 @@ public int FirstUniqChar(string s) {
 ```csharp
 // APPROACH 1: HashSet — O(m+n) time, O(min(m,n)) space
 int[] Intersect(int[] nums1, int[] nums2) {
+    // STEP 1: Build a set from the first array for O(1) membership check
     var set1 = new HashSet<int>(nums1);  // build set from smaller array
     var result = new List<int>();
 
+    // STEP 2: For each element in nums2, check if it exists in the set (Remove avoids dupes)
     foreach (int num in nums2)
         if (set1.Remove(num))    // Remove returns true if element was in set (and removes it)
             result.Add(num);     // found in both — but won't add duplicates twice (Remove)
@@ -8881,10 +8966,12 @@ int[] Intersect(int[] nums1, int[] nums2) {
 // APPROACH 2: Sort + Two Pointers — O((m+n) log(m+n)) time, O(1) extra space
 // Useful when arrays are already sorted OR space is constrained
 int[] IntersectSorted(int[] nums1, int[] nums2) {
+    // STEP 1: Sort both arrays so identical values align
     Array.Sort(nums1); Array.Sort(nums2);
     int i = 0, j = 0;
     var result = new List<int>();
 
+    // STEP 2: Two-pointer merge — collect equal elements, advance the smaller pointer
     while (i < nums1.Length && j < nums2.Length) {
         if (nums1[i] == nums2[j]) { result.Add(nums1[i]); i++; j++; }
         else if (nums1[i] < nums2[j]) i++;   // advance smaller pointer
