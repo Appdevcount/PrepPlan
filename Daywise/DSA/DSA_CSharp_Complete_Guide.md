@@ -248,13 +248,16 @@ TRADE-OFF EXAMPLES:
 ```csharp
 // PREFIX SUM — the canonical space-for-time trade
 int[] BuildPrefixSum(int[] arr) {
+    // STEP 1: Allocate prefix array one larger than input (pre[0]=0 acts as base)
     int[] pre = new int[arr.Length + 1];  // +1 for empty prefix (pre[0]=0)
+    // STEP 2: Build running sum — pre[i+1] holds total of arr[0..i]
     for (int i = 0; i < arr.Length; i++)
         pre[i + 1] = pre[i] + arr[i];    // pre[i+1] = sum of arr[0..i]
     return pre;
 }
 
 int RangeSum(int[] pre, int left, int right) {
+    // STEP 1: Compute range sum using prefix subtraction — O(1) per query
     // Sum of arr[left..right] = prefix up to right+1 minus prefix up to left
     return pre[right + 1] - pre[left];   // O(1) magic!
 }
@@ -467,6 +470,8 @@ KEY INSIGHT: "I need fast lookup of complement = target - num"
              Fast lookup → HashMap (Dictionary) → O(1) per check
 ```
 
+> **🔑 CORE IDEA:** For each number, ask "is target−num already seen?" Store seen numbers in a HashMap so the complement check is O(1).
+
 **🔴 Brute Force — O(n²)**
 ```csharp
 // Try EVERY pair — two nested loops
@@ -486,20 +491,24 @@ public int[] TwoSumBrute(int[] nums, int target) {
 **🟢 Optimal — HashMap O(n)**
 ```csharp
 public int[] TwoSum(int[] nums, int target) {
+    // STEP 1: Initialize HashMap to store {value → index} for O(1) complement lookup
     // WHY Dictionary? We need to answer "have I seen the complement before?"
     // in O(1) time. Dictionary gives O(1) average lookup by key.
     var seen = new Dictionary<int, int>(); // key=value, val=index
 
     for (int i = 0; i < nums.Length; i++) {
+        // STEP 2: Compute the complement (the number we NEED to complete the pair)
         // WHY compute complement first? If complement exists in seen,
         // we already have both numbers — no need to add current one yet.
         int complement = target - nums[i];  // what number do we NEED?
 
+        // STEP 3: Check if complement was seen before → if yes, return the pair
         // TryGetValue is preferred over ContainsKey + indexer
         // because it does ONE lookup (not two)
         if (seen.TryGetValue(complement, out int j))
             return new[] { j, i };  // j is the earlier index, i is current
 
+        // STEP 4: Record current number's index AFTER checking (prevents same-element reuse)
         // WHY add AFTER checking? Prevents using same element twice.
         // Example: nums=[3,3], target=6 → we don't want to use index 0 twice
         seen[nums[i]] = i;
@@ -648,6 +657,8 @@ KEY INSIGHT: A palindrome has a CENTER. Instead of checking every
              and even-length (between two chars).
 ```
 
+> **🔑 CORE IDEA:** Every palindrome has a center (1 char or 2 chars). Expand outward from each of the 2n−1 centers; track the longest expansion found.
+
 ```
 EXPAND-FROM-CENTER VISUALIZATION on "babad":
 ═══════════════════════════════════════════════════════════════
@@ -669,17 +680,19 @@ EXPAND-FROM-CENTER VISUALIZATION on "babad":
 public string LongestPalindrome(string s) {
     if (s.Length == 0) return "";
 
+    // STEP 1: Initialize tracking variables for the best palindrome found
     int start = 0, maxLen = 1; // track best palindrome found
 
     // Helper: expand from center and return length of palindrome found
     // WHY a local function? Avoids code duplication for odd/even cases
     int Expand(int left, int right) {
-        // Expand outward while within bounds AND chars match
+        // STEP 2: Expand outward while characters match and bounds are valid
         // WHY check both boundaries? String is finite; can't go past ends
         while (left >= 0 && right < s.Length && s[left] == s[right]) {
             left--;   // move left pointer outward
             right++;  // move right pointer outward
         }
+        // STEP 3: Compute palindrome length from final (overshot) pointer positions
         // WHY right - left - 1? After the last successful expansion,
         // left went one too far left and right went one too far right.
         // Actual palindrome is s[left+1 .. right-1], length = (right-1)-(left+1)+1 = right-left-1
@@ -687,15 +700,15 @@ public string LongestPalindrome(string s) {
     }
 
     for (int i = 0; i < s.Length; i++) {
-        // Case 1: ODD-length palindrome centered at character i
+        // STEP 4: Try odd-length expansion centered at character i
         // Example: "aba" centered at 'b' (index 1)
         int oddLen = Expand(i, i);
 
-        // Case 2: EVEN-length palindrome centered BETWEEN i and i+1
+        // STEP 5: Try even-length expansion centered between i and i+1
         // Example: "abba" centered between the two 'b's
         int evenLen = Expand(i, i + 1);
 
-        // Update best if we found a longer palindrome
+        // STEP 6: Update global best if this center produced a longer palindrome
         int bestLen = Math.Max(oddLen, evenLen);
         if (bestLen > maxLen) {
             maxLen = bestLen;
@@ -791,8 +804,10 @@ public class ListNode {
 
 // BUILDING A LIST from array (utility for testing)
 ListNode BuildList(int[] vals) {
+    // STEP 1: Create dummy head to simplify list construction
     var dummy = new ListNode(0);  // dummy head avoids special-casing head node
     var curr = dummy;
+    // STEP 2: Append each value as a new node, advancing curr
     foreach (int v in vals) {
         curr.next = new ListNode(v);
         curr = curr.next;
@@ -804,8 +819,10 @@ ListNode BuildList(int[] vals) {
 
 // 1. DUMMY HEAD NODE — eliminates edge cases when head might change
 ListNode RemoveValue(ListNode head, int val) {
+    // STEP 1: Create dummy node pointing to head — handles head-removal edge case
     var dummy = new ListNode(0) { next = head }; // dummy points to real head
     var curr = dummy;
+    // STEP 2: Walk list; when next node matches val, skip it (unlink)
     while (curr.next != null) {
         if (curr.next.val == val)
             curr.next = curr.next.next; // skip the node to delete
@@ -817,24 +834,32 @@ ListNode RemoveValue(ListNode head, int val) {
 
 // 2. TWO POINTER (fast/slow) — find middle, detect cycle
 ListNode FindMiddle(ListNode head) {
+    // STEP 1: Initialize slow (1x speed) and fast (2x speed) pointers
     ListNode slow = head, fast = head;
+    // STEP 2: Advance fast 2 steps and slow 1 step until fast reaches end
     // WHY fast && fast.next? fast moves 2 steps, need to check both
     while (fast != null && fast.next != null) {
         slow = slow.next;       // moves 1 step
         fast = fast.next.next;  // moves 2 steps
     }
+    // STEP 3: When fast is at end, slow is exactly at the middle
     return slow; // when fast reaches end, slow is at middle
 }
 
 // 3. REVERSING — the 3-pointer technique (most important LL technique!)
 ListNode Reverse(ListNode head) {
+    // STEP 1: Initialize prev=null (new tail points nowhere) and curr=head
     ListNode prev = null, curr = head;
     while (curr != null) {
+        // STEP 2: Save next pointer BEFORE overwriting curr.next
         ListNode next = curr.next; // SAVE next before we overwrite it
+        // STEP 3: Flip the link — curr now points backward to prev
         curr.next = prev;          // REVERSE the link (point backward)
+        // STEP 4: Advance both pointers one position forward
         prev = curr;               // ADVANCE prev (it becomes the new "behind")
         curr = next;               // ADVANCE curr (move forward)
     }
+    // STEP 5: prev is the new head (last node we processed = old tail)
     return prev; // prev is now pointing to the new head (old tail)
 }
 ```
@@ -877,6 +902,8 @@ ListNode Reverse(ListNode head) {
 ╚══════════════════════════════════════════════════════════════════╝
 ```
 
+> **🔑 CORE IDEA:** 3 pointers: prev=null, curr=head. Each step: save next, flip curr→prev, advance both. When curr is null, prev is the new head.
+
 ```
 THE 3-POINTER REVERSAL — VISUAL:
 ═══════════════════════════════════════════════════════════════
@@ -906,22 +933,24 @@ Result: [4] → [3] → [2] → [1] → null ✅
 ```csharp
 // ITERATIVE — O(n) time, O(1) space (PREFERRED in interviews)
 public ListNode ReverseList(ListNode head) {
+    // STEP 1: Initialize prev=null (new tail) and curr=head (traversal pointer)
     ListNode prev = null;  // starts as null because new tail points to null
     ListNode curr = head;  // starts at head, walks forward
 
     while (curr != null) {
-        // STEP 1: Save next before we destroy the link!
+        // STEP 2: Save next before we destroy the link!
         // Without this save, we'd lose the rest of the list when we flip curr.next
         ListNode next = curr.next;
 
-        // STEP 2: Flip the arrow — instead of pointing forward, point backward
+        // STEP 3: Flip the arrow — instead of pointing forward, point backward
         curr.next = prev;
 
-        // STEP 3: Advance both pointers by one position
+        // STEP 4: Advance both pointers by one position
         prev = curr;    // prev moves to where curr was
         curr = next;    // curr moves to what was next
     }
 
+    // STEP 5: Return prev — it's now sitting at the new head (old tail)
     // WHY return prev, not curr? curr is null (we went past the end).
     // prev is sitting on the node that became the new head (old tail).
     return prev;
@@ -929,20 +958,23 @@ public ListNode ReverseList(ListNode head) {
 
 // RECURSIVE — O(n) time, O(n) space (elegant but uses call stack)
 public ListNode ReverseListRecursive(ListNode head) {
-    // BASE CASE: empty list or single node — already "reversed"
+    // STEP 1: Base case — empty list or single node is already reversed
     if (head == null || head.next == null) return head;
 
+    // STEP 2: Recursively reverse the tail (head.next onward)
     // RECURSIVE CASE: assume the rest (head.next onward) is already reversed
     // Example: [1] → [2] → [3] → [4] → null
     // newHead = ReverseList([2]→[3]→[4]) returns [4]→[3]→[2]→null
     ListNode newHead = ReverseListRecursive(head.next);
 
+    // STEP 3: Stitch head onto the now-reversed tail
     // Now we need to attach head ([1]) to the end of the reversed portion
     // head.next is still [2] (not changed yet)
     // We want [2].next = [1], then [1].next = null
     head.next.next = head;  // [2] now points back to [1]
     head.next = null;       // [1] points to null (it becomes the new tail)
 
+    // STEP 4: Return the new head (from the deepest recursive call — old tail)
     return newHead; // [4] is still the new head of the fully reversed list
 }
 ```
@@ -1021,17 +1053,22 @@ foreach (int item in stack)
 // MONOTONIC STACK PATTERN (crucial for interview problems!)
 // Problem: find Next Greater Element for each position
 int[] NextGreater(int[] arr) {
+    // STEP 1: Initialize result with -1 (default: no greater element exists)
     int[] result = new int[arr.Length];
     Array.Fill(result, -1);     // default: no greater element found
+    // STEP 2: Stack stores INDICES of elements waiting for their next-greater answer
     var stack = new Stack<int>(); // stores INDICES (not values!)
 
     for (int i = 0; i < arr.Length; i++) {
+        // STEP 3: Pop all stack entries whose value is smaller than arr[i]
+        // — arr[i] is the "next greater element" for all of them
         // WHY pop while stack top is smaller? Because arr[i] is the
         // "next greater element" for everything smaller than it on the stack
         while (stack.Count > 0 && arr[stack.Peek()] < arr[i]) {
             int idx = stack.Pop();
             result[idx] = arr[i]; // arr[i] is the next greater for arr[idx]
         }
+        // STEP 4: Push current index — it's still waiting for ITS next greater
         stack.Push(i); // push INDEX (so we can update result array)
     }
     return result;
@@ -1071,6 +1108,8 @@ KEY INSIGHT: Counter approach FAILS because it ignores ORDER.
              must match the next close bracket.
 ```
 
+> **🔑 CORE IDEA:** Push opening brackets. On closing bracket, pop and verify the match. Stack naturally tracks nesting order — a counter can't.
+
 ```
 BRACKET MATCHING VISUALIZATION:
 ═══════════════════════════════════════════════════════════════
@@ -1094,10 +1133,12 @@ BRACKET MATCHING VISUALIZATION:
 
 ```csharp
 public bool IsValid(string s) {
+    // STEP 1: Initialize stack to track unmatched opening brackets
     // WHY stack? Brackets must be closed in reverse order of opening.
     // Stack naturally tracks this LIFO (Last In, First Out) property.
     var stack = new Stack<char>();
 
+    // STEP 2: Build lookup map of closing → expected opening bracket
     // WHY a dictionary? Cleaner than multiple if-else chains.
     // Maps each CLOSING bracket to its expected OPENING bracket.
     var match = new Dictionary<char, char> {
@@ -1108,11 +1149,12 @@ public bool IsValid(string s) {
 
     foreach (char c in s) {
         if (!match.ContainsKey(c)) {
+            // STEP 3: Opening bracket — push it, waiting for its matching close
             // It's an OPENING bracket ('(', '[', or '{')
             // Push onto stack — we'll match it when we see its closing bracket
             stack.Push(c);
         } else {
-            // It's a CLOSING bracket → check if stack top matches
+            // STEP 4: Closing bracket — verify it matches the most recent open bracket
             // WHY stack.Count == 0 check? ")" with empty stack → no opening bracket → invalid
             if (stack.Count == 0 || stack.Peek() != match[c])
                 return false; // mismatch → invalid
@@ -1120,6 +1162,7 @@ public bool IsValid(string s) {
         }
     }
 
+    // STEP 5: Valid only if no unmatched opening brackets remain
     // WHY check stack empty? Unclosed brackets like "((" → stack has '(' '(' → invalid
     return stack.Count == 0;
 }
@@ -1252,6 +1295,8 @@ KEY INSIGHT: Maintain a deque of INDICES in DECREASING value order.
              - Remove smaller elements from back (they'll never be max)
 ```
 
+> **🔑 CORE IDEA:** Monotonic decreasing deque of indices: evict indices outside window from front, evict smaller indices from back; front is always the window max.
+
 ```
 DEQUE STATE VISUALIZATION: nums=[3,1,2,4,1], k=3
 ═══════════════════════════════════════════════════════════════
@@ -1272,28 +1317,31 @@ DEQUE STATE VISUALIZATION: nums=[3,1,2,4,1], k=3
 ```csharp
 public int[] MaxSlidingWindow(int[] nums, int k) {
     int n = nums.Length;
+    // STEP 1: Allocate result array; total windows = n-k+1
     int[] result = new int[n - k + 1]; // total windows = n-k+1
 
+    // STEP 2: Initialize deque — stores indices in decreasing value order (front=max)
     // WHY LinkedList as deque? C# lacks a built-in Deque.
     // LinkedList<T> supports O(1) AddFirst/AddLast/RemoveFirst/RemoveLast
     // We store INDICES (not values) so we can check if index is in window
     var deque = new LinkedList<int>(); // stores indices, front=max
 
     for (int i = 0; i < n; i++) {
-        // CLEANUP: remove indices that are out of the current window
+        // STEP 3: Evict indices that have fallen outside the current window
         // Window is [i-k+1 .. i]. If front index < i-k+1, remove it.
         while (deque.Count > 0 && deque.First.Value < i - k + 1)
             deque.RemoveFirst();
 
-        // MAINTAIN DECREASING ORDER: remove all indices from the back
-        // whose corresponding values are LESS THAN nums[i].
+        // STEP 4: Maintain decreasing order — remove back indices smaller than nums[i]
         // WHY? Those smaller values can never be the window max — nums[i]
         // is larger AND appears later in the array, so it dominates them.
         while (deque.Count > 0 && nums[deque.Last.Value] < nums[i])
             deque.RemoveLast();
 
+        // STEP 5: Push current index to back of deque
         deque.AddLast(i); // add current index to back
 
+        // STEP 6: Once first full window is formed, record the max (front of deque)
         // Window is complete when i >= k-1 (we have k elements)
         if (i >= k - 1)
             result[i - k + 1] = nums[deque.First.Value]; // front = max
@@ -1432,6 +1480,8 @@ KEY INSIGHT: Two words are anagrams ↔ they have identical letter frequencies.
              Sort approach: O(m log m) per word. Frequency approach: O(m).
 ```
 
+> **🔑 CORE IDEA:** Anagrams share the same letter-frequency signature. Build a 26-char count array per word and use it as the dictionary key.
+
 ```
 VISUALIZATION: strs = ["eat","tea","tan","ate","nat","bat"]
 ═══════════════════════════════════════════════════════════════
@@ -1449,26 +1499,28 @@ VISUALIZATION: strs = ["eat","tea","tan","ate","nat","bat"]
 
 ```csharp
 public IList<IList<string>> GroupAnagrams(string[] strs) {
+    // STEP 1: Initialize groups map: canonical form → list of anagram words
     // WHY Dictionary with string key? We need a canonical form for each
     // anagram group. Words in the same group will have the same key.
     var groups = new Dictionary<string, List<string>>();
 
     foreach (string word in strs) {
-        // APPROACH: Sort the word's characters alphabetically.
+        // STEP 2: Compute canonical key by sorting the word's characters
         // All anagrams produce the same sorted form → same dictionary key.
         // "eat", "tea", "ate" → all become "aet"
         char[] chars = word.ToCharArray();
         Array.Sort(chars);                      // sort in-place: O(m log m)
         string key = new string(chars);         // "aet", "ant", "abt"
 
-        // If this key hasn't been seen, create a new list for this group
+        // STEP 3: Create a new group bucket if this key is first seen
         if (!groups.ContainsKey(key))
             groups[key] = new List<string>();
 
+        // STEP 4: Append word to its matching anagram group
         groups[key].Add(word); // add word to its anagram group
     }
 
-    // Convert dictionary values (the groups) to the required return type
+    // STEP 5: Return all groups as the result list
     return new List<IList<string>>(groups.Values);
 }
 // Time: O(n × m log m) where n=num words, m=max word length
@@ -1479,16 +1531,18 @@ public IList<IList<string>> GroupAnagramsOptimal(string[] strs) {
     var groups = new Dictionary<string, List<string>>();
 
     foreach (string word in strs) {
-        // Build 26-char frequency array as the key
+        // STEP 1: Build 26-element frequency count array for each word
         int[] count = new int[26];
         foreach (char c in word)
             count[c - 'a']++;  // increment frequency for each character
 
+        // STEP 2: Serialize the frequency array into a deterministic string key
         // Convert frequency array to string key: "[3,0,0,...,1,...]"
         // WHY not just use count.ToString()? Arrays don't override ToString() meaningfully.
         // We need a deterministic string representation that two anagrams share.
         string key = string.Join(",", count);  // "1,0,0,1,0,...,1,..."
 
+        // STEP 3: Group word under its frequency-based key
         if (!groups.ContainsKey(key)) groups[key] = new List<string>();
         groups[key].Add(word);
     }
@@ -1592,6 +1646,8 @@ KEY INSIGHT: Only START counting from a sequence's beginning.
              This ensures each sequence is counted exactly once → O(n) total.
 ```
 
+> **🔑 CORE IDEA:** HashSet for O(1) lookup. For each num where num−1 is NOT in the set (sequence start), count how far the streak extends rightward.
+
 ```
 VISUALIZATION: nums = [100, 4, 200, 1, 3, 2]
 ═══════════════════════════════════════════════════════════════
@@ -1618,6 +1674,7 @@ VISUALIZATION: nums = [100, 4, 200, 1, 3, 2]
 
 ```csharp
 public int LongestConsecutive(int[] nums) {
+    // STEP 1: Build HashSet for O(1) membership checks
     // WHY HashSet? We need O(1) "does x+1 exist?" checks.
     // If we searched the array each time: O(n) per check = O(n²) total.
     var numSet = new HashSet<int>(nums); // O(n) to build
@@ -1625,7 +1682,7 @@ public int LongestConsecutive(int[] nums) {
     int longest = 0;
 
     foreach (int num in numSet) {  // iterate set (no duplicates = cleaner)
-        // KEY OPTIMIZATION: Only start counting from sequence beginnings.
+        // STEP 2: Only begin counting from sequence START points (num-1 absent)
         // A number is a sequence START if num-1 is NOT in the set.
         // WHY? If num-1 IS in the set, then counting from num would give
         // a PARTIAL sequence that we'll count again from the true start.
@@ -1634,12 +1691,13 @@ public int LongestConsecutive(int[] nums) {
             int currentNum = num;
             int length = 1;
 
-            // Extend the sequence as far as consecutive numbers exist
+            // STEP 3: Extend the sequence rightward as far as consecutive nums exist
             while (numSet.Contains(currentNum + 1)) {
                 currentNum++;   // move to next number in sequence
                 length++;       // count it
             }
 
+            // STEP 4: Update global best with this sequence's length
             longest = Math.Max(longest, length);
         }
     }
@@ -1736,15 +1794,20 @@ public class TreeNode {
 // InOrder: Left → Root → Right
 void InOrder(TreeNode root, List<int> result) {
     if (root == null) return;           // base case: empty tree
+    // STEP 1: Recurse into left subtree first
     InOrder(root.left, result);         // recurse left subtree
+    // STEP 2: Visit root node (after left subtree is fully processed)
     result.Add(root.val);               // visit root AFTER left
+    // STEP 3: Recurse into right subtree
     InOrder(root.right, result);        // recurse right subtree
 }
 
 // PreOrder: Root → Left → Right
 void PreOrder(TreeNode root, List<int> result) {
     if (root == null) return;
+    // STEP 1: Visit root FIRST (before any children)
     result.Add(root.val);               // visit root FIRST
+    // STEP 2: Recurse left, then right
     PreOrder(root.left, result);
     PreOrder(root.right, result);
 }
@@ -1752,8 +1815,10 @@ void PreOrder(TreeNode root, List<int> result) {
 // PostOrder: Left → Right → Root
 void PostOrder(TreeNode root, List<int> result) {
     if (root == null) return;
+    // STEP 1: Process both children before the root
     PostOrder(root.left, result);
     PostOrder(root.right, result);
+    // STEP 2: Visit root LAST (all children already processed)
     result.Add(root.val);               // visit root LAST (after children)
 }
 
@@ -1764,12 +1829,12 @@ IList<int> InOrderIterative(TreeNode root) {
     var curr = root;
 
     while (curr != null || stack.Count > 0) {
-        // Go as far LEFT as possible, pushing nodes onto stack
+        // STEP 1: Descend as far LEFT as possible, pushing each node
         while (curr != null) {
             stack.Push(curr);
             curr = curr.left;
         }
-        // Left exhausted: pop, visit, then explore right
+        // STEP 2: Pop and visit the deepest unvisited left node, then pivot right
         curr = stack.Pop();
         result.Add(curr.val);  // visit
         curr = curr.right;     // switch to right subtree
@@ -1782,17 +1847,20 @@ IList<IList<int>> LevelOrder(TreeNode root) {
     var result = new List<IList<int>>();
     if (root == null) return result;
 
+    // STEP 1: Seed the queue with root to begin BFS
     var queue = new Queue<TreeNode>();
     queue.Enqueue(root);
 
     while (queue.Count > 0) {
+        // STEP 2: Snapshot the current level's node count BEFORE enqueueing children
         int levelSize = queue.Count;   // SNAPSHOT: how many nodes at this level
         var level = new List<int>();
 
+        // STEP 3: Process exactly levelSize nodes (all at the current level)
         for (int i = 0; i < levelSize; i++) {
             var node = queue.Dequeue();
             level.Add(node.val);
-            // Enqueue children for NEXT level (after current level done)
+            // STEP 4: Enqueue children — they belong to the NEXT level
             if (node.left != null) queue.Enqueue(node.left);
             if (node.right != null) queue.Enqueue(node.right);
         }
@@ -1823,6 +1891,8 @@ KEY INSIGHT: BFS naturally visits nodes level by level (neighbors first).
              Snapshot queue.Count at start of each level to know
              how many nodes belong to the current level.
 ```
+
+> **🔑 CORE IDEA:** BFS with a queue. At each level, snapshot queue.Count first — that many dequeues belong to the current level before moving to the next.
 
 ```
 BFS TRACE on tree:
@@ -1859,25 +1929,29 @@ public IList<IList<int>> LevelOrder(TreeNode root) {
     var result = new List<IList<int>>();
     if (root == null) return result;  // edge case: empty tree
 
+    // STEP 1: Initialize BFS queue with the root node
     var queue = new Queue<TreeNode>();
     queue.Enqueue(root);  // start BFS from root
 
     while (queue.Count > 0) {
+        // STEP 2: Snapshot level size BEFORE processing (queue grows as children are added)
         // WHY snapshot size? queue.Count GROWS as we add children.
         // We must capture the count at the START of this level
         // to know when the current level ends and next level begins.
         int levelSize = queue.Count;
         var level = new List<int>();
 
+        // STEP 3: Dequeue exactly levelSize nodes — all belong to the current level
         for (int i = 0; i < levelSize; i++) {  // process exactly this level's nodes
             TreeNode node = queue.Dequeue();
             level.Add(node.val);
 
-            // Enqueue children — they'll be processed in the NEXT iteration
+            // STEP 4: Enqueue children for the NEXT level's processing
             if (node.left != null) queue.Enqueue(node.left);
             if (node.right != null) queue.Enqueue(node.right);
         }
 
+        // STEP 5: Commit the completed level to the result
         result.Add(level);  // this level is complete
     }
 
@@ -1930,9 +2004,11 @@ BST INVARIANT — CRITICAL TO REMEMBER:
 ```csharp
 // ═══ BST SEARCH ═══
 TreeNode Search(TreeNode root, int target) {
+    // STEP 1: Base case — null (not found) or exact match
     if (root == null || root.val == target)
         return root;  // base case: not found or exact match
 
+    // STEP 2: Use BST invariant to navigate to the correct subtree
     // WHY left/right split? BST invariant guarantees:
     // target < root.val → must be in left subtree (if it exists)
     // target > root.val → must be in right subtree
@@ -1943,20 +2019,23 @@ TreeNode Search(TreeNode root, int target) {
 
 // ═══ BST INSERT ═══
 TreeNode Insert(TreeNode root, int val) {
-    // Base case: found the correct empty spot — create node here
+    // STEP 1: Base case — found the correct empty slot, insert here
     if (root == null) return new TreeNode(val);
 
+    // STEP 2: Navigate to the correct position using BST ordering
     if (val < root.val)
         root.left = Insert(root.left, val);   // insert in left subtree
     else if (val > root.val)
         root.right = Insert(root.right, val); // insert in right subtree
     // val == root.val: duplicate, do nothing (BST typically has unique values)
 
+    // STEP 3: Return the unchanged root (structure above insertion point stays the same)
     return root;  // return root unchanged (only a leaf was added)
 }
 
 // ═══ BST DELETE (complex — 3 cases) ═══
 TreeNode Delete(TreeNode root, int key) {
+    // STEP 1: Navigate to the node to delete using BST ordering
     if (root == null) return null;
 
     if (key < root.val) {
@@ -1964,21 +2043,22 @@ TreeNode Delete(TreeNode root, int key) {
     } else if (key > root.val) {
         root.right = Delete(root.right, key);  // search right
     } else {
-        // Found node to delete! 3 cases:
+        // Found node to delete! Handle 3 structural cases:
 
-        // Case 1: LEAF node — just remove it
+        // STEP 2a: LEAF node — simply remove by returning null
         if (root.left == null && root.right == null) return null;
 
-        // Case 2: ONE child — replace node with that child
+        // STEP 2b: ONE child — replace this node with its only child
         if (root.left == null) return root.right;
         if (root.right == null) return root.left;
 
-        // Case 3: TWO children — find InOrder SUCCESSOR (smallest in right subtree)
-        // Replace root's value with successor's value, then delete successor
+        // STEP 2c: TWO children — replace value with InOrder successor, delete successor
+        // InOrder successor = smallest node in right subtree
         TreeNode successor = root.right;
         while (successor.left != null)
             successor = successor.left;  // go left until no more left
 
+        // STEP 3: Replace deleted node's value with successor, then delete successor
         root.val = successor.val;                        // replace value
         root.right = Delete(root.right, successor.val);  // delete successor
     }
@@ -2017,6 +2097,8 @@ KEY INSIGHT: Each node must satisfy BOTH its local constraint AND
              down the recursion — tighten bounds at each level.
 ```
 
+> **🔑 CORE IDEA:** Pass (min, max) bounds into each recursive call. Left subtree tightens the upper bound, right tightens the lower bound. Never just check immediate neighbors.
+
 ```
 BOUNDS PROPAGATION VISUALIZATION:
 ═══════════════════════════════════════════════════════════════
@@ -2033,6 +2115,7 @@ BOUNDS PROPAGATION VISUALIZATION:
 
 ```csharp
 public bool IsValidBST(TreeNode root) {
+    // STEP 1: Start validation with unbounded range (−∞, +∞) at the root
     // WHY use long instead of int for bounds?
     // Node values can be int.MinValue and int.MaxValue themselves.
     // Using long prevents overflow when comparing at boundaries.
@@ -2040,14 +2123,15 @@ public bool IsValidBST(TreeNode root) {
 }
 
 bool Validate(TreeNode node, long min, long max) {
+    // STEP 2: Base case — empty subtree is always valid
     if (node == null) return true;  // empty tree/subtree is valid
 
-    // Check if current node's value is within the allowed range
+    // STEP 3: Verify current node's value is strictly within the inherited bounds
     // WHY strict inequalities? BST requires strictly less/greater (no duplicates)
     if (node.val <= min || node.val >= max)
         return false;  // violates BST property
 
-    // Recurse into subtrees with TIGHTENED bounds:
+    // STEP 4: Recursively validate subtrees with tightened bounds
     // Left subtree: all values must be < node.val (new max = node.val)
     // Right subtree: all values must be > node.val (new min = node.val)
     return Validate(node.left, min, node.val) &&   // tighten max for left
@@ -2126,14 +2210,17 @@ int maxVal = maxHeap.Dequeue();  // 8 (was -8, the most negative)
 
 // PATTERN: Find Kth Largest using MIN-HEAP of size k
 int FindKthLargest(int[] nums, int k) {
+    // STEP 1: Use min-heap to maintain a sliding window of the k largest elements
     var heap = new PriorityQueue<int, int>(); // min-heap
 
     foreach (int num in nums) {
+        // STEP 2: Add every element to the heap
         heap.Enqueue(num, num);          // add to heap
+        // STEP 3: If heap exceeds size k, evict the minimum (too small to be top-k)
         if (heap.Count > k)
             heap.Dequeue();              // remove smallest — keep only top k
     }
-    // Now heap contains k largest elements; min of heap = kth largest
+    // STEP 4: Heap top is the k-th largest (smallest of the k largest)
     return heap.Peek();
 }
 ```
@@ -2174,9 +2261,12 @@ KEY INSIGHT: Min-heap of size k is the practical choice (guaranteed O(n log k)).
              For interviews: heap approach is safer and easier to code correctly.
 ```
 
+> **🔑 CORE IDEA:** Min-heap of size k: push each element; if size > k, pop the minimum. After all elements, the heap root is the kth largest.
+
 ```csharp
 // APPROACH 1: Min-Heap of Size k — O(n log k)
 public int FindKthLargest(int[] nums, int k) {
+    // STEP 1: Initialize min-heap — will hold exactly k largest elements
     // WHY min-heap (not max-heap)? We maintain the k LARGEST elements seen so far.
     // The MINIMUM of those k largest = the kth largest overall.
     // When we see a new element larger than the current min (heap top),
@@ -2184,16 +2274,17 @@ public int FindKthLargest(int[] nums, int k) {
     var minHeap = new PriorityQueue<int, int>();
 
     foreach (int num in nums) {
+        // STEP 2: Add every element to the heap
         minHeap.Enqueue(num, num);  // element=priority=num (min priority dequeued first)
 
+        // STEP 3: If heap exceeds k elements, evict the current minimum
         // WHY remove when count > k? We only need k elements.
         // The element removed is the SMALLEST so far — it can't be kth largest.
         if (minHeap.Count > k)
             minHeap.Dequeue();  // remove the current minimum (too small to be kth largest)
     }
 
-    // The heap now contains exactly k largest elements.
-    // The minimum of those k = kth largest overall.
+    // STEP 4: Heap top = smallest of the k largest = the kth largest overall
     return minHeap.Peek();
 }
 // Time: O(n log k) — n iterations, each O(log k) heap operation
@@ -2201,27 +2292,31 @@ public int FindKthLargest(int[] nums, int k) {
 
 // APPROACH 2: QuickSelect — O(n) average
 public int FindKthLargestQuickSelect(int[] nums, int k) {
-    // We want kth largest = (n-k)th smallest (0-indexed from end)
+    // STEP 1: Map "kth largest" to (n-k)th smallest index (0-based from left)
     return QuickSelect(nums, 0, nums.Length - 1, nums.Length - k);
 }
 
 int QuickSelect(int[] nums, int left, int right, int targetIdx) {
-    if (left == right) return nums[left]; // single element
+    // STEP 1: Base case — single element, must be the answer
+    if (left == right) return nums[left];
 
-    // Partition: choose pivot, put smaller elements left, larger right
+    // STEP 2: Partition around a pivot and get the pivot's final sorted index
     int pivotIdx = Partition(nums, left, right);
 
+    // STEP 3: Recurse only into the half that contains targetIdx
     if (pivotIdx == targetIdx) return nums[pivotIdx];      // found!
     if (targetIdx < pivotIdx) return QuickSelect(nums, left, pivotIdx - 1, targetIdx);
     return QuickSelect(nums, pivotIdx + 1, right, targetIdx);
 }
 
 int Partition(int[] nums, int left, int right) {
+    // STEP 1: Choose pivot (last element) and set boundary for the "small section"
     int pivot = nums[right]; // use last element as pivot (simple choice for QuickSelect)
     // i = next slot for an element that is <= pivot (the "small section" boundary)
     // After the loop, nums[left..i-1] are all <= pivot, nums[i..right-1] are all > pivot
     int i = left;
 
+    // STEP 2: Partition — move elements ≤ pivot to the left section
     for (int j = left; j < right; j++) {
         if (nums[j] <= pivot) {
             (nums[i], nums[j]) = (nums[j], nums[i]); // move small element to small section
@@ -2229,7 +2324,7 @@ int Partition(int[] nums, int left, int right) {
         }
         // nums[j] > pivot: leave it in the large section (i doesn't move)
     }
-    // Place pivot between small and large sections — this is its final sorted position
+    // STEP 3: Place pivot in its final sorted position between small and large sections
     (nums[i], nums[right]) = (nums[right], nums[i]);
     return i;
 }
@@ -2301,38 +2396,47 @@ public class Trie {
 
     // INSERT: O(m) where m = word length
     public void Insert(string word) {
+        // STEP 1: Start at the root and walk each character's path
         TrieNode curr = root;
         foreach (char c in word) {
             int idx = c - 'a';  // 'a'→0, 'b'→1, ..., 'z'→25
+            // STEP 2: Create a new node if this character path doesn't exist yet
             // WHY null check? Create node only if this path doesn't exist yet
             if (curr.children[idx] == null)
                 curr.children[idx] = new TrieNode();
             curr = curr.children[idx];  // move down the trie
         }
+        // STEP 3: Mark the final node as a word-end
         curr.isEnd = true;  // mark the end of this word
     }
 
     // SEARCH: does exactly this word exist? O(m)
     public bool Search(string word) {
+        // STEP 1: Walk the trie character-by-character
         TrieNode curr = root;
         foreach (char c in word) {
             int idx = c - 'a';
+            // STEP 2: Return false if any character in the path is missing
             if (curr.children[idx] == null)
                 return false;  // character path doesn't exist
             curr = curr.children[idx];
         }
+        // STEP 3: Confirm the path ends at a word (not just a prefix)
         return curr.isEnd;  // WHY check isEnd? "app" shouldn't match if only "apple" inserted
     }
 
     // STARTS WITH: does any word have this prefix? O(m)
     public bool StartsWith(string prefix) {
+        // STEP 1: Walk the trie along the prefix path
         TrieNode curr = root;
         foreach (char c in prefix) {
             int idx = c - 'a';
+            // STEP 2: Return false if the prefix path is broken
             if (curr.children[idx] == null)
                 return false;  // prefix path doesn't exist
             curr = curr.children[idx];
         }
+        // STEP 3: Prefix exists as a path (no isEnd check needed)
         return true;  // WHY no isEnd check? Prefix doesn't need to be a complete word
     }
 }
@@ -2354,7 +2458,11 @@ public class Trie {
 ║  🟢 TRIE     │ Character-by-character  │ O(m) all   │ O(n×m)  ║
 ║  (CANONICAL) │ tree — enables prefix   │ ops        │ worst   ║
 ╚══════════════════════════════════════════════════════════════════╝
+```
 
+> **🔑 CORE IDEA:** Each TrieNode has 26 child pointers + isEnd flag. Insert/search walk char-by-char, creating nodes on insert and returning false on missing node during search.
+
+```
 TRACE: insert("apple"), insert("app"), search("apple"), startsWith("ap")
 ═══════════════════════════════════════════════════════════════
   insert("apple"):
@@ -2427,10 +2535,12 @@ public class SegmentTree {
     // node = current tree array index (root=0)
     // start..end = array range this node covers
     void Build(int[] arr, int node, int start, int end) {
+        // STEP 1: Base case — leaf node stores a single array element
         if (start == end) {
             tree[node] = arr[start]; // leaf node stores single element
             return;
         }
+        // STEP 2: Recursively build both child subtrees
         int mid = (start + end) / 2;
         // WHY 2*node+1 and 2*node+2?
         // Segment tree uses 1-indexed heap-style layout:
@@ -2439,6 +2549,7 @@ public class SegmentTree {
         //   parent of node i      = (i-1) / 2
         Build(arr, 2*node+1, start, mid);    // build left child (covers start..mid)
         Build(arr, 2*node+2, mid+1, end);    // build right child (covers mid+1..end)
+        // STEP 3: Internal node stores the aggregate (sum) of both children
         tree[node] = tree[2*node+1] + tree[2*node+2]; // internal node = sum of children
     }
 
@@ -2446,14 +2557,16 @@ public class SegmentTree {
     public void Update(int idx, int val) => Update(0, 0, n-1, idx, val);
 
     void Update(int node, int start, int end, int idx, int val) {
+        // STEP 1: Base case — leaf for arr[idx] found; update it
         if (start == end) {
             tree[node] = val;  // reached the leaf for arr[idx] — update it
             return;
         }
+        // STEP 2: Navigate to the correct leaf (idx in left or right half)
         int mid = (start + end) / 2;
         if (idx <= mid) Update(2*node+1, start, mid, idx, val);   // idx is in left half
         else Update(2*node+2, mid+1, end, idx, val);              // idx is in right half
-        // After updating the child, recalculate this internal node's stored sum
+        // STEP 3: Recompute this internal node's sum from its updated children
         tree[node] = tree[2*node+1] + tree[2*node+2];
     }
 
@@ -2461,11 +2574,11 @@ public class SegmentTree {
     public int Query(int l, int r) => Query(0, 0, n-1, l, r);
 
     int Query(int node, int start, int end, int l, int r) {
-        // Case 1: This node's range is completely OUTSIDE query range → contribute 0
+        // STEP 1: Completely outside query range — contribute 0
         if (r < start || end < l) return 0;
-        // Case 2: This node's range is completely INSIDE query range → use stored sum
+        // STEP 2: Completely inside query range — return stored aggregate directly
         if (l <= start && end <= r) return tree[node];
-        // Case 3: Partial overlap → split and recurse on both children
+        // STEP 3: Partial overlap — split at midpoint and sum both halves
         int mid = (start + end) / 2;
         return Query(2*node+1, start, mid, l, r) +   // sum from left child
                Query(2*node+2, mid+1, end, l, r);    // sum from right child
@@ -2491,6 +2604,8 @@ public class SegmentTree {
 ║  TREE        │ both query and update   │ both ops   │          ║
 ╚══════════════════════════════════════════════════════════════════╝
 ```
+
+> **🔑 CORE IDEA:** Segment tree: each node stores range sum. Update walks one root-to-leaf path O(log n). Query splits at midpoint and sums O(log n) segments.
 
 The `SegmentTree` class above implements the solution. Use it as `NumArray`:
 
@@ -2608,6 +2723,8 @@ KEY INSIGHT: Treat the grid as a graph. Each '1' cell is a node.
              DFS from each unvisited '1' marks its entire island.
 ```
 
+> **🔑 CORE IDEA:** For each unvisited '1', flood-fill (DFS/BFS) marking all connected '1's as visited. Number of flood-fills = number of islands.
+
 ```
 VISUALIZATION:
   Grid:        After DFS from (0,0):    After DFS from (0,4):
@@ -2627,9 +2744,11 @@ public int NumIslands(char[][] grid) {
     int rows = grid.Length, cols = grid[0].Length;
     int count = 0;
 
+    // STEP 1: Scan every cell; for each unvisited land cell, start a DFS flood-fill
     for (int r = 0; r < rows; r++) {
         for (int c = 0; c < cols; c++) {
             if (grid[r][c] == '1') {
+                // STEP 2: New island found — increment count and sink the whole island
                 count++;           // found a new island!
                 DFS(grid, r, c);   // sink the entire island (mark as visited)
             }
@@ -2639,16 +2758,18 @@ public int NumIslands(char[][] grid) {
 }
 
 void DFS(char[][] grid, int r, int c) {
+    // STEP 1: Boundary and water check — stop recursion if out of bounds or already water
     // WHY these boundary checks? Prevent out-of-bounds array access
     // WHY check '0'? '0' is water — no island to explore there
     if (r < 0 || r >= grid.Length || c < 0 || c >= grid[0].Length || grid[r][c] != '1')
         return;
 
+    // STEP 2: Sink this cell (mark as water) to prevent revisiting
     // WHY set to '0'? Mark as VISITED — prevents revisiting the same cell
     // (acts as a visited set without extra memory)
     grid[r][c] = '0';
 
-    // Explore all 4 directions (up, down, left, right)
+    // STEP 3: Recursively flood-fill all 4 neighboring land cells
     DFS(grid, r-1, c);  // up
     DFS(grid, r+1, c);  // down
     DFS(grid, r, c-1);  // left
@@ -2717,9 +2838,11 @@ DFS vs BFS COMPARISON:
 ```csharp
 // ═══ DFS — RECURSIVE (most intuitive) ═══
 void DFSRecursive(Dictionary<int, List<int>> graph, int node, HashSet<int> visited) {
+    // STEP 1: Mark node visited and process it
     visited.Add(node);
     Console.Write(node + " ");  // process node
 
+    // STEP 2: Recurse into all unvisited neighbors
     foreach (int neighbor in graph.GetValueOrDefault(node, new List<int>())) {
         if (!visited.Contains(neighbor))  // only visit unvisited
             DFSRecursive(graph, neighbor, visited);
@@ -2728,16 +2851,19 @@ void DFSRecursive(Dictionary<int, List<int>> graph, int node, HashSet<int> visit
 
 // ═══ DFS — ITERATIVE (avoids stack overflow on deep graphs) ═══
 void DFSIterative(Dictionary<int, List<int>> graph, int start) {
+    // STEP 1: Initialize visited set and push start node onto explicit stack
     var visited = new HashSet<int>();
     var stack = new Stack<int>();
     stack.Push(start);
 
     while (stack.Count > 0) {
+        // STEP 2: Pop next node; skip if already visited
         int node = stack.Pop();
         if (visited.Contains(node)) continue;  // already processed
         visited.Add(node);
         Console.Write(node + " ");
 
+        // STEP 3: Push unvisited neighbors for future exploration
         // Push neighbors in reverse order to maintain left-to-right visit order
         foreach (int neighbor in graph.GetValueOrDefault(node, new List<int>()))
             if (!visited.Contains(neighbor))
@@ -2747,14 +2873,17 @@ void DFSIterative(Dictionary<int, List<int>> graph, int start) {
 
 // ═══ BFS — ITERATIVE (always use queue) ═══
 void BFS(Dictionary<int, List<int>> graph, int start) {
+    // STEP 1: Initialize queue with start node; mark start visited immediately
     var visited = new HashSet<int> { start };
     var queue = new Queue<int>();
     queue.Enqueue(start);
 
     while (queue.Count > 0) {
+        // STEP 2: Process front node
         int node = queue.Dequeue();
         Console.Write(node + " ");
 
+        // STEP 3: Enqueue unvisited neighbors and mark them visited NOW
         foreach (int neighbor in graph.GetValueOrDefault(node, new List<int>())) {
             // WHY add to visited when ENQUEUING (not dequeuing)?
             // Prevents adding the same node to queue multiple times
@@ -2768,14 +2897,17 @@ void BFS(Dictionary<int, List<int>> graph, int start) {
 
 // ═══ BFS SHORTEST PATH (unweighted) ═══
 int BFSShortestPath(Dictionary<int, List<int>> graph, int start, int end) {
+    // STEP 1: Seed queue with (start, distance=0)
     var visited = new HashSet<int> { start };
     var queue = new Queue<(int node, int dist)>();
     queue.Enqueue((start, 0));
 
     while (queue.Count > 0) {
+        // STEP 2: Dequeue; if we reached destination, return accumulated distance
         var (node, dist) = queue.Dequeue();
         if (node == end) return dist;  // found! return distance
 
+        // STEP 3: Enqueue neighbors with incremented distance
         foreach (int neighbor in graph.GetValueOrDefault(node, new List<int>())) {
             if (!visited.Contains(neighbor)) {
                 visited.Add(neighbor);
@@ -2813,6 +2945,8 @@ KEY INSIGHT: The problem reduces to: "Does this directed graph have a cycle?"
              If you revisit a GRAY node → cycle found!
 ```
 
+> **🔑 CORE IDEA:** DFS with 3 states: 0=unvisited, 1=in-progress, 2=done. If you reach a node with state=1 during DFS, you've found a cycle → impossible.
+
 ```
 3-COLOR DFS VISUALIZATION: 0→1→2→0 (cycle) vs 0→1→2 (no cycle)
 ═══════════════════════════════════════════════════════════════
@@ -2837,16 +2971,16 @@ KEY INSIGHT: The problem reduces to: "Does this directed graph have a cycle?"
 
 ```csharp
 public bool CanFinish(int numCourses, int[][] prerequisites) {
-    // Build adjacency list: prereq → dependent courses
+    // STEP 1: Build directed adjacency list (prereq → dependent course)
     var graph = new List<List<int>>();
     for (int i = 0; i < numCourses; i++) graph.Add(new List<int>());
     foreach (int[] pre in prerequisites)
         graph[pre[1]].Add(pre[0]); // pre[1] must come before pre[0]
 
-    // 3-state coloring: 0=unvisited, 1=in-progress (gray), 2=done (black)
+    // STEP 2: Initialize 3-state coloring array (0=unvisited, 1=in-progress, 2=done)
     int[] state = new int[numCourses];
 
-    // Check each node for cycles (graph may be disconnected)
+    // STEP 3: Run cycle-detection DFS from every unvisited node (handles disconnected graphs)
     for (int i = 0; i < numCourses; i++)
         if (state[i] == 0 && HasCycle(graph, state, i))
             return false;
@@ -2855,16 +2989,20 @@ public bool CanFinish(int numCourses, int[][] prerequisites) {
 }
 
 bool HasCycle(List<List<int>> graph, int[] state, int node) {
+    // STEP 1: Mark node as IN-PROGRESS (gray) — currently on the DFS call stack
     state[node] = 1;  // mark as IN-PROGRESS (gray) — we're currently exploring this path
 
     foreach (int neighbor in graph[node]) {
+        // STEP 2: If neighbor is IN-PROGRESS (gray) → back edge → CYCLE found
         if (state[neighbor] == 1)  // found a node we're currently exploring = BACK EDGE = CYCLE
             return true;
+        // STEP 3: If unvisited, recurse; propagate cycle detection upward
         if (state[neighbor] == 0 && HasCycle(graph, state, neighbor))
             return true;  // cycle found deeper in the recursion
         // state[neighbor] == 2: already fully processed, safe to skip
     }
 
+    // STEP 4: All descendants explored with no cycle — mark DONE (black)
     state[node] = 2;  // mark as DONE (black) — no cycle through this node
     return false;
 }
@@ -2907,24 +3045,26 @@ DIJKSTRA VISUALIZATION: find shortest from node 0
 
 ```csharp
 public int[] Dijkstra(int[][] graph, int src, int V) {
-    // dist[i] = shortest distance from src to i
+    // STEP 1: Initialize distances to infinity; source node has distance 0
     int[] dist = new int[V];
     Array.Fill(dist, int.MaxValue / 2);  // WHY /2? Prevent overflow when adding edge weights
     dist[src] = 0;
 
-    // Min-heap: (distance, node) — always process nearest unfinished node
+    // STEP 2: Seed min-heap with the source node at distance 0
     var pq = new PriorityQueue<int, int>();  // element=node, priority=distance
     pq.Enqueue(src, 0);
 
     while (pq.Count > 0) {
+        // STEP 3: Extract the node with the current smallest known distance
         int u = pq.Dequeue();  // node with minimum current distance
 
-        // RELAX all edges from u
+        // STEP 4: Relax all edges from u — update neighbor distances if shorter path found
         // "Relaxation" = check if going through u gives a shorter path to neighbor
         for (int v = 0; v < V; v++) {
             if (graph[u][v] != 0) {  // edge exists
                 int newDist = dist[u] + graph[u][v];
                 if (newDist < dist[v]) {  // found shorter path!
+                    // STEP 5: Update distance and re-enqueue with improved priority
                     dist[v] = newDist;
                     pq.Enqueue(v, newDist);  // re-add with better distance
                 }
@@ -2954,25 +3094,29 @@ public int[] Dijkstra(int[][] graph, int src, int V) {
 ╚══════════════════════════════════════════════════════════════════╝
 ```
 
+> **🔑 CORE IDEA:** Dijkstra from source k: min-heap of (distance, node). Always relax the nearest unvisited node. Answer = max of all shortest distances (or -1 if any unreachable).
+
 ```csharp
 public int NetworkDelayTime(int[][] times, int n, int k) {
-    // Build adjacency list: node → list of (neighbor, weight)
+    // STEP 1: Build adjacency list from edge list
     var graph = new Dictionary<int, List<(int to, int w)>>();
     foreach (int[] t in times) {
         if (!graph.ContainsKey(t[0])) graph[t[0]] = new List<(int, int)>();
         graph[t[0]].Add((t[1], t[2]));
     }
 
-    // Dijkstra from source k
+    // STEP 2: Run Dijkstra from source k — min-heap of (node, distance)
     var dist = new Dictionary<int, int>();
     var pq = new PriorityQueue<int, int>(); // (node, distance)
     pq.Enqueue(k, 0);
 
     while (pq.Count > 0) {
+        // STEP 3: Extract nearest unfinalized node; skip if already finalized
         pq.TryDequeue(out int u, out int d);
         if (dist.ContainsKey(u)) continue;  // already finalized
         dist[u] = d;  // finalize shortest distance to u
 
+        // STEP 4: Enqueue all unfinalized neighbors with updated distances
         if (graph.ContainsKey(u)) {
             foreach (var (v, w) in graph[u]) {
                 if (!dist.ContainsKey(v))
@@ -2981,9 +3125,8 @@ public int NetworkDelayTime(int[][] times, int n, int k) {
         }
     }
 
-    // If not all nodes reachable, return -1
+    // STEP 5: Verify all n nodes were reached; return max distance (last node to receive signal)
     if (dist.Count != n) return -1;
-    // Answer: maximum delay = slowest-to-reach node
     return dist.Values.Max();
 }
 // Time: O(E log V), Space: O(V+E)
@@ -3044,11 +3187,12 @@ KRUSKAL'S VISUALIZATION:
 ╚══════════════════════════════════════════════════════════════════╝
 ```
 
+> **🔑 CORE IDEA:** Prim's MST: start from node 0, use a min-heap of (cost, node). Greedily pick cheapest edge to any unvisited node. No need to pre-enumerate all edges.
+
 ```csharp
 public int MinCostConnectPoints(int[][] points) {
     int n = points.Length;
-    // PRIM'S algorithm: grow MST from point 0
-    // minCost[i] = cheapest edge connecting point i to current MST
+    // STEP 1: Initialize Prim's — minCost[i] = cheapest edge to add point i to MST
     int[] minCost = new int[n];
     Array.Fill(minCost, int.MaxValue);
     minCost[0] = 0;  // start from point 0, cost 0
@@ -3056,16 +3200,17 @@ public int MinCostConnectPoints(int[][] points) {
     int totalCost = 0;
 
     for (int iter = 0; iter < n; iter++) {
-        // Find the unvisited point with minimum edge cost to MST
+        // STEP 2: Greedily pick the unvisited point with the cheapest MST-edge
         int u = -1;
         for (int i = 0; i < n; i++)
             if (!inMST[i] && (u == -1 || minCost[i] < minCost[u]))
                 u = i;
 
+        // STEP 3: Add chosen point to MST and accumulate its edge cost
         inMST[u] = true;    // add u to MST
         totalCost += minCost[u];  // add the edge cost
 
-        // Update minCost for all points not yet in MST
+        // STEP 4: Update minCost for all non-MST points using newly added point u
         for (int v = 0; v < n; v++) {
             if (!inMST[v]) {
                 // Manhattan distance between u and v
@@ -3117,6 +3262,7 @@ public class UnionFind {
     private int[] parent, rank;
 
     public UnionFind(int n) {
+        // STEP 1: Initialize — every node is its own root (n separate components)
         parent = new int[n];
         rank = new int[n];
         for (int i = 0; i < n; i++) parent[i] = i;  // each node is its own root
@@ -3124,6 +3270,7 @@ public class UnionFind {
 
     // Find root with PATH COMPRESSION — O(α(n)) amortized ≈ O(1)
     public int Find(int x) {
+        // STEP 1: Walk to root, and on the way back, point every node directly to root
         // WHY recursive? Path compression: on the way back up,
         // set every node's parent directly to root → flatten the tree
         if (parent[x] != x)
@@ -3133,14 +3280,17 @@ public class UnionFind {
 
     // Union by rank — O(α(n)) amortized
     public bool Union(int x, int y) {
+        // STEP 1: Find roots; if same root, already connected
         int rx = Find(x), ry = Find(y);
         if (rx == ry) return false;  // already in same set
 
+        // STEP 2: Attach smaller-rank tree under larger-rank tree
         // WHY rank-based union? Attach smaller tree under larger tree
         // to keep height logarithmic → prevents degenerate linear chains
         if (rank[rx] < rank[ry]) (rx, ry) = (ry, rx); // ensure rx has higher rank
         parent[ry] = rx;            // attach ry's tree under rx
-        if (rank[rx] == rank[ry]) rank[rx]++;  // only increase rank when equal
+        // STEP 3: Only increment rank when two equal-rank trees merge
+        if (rank[rx] == rank[ry]) rank[rx]++;
 
         return true;  // successfully merged two different sets
     }
@@ -3172,13 +3322,17 @@ KEY INSIGHT: Process edges in order. Before adding each edge, check if
              If yes → this edge creates a cycle → it's REDUNDANT.
 ```
 
+> **🔑 CORE IDEA:** Union-Find: process edges one by one. The first edge whose endpoints already have the same root (are already connected) is the redundant edge.
+
 ```csharp
 public int[] FindRedundantConnection(int[][] edges) {
+    // STEP 1: Initialize Union-Find with n+1 nodes (1-indexed)
     int n = edges.Length;
     var uf = new UnionFind(n + 1);  // +1 because nodes are 1-indexed
 
     foreach (int[] edge in edges) {
         int u = edge[0], v = edge[1];
+        // STEP 2: Try to union endpoints; if they're already connected → redundant edge
         // WHY check before union? If u and v are already in the same component,
         // adding this edge creates a cycle → it's the redundant edge
         if (!uf.Union(u, v))
@@ -3224,15 +3378,17 @@ INSERTION SORT VISUALIZATION: [5, 3, 1, 4, 2]
 // INSERTION SORT — O(n²) worst, O(n) best (nearly sorted), O(1) space
 void InsertionSort(int[] arr) {
     for (int i = 1; i < arr.Length; i++) {
+        // STEP 1: Pick the current element (the "card to insert")
         int key = arr[i];   // the card we're inserting
         int j = i - 1;
 
-        // Shift elements greater than key one position right
+        // STEP 2: Shift all larger elements one position right to make room
         // WHY go right? Make room for key in its correct position
         while (j >= 0 && arr[j] > key) {
             arr[j + 1] = arr[j];  // shift right
             j--;
         }
+        // STEP 3: Place key in its correct sorted position
         arr[j + 1] = key;  // insert key in its correct position
     }
 }
@@ -3242,12 +3398,14 @@ void BubbleSort(int[] arr) {
     int n = arr.Length;
     for (int i = 0; i < n - 1; i++) {
         bool swapped = false;
+        // STEP 1: Bubble the largest unsorted element to its correct position
         for (int j = 0; j < n - i - 1; j++) {  // n-i-1: last i elements already sorted
             if (arr[j] > arr[j + 1]) {
                 (arr[j], arr[j + 1]) = (arr[j + 1], arr[j]);
                 swapped = true;
             }
         }
+        // STEP 2: Early exit if no swaps occurred (array is already sorted)
         if (!swapped) break;  // early exit: array already sorted!
     }
 }
@@ -3280,6 +3438,8 @@ DUTCH NATIONAL FLAG (3-way partition):
   Invariant: [0..lo-1]=0s, [lo..mid-1]=1s, [mid..hi]=unsorted, [hi+1..n-1]=2s
 ```
 
+> **🔑 CORE IDEA:** Dutch National Flag with 3 pointers (lo, mid, hi). Swap 0→lo, 2→hi. Only advance mid when nums[mid]==1 or after a 0-swap; never after a 2-swap.
+
 ```
 TRACE: [2,0,2,1,1,0]
 ════════════════════════════════════════════════════════════
@@ -3295,18 +3455,20 @@ TRACE: [2,0,2,1,1,0]
 
 ```csharp
 public void SortColors(int[] nums) {
+    // STEP 1: Initialize 3-pointer invariant: lo=next 0 slot, hi=next 2 slot, mid=examiner
     int lo = 0, mid = 0, hi = nums.Length - 1;
 
     while (mid <= hi) {
         if (nums[mid] == 0) {
-            // 0 goes to front: swap with lo position, advance both lo and mid
+            // STEP 2: 0 belongs at front — swap to lo, advance both lo and mid
             (nums[lo], nums[mid]) = (nums[mid], nums[lo]);
             lo++; mid++;  // WHY advance mid? We know nums[lo] was 1 (in sorted region)
         } else if (nums[mid] == 2) {
-            // 2 goes to back: swap with hi position, only decrease hi
+            // STEP 3: 2 belongs at back — swap to hi, decrease hi only (don't advance mid)
             (nums[mid], nums[hi]) = (nums[hi], nums[mid]);
             hi--;  // WHY NOT advance mid? nums[hi] might be 0,1, or 2 — need to re-examine
         } else {
+            // STEP 4: 1 is already in the correct middle region — just advance mid
             mid++;  // 1 is in correct region [lo..hi], just advance
         }
     }
@@ -3343,19 +3505,23 @@ MERGE SORT TRACE: [38,27,43,3,9,82,10]
 ```csharp
 // MERGE SORT — O(n log n) time, O(n) space, STABLE
 void MergeSort(int[] arr, int left, int right) {
-    if (left >= right) return;  // base case: 0 or 1 elements
+    // STEP 1: Base case — 0 or 1 elements are already sorted
+    if (left >= right) return;
 
+    // STEP 2: Find midpoint and recursively sort both halves
     int mid = left + (right - left) / 2;  // avoid overflow vs (left+right)/2
     MergeSort(arr, left, mid);    // sort left half
     MergeSort(arr, mid+1, right); // sort right half
+    // STEP 3: Merge the two sorted halves back together
     Merge(arr, left, mid, right); // merge the sorted halves
 }
 
 void Merge(int[] arr, int left, int mid, int right) {
-    // Copy both halves to temp arrays for comparison
+    // STEP 1: Copy both halves to temporary arrays
     int[] L = arr[left..(mid+1)];    // C# range syntax
     int[] R = arr[(mid+1)..(right+1)];
 
+    // STEP 2: Merge by comparing front elements of both halves
     int i = 0, j = 0, k = left;
     while (i < L.Length && j < R.Length) {
         // WHY <=? Stability: when equal, take from LEFT array first
@@ -3363,6 +3529,7 @@ void Merge(int[] arr, int left, int mid, int right) {
         if (L[i] <= R[j]) arr[k++] = L[i++];
         else arr[k++] = R[j++];
     }
+    // STEP 3: Drain any remaining elements from either half
     while (i < L.Length) arr[k++] = L[i++];  // remaining left elements
     while (j < R.Length) arr[k++] = R[j++];  // remaining right elements
 }
@@ -3370,32 +3537,32 @@ void Merge(int[] arr, int left, int mid, int right) {
 // QUICK SORT — O(n log n) avg, O(n²) worst, O(1) space, UNSTABLE
 void QuickSort(int[] arr, int left, int right) {
     if (left >= right) return;
+    // STEP 1: Partition around pivot, get pivot's final sorted index
     int pi = Partition(arr, left, right);
+    // STEP 2: Recursively sort left and right of the pivot
     QuickSort(arr, left, pi - 1);   // sort left of pivot
     QuickSort(arr, pi + 1, right);  // sort right of pivot
 }
 
 int Partition(int[] arr, int left, int right) {
+    // STEP 1: Randomize pivot to avoid O(n²) on sorted input
     // WHY random pivot? Avoids O(n²) worst case on already-sorted input.
-    // With a fixed pivot (e.g. always last element), a sorted array degrades to O(n²).
     int randIdx = new Random().Next(left, right + 1);
     (arr[randIdx], arr[right]) = (arr[right], arr[randIdx]); // move pivot to end temporarily
 
     int pivot = arr[right];
-    // i = boundary: arr[left..i] are ALL <= pivot ("small section")
-    // j scans forward; everything not yet seen is "unsorted"
+    // STEP 2: i = right boundary of "small section" (elements ≤ pivot)
     int i = left - 1;  // starts before window — small section is empty initially
 
+    // STEP 3: Scan j across unsorted region; move ≤ pivot elements to small section
     for (int j = left; j < right; j++) {
         if (arr[j] <= pivot) {
-            // arr[j] belongs in the small section → expand boundary and swap
             i++;
             (arr[i], arr[j]) = (arr[j], arr[i]);
         }
         // if arr[j] > pivot: it belongs in large section — just let j advance
     }
-    // All elements processed; put pivot in its correct final sorted position
-    // (right after the last element ≤ pivot)
+    // STEP 4: Place pivot between small and large sections — its final sorted position
     (arr[i+1], arr[right]) = (arr[right], arr[i+1]);
     return i + 1;  // pivot now sits at its correct index in the sorted array
 }
@@ -3421,6 +3588,8 @@ int Partition(int[] arr, int left, int right) {
 ║  SORT LL     │ find mid, split, merge  │            │ stack sp ║
 ╚══════════════════════════════════════════════════════════════════╝
 ```
+
+> **🔑 CORE IDEA:** Merge sort: find midpoint (fast/slow pointers), split, recursively sort halves, merge. O(1) extra space because merge re-links pointers in-place.
 
 ```csharp
 public ListNode SortList(ListNode head) {
@@ -3449,9 +3618,11 @@ public ListNode SortList(ListNode head) {
 }
 
 ListNode Merge(ListNode l1, ListNode l2) {
+    // STEP 1: Create dummy head to simplify edge cases for list construction
     var dummy = new ListNode(0);  // dummy head to simplify edge cases
     var curr = dummy;
 
+    // STEP 2: Compare front nodes; attach smaller one and advance that pointer
     while (l1 != null && l2 != null) {
         if (l1.val <= l2.val) {  // take smaller value
             curr.next = l1;
@@ -3462,6 +3633,7 @@ ListNode Merge(ListNode l1, ListNode l2) {
         }
         curr = curr.next;
     }
+    // STEP 3: Attach remaining nodes from whichever list is not yet exhausted
     curr.next = l1 ?? l2;  // attach remaining nodes (one list is exhausted)
     return dummy.next;
 }
@@ -3517,6 +3689,8 @@ KEY INSIGHT (Pigeonhole): n numbers have n-1 gaps. Spread = max-min.
              So only compare adjacent buckets' max-min values.
 ```
 
+> **🔑 CORE IDEA:** Pigeonhole: max gap ≥ (max−min)/(n−1). Place n nums into ⌊n−1⌋ buckets; max gap must cross a bucket boundary, so only compare bucket boundaries.
+
 ```csharp
 public int MaximumGap(int[] nums) {
     if (nums.Length < 2) return 0;
@@ -3524,22 +3698,26 @@ public int MaximumGap(int[] nums) {
     int min = nums.Min(), max = nums.Max();
     if (min == max) return 0;
 
+    // STEP 1: Compute bucket size and count using pigeonhole principle
     // Bucket size: ceiling of average gap ensures at least n-1 buckets
     int bucketSize = Math.Max(1, (max - min) / (n - 1));
     int bucketCount = (max - min) / bucketSize + 1;
 
+    // STEP 2: Allocate and initialize per-bucket min/max trackers
     // Each bucket stores [min, max] of values that fall in it
     int[] bucketMin = new int[bucketCount];
     int[] bucketMax = new int[bucketCount];
     Array.Fill(bucketMin, int.MaxValue);
     Array.Fill(bucketMax, int.MinValue);
 
+    // STEP 3: Distribute each number into its corresponding bucket
     foreach (int num in nums) {
         int bi = (num - min) / bucketSize;  // which bucket does this number go in?
         bucketMin[bi] = Math.Min(bucketMin[bi], num);
         bucketMax[bi] = Math.Max(bucketMax[bi], num);
     }
 
+    // STEP 4: Scan adjacent non-empty buckets and compute max cross-bucket gap
     // Max gap = max of (next bucket min - prev bucket max) across adjacent non-empty buckets
     int maxGap = 0, prevMax = min;
     for (int i = 0; i < bucketCount; i++) {
@@ -3615,17 +3793,23 @@ sd[3] = "c"; sd[1] = "a"; sd[2] = "b";
 ╚══════════════════════════════════════════════════════════════════╝
 ```
 
+> **🔑 CORE IDEA:** Custom sort comparator: compare strings a+b vs b+a. If a+b > b+a lexicographically, a comes first. Edge case: all zeros → return "0".
+
 ```csharp
 public string LargestNumber(int[] nums) {
+    // STEP 1: Convert integers to strings to enable concatenation comparison
     string[] strs = nums.Select(n => n.ToString()).ToArray();
 
+    // STEP 2: Sort using custom comparator — a before b if (a+b) > (b+a)
     // WHY custom comparator? Sort by which concatenation is LARGER
     // "9" vs "90": compare "990" (9 first) vs "909" (90 first) → "990" wins → 9 comes first
     Array.Sort(strs, (a, b) => string.Compare(b + a, a + b)); // b+a > a+b → b first
 
+    // STEP 3: Handle edge case where all digits are zero
     // Edge case: all zeros → result should be "0" not "000..."
     if (strs[0] == "0") return "0";
 
+    // STEP 4: Concatenate sorted strings to form the largest number
     return string.Concat(strs);
 }
 // Time: O(n log n × m) where m = max digits per number
@@ -3668,23 +3852,30 @@ KEY INSIGHT: If arr[mid] < arr[mid+1], there MUST be a peak on the right
              Binary search can eliminate half the search space each step.
 ```
 
+> **🔑 CORE IDEA:** Binary search on slope: if arr[mid] < arr[mid+1], a peak exists in the right half; otherwise search left half (mid included). Converges to a peak.
+
 ```csharp
 public int FindPeakElement(int[] nums) {
+    // STEP 1: Set up binary search boundaries
     int left = 0, right = nums.Length - 1;
 
+    // STEP 2: Binary search on slope — narrow to peak by comparing mid to its right neighbor
     while (left < right) {
         int mid = left + (right - left) / 2;
 
         if (nums[mid] < nums[mid + 1]) {
+            // STEP 3: Slope goes up → peak must exist to the right
             // WHY go right? The slope is going UP toward right.
             // A peak must exist at mid+1 or further right.
             left = mid + 1;
         } else {
+            // STEP 4: Slope goes down (or flat) → mid itself or left contains a peak
             // WHY go left (including mid)? nums[mid] >= nums[mid+1]
             // Either mid IS a peak, or a peak exists to its left.
             right = mid;  // WHY not mid-1? mid itself might be the peak!
         }
     }
+    // STEP 5: Convergence — left == right points to a peak
     return left;  // left == right == peak index
 }
 // Time: O(log n), Space: O(1)
@@ -3723,9 +3914,12 @@ BINARY SEARCH — THE TEMPLATE:
 ```csharp
 // ═══ CLASSIC BINARY SEARCH ═══
 int BinarySearch(int[] arr, int target) {
+    // STEP 1: Set boundaries to cover the entire array
     int left = 0, right = arr.Length - 1;
+    // STEP 2: Narrow search space by half each iteration
     while (left <= right) {
         int mid = left + (right - left) / 2;  // WHY this formula? Prevents integer overflow
+        // STEP 3: Check mid — return, go right, or go left
         if (arr[mid] == target) return mid;
         if (arr[mid] < target) left = mid + 1;   // target in right half
         else right = mid - 1;                     // target in left half
@@ -3736,7 +3930,9 @@ int BinarySearch(int[] arr, int target) {
 // ═══ LOWER BOUND (first position where arr[i] >= target) ═══
 // KEY USE: "find first occurrence", "count elements >= x"
 int LowerBound(int[] arr, int target) {
+    // STEP 1: Use half-open range [0, arr.Length] so sentinel answer is valid
     int left = 0, right = arr.Length;  // WHY arr.Length (not -1)? Answer might be arr.Length
+    // STEP 2: Bias right boundary left (keep mid) when arr[mid] >= target
     while (left < right) {             // WHY strict <? right=arr.Length is a valid (sentinel) answer
         int mid = left + (right - left) / 2;
         if (arr[mid] < target) left = mid + 1;  // arr[mid] too small → go right
@@ -3748,7 +3944,9 @@ int LowerBound(int[] arr, int target) {
 // ═══ UPPER BOUND (first position where arr[i] > target) ═══
 // KEY USE: "find last occurrence" (upperBound - 1), "count elements <= x"
 int UpperBound(int[] arr, int target) {
+    // STEP 1: Use half-open range; bias right boundary left when arr[mid] > target
     int left = 0, right = arr.Length;
+    // STEP 2: Shift left boundary right when arr[mid] <= target
     while (left < right) {
         int mid = left + (right - left) / 2;
         if (arr[mid] <= target) left = mid + 1;  // arr[mid] <= target → go right
@@ -3762,8 +3960,10 @@ int UpperBound(int[] arr, int target) {
 // When: "find minimum/maximum X such that condition(X) is true"
 // Example: "find minimum capacity to ship packages in D days"
 int BinarySearchOnAnswer(int lo, int hi, Func<int, bool> feasible) {
+    // STEP 1: Search over answer space [lo, hi] converging to minimum feasible value
     while (lo < hi) {
         int mid = lo + (hi - lo) / 2;
+        // STEP 2: If mid is feasible try smaller; otherwise need larger
         if (feasible(mid)) hi = mid;      // mid works → try smaller
         else lo = mid + 1;                // mid doesn't work → need larger
     }
@@ -3796,6 +3996,8 @@ KEY INSIGHT: In a rotated array, one half is ALWAYS sorted.
              Use the sorted half to decide which half contains target.
 ```
 
+> **🔑 CORE IDEA:** One half is always sorted. Determine which half, check if target falls in that range; if yes search there, else search the other half.
+
 ```
 VISUALIZATION: [4,5,6,7,0,1,2], target=0
 ═══════════════════════════════════════════════════════════════
@@ -3813,14 +4015,18 @@ VISUALIZATION: [4,5,6,7,0,1,2], target=0
 
 ```csharp
 public int Search(int[] nums, int target) {
+    // STEP 1: Standard binary search boundaries
     int left = 0, right = nums.Length - 1;
 
     while (left <= right) {
         int mid = left + (right - left) / 2;
+        // STEP 2: Found target — return immediately
         if (nums[mid] == target) return mid;
 
+        // STEP 3: Determine which half is sorted (one half always is in rotated array)
         // DETERMINE which half is sorted
         if (nums[left] <= nums[mid]) {
+            // STEP 4: Left half is sorted — check if target falls in its range
             // LEFT half [left..mid] is sorted (no rotation in this half)
             // Check if target falls within the sorted left half's range
             if (nums[left] <= target && target < nums[mid])
@@ -3828,6 +4034,7 @@ public int Search(int[] nums, int target) {
             else
                 left = mid + 1;   // target is in right half (contains rotation)
         } else {
+            // STEP 5: Right half is sorted — check if target falls in its range
             // RIGHT half [mid..right] is sorted
             if (nums[mid] < target && target <= nums[right])
                 left = mid + 1;   // target must be in right half
@@ -3854,15 +4061,18 @@ public int Search(int[] nums, int target) {
 ```csharp
 // INTERPOLATION SEARCH — O(log log n) average for uniform distribution
 int InterpolationSearch(int[] arr, int target) {
+    // STEP 1: Guard — target must be within the current [low, high] range
     int low = 0, high = arr.Length - 1;
     while (low <= high && target >= arr[low] && target <= arr[high]) {
         if (low == high) return arr[low] == target ? low : -1;
 
+        // STEP 2: Estimate probe position proportionally based on value distribution
         // Estimate position proportionally (not just middle)
         // WHY this formula? If values are uniformly distributed,
         // target is approximately at (target-arr[low])/(arr[high]-arr[low]) fraction
         int pos = low + (int)((long)(target - arr[low]) * (high - low)
                                / (arr[high] - arr[low]));
+        // STEP 3: Probe and narrow accordingly
         if (arr[pos] == target) return pos;
         if (arr[pos] < target) low = pos + 1;
         else high = pos - 1;
@@ -3872,10 +4082,13 @@ int InterpolationSearch(int[] arr, int target) {
 
 // EXPONENTIAL SEARCH — O(log n), useful for unbounded/infinite arrays
 int ExponentialSearch(int[] arr, int target) {
+    // STEP 1: Check index 0 separately (loop starts at i=1)
     if (arr[0] == target) return 0;
     int i = 1;
+    // STEP 2: Double i until arr[i] exceeds target or we reach array end
     // Double i until we exceed target or array bounds
     while (i < arr.Length && arr[i] <= target) i *= 2;
+    // STEP 3: Binary search in the identified range [i/2, min(i, last)]
     // Binary search in range [i/2, min(i, arr.Length-1)]
     return Array.BinarySearch(arr, i / 2, Math.Min(i, arr.Length - 1) - i/2, target);
 }
@@ -3899,15 +4112,20 @@ int ExponentialSearch(int[] arr, int target) {
 ╚══════════════════════════════════════════════════════════════════╝
 ```
 
+> **🔑 CORE IDEA:** Two separate binary searches: one for leftmost (bias left when arr[mid]==target), one for rightmost (bias right). O(log n) total.
+
 ```csharp
 public int[] SearchRange(int[] nums, int target) {
+    // STEP 1: Find leftmost occurrence using LowerBound
     // First position: lowest index where nums[i] == target
     int first = LowerBound(nums, target);
 
+    // STEP 2: Verify target actually exists at the found position
     // Check if target actually exists
     if (first == nums.Length || nums[first] != target)
         return new[] { -1, -1 };
 
+    // STEP 3: Find rightmost occurrence as UpperBound - 1
     // Last position: (first index where nums[i] > target) - 1
     int last = UpperBound(nums, target) - 1;
 
@@ -3975,15 +4193,20 @@ CALL STACK VISUALIZATION for factorial(3):
 ```csharp
 // PATTERN 1: REDUCE AND CONQUER (reduce by 1 each call)
 int Factorial(int n) {
+    // STEP 1: Base case — 0 or 1 returns 1 immediately
     if (n <= 1) return 1;             // base case: factorial(0)=factorial(1)=1
+    // STEP 2: Reduce problem by 1 and multiply
     return n * Factorial(n - 1);      // recursive case: n * (n-1)!
 }
 // T(n) = T(n-1) + O(1) → O(n) time, O(n) stack space
 
 // PATTERN 2: DIVIDE AND CONQUER (halve each call)
 int Power(int base_, int exp) {
+    // STEP 1: Base case — anything to the 0th power is 1
     if (exp == 0) return 1;           // base case: anything^0 = 1
+    // STEP 2: Recurse on half the exponent — compute ONCE to avoid doubling work
     int half = Power(base_, exp / 2); // compute base^(exp/2) ONCE
+    // STEP 3: Combine result — extra factor needed for odd exponents
     if (exp % 2 == 0) return half * half;         // even exp
     else return half * half * base_;              // odd exp: one extra factor
     // WHY compute half only once? Avoids O(n) → achieves O(log n)!
@@ -3992,7 +4215,9 @@ int Power(int base_, int exp) {
 
 // PATTERN 3: TREE RECURSION (two recursive calls)
 int Fib(int n) {
+    // STEP 1: Base cases — fib(0)=0, fib(1)=1
     if (n <= 1) return n;
+    // STEP 2: Two recursive calls — O(2^n) without memoization
     return Fib(n-1) + Fib(n-2);     // two calls per level → O(2^n) trees
 }
 // Fix: memoize! See Section 32.
@@ -4022,12 +4247,16 @@ int Fib(int n) {
 ╚══════════════════════════════════════════════════════════════════╝
 ```
 
+> **🔑 CORE IDEA:** Pick the smaller head as the result; recursively (or with a dummy node iteratively) link it to the merged tail. Both terminate when either list is exhausted.
+
 ```csharp
 // ITERATIVE — O(n+m) time, O(1) space (PREFERRED)
 public ListNode MergeTwoLists(ListNode l1, ListNode l2) {
+    // STEP 1: Create dummy head to avoid special-casing first node
     var dummy = new ListNode(0);  // dummy head simplifies edge cases
     var curr = dummy;
 
+    // STEP 2: Compare front nodes; always append the smaller one
     while (l1 != null && l2 != null) {
         if (l1.val <= l2.val) {   // take from l1 if smaller/equal
             curr.next = l1;
@@ -4038,14 +4267,17 @@ public ListNode MergeTwoLists(ListNode l1, ListNode l2) {
         }
         curr = curr.next;
     }
+    // STEP 3: Attach whichever list still has remaining nodes
     curr.next = l1 ?? l2;  // attach remaining non-null list (one will be null)
     return dummy.next;
 }
 
 // RECURSIVE — elegant but O(n+m) stack space
 public ListNode MergeTwoListsRecursive(ListNode l1, ListNode l2) {
+    // STEP 1: Base cases — one list exhausted, return the other
     if (l1 == null) return l2;  // base case: one list exhausted
     if (l2 == null) return l1;
+    // STEP 2: Pick smaller head and recursively merge the rest
     if (l1.val <= l2.val) {
         l1.next = MergeTwoListsRecursive(l1.next, l2); // l1 is smaller, attach merged rest
         return l1;
@@ -4109,15 +4341,20 @@ DECISION TREE for permutations of [1,2,3]:
 ```csharp
 // ═══ TEMPLATE 1: GENERATE ALL PERMUTATIONS ═══
 void Permutations(int[] nums, List<int> current, bool[] used, List<IList<int>> result) {
+    // STEP 1: Base case — all elements chosen, record the complete permutation
     if (current.Count == nums.Length) {   // complete permutation found
         result.Add(new List<int>(current)); // add COPY (not reference!)
         return;
     }
+    // STEP 2: Try each unused element as the next position in the permutation
     for (int i = 0; i < nums.Length; i++) {
         if (used[i]) continue;            // skip already-chosen elements
+        // STEP 3: CHOOSE — mark element as used and add to current path
         used[i] = true;                   // CHOOSE: mark as used
         current.Add(nums[i]);
+        // STEP 4: EXPLORE — recurse to fill the next position
         Permutations(nums, current, used, result); // EXPLORE
+        // STEP 5: UN-CHOOSE — undo the choice to try next candidate
         current.RemoveAt(current.Count - 1); // UN-CHOOSE: remove last element
         used[i] = false;                  // UN-CHOOSE: mark as available again
     }
@@ -4125,9 +4362,12 @@ void Permutations(int[] nums, List<int> current, bool[] used, List<IList<int>> r
 
 // ═══ TEMPLATE 2: GENERATE ALL SUBSETS ═══
 void Subsets(int[] nums, int start, List<int> current, List<IList<int>> result) {
+    // STEP 1: Record current state as a valid subset (includes empty set at root)
     result.Add(new List<int>(current)); // add current subset (including empty set!)
+    // STEP 2: Extend subset by adding each remaining element
     for (int i = start; i < nums.Length; i++) {
         current.Add(nums[i]);            // CHOOSE nums[i]
+        // STEP 3: EXPLORE with i+1 to avoid reuse and THEN UN-CHOOSE
         Subsets(nums, i + 1, current, result); // EXPLORE (i+1: no reuse)
         current.RemoveAt(current.Count - 1);   // UN-CHOOSE
     }
@@ -4153,6 +4393,8 @@ void Subsets(int[] nums, int start, List<int> current, List<IList<int>> result) 
 ╚══════════════════════════════════════════════════════════════════╝
 ```
 
+> **🔑 CORE IDEA:** Backtracking: for each digit position, iterate over its mapped letters; append to path and recurse to next digit; undo on return.
+
 ```
 DECISION TREE for "23":
   2→[a,b,c], 3→[d,e,f]
@@ -4165,8 +4407,10 @@ DECISION TREE for "23":
 
 ```csharp
 public IList<string> LetterCombinations(string digits) {
+    // STEP 1: Guard against empty input
     if (digits.Length == 0) return new List<string>();
 
+    // STEP 2: Build the phone digit → letters map
     var phoneMap = new Dictionary<char, string> {
         ['2']="abc", ['3']="def", ['4']="ghi", ['5']="jkl",
         ['6']="mno", ['7']="pqrs", ['8']="tuv", ['9']="wxyz"
@@ -4176,10 +4420,12 @@ public IList<string> LetterCombinations(string digits) {
     var sb = new StringBuilder();
 
     void Backtrack(int idx) {
+        // STEP 3: Base case — all digits processed, record the combination
         if (idx == digits.Length) {  // used all digits → complete combination
             result.Add(sb.ToString());
             return;
         }
+        // STEP 4: Try each letter mapped to the current digit
         foreach (char c in phoneMap[digits[idx]]) {
             sb.Append(c);           // CHOOSE: add this letter
             Backtrack(idx + 1);     // EXPLORE: move to next digit
@@ -4187,6 +4433,7 @@ public IList<string> LetterCombinations(string digits) {
         }
     }
 
+    // STEP 5: Start backtracking from the first digit
     Backtrack(0);
     return result;
 }
@@ -4241,18 +4488,23 @@ KADANE'S KEY INSIGHT: At each position, the max subarray ending HERE
   If extending the previous subarray makes it worse, start fresh here.
 ```
 
+> **🔑 CORE IDEA:** Kadane's: currentSum = max(num, currentSum + num). If adding the current number hurts (makes sum negative), start fresh from current number.
+
 ```csharp
 // KADANE'S ALGORITHM — O(n) time, O(1) space
 public int MaxSubArray(int[] nums) {
+    // STEP 1: Seed both trackers with the first element (handles all-negative arrays)
     // currentMax: best subarray sum ENDING at current position
     // globalMax: best subarray sum seen ANYWHERE so far
     int currentMax = nums[0], globalMax = nums[0];
 
     for (int i = 1; i < nums.Length; i++) {
+        // STEP 2: Decide: extend previous subarray or start fresh from current element
         // KEY DECISION: should we extend the previous subarray or start fresh?
         // Extend if adding current element improves the sum (currentMax > 0)
         // Start fresh if previous subarray sum is negative (it would only hurt)
         currentMax = Math.Max(nums[i], currentMax + nums[i]);
+        // STEP 3: Track the best result seen across all positions
         globalMax = Math.Max(globalMax, currentMax);
     }
     return globalMax;
@@ -4308,14 +4560,19 @@ FIBONACCI WITH MEMOIZATION:
 int[] memo;
 
 int FibMemo(int n) {
+    // STEP 1: Initialize memo array with sentinel value -1 (means "not yet computed")
     memo = new int[n + 1];
     Array.Fill(memo, -1);   // -1 = not computed yet
+    // STEP 2: Kick off the memoized recursive computation
     return Fib(n);
 }
 
 int Fib(int n) {
+    // STEP 1: Base case — fib(0)=0, fib(1)=1
     if (n <= 1) return n;           // base case
+    // STEP 2: Cache hit — return previously computed result in O(1)
     if (memo[n] != -1) return memo[n]; // already computed? return cached!
+    // STEP 3: Compute, store in memo, and return
     memo[n] = Fib(n-1) + Fib(n-2);    // compute and STORE in memo
     return memo[n];
 }
@@ -4348,14 +4605,19 @@ KEY INSIGHT: ways(n) = ways(n-1) + ways(n-2)  ← this IS the Fibonacci recurren
              To reach step n: either came from n-1 (1-step) or n-2 (2-step)
 ```
 
+> **🔑 CORE IDEA:** ways(n) = ways(n−1) + ways(n−2). It's exactly Fibonacci. Use two variables instead of an array for O(1) space.
+
 ```csharp
 public int ClimbStairs(int n) {
+    // STEP 1: Base cases — 1 stair: 1 way; 2 stairs: 2 ways
     if (n <= 2) return n;
+    // STEP 2: Initialize last two values (Fibonacci seeds)
     // WHY only two variables? dp[i] = dp[i-1] + dp[i-2]
     // We only ever need the last two values — no need for full array
     int prev2 = 1;  // ways to reach step 1
     int prev1 = 2;  // ways to reach step 2
 
+    // STEP 3: Roll forward applying recurrence dp[i] = dp[i-1] + dp[i-2]
     for (int i = 3; i <= n; i++) {
         int curr = prev1 + prev2;  // ways to reach step i
         prev2 = prev1;             // slide window: old prev1 becomes prev2
@@ -4426,6 +4688,8 @@ RECURRENCE: dp[i] = min(dp[i - coin] + 1) for each coin <= i
 BASE CASE: dp[0] = 0 (zero coins needed for amount 0)
 ```
 
+> **🔑 CORE IDEA:** Bottom-up DP: dp[i] = min coins for amount i. For each amount from 1 to target, try every coin c: dp[i] = min(dp[i], dp[i−c]+1). Greedy fails for non-canonical systems.
+
 ```
 DP TABLE VISUALIZATION: coins=[1,2,5], amount=11
 ═══════════════════════════════════════════════════════════════
@@ -4443,6 +4707,7 @@ DP TABLE VISUALIZATION: coins=[1,2,5], amount=11
 
 ```csharp
 public int CoinChange(int[] coins, int amount) {
+    // STEP 1: Allocate dp table and fill with "infinity" sentinel
     // dp[i] = minimum coins needed to make amount i
     int[] dp = new int[amount + 1];
     // WHY amount+1? We need dp[0] through dp[amount]
@@ -4450,8 +4715,10 @@ public int CoinChange(int[] coins, int amount) {
     // WHY fill with amount+1? It acts as "infinity" — any valid answer
     // will be ≤ amount (using all 1-cent coins). amount+1 signals impossible.
     Array.Fill(dp, amount + 1);
+    // STEP 2: Base case — zero coins needed to make amount 0
     dp[0] = 0;  // base case: 0 coins to make amount 0
 
+    // STEP 3: Fill table bottom-up — for each amount, try every coin
     for (int i = 1; i <= amount; i++) {          // for each amount from 1 to target
         foreach (int coin in coins) {
             if (coin <= i) {                      // coin can contribute to this amount
@@ -4461,6 +4728,7 @@ public int CoinChange(int[] coins, int amount) {
         }
     }
 
+    // STEP 4: If still "infinity", no combination reaches the amount
     // WHY check > amount? If dp[amount] is still amount+1, no solution exists
     return dp[amount] > amount ? -1 : dp[amount];
 }
@@ -4514,6 +4782,8 @@ RECURRENCE:
   Else:                   dp[i][j] = max(dp[i-1][j], dp[i][j-1])  (skip one char)
 ```
 
+> **🔑 CORE IDEA:** 2D DP: if chars match, dp[i][j] = dp[i−1][j−1]+1; else dp[i][j] = max(dp[i−1][j], dp[i][j−1]). Rows = s1 chars, cols = s2 chars.
+
 ```
 2D DP TABLE: s1="ABCBDAB", s2="BDCAB"
 ═══════════════════════════════════════════════════════════════
@@ -4532,16 +4802,20 @@ RECURRENCE:
 ```csharp
 public int LongestCommonSubsequence(string text1, string text2) {
     int m = text1.Length, n = text2.Length;
+    // STEP 1: Allocate 2D DP table with extra row/col for empty-string base cases
     // dp[i][j] = LCS of text1[0..i-1] and text2[0..j-1]
     // WHY +1 size? dp[0][...] and dp[...][0] = 0 (empty string base cases)
     int[,] dp = new int[m + 1, n + 1];
 
+    // STEP 2: Fill table — match extends diagonal; mismatch takes max of adjacent cells
     for (int i = 1; i <= m; i++) {
         for (int j = 1; j <= n; j++) {
             if (text1[i-1] == text2[j-1]) {
+                // STEP 3: Characters MATCH — extend LCS from dp[i-1][j-1]
                 // Characters MATCH: LCS extends the LCS without these characters
                 dp[i, j] = dp[i-1, j-1] + 1;
             } else {
+                // STEP 4: No match — take best result from skipping one char in either string
                 // No match: take the best of skipping one char from either string
                 dp[i, j] = Math.Max(dp[i-1, j], dp[i, j-1]);
             }
@@ -4605,17 +4879,23 @@ KEY INSIGHT: We don't need to know HOW we reach each position — just
              If current position > furthest reachable → stuck!
 ```
 
+> **🔑 CORE IDEA:** Greedy: track maxReach. For each i ≤ maxReach, update maxReach = max(maxReach, i + jumps[i]). If maxReach ≥ last index at any point, return true.
+
 ```csharp
 public bool CanJump(int[] nums) {
+    // STEP 1: Initialize the maximum reachable index from position 0
     int maxReach = 0;  // furthest index reachable from positions 0..i
 
     for (int i = 0; i < nums.Length; i++) {
+        // STEP 2: If current position is beyond what's reachable, we're stuck
         // If i > maxReach: we CAN'T reach position i (stuck before it)
         if (i > maxReach) return false;
 
+        // STEP 3: Extend the frontier — update maxReach using this position's jump range
         // Update maxReach: from position i, we can jump nums[i] steps
         maxReach = Math.Max(maxReach, i + nums[i]);
 
+        // STEP 4: Early exit — frontier already covers the last index
         // Early exit: can already reach the end
         if (maxReach >= nums.Length - 1) return true;
     }
@@ -4698,11 +4978,15 @@ TWO POINTER PATTERNS:
 ╚══════════════════════════════════════════════════════════════════╝
 ```
 
+> **🔑 CORE IDEA:** Sort first. Fix index i, then two-pointer: left=i+1, right=end. When sum==0 record and skip duplicates at all three levels.
+
 ```csharp
 public IList<IList<int>> ThreeSum(int[] nums) {
+    // STEP 1: Sort array to enable two-pointer and easy duplicate skipping
     Array.Sort(nums);  // MUST sort first — enables two-pointer + easy deduplication
     var result = new List<IList<int>>();
 
+    // STEP 2: Fix the first element of the triplet, use two-pointer for the remaining pair
     for (int i = 0; i < nums.Length - 2; i++) {
         // SKIP DUPLICATE: if nums[i] same as previous, would produce same triplets
         if (i > 0 && nums[i] == nums[i-1]) continue;
@@ -4710,11 +4994,13 @@ public IList<IList<int>> ThreeSum(int[] nums) {
         // EARLY EXIT: if smallest possible sum > 0, no solution possible
         if (nums[i] > 0) break;
 
+        // STEP 3: Two-pointer scan to find pairs summing to -nums[i]
         int left = i + 1, right = nums.Length - 1;
         while (left < right) {
             int sum = nums[i] + nums[left] + nums[right];
             if (sum == 0) {
                 result.Add(new List<int> { nums[i], nums[left], nums[right] });
+                // STEP 4: Skip duplicates at both pointers after recording valid triplet
                 // SKIP DUPLICATES at both pointers after finding a valid triplet
                 while (left < right && nums[left] == nums[left+1]) left++;
                 while (left < right && nums[right] == nums[right-1]) right--;
@@ -4785,10 +5071,12 @@ VARIABLE-SIZE WINDOW (expand right, contract left as needed):
 ```csharp
 // FIXED SIZE WINDOW — Maximum sum subarray of size k
 int MaxSumSubarrayK(int[] arr, int k) {
+    // STEP 1: Build the initial window of size k
     int windowSum = 0;
     for (int i = 0; i < k; i++) windowSum += arr[i]; // build initial window
     int maxSum = windowSum;
 
+    // STEP 2: Slide window right — add new right element, remove old left element
     for (int i = k; i < arr.Length; i++) {
         windowSum += arr[i] - arr[i - k]; // ADD new right element, REMOVE old left element
         maxSum = Math.Max(maxSum, windowSum);
@@ -4800,13 +5088,16 @@ int MaxSumSubarrayK(int[] arr, int k) {
 int LongestSubarraySumAtMostTarget(int[] arr, int target) {
     int left = 0, windowSum = 0, maxLen = 0;
     for (int right = 0; right < arr.Length; right++) {
+        // STEP 1: Expand window to the right
         windowSum += arr[right];  // EXPAND: include right element
 
+        // STEP 2: Shrink from the left while constraint is violated
         // SHRINK: while constraint violated, move left pointer right
         while (windowSum > target) {
             windowSum -= arr[left];  // remove left element
             left++;
         }
+        // STEP 3: Update the maximum valid window length
         maxLen = Math.Max(maxLen, right - left + 1);
     }
     return maxLen;
@@ -4837,8 +5128,11 @@ KEY INSIGHT: Instead of slowly shrinking the window when a duplicate is found,
              This avoids O(k) shrinking per step.
 ```
 
+> **🔑 CORE IDEA:** Sliding window + HashMap(char → last index). On duplicate, jump left = max(left, lastSeen[char]+1) — skip over the old duplicate in one step.
+
 ```csharp
 public int LengthOfLongestSubstring(string s) {
+    // STEP 1: Build HashMap to track last-seen index of each character
     // Map each character to its most recent index seen in the string
     var lastSeen = new Dictionary<char, int>();
     int left = 0, maxLen = 0;
@@ -4846,6 +5140,7 @@ public int LengthOfLongestSubstring(string s) {
     for (int right = 0; right < s.Length; right++) {
         char c = s[right];
 
+        // STEP 2: On duplicate within current window, jump left past it in O(1)
         // If char was seen AND its last occurrence is within current window
         // (left <= lastSeen[c]): jump left past the duplicate
         if (lastSeen.TryGetValue(c, out int prevIdx) && prevIdx >= left) {
@@ -4854,6 +5149,7 @@ public int LengthOfLongestSubstring(string s) {
             left = prevIdx + 1;  // jump: exclude the duplicate character
         }
 
+        // STEP 3: Update last-seen index and record maximum window length
         lastSeen[c] = right;  // update most recent index of this character
         maxLen = Math.Max(maxLen, right - left + 1);
     }
@@ -4939,15 +5235,20 @@ MATHEMATICAL PROOF:
     They meet at cycle start (both travel F steps to get there).
 ```
 
+> **🔑 CORE IDEA:** Floyd's: slow/fast meet inside cycle. Reset slow to head; advance both one step at a time — they meet exactly at the cycle entry point (mathematical guarantee).
+
 ```csharp
 public ListNode DetectCycle(ListNode head) {
+    // STEP 1: Initialize fast and slow pointers at head
     ListNode slow = head, fast = head;
 
+    // STEP 2: Advance fast two steps and slow one step until they meet or fast reaches end
     // PHASE 1: Detect if cycle exists
     while (fast != null && fast.next != null) {
         slow = slow.next;
         fast = fast.next.next;
         if (slow == fast) {       // they met inside the cycle!
+            // STEP 3: Meeting detected — reset slow to head; advance both one step at a time
             // PHASE 2: Find cycle entry point
             // Reset slow to head; fast stays at meeting point
             slow = head;
@@ -4956,6 +5257,7 @@ public ListNode DetectCycle(ListNode head) {
                 slow = slow.next;
                 fast = fast.next;  // WHY 1 step now? Mathematical proof says they meet at start
             }
+            // STEP 4: Convergence point is the cycle entry node
             return slow;  // cycle start node
         }
     }
@@ -5006,21 +5308,28 @@ MERGE INTERVALS VISUALIZATION:
 ╚══════════════════════════════════════════════════════════════════╝
 ```
 
+> **🔑 CORE IDEA:** Sort by start. Greedily extend the last interval in the result if current.start ≤ last.end; otherwise append as a new interval.
+
 ```csharp
 public int[][] Merge(int[][] intervals) {
+    // STEP 1: Sort intervals by start time to enable greedy merging
     // MUST sort by start time — otherwise can't greedily process
     Array.Sort(intervals, (a, b) => a[0] - b[0]);
     var result = new List<int[]>();
+    // STEP 2: Seed result with the first interval
     result.Add(intervals[0]);  // start with first interval
 
+    // STEP 3: Scan remaining intervals — merge if overlapping, else append new
     foreach (int[] interval in intervals.Skip(1)) {
         int[] last = result[^1]; // C# index-from-end: last element
 
         if (interval[0] <= last[1]) {
+            // STEP 4: Overlap detected — extend current interval's end
             // OVERLAP: current interval starts before last one ends
             // Merge by extending the end if needed
             last[1] = Math.Max(last[1], interval[1]);
         } else {
+            // STEP 5: No overlap — start a new interval in the result
             // NO OVERLAP: start a new interval group
             result.Add(interval);
         }
@@ -5076,18 +5385,23 @@ KEY INSIGHT: Values are in [1,n], so use value as index.
              If arr[v-1] is already negative → v was seen before → duplicate!
 ```
 
+> **🔑 CORE IDEA:** Values are in [1,n], so use index = value−1 as a position marker. Negate nums[value−1] when visiting; if already negative, value appeared twice.
+
 ```csharp
 public IList<int> FindDuplicates(int[] nums) {
     var result = new List<int>();
 
     foreach (int num in nums) {
+        // STEP 1: Map value to its corresponding index (values in [1,n] → indices in [0,n-1])
         // WHY Math.Abs? The value might already be negated from a previous visit
         int idx = Math.Abs(num) - 1;  // map value to index (1-indexed → 0-indexed)
 
+        // STEP 2: Check sign at that index — negative means the value was seen before
         if (nums[idx] < 0) {
             // Already negated → we've seen this value before → it's a duplicate!
             result.Add(Math.Abs(num));
         } else {
+            // STEP 3: Mark as visited by negating the value at the mapped index
             nums[idx] = -nums[idx];  // negate to mark "I've seen value idx+1"
         }
     }
@@ -5129,15 +5443,18 @@ VISUALIZATION: [1→2→3→4→5], k=2
   Result: [2→1→4→3→5] ✅
 ```
 
+> **🔑 CORE IDEA:** Verify k nodes exist (else leave as-is). Reverse k nodes using prev/curr/next in-place. Connect reversed group's tail to the result of recursing on the remainder.
+
 ```csharp
 public ListNode ReverseKGroup(ListNode head, int k) {
-    // Count if k nodes exist from current position
+    // STEP 1: Verify at least k nodes remain — if not, return as-is
     int count = 0;
     ListNode curr = head;
     while (curr != null && count < k) { curr = curr.next; count++; }
 
     if (count < k) return head;  // fewer than k nodes remaining → don't reverse
 
+    // STEP 2: Reverse exactly k nodes in-place using prev/node/next pointer dance
     // Reverse k nodes starting from head
     ListNode prev = null, node = head;
     for (int i = 0; i < k; i++) {
@@ -5149,10 +5466,12 @@ public ListNode ReverseKGroup(ListNode head, int k) {
     // After reversal: prev = new head of this group, head = old head (now tail)
     // node = start of the next group (unconsumed)
 
+    // STEP 3: Recursively handle the next group and attach it to current group's tail
     // Recursively reverse the next group and attach to current group's tail
     // head is now the TAIL of the reversed group (was the head before reversal)
     head.next = ReverseKGroup(node, k);
 
+    // STEP 4: Return prev — the new head of this reversed group
     return prev;  // prev is the new head of this reversed group
 }
 // Time: O(n), Space: O(n/k) recursion stack
@@ -5188,22 +5507,29 @@ KEY INSIGHT: The minimum is always at the "rotation point" where sorted
              If arr[mid] <= arr[right], min is in LEFT half (including mid).
 ```
 
+> **🔑 CORE IDEA:** Compare mid to right boundary (not left!). If arr[mid] > arr[right], minimum is strictly in the right half; otherwise it's in the left half including mid.
+
 ```csharp
 public int FindMin(int[] nums) {
+    // STEP 1: Set binary search boundaries
     int left = 0, right = nums.Length - 1;
 
+    // STEP 2: Compare mid to right boundary to determine which half holds the minimum
     while (left < right) {   // WHY strict < ? When left==right, we found the min
         int mid = left + (right - left) / 2;
 
         if (nums[mid] > nums[right]) {
+            // STEP 3: mid > right means rotation point is in the right half
             // RIGHT half contains the rotation point (and the minimum)
             // nums[mid] > nums[right] means the "dip" is in the right half
             left = mid + 1;
         } else {
+            // STEP 4: mid <= right means left half (including mid) contains the minimum
             // LEFT half contains the minimum (mid might BE the minimum)
             right = mid;  // WHY not mid-1? mid itself could be the answer
         }
     }
+    // STEP 5: Convergence — left == right is the minimum index
     return nums[left];  // left == right == minimum index
 }
 ```
@@ -5247,14 +5573,16 @@ TRACE: nums=[4,5,6,7,0,1,2]
 ╚══════════════════════════════════════════════════════════════════╝
 ```
 
+> **🔑 CORE IDEA:** Bucket sort by frequency: bucket[freq] = list of elements. Sweep buckets from index n down to 1 collecting elements until k are found. O(n) time.
+
 ```csharp
 public int[] TopKFrequent(int[] nums, int k) {
-    // Step 1: Count frequencies
+    // STEP 1: Count frequency of each element using a HashMap
     var freq = new Dictionary<int, int>();
     foreach (int n in nums)
         freq[n] = freq.GetValueOrDefault(n, 0) + 1;
 
-    // Step 2: BUCKET SORT by frequency
+    // STEP 2: Bucket sort — place each number into bucket[its_frequency]
     // bucket[i] = list of numbers with frequency i
     // Max possible frequency = nums.Length
     var buckets = new List<int>[nums.Length + 1];
@@ -5263,7 +5591,7 @@ public int[] TopKFrequent(int[] nums, int k) {
         buckets[count].Add(num);
     }
 
-    // Step 3: Collect top k from highest-frequency buckets
+    // STEP 3: Collect top k elements by sweeping buckets from highest frequency down
     var result = new List<int>();
     for (int i = buckets.Length - 1; i >= 0 && result.Count < k; i--) {
         if (buckets[i] != null) result.AddRange(buckets[i]);
@@ -5318,19 +5646,24 @@ NEXT GREATER ELEMENT visualization: [2,1,5,3,6]
 ╚══════════════════════════════════════════════════════════════════╝
 ```
 
+> **🔑 CORE IDEA:** Monotonic decreasing stack of indices. For each day, while current temp > stack-top's temp, pop and record gap as the answer. Push current index.
+
 ```csharp
 public int[] DailyTemperatures(int[] temperatures) {
     int[] answer = new int[temperatures.Length];
+    // STEP 1: Initialize a monotonically decreasing stack of indices waiting for a warmer day
     // Stack stores INDICES of temperatures waiting for their "warmer day"
     var stack = new Stack<int>(); // monotonically decreasing temperatures
 
     for (int i = 0; i < temperatures.Length; i++) {
+        // STEP 2: Pop all indices whose temperature is less than today's — today is their answer
         // WHY pop while stack top is cooler than current?
         // Current day (i) is the FIRST warmer day for all popped indices
         while (stack.Count > 0 && temperatures[stack.Peek()] < temperatures[i]) {
             int prevIdx = stack.Pop();
             answer[prevIdx] = i - prevIdx;  // days waited = current index - previous index
         }
+        // STEP 3: Push current index — it's now waiting for its own warmer day
         stack.Push(i);  // push current index (it's waiting for its warmer day)
     }
     // Remaining stack indices never found a warmer day → answer stays 0
@@ -5410,8 +5743,11 @@ BIT OPERATIONS CHEAT SHEET:
 ╚══════════════════════════════════════════════════════════════════╝
 ```
 
+> **🔑 CORE IDEA:** XOR: n⊕n=0 and n⊕0=n. XOR all elements together; every duplicate cancels to 0, leaving only the single number.
+
 ```csharp
 public int SingleNumber(int[] nums) {
+    // STEP 1: XOR all elements — duplicate pairs cancel to 0, single element remains
     int result = 0;
     foreach (int n in nums)
         result ^= n;  // XOR each number: pairs cancel (n^n=0), single remains
@@ -5465,8 +5801,11 @@ KEY INSIGHT: Sort first, then SKIP an element if it's the same as the
              parent level). This prevents generating duplicate subsets.
 ```
 
+> **🔑 CORE IDEA:** Sort first (groups duplicates). In backtracking, skip an element if it equals the previous at the same recursion depth (i > start && nums[i] == nums[i−1]).
+
 ```csharp
 public IList<IList<int>> SubsetsWithDup(int[] nums) {
+    // STEP 1: Sort to group duplicates adjacent to each other
     Array.Sort(nums);  // MUST sort to group duplicates together
     var result = new List<IList<int>>();
     var current = new List<int>();
@@ -5474,14 +5813,17 @@ public IList<IList<int>> SubsetsWithDup(int[] nums) {
     return result;
 
     void Backtrack(int start) {
+        // STEP 2: Record current state as a valid subset before extending
         result.Add(new List<int>(current)); // add current subset (snapshot!)
         for (int i = start; i < nums.Length; i++) {
+            // STEP 3: Skip duplicate value at the same recursion level to avoid duplicate subsets
             // SKIP DUPLICATE: if nums[i] == nums[i-1] and we're at the same
             // recursion level (i > start, not i > 0!), it would produce duplicate subset
             // WHY i > start? If i == start, this is the FIRST time we pick from this level
             // — it's OK. Only skip if it's not the first choice at this level.
             if (i > start && nums[i] == nums[i-1]) continue;
 
+            // STEP 4: CHOOSE, EXPLORE, UN-CHOOSE
             current.Add(nums[i]);
             Backtrack(i + 1);
             current.RemoveAt(current.Count - 1);
@@ -5533,12 +5875,16 @@ SIEVE VISUALIZATION (n=30):
 ╚══════════════════════════════════════════════════════════════════╝
 ```
 
+> **🔑 CORE IDEA:** Sieve of Eratosthenes: start with all true; for prime p, mark p², p²+p, p²+2p... as false. Start marking from p² (all smaller multiples already marked).
+
 ```csharp
 public int CountPrimes(int n) {
     if (n < 2) return 0;
+    // STEP 1: Initialize sieve — all entries start as "not composite" (potential primes)
     bool[] isComposite = new bool[n]; // isComposite[i]=true means i is NOT prime
     // 0 and 1 are not prime, but we count starting from 2
 
+    // STEP 2: For each prime p up to √n, mark all its multiples from p² onward as composite
     // WHY i*i <= n? Optimization: if i is prime, its smallest composite multiple
     // is i*i (all smaller multiples already marked by smaller primes)
     for (int i = 2; (long)i * i < n; i++) {
@@ -5550,6 +5896,7 @@ public int CountPrimes(int n) {
         }
     }
 
+    // STEP 3: Count all unmarked entries (primes) in range [2, n)
     int count = 0;
     for (int i = 2; i < n; i++)
         if (!isComposite[i]) count++;
@@ -5592,7 +5939,9 @@ ROLLING HASH CONCEPT:
 ```csharp
 // ═══ ANAGRAM CHECK ═══
 bool IsAnagram(string s, string t) {
+    // STEP 1: Early exit if lengths differ — can't be anagrams
     if (s.Length != t.Length) return false;
+    // STEP 2: Increment counts for s, decrement for t — anagram iff all zero
     int[] count = new int[26];
     foreach (char c in s) count[c - 'a']++;  // increment for s
     foreach (char c in t) count[c - 'a']--;  // decrement for t
@@ -5601,6 +5950,7 @@ bool IsAnagram(string s, string t) {
 
 // ═══ PALINDROME CHECK ═══
 bool IsPalindrome(string s) {
+    // STEP 1: Two-pointer from both ends — compare and converge
     int left = 0, right = s.Length - 1;
     while (left < right) {
         if (s[left] != s[right]) return false;
@@ -5611,10 +5961,14 @@ bool IsPalindrome(string s) {
 
 // ═══ PALINDROME CHECK — only alphanumeric ═══
 bool IsPalindromeAlnum(string s) {
+    // STEP 1: Two pointers — skip non-alphanumeric, compare case-insensitively
     int left = 0, right = s.Length - 1;
     while (left < right) {
+        // STEP 2: Advance left past non-alphanumeric characters
         while (left < right && !char.IsLetterOrDigit(s[left])) left++;
+        // STEP 3: Retreat right past non-alphanumeric characters
         while (left < right && !char.IsLetterOrDigit(s[right])) right--;
+        // STEP 4: Compare current valid characters case-insensitively
         if (char.ToLower(s[left]) != char.ToLower(s[right])) return false;
         left++; right--;
     }
@@ -5646,6 +6000,8 @@ KEY INSIGHT: Two-phase sliding window:
   Repeat, tracking minimum valid window seen
 ```
 
+> **🔑 CORE IDEA:** Two-frequency-map sliding window: expand right until all required chars are covered (have[c] ≥ need[c]); then shrink left minimizing window while still covered.
+
 ```
 VISUALIZATION: s="ADOBECODEBANC", t="ABC"
 ═══════════════════════════════════════════════════════════════
@@ -5664,6 +6020,7 @@ VISUALIZATION: s="ADOBECODEBANC", t="ABC"
 public string MinWindow(string s, string t) {
     if (s.Length < t.Length) return "";
 
+    // STEP 1: Build frequency map of required characters from t
     // Count required characters from t
     var need = new Dictionary<char, int>();
     foreach (char c in t) need[c] = need.GetValueOrDefault(c, 0) + 1;
@@ -5676,6 +6033,7 @@ public string MinWindow(string s, string t) {
     int left = 0;
 
     for (int right = 0; right < s.Length; right++) {
+        // STEP 2: Expand right — add character and check if it satisfies a requirement
         char c = s[right];
         window[c] = window.GetValueOrDefault(c, 0) + 1;
 
@@ -5683,14 +6041,17 @@ public string MinWindow(string s, string t) {
         if (need.ContainsKey(c) && window[c] == need[c])
             have++;  // one more distinct char fully satisfied
 
+        // STEP 3: When window is fully valid, shrink from left to minimize length
         // While window is valid (all t's chars satisfied), try to shrink from left
         while (have == required) {
+            // STEP 4: Record window size if it's the smallest valid window seen
             // Update minimum window
             if (right - left + 1 < minLen) {
                 minLen = right - left + 1;
                 minStart = left;
             }
 
+            // STEP 5: Remove leftmost character; if it breaks a requirement, stop shrinking
             // Remove leftmost character and potentially invalidate window
             char leftChar = s[left];
             window[leftChar]--;
@@ -5776,6 +6137,8 @@ KMP — LPS ARRAY CONSTRUCTION for pattern "AABAAB":
 ╚══════════════════════════════════════════════════════════════════╝
 ```
 
+> **🔑 CORE IDEA:** KMP precomputes LPS (Longest Proper Prefix = Suffix) for the pattern. On mismatch at pattern[j], jump to pattern[lps[j−1]] instead of restarting — never re-scan matched prefix.
+
 ```csharp
 public int StrStr(string haystack, string needle) {
     if (needle.Length == 0) return 0;
@@ -5786,11 +6149,13 @@ public int StrStr(string haystack, string needle) {
     int[] lps = new int[m];
     // lps[0] always = 0 (single char has no proper prefix)
 
+    // STEP 2: Fill LPS using two-pointer matching within the pattern itself
     int len = 0, i = 1;   // len = current match length
     while (i < m) {
         if (needle[i] == needle[len]) {
             lps[i++] = ++len;  // extend the matching prefix
         } else if (len > 0) {
+            // STEP 3: Mismatch after partial match — fall back via LPS (don't advance i)
             len = lps[len - 1]; // mismatch: fall back to previous match
             // WHY not i--? We already know needle[i] doesn't match needle[len]
             // Trying needle[lps[len-1]] might work — don't advance i yet
@@ -5799,7 +6164,7 @@ public int StrStr(string haystack, string needle) {
         }
     }
 
-    // KMP STEP 2: Search using LPS to avoid backtracking
+    // KMP STEP 4: Search haystack using LPS to skip re-scanning matched prefix
     int n = haystack.Length;
     i = 0;       // index in haystack
     int j = 0;   // index in needle
@@ -5807,8 +6172,10 @@ public int StrStr(string haystack, string needle) {
     while (i < n) {
         if (haystack[i] == needle[j]) {
             i++; j++;
+            // STEP 5: Full pattern matched — return start index
             if (j == m) return i - m;  // full match found! return start index
         } else if (j > 0) {
+            // STEP 6: Mismatch after partial match — use LPS to jump, keep i
             j = lps[j - 1];  // mismatch after some matches: use LPS to skip
             // WHY not i--? We don't move back in haystack! That's KMP's power.
         } else {
@@ -6092,12 +6459,14 @@ public class LRUCache {
     private int capacity;
 
     public LRUCache(int capacity) {
+        // STEP 1: Initialize with dummy head/tail sentinels to simplify DLL edge cases
         this.capacity = capacity;
         head = new Node(); tail = new Node();
         head.next = tail; tail.prev = head;  // empty DLL
     }
 
     public int Get(int key) {
+        // STEP 2: On cache hit, move node to front (mark as most recently used) then return value
         if (!map.ContainsKey(key)) return -1;
         MoveToFront(map[key]);  // mark as recently used
         return map[key].val;
@@ -6105,9 +6474,11 @@ public class LRUCache {
 
     public void Put(int key, int value) {
         if (map.ContainsKey(key)) {
+            // STEP 3: Update existing key and mark as recently used
             map[key].val = value;
             MoveToFront(map[key]);
         } else {
+            // STEP 4: Insert new node at front; evict LRU (tail.prev) if over capacity
             var node = new Node { key = key, val = value };
             map[key] = node;
             InsertFront(node);
@@ -6123,6 +6494,7 @@ public class LRUCache {
     // Before: ... ←→ [prev] ←→ [n] ←→ [next] ←→ ...
     // After:  ... ←→ [prev] ←→ [next] ←→ ...   (n is detached)
     void Remove(Node n) {
+        // STEP 5: Bridge n's neighbors together to unlink n
         n.prev.next = n.next;   // prev node skips over n, points to n's next
         n.next.prev = n.prev;   // next node skips over n, points back to n's prev
     }
@@ -6131,6 +6503,7 @@ public class LRUCache {
     // Before: head ←→ [first] ←→ ...
     // After:  head ←→ [n] ←→ [first] ←→ ...
     void InsertFront(Node n) {
+        // STEP 6: Splice n between dummy head and current first node
         n.next = head.next;     // n's next = old first node
         n.prev = head;          // n's prev = dummy head
         head.next.prev = n;     // old first node's prev = n
