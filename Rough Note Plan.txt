@@ -19,7 +19,7 @@ Azure service challenge exploration with code ,system,infra 2
 
 docker-compose-dapr-aks
 
-aspire-test containers,dotmemory profiler,postgres,CQRS+medtr,DBMigEF,Archnettet,akscomps,bicep,githubactions,owasp,sqube,asb,otel-serilog-grafna,MAF-AzOI-MCP-RAG,DSA
+aspire-test containers,dotmemory profiler,postgres,CQRS+medtr,DBMigEF,Archnettet,akscomps,bicep,githubactions,owasp,sqube,asb,otel-serilog-grafna,MAF-AzOI-MCP-RAG,DSA,Specflow
 
 Travel-DistMsg,Kafka,Linkdin saves,ADR md,Prod Failure
 
