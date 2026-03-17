@@ -11,11 +11,13 @@ ASD ,SYS DESIGN prob 1
 DistMsg,Kafka 1
 
 API-SQL-SDF-MockInT 1
-AzureSvcs- APPGateway-APIM-AKS-Func-SBus 1
+AzureSvcs- APPGateway-APIM-AKS-Func-SBus-ACA 1
 DDD-CA-CQRS-ModArch 1
 Intg test 1
 ACA 0.5
 
+docker-compose-dapr-aks
+aspire-test containers
 
 Travel-ADR md,Linkdin saves
 
