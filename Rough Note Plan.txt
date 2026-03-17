@@ -2,27 +2,30 @@
 Key idea is to act with elevated expertise and not do same mistakes
 
 
-React-2
-Ang -2
-DSA 3
 Per API SQL EF pdf 1
 Quickprep-TA
-API-SQL-SDF-MockInT
-AzureSvcs- APPGateway-APIM-AKS-Func-SBus
-DDD-CA-CQRS-MArch
+DSA 3
+React-2
+Ang -2
+ASD ,SYS DESIGN prob 1
+DistMsg,Kafka 1
 
-DistMsg
+API-SQL-SDF-MockInT 1
+AzureSvcs- APPGateway-APIM-AKS-Func-SBus 1
+DDD-CA-CQRS-ModArch 1
+Intg test 1
+ACA 0.5
+
+
+Travel-ADR md,Linkdin saves
+
+
 Prod Failure
-ADR md
 
 Linkdin saves
-ASD
-SYS DESIGN prob
 
 ---
 Durable task
-Intg test
-ACA
 
 
 ==========================
