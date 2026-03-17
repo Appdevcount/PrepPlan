@@ -16,7 +16,7 @@ DDD-CA-CQRS-ModArch 1
 Intg test 1
 ACA 0.5
 
-Azure service challenge exploration with code ,system,infra
+Azure service challenge exploration with code ,system,infra 2
 
 docker-compose-dapr-aks
 
