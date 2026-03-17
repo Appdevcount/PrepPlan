@@ -7,8 +7,7 @@ Quickprep-TA
 DSA 3
 React-2
 Ang -2
-ASD ,SYS DESIGN prob 1
-DistMsg,Kafka 1
+ASD,SYS DESIGN prob 1
 
 API-SQL-SDF-MockInT 1
 AzureSvcs- APPGateway-APIM-AKS-Func-SBus-ACA 1
@@ -22,7 +21,7 @@ docker-compose-dapr-aks
 
 aspire-test containers,dotmemory profiler,postgres,CQRS+medtr,DBMigEF,Archnettet,akscomps,bicep,githubactions,owasp,sqube,asb,otel-serilog-grafna,MAF-AzOI-MCP-RAG,DSA
 
-Travel-ADR md,Linkdin saves,Prod Failure
+Travel-DistMsg,Kafka,Linkdin saves,ADR md,Prod Failure
 
 
 Prod Failure
