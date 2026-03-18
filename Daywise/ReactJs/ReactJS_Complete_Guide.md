@@ -11845,3 +11845,1285 @@ Server-side rendered, no runtime CSS ────────→ CSS Modules or 
 ---
 
 *End of Mindmap — generated as quick-recollection reference for ReactJS Complete Guide*
+
+---
+
+# COMMONLY ASKED REACT INTERVIEW QUESTIONS & ANSWERS
+
+> **50 questions** covering Fundamentals → Hooks → Performance → Patterns → Architecture → Testing → Real-world scenarios. Answers are concise and interview-ready.
+
+---
+
+## SECTION A — FUNDAMENTALS (Q1–Q10)
+
+---
+
+**Q1. What is React and what makes it different from a framework like Angular?**
+
+React is a **UI library** (not a full framework) built by Meta for building component-based UIs. Key differences:
+
+| | React | Angular |
+|---|---|---|
+| Type | Library (just UI) | Full framework |
+| Data binding | One-way | Two-way |
+| Language | JSX + JS/TS | TypeScript-first |
+| State | External (Redux/Zustand) | Built-in services |
+| Learning curve | Moderate | Steeper |
+
+React only handles the View layer — you choose your own router, state, and HTTP library.
+
+---
+
+**Q2. What is the Virtual DOM? How does React use it?**
+
+The Virtual DOM is a lightweight **in-memory JavaScript object** that mirrors the real DOM tree.
+
+**Flow:**
+1. State changes → React re-runs the component → builds a new Virtual DOM tree
+2. React **diffs** new tree vs old tree (reconciliation)
+3. Only the **minimum set of real DOM changes** is applied (commit phase)
+
+**Why it's fast:** Real DOM operations are expensive. Batching and minimizing them avoids layout thrashing.
+
+---
+
+**Q3. What is JSX? Is it mandatory?**
+
+JSX is a **syntax extension** that lets you write HTML-like code in JavaScript. It compiles to `React.createElement()` calls.
+
+```jsx
+// JSX
+const el = <h1 className="title">Hello</h1>;
+
+// Compiled output
+const el = React.createElement("h1", { className: "title" }, "Hello");
+```
+
+JSX is **not mandatory** — you can write `React.createElement()` directly — but JSX is the universal convention because it's far more readable.
+
+---
+
+**Q4. What is the difference between state and props?**
+
+| | Props | State |
+|---|---|---|
+| Owner | Parent component | The component itself |
+| Mutable? | No (read-only) | Yes (via setState) |
+| Triggers re-render? | Yes (when parent re-renders) | Yes (when updated) |
+| Use for | Passing data down | Local dynamic data |
+
+**Rule of thumb:** Props are inputs. State is memory.
+
+---
+
+**Q5. What is one-way data flow in React?**
+
+Data flows **only from parent to child** via props. A child cannot directly modify parent state — it must call a callback passed as a prop.
+
+```jsx
+// Parent passes data down AND handler up
+<Child value={count} onChange={setCount} />
+```
+
+This makes data flow **predictable and debuggable** — you always know where data comes from.
+
+---
+
+**Q6. What is the difference between a class component and a function component?**
+
+| | Class Component | Function Component |
+|---|---|---|
+| Syntax | extends React.Component | Plain JS function |
+| State | this.state | useState hook |
+| Lifecycle | componentDidMount etc. | useEffect hook |
+| this keyword | Required | Not needed |
+| Performance | Slightly heavier | Lighter |
+| Hooks support | No | Yes |
+
+**Current recommendation:** Always use function components with hooks. Class components are legacy.
+
+---
+
+**Q7. What are keys in React lists and why are they important?**
+
+Keys help React **identify which items changed, were added, or removed** in a list during reconciliation.
+
+```jsx
+// Good — stable, unique key
+items.map(item => <Item key={item.id} {...item} />)
+
+// Bad — index as key (breaks on sort/filter/delete)
+items.map((item, i) => <Item key={i} {...item} />)
+```
+
+Without keys, React falls back to positional diffing, which causes **wrong component reuse, stale state, and UI bugs** when the list order changes.
+
+---
+
+**Q8. What is reconciliation? What is the Fiber architecture?**
+
+**Reconciliation** is React's algorithm to determine what changed between renders and what DOM updates to apply.
+
+**Rules:**
+- Same element type at same position → update (reuse DOM node)
+- Different element type → unmount old, mount new
+- Lists → use keys to match old/new items
+
+**Fiber** (React 16+) is the reimplemented reconciliation engine that:
+- Splits work into small units (fibers)
+- Can **pause, resume, and prioritize** work
+- Enables Concurrent Mode (useTransition, Suspense)
+
+---
+
+**Q9. What is a React Fragment and when would you use it?**
+
+A Fragment lets you return multiple elements from a component **without adding an extra DOM node**.
+
+```jsx
+// Option 1 — shorthand
+return (
+  <>
+    <h1>Title</h1>
+    <p>Body</p>
+  </>
+);
+
+// Option 2 — with key (only way to add key to fragment)
+return (
+  <React.Fragment key={item.id}>
+    <dt>{item.term}</dt>
+    <dd>{item.description}</dd>
+  </React.Fragment>
+);
+```
+
+Use when: a wrapper `<div>` would break CSS layout (flex/grid children), or when rendering table rows/cells.
+
+---
+
+**Q10. What is the StrictMode component and what does it do?**
+
+`<React.StrictMode>` is a development-only tool that:
+- **Double-invokes** render functions and side effects to detect impure renders
+- Warns about deprecated API usage (legacy string refs, componentWillMount, etc.)
+- Detects unexpected side effects in constructors
+- Has **no effect in production** — zero runtime cost
+
+```jsx
+<React.StrictMode>
+  <App />
+</React.StrictMode>
+```
+
+---
+
+## SECTION B — HOOKS (Q11–Q22)
+
+---
+
+**Q11. What are the Rules of Hooks and why do they exist?**
+
+1. **Only call hooks at the top level** — never inside loops, conditions, or nested functions
+2. **Only call hooks from React functions** — function components or custom hooks
+
+**Why:** React tracks hooks by their **call order** across renders. If a hook is called conditionally, the order can change between renders, causing React to associate state with the wrong hook.
+
+---
+
+**Q12. What is the difference between useEffect and useLayoutEffect?**
+
+| | useEffect | useLayoutEffect |
+|---|---|---|
+| Timing | After browser paint (async) | After DOM update, before paint (sync) |
+| Use for | Fetch, subscriptions, timers | DOM measurement, preventing flicker |
+| Performance | Non-blocking | Blocks paint — use sparingly |
+
+**Rule:** Start with `useEffect`. Switch to `useLayoutEffect` only if you see a visual flicker because you need to read/write DOM synchronously.
+
+---
+
+**Q13. What is the dependency array in useEffect? What happens with each option?**
+
+```jsx
+useEffect(() => { ... });          // Runs after EVERY render
+useEffect(() => { ... }, []);      // Runs ONCE after mount
+useEffect(() => { ... }, [a, b]);  // Runs when a or b changes
+useEffect(() => { return cleanup }, []); // Cleanup on unmount
+```
+
+**Common mistake:** Omitting a dependency that is used inside the effect causes a **stale closure** — the effect captures the old value and never updates.
+
+---
+
+**Q14. What is a stale closure in React and how do you fix it?**
+
+A stale closure happens when an effect or callback **captures** a variable from a previous render and never sees the updated value.
+
+```jsx
+// Bug: count is always 0 inside the effect
+useEffect(() => {
+  const id = setInterval(() => console.log(count), 1000);
+  return () => clearInterval(id);
+}, []); // count not in deps
+
+// Fix 1: Add count to deps (re-creates interval on every change)
+useEffect(() => { ... }, [count]);
+
+// Fix 2: Use functional setState (no need to read count)
+setCount(prev => prev + 1);
+
+// Fix 3: Store in ref (reads latest without re-running effect)
+const countRef = useRef(count);
+countRef.current = count;
+useEffect(() => {
+  const id = setInterval(() => console.log(countRef.current), 1000);
+  return () => clearInterval(id);
+}, []);
+```
+
+---
+
+**Q15. What is useReducer and when should you prefer it over useState?**
+
+`useReducer` manages state with a `(state, action) => newState` pure function.
+
+```jsx
+const [state, dispatch] = useReducer(reducer, initialState);
+dispatch({ type: 'INCREMENT', payload: 5 });
+```
+
+**Prefer useReducer when:**
+- State has **multiple sub-values** that update together
+- Next state depends on the previous state in **complex ways**
+- State transitions follow **explicit named actions** (like a state machine)
+- You want to keep update logic **outside the component** (testable)
+
+---
+
+**Q16. What is useRef used for? What are the two main use cases?**
+
+**Use case 1 — DOM reference:**
+```jsx
+const inputRef = useRef(null);
+// Later: inputRef.current.focus()
+<input ref={inputRef} />
+```
+
+**Use case 2 — Persist value without re-render:**
+```jsx
+const renderCount = useRef(0);
+renderCount.current += 1; // Does NOT cause re-render
+```
+
+Key: Changing `.current` does **not trigger a re-render** (unlike state). Good for: tracking previous values, storing timers, holding mutable instance variables.
+
+---
+
+**Q17. What is the difference between useMemo and useCallback?**
+
+```jsx
+// useMemo — memoizes the RETURN VALUE of a function
+const sortedList = useMemo(() => [...items].sort(), [items]);
+
+// useCallback — memoizes the FUNCTION ITSELF
+const handleClick = useCallback(() => doSomething(id), [id]);
+```
+
+| | useMemo | useCallback |
+|---|---|---|
+| Returns | Computed value | Function reference |
+| Use when | Expensive computation | Passing callback to memoized child |
+| Equivalent | useMemo(() => fn, deps) | useCallback(fn, deps) |
+
+**Do not overuse** — memoization has its own cost. Measure first.
+
+---
+
+**Q18. What is useTransition? When would you use it?**
+
+`useTransition` (React 18) marks a state update as **non-urgent**, keeping the UI responsive while the expensive update processes in the background.
+
+```jsx
+const [isPending, startTransition] = useTransition();
+
+startTransition(() => {
+  setSearchResults(filterHugeList(query)); // non-urgent
+});
+
+return isPending ? <Spinner /> : <Results />;
+```
+
+**Use for:** search filtering, tab switching, any update that causes a slow render and should not block user input.
+
+---
+
+**Q19. What is useDeferredValue? How does it differ from useTransition?**
+
+```jsx
+const deferredQuery = useDeferredValue(query);
+// Use deferredQuery in the slow component
+```
+
+| | useTransition | useDeferredValue |
+|---|---|---|
+| Controls | The state update call | The value consumed downstream |
+| You control | The setter side | The consumer side |
+| Use when | You own the state setter | You receive a value as prop/from outside |
+
+Both defer work — choose based on whether you control the state setter.
+
+---
+
+**Q20. What is a custom hook? Write an example.**
+
+A custom hook is a **function starting with `use`** that encapsulates reusable stateful logic.
+
+```jsx
+// useFetch.js
+function useFetch(url) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(url)
+      .then(r => r.json())
+      .then(d => { if (!cancelled) setData(d); })
+      .catch(e => { if (!cancelled) setError(e); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [url]);
+
+  return { data, loading, error };
+}
+
+// Usage
+const { data, loading } = useFetch('/api/users');
+```
+
+Custom hooks let you **extract and share logic** without changing component hierarchy (vs HOC or render props).
+
+---
+
+**Q21. What is forwardRef and useImperativeHandle?**
+
+`forwardRef` lets a parent component pass a `ref` through to a **child's DOM node or component instance**.
+
+`useImperativeHandle` customizes what the parent **sees** via that ref — exposing only specific methods instead of the whole DOM node.
+
+```jsx
+const FancyInput = forwardRef((props, ref) => {
+  const inputRef = useRef();
+  useImperativeHandle(ref, () => ({
+    focus: () => inputRef.current.focus(),
+    clear: () => { inputRef.current.value = ''; }
+  }));
+  return <input ref={inputRef} {...props} />;
+});
+
+// Parent
+const ref = useRef();
+ref.current.focus(); // calls the exposed method
+<FancyInput ref={ref} />
+```
+
+---
+
+**Q22. What is useId and why was it introduced?**
+
+`useId` generates a **stable, unique ID** that is consistent between server and client renders.
+
+```jsx
+const id = useId(); // e.g. ":r0:"
+return (
+  <>
+    <label htmlFor={id}>Name</label>
+    <input id={id} />
+  </>
+);
+```
+
+**Why:** Using `Math.random()` or incrementing counters for IDs causes **hydration mismatches** in SSR because server and client generate different values. `useId` guarantees the same ID on both sides.
+
+---
+
+## SECTION C — STATE MANAGEMENT (Q23–Q27)
+
+---
+
+**Q23. When would you choose Context API over Redux?**
+
+| Scenario | Use Context | Use Redux/Zustand |
+|---|---|---|
+| Auth, theme, locale | Yes | Overkill |
+| Updates rarely | Yes | Overkill |
+| Many components reading same data, updating frequently | No — causes mass re-renders | Yes |
+| Complex state transitions with history/undo | No | Yes |
+| DevTools, time-travel debugging needed | No | Yes |
+| Middleware (logging, analytics) needed | No | Yes |
+
+**Rule:** Context is not a state manager — it is a **dependency injection** mechanism. Use it for config/theme/auth, not for high-frequency app state.
+
+---
+
+**Q24. What is Redux Toolkit and how does it improve on plain Redux?**
+
+Redux Toolkit (RTK) eliminates Redux boilerplate:
+
+```jsx
+// createSlice — state + reducers + auto-generated actions
+const counterSlice = createSlice({
+  name: 'counter',
+  initialState: { value: 0 },
+  reducers: {
+    increment: state => { state.value += 1; }, // Immer — mutate directly!
+    incrementBy: (state, action) => { state.value += action.payload; }
+  }
+});
+
+export const { increment, incrementBy } = counterSlice.actions;
+```
+
+**Improvements over plain Redux:**
+- Immer built-in → write "mutating" code, get immutable updates
+- `createAsyncThunk` → standard async action pattern
+- RTK Query → data fetching + caching layer (like React Query)
+- No more action type strings, action creators, or spread reducers
+
+---
+
+**Q25. What is React Query (TanStack Query) used for?**
+
+React Query manages **server state** — remote data that lives on a server and needs to be fetched, cached, synchronized, and updated.
+
+```jsx
+const { data, isLoading, error } = useQuery({
+  queryKey: ['users', userId],
+  queryFn: () => fetch(`/api/users/${userId}`).then(r => r.json()),
+  staleTime: 60_000 // consider data fresh for 60s
+});
+```
+
+**What it handles automatically:** caching, background refetch, deduplication, loading/error states, pagination, optimistic updates, retries, window-focus refetch.
+
+**When not to use:** For local UI state — use useState/useReducer instead.
+
+---
+
+**Q26. What is Zustand and why is it popular?**
+
+Zustand is a minimal state management library that uses a **hook-based store** with no boilerplate.
+
+```jsx
+const useStore = create((set) => ({
+  count: 0,
+  increment: () => set(state => ({ count: state.count + 1 })),
+  reset: () => set({ count: 0 })
+}));
+
+// In component
+const count = useStore(state => state.count); // subscribes to count only
+```
+
+**Why popular:**
+- Minimal API (no Provider, no reducers, no actions)
+- Selector-based subscriptions → only re-renders when selected slice changes
+- Works outside React (call `useStore.getState()` anywhere)
+- Tiny bundle (~1 KB)
+
+---
+
+**Q27. What is prop drilling and how do you solve it?**
+
+Prop drilling is passing props through **multiple intermediate components** that don't use the data, just forward it to a deeper child.
+
+**Solutions:**
+
+| Solution | When to use |
+|---|---|
+| Context API | Low-frequency global data (theme, auth) |
+| Zustand / Redux | High-frequency shared state |
+| Component composition | Restructure so child is rendered by the owner |
+| Custom hook | Extract logic, pass only what the leaf needs |
+
+**Composition solution (underused):**
+```jsx
+// Instead of: App → Layout → Sidebar → UserAvatar(user)
+// Do: App renders UserAvatar and passes it as children to Layout
+<Layout sidebar={<UserAvatar user={user} />} />
+```
+
+---
+
+## SECTION D — PERFORMANCE (Q28–Q32)
+
+---
+
+**Q28. How does React.memo work? When does it NOT help?**
+
+`React.memo` is a HOC that **skips re-rendering** a component if its props have not changed (shallow comparison).
+
+```jsx
+const Child = React.memo(({ value, onClick }) => {
+  return <button onClick={onClick}>{value}</button>;
+});
+```
+
+**When it does NOT help:**
+- Props are objects/arrays created inline in parent JSX — new reference every render
+- Props include functions created inline — new reference every render (pair with `useCallback`)
+- The component itself is cheap to render — memoization overhead is not worth it
+- Parent passes `children` — JSX is a new object every render
+
+---
+
+**Q29. When should you NOT use useMemo/useCallback?**
+
+**Avoid when:**
+- The computation is cheap (string concatenation, simple arithmetic)
+- The component is not inside a performance-sensitive render path
+- You are memoizing a value that changes on almost every render anyway (no benefit)
+- You have no proof of a performance problem (premature optimization)
+
+**Rule:** Profile first with React DevTools. Memoization adds cognitive complexity and has its own memory/CPU cost. Apply it to **measured** bottlenecks.
+
+---
+
+**Q30. What is code splitting and how do you implement it in React?**
+
+Code splitting breaks your bundle into smaller chunks that are **loaded on demand**, reducing initial load time.
+
+```jsx
+// Lazy load a route component
+const Dashboard = React.lazy(() => import('./Dashboard'));
+
+function App() {
+  return (
+    <Suspense fallback={<Spinner />}>
+      <Routes>
+        <Route path="/dashboard" element={<Dashboard />} />
+      </Routes>
+    </Suspense>
+  );
+}
+```
+
+**React.lazy()** works only with default exports and dynamic `import()`. The `Suspense` boundary shows the fallback while the chunk loads.
+
+---
+
+**Q31. What is list virtualization and when do you need it?**
+
+Virtualization renders **only the visible items** of a long list, recycling DOM nodes as the user scrolls.
+
+```jsx
+import { FixedSizeList } from 'react-window';
+
+<FixedSizeList height={600} itemCount={10000} itemSize={50} width="100%">
+  {({ index, style }) => <div style={style}>Row {index}</div>}
+</FixedSizeList>
+```
+
+**When to use:** Lists with **1000+ items** where DOM node count causes slow rendering and scroll jank. Libraries: `react-window`, `@tanstack/virtual`.
+
+---
+
+**Q32. What causes unnecessary re-renders and how do you prevent them?**
+
+**Common causes:**
+1. Parent re-renders → child re-renders (even if props unchanged) → fix with `React.memo`
+2. Inline object/array props → new reference every render → fix with `useMemo`
+3. Inline function props → new reference every render → fix with `useCallback`
+4. Context value changes → all consumers re-render → fix by splitting context or memoizing value
+5. State too high in the tree → fix by co-locating state closer to consumer
+
+**Debugging:** React DevTools Profiler → "Highlight updates" → see which components re-render on each interaction.
+
+---
+
+## SECTION E — PATTERNS & ARCHITECTURE (Q33–Q38)
+
+---
+
+**Q33. What is the Compound Component pattern?**
+
+Compound components share **implicit state** through Context, giving the consumer a clean, expressive API.
+
+```jsx
+// Usage (clean API — no prop drilling)
+<Tabs defaultValue="home">
+  <Tab value="home">Home</Tab>
+  <Tab value="about">About</Tab>
+  <TabPanel value="home"><HomeContent /></TabPanel>
+  <TabPanel value="about"><AboutContent /></TabPanel>
+</Tabs>
+
+// Implementation — Tabs provides context
+const TabsContext = createContext();
+function Tabs({ children, defaultValue }) {
+  const [active, setActive] = useState(defaultValue);
+  return (
+    <TabsContext.Provider value={{ active, setActive }}>
+      {children}
+    </TabsContext.Provider>
+  );
+}
+```
+
+**Used in:** Radix UI, Headless UI, Reach UI.
+
+---
+
+**Q34. What is the difference between HOC and a custom hook?**
+
+| | HOC | Custom Hook |
+|---|---|---|
+| What it is | Function wrapping a component | Function using hooks |
+| Returns | New component | Values / handlers |
+| Adds to tree | Yes (extra wrapper) | No |
+| Composable | Props collision risk | Clean destructuring |
+| Use today | Mostly legacy / third-party libs | Preferred modern approach |
+
+**When HOC is still valid:** When you need to wrap a component in JSX (e.g., adding a Provider, error boundary, or Suspense around it).
+
+---
+
+**Q35. What is the Render Props pattern?**
+
+A component accepts a **function as a prop** and calls it to delegate rendering.
+
+```jsx
+<Mouse render={({ x, y }) => <Cursor x={x} y={y} />} />
+
+// Implementation
+function Mouse({ render }) {
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  return (
+    <div onMouseMove={e => setPos({ x: e.clientX, y: e.clientY })}>
+      {render(pos)}
+    </div>
+  );
+}
+```
+
+**Today:** Custom hooks largely replaced render props because hooks are simpler and avoid wrapper hell. But render props are still useful when you need a component boundary.
+
+---
+
+**Q36. What is lifting state up? When should you do it?**
+
+Lifting state means moving state to the **lowest common ancestor** of components that need to share it.
+
+```jsx
+// Before: both Input and Preview manage their own value
+// After: Parent manages value, passes down to both
+function Parent() {
+  const [text, setText] = useState('');
+  return (
+    <>
+      <Input value={text} onChange={setText} />
+      <Preview value={text} />
+    </>
+  );
+}
+```
+
+**Rule:** Lift state up as needed, but no higher. Unnecessary lifting causes re-renders in unrelated subtrees.
+
+---
+
+**Q37. What is the Container / Presentational pattern?**
+
+Split components into:
+
+- **Container** (Smart): fetches data, manages state, handles business logic — no JSX styling
+- **Presentational** (Dumb): pure UI based on props — no data fetching, no state
+
+```jsx
+// Container
+function UserListContainer() {
+  const { data: users, isLoading } = useQuery({ queryKey: ['users'], queryFn: fetchUsers });
+  return <UserList users={users} loading={isLoading} />;
+}
+
+// Presentational
+function UserList({ users, loading }) {
+  if (loading) return <Spinner />;
+  return <ul>{users.map(u => <li key={u.id}>{u.name}</li>)}</ul>;
+}
+```
+
+Presentational components are easily testable, reusable, and storybookable.
+
+---
+
+**Q38. What is the difference between lazy loading a component and lazy loading a route?**
+
+Both use `React.lazy()` + `Suspense`, but at different granularities:
+
+```jsx
+// Route-level (most common — biggest bundle wins)
+const Dashboard = React.lazy(() => import('./pages/Dashboard'));
+<Route path="/dashboard" element={<Dashboard />} />
+
+// Component-level (heavy components: charts, rich text editors)
+const Chart = React.lazy(() => import('./components/HeavyChart'));
+{showChart && (
+  <Suspense fallback={<Skeleton />}>
+    <Chart data={data} />
+  </Suspense>
+)}
+```
+
+**Start with route-level splitting** — it gives the biggest reduction in initial bundle size for the least code change.
+
+---
+
+## SECTION F — FORMS & VALIDATION (Q39–Q41)
+
+---
+
+**Q39. What is the difference between controlled and uncontrolled inputs?**
+
+```jsx
+// Controlled — React is the source of truth
+const [value, setValue] = useState('');
+<input value={value} onChange={e => setValue(e.target.value)} />
+
+// Uncontrolled — DOM is the source of truth
+const ref = useRef();
+<input ref={ref} defaultValue="initial" />
+// Read on submit: ref.current.value
+```
+
+| | Controlled | Uncontrolled |
+|---|---|---|
+| Source of truth | React state | DOM |
+| Real-time validation | Easy | Hard |
+| Instant feedback | Yes | Not without extra work |
+| Simple read-on-submit | Verbose | Simpler |
+| React Hook Form uses | Uncontrolled internally | — |
+
+---
+
+**Q40. How does React Hook Form minimize re-renders compared to Formik?**
+
+React Hook Form registers inputs using **refs** (uncontrolled), so typing in a field does **not update React state** and does not cause re-renders.
+
+- Formik: controlled inputs → every keystroke → setState → re-render all fields
+- React Hook Form: uncontrolled → no state on every keystroke → re-renders only on submit/validation
+
+```jsx
+const { register, handleSubmit, formState: { errors } } = useForm();
+
+<input {...register('email', { required: 'Email is required' })} />
+```
+
+For large forms with many fields, React Hook Form is significantly faster.
+
+---
+
+**Q41. How do you implement cross-field validation with Yup?**
+
+```jsx
+const schema = yup.object({
+  password: yup.string().min(8).required(),
+  confirmPassword: yup.string()
+    .oneOf([yup.ref('password')], 'Passwords must match') // cross-field ref
+    .required()
+});
+```
+
+`yup.ref('fieldName')` resolves to the current value of another field at validation time.
+
+---
+
+## SECTION G — ROUTING (Q42–Q43)
+
+---
+
+**Q42. How do you implement protected routes in React Router v6?**
+
+```jsx
+function ProtectedRoute({ children }) {
+  const { isAuthenticated } = useAuth();
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+  return children;
+}
+
+// Usage
+<Route
+  path="/dashboard"
+  element={
+    <ProtectedRoute>
+      <Dashboard />
+    </ProtectedRoute>
+  }
+/>
+```
+
+`replace` prevents the login page from appearing in browser history (so back button does not loop to login).
+
+---
+
+**Q43. What is the difference between BrowserRouter and HashRouter?**
+
+| | BrowserRouter | HashRouter |
+|---|---|---|
+| URL format | `/dashboard` | `/#/dashboard` |
+| Requires server config | Yes (serve index.html for all routes) | No |
+| SEO friendly | Yes | No (# fragment not indexed) |
+| Use when | Production with server control | Static hosting (GitHub Pages, no server config) |
+
+**Prefer BrowserRouter** in production. Configure your server (Nginx/Apache) to return `index.html` for all paths.
+
+---
+
+## SECTION H — SERVER-SIDE RENDERING & NEXT.JS (Q44–Q46)
+
+---
+
+**Q44. What is hydration in React SSR?**
+
+Hydration is the process of **attaching React's event handlers and state** to server-rendered HTML.
+
+**Flow:**
+1. Server renders HTML string → sent to browser → **visible immediately** (fast FCP)
+2. Browser downloads JS bundle
+3. React "hydrates" — walks the DOM, matches fibers, attaches listeners
+4. App becomes **interactive** (TTI)
+
+**Hydration mismatch:** If server-rendered HTML does not match what client-side React would render (e.g., using `Math.random()`, `Date.now()`, or window-only APIs), React throws a warning and re-renders from scratch — losing the SSR benefit.
+
+---
+
+**Q45. What is the difference between Server Components and Client Components in Next.js App Router?**
+
+| | Server Components | Client Components |
+|---|---|---|
+| Renders on | Server only | Browser (+ server for initial HTML) |
+| JS sent to browser | None | Yes (bundled) |
+| Can use hooks | No | Yes |
+| Can access DB/FS | Yes | No |
+| Default in App Router | Yes | No (needs "use client") |
+| Use for | Data fetching, layouts, static UI | Interactivity, state, effects |
+
+**Rule:** Push "use client" boundary as **deep as possible** — keep as much as possible as Server Components to reduce JS bundle size.
+
+---
+
+**Q46. What is the difference between getServerSideProps, getStaticProps, and ISR?**
+
+```js
+// SSG — runs at build time
+export async function getStaticProps() {
+  const data = await fetch('...');
+  return { props: { data } };
+}
+
+// ISR — regenerates page in background after revalidate seconds
+export async function getStaticProps() {
+  return { props: { data }, revalidate: 60 };
+}
+
+// SSR — runs on every request
+export async function getServerSideProps(context) {
+  const data = await fetch(`...?user=${context.req.cookies.userId}`);
+  return { props: { data } };
+}
+```
+
+**Decision:**
+- SSG → content does not change often (blog, docs)
+- ISR → content changes periodically (product catalog)
+- SSR → content is user-specific or real-time (dashboard, authenticated pages)
+
+---
+
+## SECTION I — TESTING (Q47–Q49)
+
+---
+
+**Q47. What is the difference between getBy, queryBy, and findBy in React Testing Library?**
+
+| Query | Returns | When not found | Use when |
+|---|---|---|---|
+| `getBy*` | Element | Throws error | Element must be present |
+| `queryBy*` | Element or null | Returns null | Testing absence of element |
+| `findBy*` | Promise | Rejects (timeout) | Element appears asynchronously |
+
+```jsx
+// getBy — synchronous, throws if not found
+const btn = screen.getByRole('button', { name: /submit/i });
+
+// queryBy — synchronous, returns null if not found
+expect(screen.queryByText('Error')).not.toBeInTheDocument();
+
+// findBy — async, waits up to 1000ms
+const heading = await screen.findByText('Welcome');
+```
+
+---
+
+**Q48. What is MSW (Mock Service Worker) and why is it better than mocking fetch directly?**
+
+MSW intercepts HTTP requests at the **network level** using a service worker (browser) or Node interceptor (tests).
+
+```js
+// handlers.js
+import { http, HttpResponse } from 'msw';
+
+export const handlers = [
+  http.get('/api/users', () => HttpResponse.json([{ id: 1, name: 'Alice' }]))
+];
+```
+
+**Why better than jest.mock('axios') or global.fetch = jest.fn():**
+- Tests are **technology-agnostic** — works whether you use fetch, axios, or any HTTP lib
+- Handlers are **reusable** across unit tests, integration tests, and Storybook
+- Closer to production behavior — the actual network call is made and intercepted
+- No brittle `mockResolvedValueOnce` chains
+
+---
+
+**Q49. What should you NOT test in React component tests?**
+
+| Do NOT test | Why |
+|---|---|
+| Internal state values | Implementation detail — test visible output |
+| Which functions were called internally | Test behavior, not wiring |
+| CSS class names | Fragile, not user-facing |
+| Prop types at runtime | TypeScript handles this |
+| Third-party library internals | Trust the library |
+| Every line for 100% coverage | Coverage != quality |
+
+**Test instead:** What the user sees, what happens when the user interacts, what is rendered given certain props/state.
+
+---
+
+## SECTION J — REAL-WORLD & ARCHITECTURE (Q50)
+
+---
+
+**Q50. How would you architect a large-scale React application?**
+
+**Folder structure (feature-based):**
+```
+src/
+├── features/
+│   ├── auth/          # components, hooks, slice, api, types
+│   ├── dashboard/
+│   └── orders/
+├── shared/
+│   ├── components/    # Button, Modal, Table (design system)
+│   ├── hooks/         # useDebounce, useLocalStorage
+│   └── utils/         # formatDate, validators
+├── app/
+│   ├── store.ts       # Redux configureStore
+│   ├── router.tsx     # All routes, lazy-loaded
+│   └── App.tsx
+└── main.tsx
+```
+
+**Key architectural decisions:**
+
+| Concern | Solution |
+|---|---|
+| Server state | TanStack Query |
+| Client state | Zustand or RTK |
+| Forms | React Hook Form + Yup |
+| Routing | React Router v6 (code-split) |
+| Styling | CSS Modules or Tailwind |
+| Error handling | react-error-boundary per feature |
+| API layer | Axios with interceptors, typed with TypeScript |
+| Testing | RTL + MSW + Playwright for E2E |
+| Type safety | TypeScript strict mode |
+| Bundle | Vite + chunk splitting per route |
+
+**Principles:**
+1. **Co-locate** — keep feature code together, not split by type
+2. **One-way data flow** — server → store → component → user
+3. **Boundary components** — every feature wrapped in ErrorBoundary + Suspense
+4. **Types at boundaries** — API response types, form schemas, event payloads
+5. **Test behavior** — RTL over Enzyme, MSW over fetch mocks
+
+---
+
+*End of Interview Questions section — 50 questions covering Fundamentals → Hooks → State → Performance → Patterns → Forms → Routing → SSR → Testing → Architecture*
+
+---
+
+# MID-SCALE REACT APP — FOLDER STRUCTURE
+
+> ~10–30 features, team of 3–10 devs, TypeScript + Vite + React Router + Zustand/RTK + React Query + React Hook Form + Tailwind
+
+```
+my-app/
+│
+├── public/                          # Static assets served as-is
+│   ├── favicon.ico
+│   └── robots.txt
+│
+├── src/
+│   │
+│   ├── main.tsx                     # Entry point — ReactDOM.createRoot, StrictMode
+│   ├── App.tsx                      # Root component — Router, global Providers
+│   ├── vite-env.d.ts                # Vite type declarations
+│   │
+│   ├── app/                         # App-wide wiring (thin layer)
+│   │   ├── router.tsx               # All routes (lazy-loaded per feature)
+│   │   ├── store.ts                 # Redux configureStore OR Zustand root
+│   │   ├── queryClient.ts           # TanStack Query client config
+│   │   └── providers.tsx            # Wraps app: QueryClient, Store, Theme, Auth
+│   │
+│   ├── features/                    # ONE folder per business domain
+│   │   │
+│   │   ├── auth/
+│   │   │   ├── components/
+│   │   │   │   ├── LoginForm.tsx
+│   │   │   │   └── RegisterForm.tsx
+│   │   │   ├── hooks/
+│   │   │   │   ├── useLogin.ts      # useMutation wrapper
+│   │   │   │   └── useCurrentUser.ts
+│   │   │   ├── api/
+│   │   │   │   └── authApi.ts       # Axios calls for this feature
+│   │   │   ├── store/
+│   │   │   │   └── authSlice.ts     # RTK slice OR zustand slice
+│   │   │   ├── types/
+│   │   │   │   └── auth.types.ts    # LoginRequest, UserResponse, etc.
+│   │   │   ├── schemas/
+│   │   │   │   └── loginSchema.ts   # Yup / Zod schema for login form
+│   │   │   └── index.ts             # Public barrel export
+│   │   │
+│   │   ├── dashboard/
+│   │   │   ├── components/
+│   │   │   │   ├── DashboardPage.tsx
+│   │   │   │   ├── StatsCard.tsx
+│   │   │   │   └── RecentActivity.tsx
+│   │   │   ├── hooks/
+│   │   │   │   └── useDashboardStats.ts
+│   │   │   ├── api/
+│   │   │   │   └── dashboardApi.ts
+│   │   │   └── index.ts
+│   │   │
+│   │   ├── orders/
+│   │   │   ├── components/
+│   │   │   │   ├── OrdersPage.tsx
+│   │   │   │   ├── OrderTable.tsx
+│   │   │   │   ├── OrderDetail.tsx
+│   │   │   │   └── CreateOrderForm.tsx
+│   │   │   ├── hooks/
+│   │   │   │   ├── useOrders.ts     # useQuery for list
+│   │   │   │   ├── useOrder.ts      # useQuery for single
+│   │   │   │   └── useCreateOrder.ts# useMutation
+│   │   │   ├── api/
+│   │   │   │   └── ordersApi.ts
+│   │   │   ├── types/
+│   │   │   │   └── order.types.ts
+│   │   │   ├── schemas/
+│   │   │   │   └── orderSchema.ts
+│   │   │   └── index.ts
+│   │   │
+│   │   └── users/
+│   │       ├── components/
+│   │       │   ├── UsersPage.tsx
+│   │       │   ├── UserCard.tsx
+│   │       │   └── EditUserModal.tsx
+│   │       ├── hooks/
+│   │       │   └── useUsers.ts
+│   │       ├── api/
+│   │       │   └── usersApi.ts
+│   │       ├── types/
+│   │       │   └── user.types.ts
+│   │       └── index.ts
+│   │
+│   ├── shared/                      # Truly reusable across ALL features
+│   │   │
+│   │   ├── components/              # Design system / UI primitives
+│   │   │   ├── ui/
+│   │   │   │   ├── Button.tsx
+│   │   │   │   ├── Modal.tsx
+│   │   │   │   ├── Spinner.tsx
+│   │   │   │   ├── Table.tsx
+│   │   │   │   ├── Badge.tsx
+│   │   │   │   └── index.ts
+│   │   │   ├── forms/
+│   │   │   │   ├── FormField.tsx    # Label + Input + ErrorMessage wrapper
+│   │   │   │   ├── SelectField.tsx
+│   │   │   │   └── index.ts
+│   │   │   ├── layout/
+│   │   │   │   ├── PageLayout.tsx   # Header + Sidebar + main content
+│   │   │   │   ├── Sidebar.tsx
+│   │   │   │   ├── Header.tsx
+│   │   │   │   └── index.ts
+│   │   │   └── feedback/
+│   │   │       ├── ErrorBoundary.tsx
+│   │   │       ├── EmptyState.tsx
+│   │   │       └── index.ts
+│   │   │
+│   │   ├── hooks/                   # Cross-feature custom hooks
+│   │   │   ├── useDebounce.ts
+│   │   │   ├── useLocalStorage.ts
+│   │   │   ├── usePagination.ts
+│   │   │   └── useWindowSize.ts
+│   │   │
+│   │   ├── utils/                   # Pure functions, no React
+│   │   │   ├── formatDate.ts
+│   │   │   ├── formatCurrency.ts
+│   │   │   ├── validators.ts
+│   │   │   └── cn.ts                # classnames / tailwind-merge helper
+│   │   │
+│   │   ├── api/                     # HTTP client setup
+│   │   │   ├── axiosInstance.ts     # baseURL, interceptors, auth header
+│   │   │   └── queryKeys.ts         # Centralized TanStack Query key factory
+│   │   │
+│   │   ├── constants/
+│   │   │   ├── routes.ts            # Route path constants
+│   │   │   └── config.ts            # ENV vars, feature flags
+│   │   │
+│   │   └── types/                   # Shared global types
+│   │       ├── api.types.ts         # PaginatedResponse<T>, ApiError, etc.
+│   │       └── common.types.ts      # ID, Nullable<T>, etc.
+│   │
+│   ├── assets/                      # Images, fonts, SVGs (imported in code)
+│   │   ├── images/
+│   │   └── icons/
+│   │
+│   └── styles/                      # Global CSS
+│       ├── index.css                # Tailwind directives, CSS reset
+│       └── variables.css            # CSS custom properties
+│
+├── tests/                           # Test config and global setup
+│   ├── setup.ts                     # jest/vitest setup, MSW server start
+│   ├── mocks/
+│   │   ├── handlers.ts              # MSW request handlers
+│   │   └── server.ts                # MSW node server for tests
+│   └── utils/
+│       └── renderWithProviders.tsx  # Custom render with QueryClient + Store
+│
+├── .env                             # VITE_API_URL=http://localhost:3000
+├── .env.production                  # VITE_API_URL=https://api.myapp.com
+├── .eslintrc.cjs
+├── .prettierrc
+├── tsconfig.json
+├── vite.config.ts
+├── tailwind.config.ts
+└── package.json
+```
+
+---
+
+## KEY DESIGN RULES
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│  RULE                         │  WHY                                     │
+├──────────────────────────────────────────────────────────────────────────┤
+│  Feature folder = domain      │  All related code in one place           │
+│  (components + hooks + api    │  Easy to find, delete, or extract        │
+│   + types + schemas)          │                                          │
+├──────────────────────────────────────────────────────────────────────────┤
+│  shared/ only for truly       │  Avoid premature abstraction             │
+│  cross-feature code           │  Don't move to shared/ until used in 3+ │
+├──────────────────────────────────────────────────────────────────────────┤
+│  Barrel exports (index.ts)    │  Clean imports across features           │
+│  per feature                  │  import { LoginForm } from '@/features/auth'│
+├──────────────────────────────────────────────────────────────────────────┤
+│  api/ holds only HTTP calls   │  No business logic, just fetch wrappers  │
+│  hooks/ holds React Query     │  useQuery/useMutation wraps the api/ fn  │
+├──────────────────────────────────────────────────────────────────────────┤
+│  Types at the boundary        │  API response types live in feature/types│
+│                               │  Shared contracts live in shared/types   │
+├──────────────────────────────────────────────────────────────────────────┤
+│  schemas/ for form validation │  Yup/Zod schemas separate from component │
+│                               │  Reusable in tests and server-side       │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## DATA FLOW DIAGRAM
+
+```
+Browser Request
+      │
+      ▼
+┌─────────────┐     route match     ┌───────────────────┐
+│  router.tsx │ ──────────────────► │  Feature Page.tsx  │
+└─────────────┘                     │  (lazy loaded)     │
+                                    └─────────┬─────────┘
+                                              │ uses
+                        ┌─────────────────────┼──────────────────────┐
+                        ▼                     ▼                      ▼
+               ┌─────────────┐      ┌──────────────────┐   ┌──────────────┐
+               │  useQuery/  │      │  Zustand / RTK   │   │  useForm()   │
+               │  useMutation│      │  (client state)  │   │  + schema    │
+               └──────┬──────┘      └──────────────────┘   └──────────────┘
+                      │ calls
+                      ▼
+               ┌─────────────┐
+               │  feature    │
+               │  api/*.ts   │
+               └──────┬──────┘
+                      │ via
+                      ▼
+               ┌─────────────┐
+               │  axios      │      interceptors: auth header,
+               │  instance   │      error handling, refresh token
+               └──────┬──────┘
+                      │
+                      ▼
+               ┌─────────────┐
+               │  Backend    │
+               │  REST API   │
+               └─────────────┘
+```
+
+---
+
+## PATH ALIASES (vite.config.ts)
+
+```ts
+// vite.config.ts
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
+
+export default defineConfig({
+  plugins: [react()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+      '@features': path.resolve(__dirname, './src/features'),
+      '@shared':   path.resolve(__dirname, './src/shared'),
+      '@app':      path.resolve(__dirname, './src/app'),
+    }
+  }
+});
+
+// tsconfig.json — matching paths
+{
+  "compilerOptions": {
+    "paths": {
+      "@/*":        ["./src/*"],
+      "@features/*": ["./src/features/*"],
+      "@shared/*":  ["./src/shared/*"],
+      "@app/*":     ["./src/app/*"]
+    }
+  }
+}
+
+// Clean imports anywhere in the codebase
+import { LoginForm }   from '@features/auth';
+import { Button }      from '@shared/components/ui';
+import { formatDate }  from '@shared/utils/formatDate';
+import { axiosInstance } from '@shared/api/axiosInstance';
+```
+
+---
+
+*Mid-scale structure scales well from 5 to 30+ features without restructuring*
