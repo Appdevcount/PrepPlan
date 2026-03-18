@@ -11286,3 +11286,562 @@ mockGetUser.mockResolvedValue({ id: '1', name: 'Alice' });
 | Snapshot everything | False security, noisy diffs | Snapshot only stable leaf components |
 | Testing third-party libs | Not your code | Trust the library, test your integration |
 | `act()` warnings ignored | Hidden async bugs | Fix by awaiting state updates properly |
+
+
+---
+
+# COMPLETE REACT MINDMAP — Quick Recollection Reference
+
+> **How to use:** Scan the tree to recall any concept instantly. Each branch = a section in this guide. Numbers in brackets = section reference.
+
+```
+REACTJS COMPLETE MINDMAP
+│
+├─── [1] REACT FUNDAMENTALS
+│     ├── What is React? → UI library, declarative, component-based
+│     ├── Virtual DOM → JS copy of real DOM → diff (reconciliation) → minimal real DOM updates
+│     ├── Reconciliation → Fiber algorithm → priority-based rendering
+│     ├── React vs Vue vs Angular
+│     │     ├── React → library (just UI), JSX, one-way data flow
+│     │     ├── Vue → progressive framework, templates
+│     │     └── Angular → full framework, TypeScript-first, two-way binding
+│     └── Mental Model → React = "describe what UI looks like" not "how to change it"
+│
+├─── [2] JSX DEEP DIVE
+│     ├── JSX = JavaScript + XML syntax → compiles to React.createElement()
+│     ├── Rules
+│     │     ├── Must return single root element (or <>fragment</>)
+│     │     ├── className (not class), htmlFor (not for)
+│     │     ├── Self-close all empty tags: <img />, <br />
+│     │     └── JS expressions in { curly braces }
+│     ├── Conditional Rendering
+│     │     ├── Ternary: {condition ? <A/> : <B/>}
+│     │     ├── Short-circuit: {isOn && <Component/>}
+│     │     └── null → renders nothing
+│     └── Lists & Keys
+│           ├── .map() to render arrays
+│           ├── key must be UNIQUE & STABLE (not index for dynamic lists)
+│           └── Key helps React identify which items changed
+│
+├─── [3] COMPONENTS & PROPS
+│     ├── Component Types
+│     │     ├── Function Components → preferred (hooks support)
+│     │     └── Class Components → legacy (extends React.Component)
+│     ├── Props → read-only inputs from parent, one-way flow (parent → child)
+│     ├── Props Patterns
+│     │     ├── Destructuring: ({ name, age })
+│     │     ├── Default props: name = "World"
+│     │     ├── Spread: <Comp {...props} />
+│     │     ├── children prop → slot-like composition
+│     │     └── Render props → pass function as prop
+│     ├── PropTypes → runtime type checking (dev only)
+│     └── TypeScript Props → interface/type for compile-time safety (preferred)
+│
+├─── [4] STATE MANAGEMENT
+│     ├── useState
+│     │     ├── const [state, setState] = useState(initialValue)
+│     │     ├── setState is ASYNC — batched in React 18+
+│     │     ├── Functional update: setState(prev => prev + 1)  ← always use for derived state
+│     │     └── Never mutate state directly — always replace
+│     ├── State Batching (React 18)
+│     │     ├── Multiple setState in one handler → ONE re-render
+│     │     └── flushSync() → force immediate re-render (escape hatch)
+│     └── Common Pitfalls
+│           ├── Stale closure → use functional update or useRef
+│           ├── Object state → spread to update: {...prev, key: val}
+│           └── setState in render → infinite loop
+│
+├─── [5] HOOKS IN-DEPTH
+│     │
+│     ├── useEffect
+│     │     ├── Side effects: fetch, subscriptions, timers, DOM updates
+│     │     ├── Runs AFTER render (async)
+│     │     ├── Dependency array
+│     │     │     ├── []      → run once on mount only
+│     │     │     ├── [dep]   → run when dep changes
+│     │     │     └── omitted → run every render
+│     │     └── Cleanup → return function → prevent memory leaks
+│     │
+│     ├── useRef
+│     │     ├── Persist value without triggering re-render
+│     │     ├── DOM reference: ref={myRef} → myRef.current = DOM node
+│     │     └── Stale closure fix: store latest value in ref
+│     │
+│     ├── useMemo → memoize expensive COMPUTED VALUE → deps array
+│     │
+│     ├── useCallback → memoize FUNCTION reference → prevent child re-renders
+│     │     └── Rule: wrap callbacks passed to memoized children
+│     │
+│     ├── useReducer
+│     │     ├── Alternative to useState for complex state logic
+│     │     ├── (state, action) => newState pattern
+│     │     ├── dispatch({ type: 'ACTION', payload })
+│     │     └── Best for: multi-step forms, state machines
+│     │
+│     ├── useContext → consume context value (no prop drilling)
+│     │
+│     ├── useLayoutEffect → like useEffect but SYNCHRONOUS after DOM paint
+│     │     └── Use for: measuring DOM, avoiding flicker
+│     │
+│     ├── useImperativeHandle + forwardRef
+│     │     ├── forwardRef → pass ref to child component
+│     │     └── useImperativeHandle → expose specific methods to parent via ref
+│     │
+│     ├── React 18 Hooks
+│     │     ├── useTransition → mark update as non-urgent (UI stays responsive)
+│     │     │     └── const [isPending, startTransition] = useTransition()
+│     │     ├── useDeferredValue → defer re-render of slow component
+│     │     └── useId → stable unique ID for SSR-safe accessibility attributes
+│     │
+│     ├── useSyncExternalStore → subscribe to external stores (Redux, Zustand internals)
+│     │
+│     ├── useDebugValue → label custom hooks in React DevTools
+│     │
+│     ├── React 19 New APIs
+│     │     ├── useActionState → manage async action state (form submissions)
+│     │     ├── useOptimistic → optimistic UI updates
+│     │     ├── use() → read promises/context in render (replaces some useEffect patterns)
+│     │     └── Server Actions → async functions running on server, called from client
+│     │
+│     ├── Custom Hooks
+│     │     ├── Extract reusable stateful logic into useSomething()
+│     │     ├── Can call other hooks inside
+│     │     └── Examples: useFetch, useLocalStorage, useDebounce, useWindowSize
+│     │
+│     └── Rules of Hooks
+│           ├── Only call at TOP LEVEL (not inside conditions/loops)
+│           └── Only call in REACT FUNCTIONS (components or custom hooks)
+│
+├─── [6] COMPONENT LIFECYCLE (with Hooks)
+│     ├── Mount   → useEffect(() => { ... }, [])
+│     ├── Update  → useEffect(() => { ... }, [dep])
+│     ├── Unmount → useEffect(() => { return cleanup }, [])
+│     └── Class Lifecycle (Legacy)
+│           ├── componentDidMount → after first render
+│           ├── componentDidUpdate → after re-render
+│           └── componentWillUnmount → before removal
+│
+├─── [7] EVENT HANDLING
+│     ├── Synthetic Events → React cross-browser wrapper over native events
+│     ├── onClick, onChange, onSubmit, onKeyDown, onFocus, onBlur
+│     ├── e.preventDefault() → stop default browser behavior
+│     ├── e.stopPropagation() → stop event bubbling
+│     └── Event delegation → React attaches one listener at root
+│
+├─── [8] FORMS & CONTROLLED COMPONENTS
+│     ├── Controlled → value + onChange in React state (React owns the value)
+│     ├── Uncontrolled → useRef to read DOM value on submit
+│     ├── React Hook Form
+│     │     ├── useForm() → register, handleSubmit, formState
+│     │     ├── register() → connects input to form
+│     │     ├── watch, setValue, reset, trigger
+│     │     └── Lightweight, minimal re-renders (uncontrolled under the hood)
+│     └── Formik [19]
+│           ├── useFormik() or <Formik> component
+│           ├── values, errors, touched, handleChange, handleSubmit
+│           └── validationSchema (Yup) or validate function
+│
+├─── [9] CONTEXT API
+│     ├── createContext() → create context object
+│     ├── <Provider value={...}> → wrap tree to provide value
+│     ├── useContext(MyContext) → consume in any descendant
+│     ├── When to use → global state: auth, theme, locale, cart
+│     ├── vs Redux → Context for low-frequency updates; Redux for high-frequency
+│     └── Performance Optimization
+│           ├── Split contexts by concern
+│           ├── Memoize value object: useMemo({...}, [deps])
+│           └── Context selector pattern (use-context-selector lib)
+│
+├─── [10] REACT ROUTER (v6)
+│     ├── Setup → BrowserRouter → Routes → Route path="/" element={Home}
+│     ├── Hooks
+│     │     ├── useNavigate() → programmatic navigation
+│     │     ├── useParams() → read URL params (:id)
+│     │     ├── useSearchParams() → query string ?q=
+│     │     └── useLocation() → current location object
+│     ├── Nested Routes → Outlet renders child routes
+│     ├── Protected Routes → wrapper component checks auth, redirects
+│     ├── Loaders (v6.4+) → data fetching tied to route (before render)
+│     └── Error Element → errorElement prop handles route errors
+│
+├─── [11] PERFORMANCE OPTIMIZATION
+│     ├── React.memo → skip re-render if props unchanged (shallow compare)
+│     ├── useMemo → cache expensive computation
+│     ├── useCallback → stable function reference for child props
+│     ├── Code Splitting → React.lazy() + Suspense → dynamic import
+│     ├── Virtualization → react-window / react-virtual → render only visible items
+│     ├── Profiler → React DevTools Profiler → find slow renders
+│     └── Key Insight: Optimize MEASURED bottlenecks, not everything
+│
+├─── [12] ERROR HANDLING
+│     ├── Error Boundaries
+│     │     ├── Class component: componentDidCatch + getDerivedStateFromError
+│     │     ├── Catches render errors in child tree
+│     │     └── react-error-boundary lib: ErrorBoundary FallbackComponent prop
+│     ├── Async Errors → try/catch in async functions
+│     └── Event Handler Errors → try/catch (Error Boundaries do not catch these)
+│
+├─── [13] TESTING REACT APPLICATIONS
+│     ├── Jest → test runner, assertions, mocking
+│     ├── React Testing Library (RTL)
+│     │     ├── Queries: getByRole, getByText, getByLabelText, findBy (async)
+│     │     ├── fireEvent / userEvent → simulate user interactions
+│     │     └── screen → global query object
+│     ├── Testing Philosophy → test BEHAVIOR not implementation
+│     ├── Async Testing → findBy* (waits), waitFor()
+│     ├── Mocking → jest.fn(), jest.mock(), MSW for API
+│     └── Coverage → jest --coverage (aim 70-80% meaningful, not 100%)
+│
+├─── [14] ADVANCED PATTERNS
+│     ├── Compound Components → shared state via Context (Select/Option pattern)
+│     ├── Render Props → List with render function → flexible rendering
+│     ├── Higher-Order Components (HOC) → withAuth(Component) → wraps with logic
+│     ├── Container / Presentational
+│     │     ├── Container → data fetching, state, logic
+│     │     └── Presentational → pure UI, only props
+│     ├── Observer / Event Bus → custom pub-sub for cross-component events
+│     └── Builder Pattern → fluent API: new DialogBuilder().title().body().build()
+│
+├─── [15] STATE MANAGEMENT LIBRARIES
+│     ├── Redux Toolkit (RTK)
+│     │     ├── createSlice → state + reducers + actions in one
+│     │     ├── configureStore → setup store
+│     │     ├── useSelector → read state
+│     │     ├── useDispatch → dispatch actions
+│     │     └── RTK Query → built-in data fetching + caching
+│     ├── Zustand
+│     │     ├── Minimal boilerplate: create(set => ({ count: 0, inc: () => set... }))
+│     │     ├── useStore(state => state.count) → auto subscribes
+│     │     └── Best for: medium apps, easy to learn
+│     └── React Query (TanStack Query)
+│           ├── Server state management (not UI state)
+│           ├── useQuery → fetch + cache + background refresh
+│           ├── useMutation → POST/PUT/DELETE + optimistic updates
+│           └── Stale-while-revalidate, retry, pagination built-in
+│
+├─── [16] SERVER-SIDE RENDERING (Next.js)
+│     ├── Rendering Strategies
+│     │     ├── SSR → getServerSideProps → fresh data every request
+│     │     ├── SSG → getStaticProps → build time (fast)
+│     │     ├── ISR → revalidate: 60 → regenerate on interval
+│     │     └── CSR → useEffect fetch → client only
+│     ├── Next.js App Router (v13+)
+│     │     ├── Server Components → default, no useState/useEffect, faster
+│     │     ├── Client Components → "use client" directive
+│     │     ├── layout.tsx → shared UI wrapper
+│     │     ├── loading.tsx → Suspense boundary
+│     │     ├── error.tsx → error boundary
+│     │     └── page.tsx → route leaf
+│     └── Streaming → React 18 Suspense + Server → progressive HTML
+│
+├─── [17] PORTALS
+│     ├── ReactDOM.createPortal(child, domNode)
+│     ├── Renders child outside parent DOM hierarchy
+│     └── Use cases: Modals, Tooltips, Dropdowns (z-index / overflow issues)
+│
+├─── [18] COMMON PITFALLS & BEST PRACTICES
+│     ├── Pitfalls
+│     │     ├── Stale closures → use functional setState or ref
+│     │     ├── Index as key → use stable IDs
+│     │     ├── Object/array in render → useMemo or move outside component
+│     │     ├── Missing useCallback deps → stale function
+│     │     └── setState in render → infinite loop
+│     └── Best Practices
+│           ├── TypeScript props → compile-time safety
+│           ├── Composition > prop drilling
+│           ├── Code split large pages
+│           └── Co-locate state with consumer (lift only when needed)
+│
+├─── [19] FORMIK — FORM MANAGEMENT
+│     ├── Core: values, errors, touched, isSubmitting
+│     ├── useFormik() hook or <Formik> + <Form> + <Field> + <ErrorMessage>
+│     ├── handleChange, handleBlur, handleSubmit wired automatically
+│     ├── validationSchema → Yup integration
+│     ├── useField() → custom input components
+│     └── Helpers: setFieldValue, resetForm, setSubmitting
+│
+├─── [20] YUP — SCHEMA VALIDATION
+│     ├── yup.string().required().email().min(n).max(n)
+│     ├── yup.number().min().max().positive()
+│     ├── yup.boolean().oneOf([true]) → must check checkbox
+│     ├── yup.object({ ... }) → validate object shape
+│     ├── yup.array().of(schema).min(n)
+│     ├── yup.ref('field') → cross-field validation (confirmPassword)
+│     ├── .test('name', 'msg', fn) → custom async/sync validator
+│     ├── .when('field', { is: val, then: schema }) → conditional
+│     └── schema.validate(data) → standalone, outside Formik
+│
+├─── [21] REACT-BOOTSTRAP — UI LIBRARY
+│     ├── Container / Row / Col → 12-col grid
+│     ├── Form, Form.Control, Form.Label, Form.Text
+│     ├── Button (variant: primary/danger/outline-*)
+│     ├── Modal → show, onHide, Modal.Header / Body / Footer
+│     ├── Alert, Toast, ToastContainer
+│     ├── Table → striped, bordered, hover
+│     ├── Navbar, Nav, NavDropdown
+│     └── Card, Accordion, Badge, Spinner
+│
+├─── [22] COMMON LIBRARIES
+│     ├── TanStack Query (React Query) → server state, caching, sync
+│     ├── Axios → HTTP client, interceptors, baseURL, cancel tokens
+│     ├── React Hook Form → lightweight forms, less re-renders
+│     ├── React Select → searchable/multi select dropdown
+│     ├── TanStack Table → headless table (sort, filter, paginate)
+│     ├── React Toastify → toast notifications
+│     ├── date-fns → date formatting/manipulation (tree-shakeable)
+│     ├── Lodash → utility functions (debounce, throttle, cloneDeep)
+│     └── react-error-boundary → ErrorBoundary component
+│
+├─── [23] JEST UNIT TESTING
+│     ├── Core API
+│     │     ├── describe() → group tests
+│     │     ├── it() / test() → single test case
+│     │     ├── expect(val).toBe / toEqual / toContain / toBeNull
+│     │     ├── beforeEach / afterEach / beforeAll / afterAll
+│     │     └── jest.fn() → mock function, track calls
+│     ├── Matchers
+│     │     ├── toBe → ===, toEqual → deep equal
+│     │     ├── toBeInTheDocument, toHaveTextContent, toHaveValue (RTL)
+│     │     └── toHaveBeenCalledWith, toHaveBeenCalledTimes
+│     ├── Mocking
+│     │     ├── jest.mock('module') → auto-mock module
+│     │     ├── jest.spyOn(obj, 'method') → spy on method
+│     │     └── MSW (Mock Service Worker) → intercept HTTP at network level
+│     ├── Async Testing
+│     │     ├── async/await in test
+│     │     ├── findBy* → waitFor + getBy combined
+│     │     └── waitFor(() => expect(...))
+│     ├── renderHook → test custom hooks in isolation
+│     ├── Snapshot Testing → toMatchSnapshot() → catch unexpected UI changes
+│     └── Anti-patterns
+│           ├── Do not test implementation details
+│           ├── Do not mock everything
+│           └── Fix act() warnings — do not ignore them
+│
+├─── [24] STYLING IN REACT
+│     ├── CSS Modules → import styles from './Comp.module.css' → scoped classNames
+│     ├── Styled Components (CSS-in-JS)
+│     │     ├── styled.div with template literal css → component with embedded styles
+│     │     ├── Props-based dynamic styles: p => p.primary ? '...' : '...'
+│     │     └── ThemeProvider → global theme tokens
+│     ├── Tailwind CSS
+│     │     ├── Utility classes: className="flex p-4 text-blue-500 hover:bg-gray-100"
+│     │     ├── No custom CSS needed for standard layouts
+│     │     └── PurgeCSS built-in → tiny production bundle
+│     └── Decision Matrix
+│           ├── CSS Modules → scoping + normal CSS, good default
+│           ├── Styled Components → dynamic styles, design systems
+│           └── Tailwind → rapid UI, utility-first, no naming conflicts
+│
+└─── [25] ACCESSIBILITY (a11y)
+      ├── Semantic HTML → use button not div onClick, nav, main, header, footer
+      ├── ARIA Attributes
+      │     ├── aria-label, aria-labelledby, aria-describedby
+      │     ├── aria-expanded, aria-haspopup, aria-live (dynamic content)
+      │     └── role="dialog", role="alert", role="navigation"
+      ├── Focus Management
+      │     ├── useRef + .focus() → move focus to modal on open
+      │     ├── Focus trap inside modal (focus-trap-react lib)
+      │     └── Return focus to trigger element on close
+      └── Keyboard Navigation
+            ├── Tab / Shift+Tab → move between focusable elements
+            ├── Enter / Space → activate buttons
+            ├── Escape → close modals/dropdowns
+            └── Arrow keys → navigate within menus
+```
+
+---
+
+## HOOKS QUICK-RECALL CARD
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        REACT HOOKS AT A GLANCE                              │
+├──────────────────────┬──────────────────────────────┬───────────────────────┤
+│ HOOK                 │ PURPOSE                      │ KEY RULE              │
+├──────────────────────┼──────────────────────────────┼───────────────────────┤
+│ useState             │ Local UI state               │ Never mutate directly │
+│ useEffect            │ Side effects after render    │ Return cleanup fn     │
+│ useRef               │ DOM ref / persist no-render  │ .current to access    │
+│ useMemo              │ Cache computed value         │ Do not overuse        │
+│ useCallback          │ Cache function reference     │ For memoized children │
+│ useReducer           │ Complex state machine        │ dispatch({type,payload│
+│ useContext           │ Consume context              │ Split by concern      │
+│ useLayoutEffect      │ Sync DOM measurement         │ Avoid browser flicker │
+│ useImperativeHandle  │ Expose child API via ref     │ Always with forwardRef│
+│ useTransition        │ Non-urgent state update      │ Keep UI responsive    │
+│ useDeferredValue     │ Defer slow child render      │ Like debounce for UI  │
+│ useId                │ SSR-safe unique ID           │ For aria-* attrs      │
+│ useSyncExternalStore │ External store subscription  │ Redux/Zustand interna │
+│ useDebugValue        │ DevTools label for hooks     │ Custom hooks only     │
+│ useActionState (19)  │ Async form action state      │ React 19+             │
+│ useOptimistic (19)   │ Optimistic UI updates        │ React 19+             │
+│ use() (19)           │ Read promise in render       │ React 19+             │
+└──────────────────────┴──────────────────────────────┴───────────────────────┘
+```
+
+---
+
+## STATE MANAGEMENT DECISION TREE
+
+```
+Need to share state?
+       │
+       ├── Same component ──────────────────────────→ useState / useReducer
+       │
+       ├── Parent-Child (2-3 levels) ───────────────→ Props
+       │
+       ├── Deep tree, low-frequency (theme, auth) ──→ Context API
+       │
+       ├── Deep tree, high-frequency (cart, notif) ─→ Zustand  OR  Redux Toolkit
+       │
+       └── Server / remote data (API responses) ───→ TanStack Query (React Query)
+```
+
+---
+
+## RENDERING MENTAL MODEL
+
+```
+USER ACTION
+    │
+    ▼
+setState() called
+    │
+    ▼
+React schedules re-render (batched in React 18)
+    │
+    ▼
+Component function runs again → new Virtual DOM built
+    │
+    ▼
+React diffs new vDOM vs previous vDOM (Reconciliation / Fiber)
+    │
+    ▼
+Only CHANGED nodes updated in real DOM (Commit phase)
+    │
+    ▼
+useLayoutEffect runs (sync, before browser paint)
+    │
+    ▼
+Browser paints screen to user
+    │
+    ▼
+useEffect runs (async, after paint)
+```
+
+---
+
+## PERFORMANCE OPTIMIZATION CHECKLIST
+
+```
+[ ] Wrap pure components with React.memo()
+[ ] useCallback for functions passed as props to memoized children
+[ ] useMemo for expensive computations (sort, filter, transform large arrays)
+[ ] Code-split routes: React.lazy() + Suspense
+[ ] Virtualize long lists: react-window or @tanstack/virtual
+[ ] Avoid object/array literals in JSX → move outside or useMemo
+[ ] useTransition for non-urgent updates (search/filter UI)
+[ ] useDeferredValue for slow-rendering child components
+[ ] Use React DevTools Profiler to MEASURE before optimizing
+[ ] Avoid anonymous functions in JSX when passing to memoized children
+```
+
+---
+
+## COMPONENT PATTERNS QUICK REFERENCE
+
+```
+┌──────────────────────┬───────────────────────────────────┬────────────────────┐
+│ PATTERN              │ WHEN TO USE                       │ EXAMPLE            │
+├──────────────────────┼───────────────────────────────────┼────────────────────┤
+│ Compound Components  │ Shared implicit state (Tabs/Tab)  │ Select + Option    │
+│ Render Props         │ Share logic, flexible render      │ List + render fn   │
+│ HOC                  │ Cross-cutting concerns            │ withAuth(Page)     │
+│ Container/Presentat. │ Separate data from UI             │ UserListContainer  │
+│ Custom Hook          │ Reusable stateful logic           │ useFetch, useForm  │
+│ Provider Pattern     │ Dependency injection via tree     │ ThemeProvider      │
+│ Observer / Event Bus │ Decouple sibling communication    │ eventBus.emit/on   │
+└──────────────────────┴───────────────────────────────────┴────────────────────┘
+```
+
+---
+
+## NEXT.JS RENDERING STRATEGIES
+
+```
+┌──────────┬────────────────────────┬───────────────────┬────────────────────┐
+│ Strategy │ When HTML is built     │ Data freshness    │ Use case           │
+├──────────┼────────────────────────┼───────────────────┼────────────────────┤
+│ SSG      │ Build time             │ Stale (static)    │ Blog, docs         │
+│ ISR      │ Build + revalidate     │ Near-fresh        │ Product pages      │
+│ SSR      │ Every request          │ Always fresh      │ Dashboard, user-sp │
+│ CSR      │ Client after load      │ On demand         │ Admin, interactive │
+│ SC (App) │ Server (no JS shipped) │ Always fresh      │ Default App Router │
+└──────────┴────────────────────────┴───────────────────┴────────────────────┘
+```
+
+---
+
+## TESTING PYRAMID
+
+```
+          /\
+         /  \
+        / E2E \   ← Few — slow, full user flows (Playwright, Cypress)
+       /────────\
+      / Integration\ ← Some — component + API together (RTL + MSW)
+     /──────────────\
+    /   Unit Tests   \ ← Many — fast, isolated (Jest + RTL)
+   /──────────────────\
+
+   Rule: Test BEHAVIOR (what user sees), NOT IMPLEMENTATION (how code works)
+   Query priority: getByRole > getByLabelText > getByText > getByTestId
+```
+
+---
+
+## FORMS: WHICH LIBRARY TO USE?
+
+```
+Simple form (2-3 fields, no complex rules) ──→ HTML + useState
+Medium form (validation needed) ─────────────→ React Hook Form + Yup
+Complex form (wizard, field arrays) ─────────→ React Hook Form (advanced)
+Legacy / existing Formik codebase ───────────→ Formik + Yup
+No library preferred ─────────────────────────→ useReducer + custom validation
+```
+
+---
+
+## STYLING APPROACH SELECTOR
+
+```
+Team uses regular CSS, needs scoping ────────→ CSS Modules
+Dynamic styles based on JS state/theme ──────→ Styled Components
+Rapid prototyping, utility-first approach ───→ Tailwind CSS
+Design system with shared token values ──────→ Styled Components + ThemeProvider
+Server-side rendered, no runtime CSS ────────→ CSS Modules or Tailwind
+```
+
+---
+
+## INTERVIEW QUICK RECALL — TOP 10 CONCEPTS
+
+```
+1.  Virtual DOM      → JS object tree → diff → minimal real DOM updates (Fiber reconciler)
+2.  Hooks Rules      → top level only, React functions only, not inside conditions/loops
+3.  useEffect        → cleanup by returning a function (cancel timers, subscriptions)
+4.  Controlled vs    → Controlled: React state owns value
+    Uncontrolled        Uncontrolled: DOM owns value, read via useRef on submit
+5.  Context vs Redux → Context = low-frequency global state; Redux = high-frequency complex
+6.  React.memo +     → React.memo skips re-render if props unchanged (shallow compare)
+    useCallback         useCallback gives stable fn reference to pass to memoized children
+7.  Error Boundaries → Class component wrapping subtree; catches render errors only
+8.  Code Splitting   → React.lazy() + Suspense → load component on demand, smaller bundle
+9.  Keys in lists    → Use stable IDs, NOT array index for dynamic/sortable/filtered lists
+10. Reconciliation   → Fiber tree diffing → same type = update node, different type = replace
+```
+
+---
+
+*End of Mindmap — generated as quick-recollection reference for ReactJS Complete Guide*
