@@ -518,11 +518,21 @@ ngOnInit() {
 }
 
 // ✅ SOLUTION: Use takeUntil pattern
+// Subject<void> — a signal-only stream (void = we only care about WHEN it fires, not what value)
+// WHY: Subject is used here purely as a "kill switch". We never need to read its value —
+//      we just need it to emit once in ngOnDestroy to signal "time to stop everything"
 private destroy$ = new Subject<void>();
 
 ngOnInit() {
   this.userService.getUser()
-    .pipe(takeUntil(this.destroy$))
+    .pipe(
+      // takeUntil(destroy$) — automatically unsubscribe when destroy$ emits
+      // WHY: This is the primary memory leak prevention pattern in Angular.
+      //      When ngOnDestroy fires, destroy$.next() → destroy$.complete() causes
+      //      takeUntil to complete the subscription — no manual unsubscribe needed.
+      //      Without this, the subscription lives on forever after the component is destroyed.
+      takeUntil(this.destroy$)
+    )
     .subscribe(user => this.user = user);
 }
 
@@ -1408,37 +1418,59 @@ export class AuthEffects {
   // Effects handle side effects (API calls, localStorage, navigation)
   login$ = createEffect(() =>
     this.actions$.pipe(
+      // ofType() — filter the action stream to only 'login' actions
+      // WHY: The actions$ stream carries ALL dispatched actions from the entire app.
+      //      ofType() acts like a filter() so this effect only reacts to AuthActions.login
       ofType(AuthActions.login),
+
+      // exhaustMap() — ignore new login actions while a login HTTP call is in flight
+      // WHY: Prevents double-login if user clicks the button rapidly.
+      //      Unlike switchMap (which would cancel the in-flight request), exhaustMap
+      //      simply ignores new login attempts until the current one resolves.
       exhaustMap(({ credentials }) =>
         this.authService.login(credentials).pipe(
+          // map() — transform the HTTP response into a success Action
+          // WHY: Effects must return Actions (not raw data). map() wraps the API
+          //      response into the correct NgRx action shape for the reducer to consume.
           map(response => AuthActions.loginSuccess({
             user: response.user,
             token: response.token
           })),
+
+          // catchError() — catch HTTP error, dispatch failure Action (don't throw)
+          // WHY: If placed outside exhaustMap, a failed login KILLS the entire effect stream —
+          //      no future logins would work. Placed inside, each login attempt is isolated.
+          //      of() wraps the failure action as an Observable so the stream continues.
           catchError(error => of(AuthActions.loginFailure({ error: error.message })))
         )
       )
     )
   );
 
-  // Effect for side effects without dispatching new action
+  // tap() — run side effects (localStorage write + navigation) WITHOUT emitting a new Action
+  // WHY: tap() lets us "do something" mid-stream without transforming the value.
+  //      Here we store the token and navigate — purely side effects, no new action needed.
+  //      { dispatch: false } tells NgRx this effect won't dispatch a follow-up action.
   loginSuccess$ = createEffect(() =>
     this.actions$.pipe(
       ofType(AuthActions.loginSuccess),
       tap(({ token }) => {
-        localStorage.setItem('token', token);
-        this.router.navigate(['/dashboard']);
+        localStorage.setItem('token', token);   // WHY: persist token for page reload
+        this.router.navigate(['/dashboard']);    // WHY: redirect after successful login
       })
     ),
-    { dispatch: false }  // No new action dispatched
+    { dispatch: false }  // No new action dispatched — tap() handles side effects only
   );
 
   logout$ = createEffect(() =>
     this.actions$.pipe(
       ofType(AuthActions.logout),
+      // tap() again — cleanup side effects on logout without dispatching another action
+      // WHY: Clearing storage and redirecting are fire-and-forget side effects.
+      //      Using tap() keeps the stream alive while executing imperative cleanup.
       tap(() => {
-        localStorage.removeItem('token');
-        this.router.navigate(['/login']);
+        localStorage.removeItem('token');       // WHY: clear auth token from storage
+        this.router.navigate(['/login']);        // WHY: send user back to login page
       })
     ),
     { dispatch: false }
@@ -1651,22 +1683,33 @@ import { catchError, filter, take, switchMap } from 'rxjs/operators';
 @Injectable()
 export class JwtInterceptor implements HttpInterceptor {
   private isRefreshing = false;
+
+  // BehaviorSubject<string | null> — shared token state across concurrent 401s
+  // WHY: When multiple requests fail with 401 simultaneously, only ONE should trigger
+  //      a token refresh. The others queue here waiting for the new token.
+  //      null = "refresh in progress, don't proceed yet"
+  //      string = "new token ready, all queued requests can retry now"
   private refreshTokenSubject = new BehaviorSubject<string | null>(null);
 
   constructor(private authService: AuthService) {}
 
   intercept(request: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
-    // Add token to all requests
     const token = this.authService.getToken();
     if (token) {
       request = this.addToken(request, token);
     }
 
     return next.handle(request).pipe(
+      // catchError() — intercept HTTP errors mid-stream
+      // WHY: Every HTTP response flows through here. We specifically look for 401
+      //      (Unauthorized) to trigger token refresh. All other errors are re-thrown.
       catchError((error: HttpErrorResponse) => {
         if (error.status === 401) {
-          return this.handle401Error(request, next);
+          return this.handle401Error(request, next);  // WHY: refresh token and retry
         }
+        // throwError() — re-throw non-401 errors as an Observable error
+        // WHY: Converts a plain error back into an Observable so the pipe chain
+        //      propagates it correctly to the component's error handler
         return throwError(() => error);
       })
     );
@@ -1681,14 +1724,21 @@ export class JwtInterceptor implements HttpInterceptor {
   private handle401Error(request: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
     if (!this.isRefreshing) {
       this.isRefreshing = true;
-      this.refreshTokenSubject.next(null);
+      this.refreshTokenSubject.next(null);  // WHY: signal "refresh in progress" to queued requests
 
       return this.authService.refreshToken().pipe(
+        // switchMap() — when refresh succeeds, use the new token to retry the original request
+        // WHY: switchMap flattens the token response into a new HTTP call (the retried request).
+        //      The original failed request is replayed with the fresh Bearer token.
         switchMap((token: string) => {
           this.isRefreshing = false;
-          this.refreshTokenSubject.next(token);
+          this.refreshTokenSubject.next(token);  // WHY: unblock all queued requests with new token
           return next.handle(this.addToken(request, token));
         }),
+
+        // catchError() — if refresh itself fails, log out the user
+        // WHY: Refresh token is also expired/invalid — user must re-authenticate.
+        //      throwError() propagates the error to the original caller.
         catchError((err) => {
           this.isRefreshing = false;
           this.authService.logout();
@@ -1697,10 +1747,21 @@ export class JwtInterceptor implements HttpInterceptor {
       );
     }
 
-    // Queue requests while refreshing
+    // Already refreshing — queue this request until the new token is ready
     return this.refreshTokenSubject.pipe(
+      // filter(token => token !== null) — wait while refreshTokenSubject is null
+      // WHY: null means "refresh in progress". Hold all queued requests here
+      //      until refreshTokenSubject emits an actual token string.
       filter(token => token !== null),
+
+      // take(1) — complete after receiving the first token value
+      // WHY: Once we get the new token, this queued request only needs it once.
+      //      Without take(1), this subscription would stay alive indefinitely.
       take(1),
+
+      // switchMap() — retry the original request with the newly refreshed token
+      // WHY: switchMap maps the token value into a new HTTP call (the retried request).
+      //      All queued requests now replay simultaneously with the fresh token.
       switchMap(token => next.handle(this.addToken(request, token!)))
     );
   }
@@ -3047,7 +3108,16 @@ export class UserDataService {
 
   loadUser(id: string): Observable<User> {
     return this.http.get<User>(`/api/users/${id}`).pipe(
-      tap(user => this.userSubject.next(user)), // Update shared state as side effect
+      // tap() — push the fetched user into the shared BehaviorSubject as a side effect
+      // WHY: Any component subscribed to user$ across the app gets the update immediately.
+      //      tap() doesn't change what flows downstream — the user object still reaches .subscribe()
+      tap(user => this.userSubject.next(user)),
+
+      // catchError() + EMPTY — swallow the error gracefully, complete without emitting
+      // WHY: EMPTY is an Observable that completes immediately with no values.
+      //      Returning EMPTY means the error doesn't propagate to subscribers — the stream
+      //      just ends silently. Use when a failed load should be a no-op (not a crash).
+      //      Alternative: return of(null) if you need to signal "no user loaded"
       catchError(err => { console.error(err); return EMPTY; })
     );
   }
@@ -3560,8 +3630,19 @@ export class SearchComponent implements OnInit {
 
   ngOnInit() {
     this.searchControl.valueChanges.pipe(
+      // debounceTime(300) — suppress rapid-fire emissions, only emit after 300ms of silence
+      // WHY: FormControl.valueChanges fires on EVERY keystroke. Without debounce,
+      //      typing "angular" sends 7 HTTP requests. With 300ms debounce, only 1 fires.
       debounceTime(300),
+
+      // distinctUntilChanged() — skip if value is identical to the previous emission
+      // WHY: If the user types "a", deletes it, types "a" again — the value is "a" both times.
+      //      Without distinctUntilChanged, a redundant HTTP call fires. This blocks it.
       distinctUntilChanged(),
+
+      // switchMap() — cancel previous search HTTP call when new query arrives
+      // WHY: User types "ang" (HTTP fires), then "angu" (previous HTTP CANCELLED, new one fires).
+      //      Prevents stale earlier results from overwriting fresher later results.
       switchMap(query => this.searchService.search(query))
     ).subscribe(results => {
       // Handle results
@@ -3839,7 +3920,9 @@ const { register, handleSubmit, formState } = useForm({
 <button type="submit">Submit</button>
 ```
 
-#### Angular Approach (Step-by-Step)
+#### Angular Approach A — Reactive Forms (Step-by-Step)
+
+> Best for: complex forms, dynamic controls, unit testing, cross-field validation
 
 **Step 1**: Import ReactiveFormsModule in your module
 ```typescript
@@ -3856,21 +3939,72 @@ export class MyModule {}
 constructor(private fb: FormBuilder) {}
 ```
 
-**Step 3**: Build form structure with FormBuilder
+**Step 3**: Build form structure with FormBuilder — all validation lives in TypeScript
 ```typescript
 this.userForm = this.fb.group({
   email: ['', [Validators.required, Validators.email]],
-  password: ['', Validators.min(8)]
+  password: ['', Validators.minLength(8)]
 });
 ```
 
-**Step 4**: Bind form to template
+**Step 4**: Bind form to template using directives
 ```html
-<form [formGroup]="userForm">
+<form [formGroup]="userForm" (ngSubmit)="onSubmit()">
   <input formControlName="email">
-  <button type="submit">Submit</button>
+  <span *ngIf="userForm.get('email')?.errors?.['required']">Required</span>
+  <button type="submit" [disabled]="userForm.invalid">Submit</button>
 </form>
 ```
+
+---
+
+#### Angular Approach B — Template-Driven Forms (Step-by-Step)
+
+> Best for: simple forms (login, search, settings), quick prototyping, beginners transitioning from AngularJS
+
+**Step 1**: Import `FormsModule` (not ReactiveFormsModule) in your module
+```typescript
+import { FormsModule } from '@angular/forms';
+
+@NgModule({
+  imports: [FormsModule]   // ← FormsModule, NOT ReactiveFormsModule
+})
+export class MyModule {}
+```
+
+**Step 2**: No TypeScript class setup — bind directly in the HTML with `ngModel`
+```typescript
+// Component class is simple — just data properties
+export class LoginComponent {
+  email = '';
+  password = '';
+}
+```
+
+**Step 3**: Use `[(ngModel)]` for two-way binding. Add `name` attribute (required).
+Validation rules go on the HTML element as attributes.
+```html
+<input [(ngModel)]="email" name="email" required email #emailRef="ngModel">
+```
+
+**Step 4**: Access form and field state via template reference variables
+```html
+<form #f="ngForm" (ngSubmit)="onSubmit(f)">
+  <input [(ngModel)]="email" name="email" required email #emailRef="ngModel">
+  <span *ngIf="emailRef.invalid && emailRef.touched">Invalid email</span>
+  <button type="submit" [disabled]="f.invalid">Submit</button>
+</form>
+```
+
+**Key difference from Reactive Forms:**
+
+| | Template-Driven | Reactive |
+|--|-----------------|---------|
+| Validation location | HTML attributes (`required email minlength`) | TypeScript (`Validators.required, Validators.email`) |
+| Form control access | `#ref="ngModel"` in template | `form.get('field')` in TypeScript |
+| Form object | Angular creates it implicitly | You build it explicitly with `FormBuilder` |
+| Boilerplate | Minimal | More, but more control |
+| Unit testable | Harder (DOM needed) | Easy (pure TypeScript) |
 
 ### React Forms (with React Hook Form)
 ```tsx
@@ -4124,8 +4258,21 @@ export class UserFormComponent implements OnInit {
   // Custom async validator
   emailExistsValidator(control: AbstractControl): Observable<ValidationErrors | null> {
     return this.userService.checkEmailExists(control.value).pipe(
+      // debounceTime(300) — wait for user to stop changing the email field
+      // WHY: Async validators run on every valueChange. Without debounce, every character
+      //      typed in the email field fires an HTTP call to check uniqueness — very wasteful.
       debounceTime(300),
+
+      // map() — transform the boolean HTTP response into a ValidationErrors object (or null)
+      // WHY: Angular validators must return ValidationErrors | null.
+      //      null = valid. { emailTaken: true } = invalid with this specific error key.
+      //      The template can then show: *ngIf="form.get('email').errors?.emailTaken"
       map(exists => exists ? { emailTaken: true } : null),
+
+      // first() — complete the Observable after its first emission
+      // WHY: Async validators MUST complete for Angular's form engine to process the result.
+      //      Without first(), the Observable stays open indefinitely and the form
+      //      never leaves "PENDING" status. first() ensures exactly one value + completion.
       first()
     );
   }
@@ -4148,17 +4295,417 @@ export class UserFormComponent implements OnInit {
 }
 ```
 
+### Angular Forms — Template-Driven (Full Example)
+
+```typescript
+// ─────────────────────────────────────────────────────────────────────────────
+// TEMPLATE-DRIVEN FORMS
+// Mental Model: Angular reads the template and builds the form model for you.
+// You decorate inputs with directives (ngModel, required, minlength) and Angular
+// creates FormControl/FormGroup instances implicitly behind the scenes.
+// React equivalent: like HTML5 native forms + controlled components — but Angular
+// adds automatic validation state tracking and two-way binding.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─── MODULE SETUP ────────────────────────────────────────────────────────────
+// app.module.ts
+import { FormsModule } from '@angular/forms';   // ← REQUIRED for ngModel + ngForm
+
+@NgModule({
+  imports: [
+    FormsModule   // ← Enables: ngModel, NgForm, ngModelGroup, NgModel directives
+    // DO NOT also import ReactiveFormsModule unless you need both approaches
+  ]
+})
+export class AppModule {}
+
+// For standalone components:
+// @Component({ standalone: true, imports: [FormsModule] })
+
+
+// ─── EXAMPLE 1: SIMPLE LOGIN FORM ────────────────────────────────────────────
+// ★ This is the "Hello World" of template-driven forms
+// ★ Equivalent to React: useState + onChange handlers on every input
+
+@Component({
+  selector: 'app-login',
+  template: `
+    <!--
+      #loginForm="ngForm"  → creates a template ref variable pointing to the NgForm directive
+                             Angular automatically wraps this <form> in a NgForm instance
+      (ngSubmit)           → fires ONLY when form is valid (vs regular (submit) which always fires)
+    -->
+    <form #loginForm="ngForm" (ngSubmit)="onSubmit(loginForm)">
+
+      <div>
+        <label>Email</label>
+        <!--
+          [(ngModel)]="email"  → two-way binding: input value ↔ component property
+          name="email"         → REQUIRED. Angular uses this to register the control on NgForm
+          required             → built-in HTML5 validator — Angular picks it up automatically
+          email                → Angular's email format validator directive
+          #emailCtrl="ngModel" → template ref to this control's NgModel instance
+                                 gives access to: .valid .invalid .touched .dirty .errors
+        -->
+        <input
+          [(ngModel)]="credentials.email"
+          name="email"
+          type="email"
+          required
+          email
+          #emailCtrl="ngModel"
+          placeholder="Enter email">
+
+        <!-- Show errors only after user has interacted (touched) with the field -->
+        <div *ngIf="emailCtrl.invalid && emailCtrl.touched">
+          <span *ngIf="emailCtrl.errors?.['required']">Email is required</span>
+          <span *ngIf="emailCtrl.errors?.['email']">Must be a valid email address</span>
+        </div>
+      </div>
+
+      <div>
+        <label>Password</label>
+        <input
+          [(ngModel)]="credentials.password"
+          name="password"
+          type="password"
+          required
+          minlength="8"          <!-- built-in: Angular validates minimum length -->
+          #passwordCtrl="ngModel"
+          placeholder="Enter password">
+
+        <div *ngIf="passwordCtrl.invalid && passwordCtrl.touched">
+          <span *ngIf="passwordCtrl.errors?.['required']">Password is required</span>
+          <span *ngIf="passwordCtrl.errors?.['minlength']">
+            Min {{ passwordCtrl.errors?.['minlength'].requiredLength }} characters
+            ({{ passwordCtrl.errors?.['minlength'].actualLength }} entered)
+          </span>
+        </div>
+      </div>
+
+      <!--
+        loginForm.invalid → true when ANY control in this NgForm is invalid
+        loginForm.pristine → true when NO control has been changed yet
+        Disable button while form is invalid OR while API call is running
+      -->
+      <button type="submit" [disabled]="loginForm.invalid || isLoading">
+        {{ isLoading ? 'Logging in...' : 'Login' }}
+      </button>
+
+      <!-- Debug panel (remove in production) -->
+      <pre *ngIf="showDebug">
+Form valid:   {{ loginForm.valid }}
+Form dirty:   {{ loginForm.dirty }}
+Form touched: {{ loginForm.touched }}
+Form value:   {{ loginForm.value | json }}
+      </pre>
+    </form>
+  `
+})
+export class LoginComponent {
+  // Simple flat object — ngModel binds directly to these properties
+  credentials = { email: '', password: '' };
+  isLoading = false;
+  showDebug = false;
+
+  constructor(private authService: AuthService, private router: Router) {}
+
+  // ngForm is passed in from the template — gives you full form state in TypeScript
+  onSubmit(form: NgForm): void {
+    if (form.invalid) return;  // safety check (button should already be disabled)
+
+    this.isLoading = true;
+    this.authService.login(this.credentials).subscribe({
+      next: () => {
+        form.resetForm();            // ← resets value AND all validation state (touched, dirty)
+        this.router.navigate(['/dashboard']);
+      },
+      error: () => { this.isLoading = false; }
+    });
+  }
+}
+
+
+// ─── EXAMPLE 2: REGISTRATION FORM WITH ALL VALIDATORS ────────────────────────
+
+@Component({
+  selector: 'app-register',
+  template: `
+    <form #regForm="ngForm" (ngSubmit)="onRegister(regForm)" novalidate>
+
+      <!-- TEXT INPUT — required + minlength + maxlength -->
+      <div>
+        <input
+          [(ngModel)]="user.firstName"
+          name="firstName"
+          required
+          minlength="2"
+          maxlength="50"
+          #firstNameCtrl="ngModel"
+          placeholder="First name">
+        <div *ngIf="firstNameCtrl.invalid && firstNameCtrl.touched">
+          <span *ngIf="firstNameCtrl.errors?.['required']">Required</span>
+          <span *ngIf="firstNameCtrl.errors?.['minlength']">Min 2 characters</span>
+          <span *ngIf="firstNameCtrl.errors?.['maxlength']">Max 50 characters</span>
+        </div>
+      </div>
+
+      <!-- EMAIL -->
+      <div>
+        <input
+          [(ngModel)]="user.email"
+          name="email"
+          type="email"
+          required
+          email
+          #emailCtrl="ngModel"
+          placeholder="Email">
+        <div *ngIf="emailCtrl.invalid && emailCtrl.touched">
+          <span *ngIf="emailCtrl.errors?.['required']">Required</span>
+          <span *ngIf="emailCtrl.errors?.['email']">Invalid email</span>
+        </div>
+      </div>
+
+      <!-- PATTERN VALIDATOR — phone number format -->
+      <div>
+        <input
+          [(ngModel)]="user.phone"
+          name="phone"
+          pattern="^[0-9]{10}$"    <!-- regex: exactly 10 digits -->
+          #phoneCtrl="ngModel"
+          placeholder="10-digit phone (optional)">
+        <div *ngIf="phoneCtrl.invalid && phoneCtrl.touched">
+          <span *ngIf="phoneCtrl.errors?.['pattern']">Must be exactly 10 digits</span>
+        </div>
+      </div>
+
+      <!-- NUMBER INPUT — min/max -->
+      <div>
+        <input
+          [(ngModel)]="user.age"
+          name="age"
+          type="number"
+          required
+          min="18"
+          max="120"
+          #ageCtrl="ngModel"
+          placeholder="Age">
+        <div *ngIf="ageCtrl.invalid && ageCtrl.touched">
+          <span *ngIf="ageCtrl.errors?.['required']">Required</span>
+          <span *ngIf="ageCtrl.errors?.['min']">Must be at least 18</span>
+          <span *ngIf="ageCtrl.errors?.['max']">Must be under 120</span>
+        </div>
+      </div>
+
+      <!-- SELECT -->
+      <div>
+        <select
+          [(ngModel)]="user.country"
+          name="country"
+          required
+          #countryCtrl="ngModel">
+          <option value="">-- Select country --</option>
+          <option *ngFor="let c of countries" [value]="c.code">{{ c.name }}</option>
+        </select>
+        <span *ngIf="countryCtrl.invalid && countryCtrl.touched">Country is required</span>
+      </div>
+
+      <!-- CHECKBOX -->
+      <div>
+        <input
+          [(ngModel)]="user.acceptTerms"
+          name="acceptTerms"
+          type="checkbox"
+          required
+          #termsCtrl="ngModel">
+        <label>I accept the terms and conditions</label>
+        <span *ngIf="termsCtrl.invalid && termsCtrl.touched">Must accept terms</span>
+      </div>
+
+      <!-- ngModelGroup — groups related controls into a sub-object -->
+      <!-- Equivalent to a nested FormGroup in Reactive Forms -->
+      <fieldset ngModelGroup="address" #addressGroup="ngModelGroup">
+        <legend>Address</legend>
+        <input [(ngModel)]="user.address.street" name="street" required placeholder="Street">
+        <input [(ngModel)]="user.address.city"   name="city"   required placeholder="City">
+        <input [(ngModel)]="user.address.zip"    name="zip"
+               pattern="^[0-9]{5}$" placeholder="ZIP (5 digits)">
+
+        <!-- Access group-level state via #addressGroup -->
+        <div *ngIf="addressGroup.invalid && addressGroup.touched">
+          Please complete all address fields
+        </div>
+      </fieldset>
+
+      <!-- Form-level submit button — disabled if ANY control is invalid -->
+      <button type="submit" [disabled]="regForm.invalid || isSubmitting">
+        {{ isSubmitting ? 'Registering...' : 'Register' }}
+      </button>
+
+      <!-- Trigger validation on all fields if user tries to submit empty form -->
+      <!-- (ngSubmit handles this, but you can also trigger manually) -->
+    </form>
+  `
+})
+export class RegisterComponent {
+  user = {
+    firstName: '',
+    email: '',
+    phone: '',
+    age: null as number | null,
+    country: '',
+    acceptTerms: false,
+    address: { street: '', city: '', zip: '' }
+  };
+
+  isSubmitting = false;
+  countries = [
+    { code: 'US', name: 'United States' },
+    { code: 'IN', name: 'India' },
+    { code: 'GB', name: 'United Kingdom' },
+  ];
+
+  constructor(private userService: UserService) {}
+
+  onRegister(form: NgForm): void {
+    if (form.invalid) {
+      // If user somehow bypasses disabled button, mark everything touched to show all errors
+      Object.values(form.controls).forEach(ctrl => ctrl.markAsTouched());
+      return;
+    }
+
+    this.isSubmitting = true;
+    this.userService.createUser(this.user).subscribe({
+      next: () => {
+        this.isSubmitting = false;
+        form.resetForm();   // ← clears values + resets pristine/touched/dirty state
+      },
+      error: () => { this.isSubmitting = false; }
+    });
+  }
+}
+
+
+// ─── EXAMPLE 3: DYNAMIC FORM (add/remove items without FormArray) ─────────────
+// Template-driven approach to dynamic lists using *ngFor + index-based names
+
+@Component({
+  selector: 'app-dynamic-td',
+  template: `
+    <form #dynForm="ngForm" (ngSubmit)="onSubmit(dynForm)">
+
+      <h3>Skills</h3>
+      <div *ngFor="let skill of skills; let i = index; trackBy: trackByIndex">
+        <input
+          [(ngModel)]="skills[i]"
+          [name]="'skill-' + i"    <!-- CRITICAL: each control needs a unique name -->
+          required
+          minlength="2"
+          [attr.placeholder]="'Skill ' + (i + 1)">
+        <button type="button" (click)="removeSkill(i)"
+                [disabled]="skills.length === 1">
+          Remove
+        </button>
+      </div>
+
+      <button type="button" (click)="addSkill()">+ Add Skill</button>
+
+      <button type="submit" [disabled]="dynForm.invalid">Save</button>
+    </form>
+  `
+})
+export class DynamicTdFormComponent {
+  skills: string[] = [''];   // start with one empty skill
+
+  addSkill(): void {
+    this.skills.push('');
+  }
+
+  removeSkill(index: number): void {
+    this.skills.splice(index, 1);
+  }
+
+  // CRITICAL: trackBy must use index, not value, for dynamic ngModel bindings
+  // WHY: ngModel binds by name. Without trackBy, Angular re-creates controls
+  //      on every change, losing validation state.
+  trackByIndex(index: number): number {
+    return index;
+  }
+
+  onSubmit(form: NgForm): void {
+    if (form.valid) {
+      console.log('Skills:', this.skills.filter(s => s.trim()));
+    }
+  }
+}
+
+
+// ─── TEMPLATE-DRIVEN: FORM STATE QUICK REFERENCE ─────────────────────────────
+/*
+  CONTROL STATE FLAGS (same on NgModel and NgForm):
+  ─────────────────────────────────────────────────
+  .valid      → all validators pass
+  .invalid    → at least one validator fails
+  .pristine   → value has NOT been changed by user
+  .dirty      → value HAS been changed
+  .untouched  → user has not focused + left the field
+  .touched    → user focused then blurred the field
+  .pending    → async validator is running
+  .errors     → object of active error keys, e.g. { required: true, minlength: { requiredLength: 8, actualLength: 3 } }
+
+  CSS CLASSES Angular adds automatically:
+  ─────────────────────────────────────────
+  .ng-valid / .ng-invalid
+  .ng-pristine / .ng-dirty
+  .ng-untouched / .ng-touched
+  Use these for styling: input.ng-invalid.ng-touched { border: 2px solid red; }
+
+  BUILT-IN VALIDATORS (used as HTML attributes):
+  ────────────────────────────────────────────────
+  required                  → field must have a value
+  minlength="n"             → min character length
+  maxlength="n"             → max character length
+  min="n"                   → min numeric value (for type="number")
+  max="n"                   → max numeric value
+  email                     → must be valid email format
+  pattern="regex"           → must match regular expression
+
+  PROGRAMMATIC CONTROL:
+  ────────────────────────────────────────────────
+  form.resetForm()          → reset values + validation state
+  form.resetForm({ email: 'default@test.com' })  → reset with values
+  form.setValue({...})      → set all values at once
+  ctrl.markAsTouched()      → manually mark a control as touched
+  ctrl.markAsDirty()        → manually mark as dirty
+*/
+```
+
+---
+
 ### Forms Comparison
 
-| Feature | React Hook Form | Angular Reactive Forms |
-|---------|----------------|----------------------|
-| Validation | Zod/Yup schemas | Built-in + custom validators |
-| Async Validation | Custom async validate | `AsyncValidator` |
-| Cross-field Validation | `.refine()` in schema | Form-level validators |
-| Dynamic Arrays | `useFieldArray` | `FormArray` |
-| Nested Objects | Dot notation paths | `FormGroup` nesting |
-| Performance | Uncontrolled (minimal re-renders) | Tree-shakable, OnPush friendly |
-| Type Safety | `z.infer<typeof schema>` | Typed `FormGroup<T>` (v14+) |
+| Feature | React Hook Form | Angular Template-Driven | Angular Reactive Forms |
+|---------|----------------|------------------------|----------------------|
+| **Setup** | `npm install react-hook-form` | Import `FormsModule` | Import `ReactiveFormsModule` |
+| **Validation location** | Zod/Yup schema in TS | HTML attributes (`required email minlength`) | TypeScript (`Validators.required`) |
+| **Two-way binding** | `register()` + `onChange` | `[(ngModel)]` | `formControlName` + value stream |
+| **Access control state** | `formState.errors.fieldName` | `#ref="ngModel"` in template | `form.get('field')?.errors` in TS |
+| **Async Validation** | `validate: async (val) => ...` | Not supported natively | `AsyncValidatorFn` |
+| **Cross-field Validation** | `.refine()` in schema | Not supported natively | Form-group level validator |
+| **Dynamic Arrays** | `useFieldArray` | `*ngFor` + index-based names | `FormArray` |
+| **Nested Objects** | Dot notation `profile.name` | `ngModelGroup` | Nested `FormGroup` |
+| **Unit testability** | Easy (pure functions) | Hard (needs DOM) | Easy (pure TypeScript) |
+| **Boilerplate** | Low | Very low | Medium |
+| **Best for** | React apps of any size | Simple Angular forms | Complex/dynamic Angular forms |
+| **Performance** | Uncontrolled (minimal re-renders) | OnPush compatible | OnPush + `valueChanges` stream |
+| **Type Safety** | `z.infer<typeof schema>` | Loose | Typed `FormGroup<T>` (v14+) |
+
+**Quick decision rule:**
+```
+Simple form (login, search, settings, 2–4 fields)?    → Template-Driven
+Complex form (multi-step, dynamic fields, unit tests)? → Reactive
+React app?                                             → React Hook Form + Zod
+```
 
 ---
 
@@ -4330,7 +4877,10 @@ import { map, catchError, tap, shareReplay, switchMap } from 'rxjs/operators';
 export class UserService {
   private baseUrl = '/api/users';
 
-  // Simple cache with BehaviorSubject
+  // BehaviorSubject<User[] | null> — reactive cache container
+  // WHY: BehaviorSubject holds the current cached value in memory.
+  //      Any component can immediately read .value synchronously, or subscribe for updates.
+  //      null = cache is empty / not yet loaded
   private usersCache$ = new BehaviorSubject<User[] | null>(null);
   private cacheValid = false;
 
@@ -4343,11 +4893,19 @@ export class UserService {
     }
 
     return this.http.get<User[]>(this.baseUrl).pipe(
+      // tap() — populate the BehaviorSubject cache as a side effect, don't alter the stream
+      // WHY: tap() is the RIGHT tool here because we want to store the result in the cache
+      //      AND pass the same users array down to the subscriber unchanged.
+      //      Using map() would require returning the value — tap() is cleaner for side effects.
       tap(users => {
-        this.usersCache$.next(users);
+        this.usersCache$.next(users);  // WHY: update shared state so all subscribers see fresh data
         this.cacheValid = true;
       }),
-      shareReplay(1)  // Share among multiple subscribers
+      // shareReplay(1) — multicast + cache the HTTP result for concurrent subscribers
+      // WHY: If 3 components call getUsers() simultaneously, without shareReplay
+      //      you'd get 3 separate HTTP requests. shareReplay(1) fires ONE request
+      //      and replays the cached result to all 3 subscribers.
+      shareReplay(1)
     );
   }
 
@@ -4366,31 +4924,34 @@ export class UserService {
     return this.http.get<User>(`${this.baseUrl}/${id}`);
   }
 
-  // POST
+  // POST — tap() invalidates cache after write so next getUsers() fetches fresh
   createUser(userData: CreateUserDto): Observable<User> {
     return this.http.post<User>(this.baseUrl, userData).pipe(
+      // tap() — invalidate cache as a side effect after successful creation
+      // WHY: The user list is now stale. tap() lets us bust the cache without
+      //      modifying the Observable's value (the created User still flows through)
       tap(() => this.invalidateCache())
     );
   }
 
-  // PUT
+  // PUT — same tap() cache-bust pattern as createUser
   updateUser(id: string, userData: UpdateUserDto): Observable<User> {
     return this.http.put<User>(`${this.baseUrl}/${id}`, userData).pipe(
-      tap(() => this.invalidateCache())
+      tap(() => this.invalidateCache())  // WHY: updated user means cached list is stale
     );
   }
 
-  // PATCH
+  // PATCH — same tap() cache-bust pattern
   patchUser(id: string, partialData: Partial<User>): Observable<User> {
     return this.http.patch<User>(`${this.baseUrl}/${id}`, partialData).pipe(
-      tap(() => this.invalidateCache())
+      tap(() => this.invalidateCache())  // WHY: partial update also invalidates the list cache
     );
   }
 
-  // DELETE
+  // DELETE — same tap() cache-bust pattern
   deleteUser(id: string): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/${id}`).pipe(
-      tap(() => this.invalidateCache())
+      tap(() => this.invalidateCache())  // WHY: user deleted — list cache is definitely stale
     );
   }
 
@@ -4404,11 +4965,15 @@ export class UserService {
       formData,
       {
         reportProgress: true,
-        observe: 'events'  // Get upload progress
+        observe: 'events'  // WHY: 'events' mode emits UploadProgress + Response events for progress bars
       }
     ).pipe(
-      // Filter to only get the response
+      // filter() — only let the final Response event through (ignore UploadProgress events)
+      // WHY: With observe:'events', the stream emits many HttpEvent types (Sent, UploadProgress, Response).
+      //      We only care about the final Response — filter() drops everything else.
       filter(event => event.type === HttpEventType.Response),
+      // map() — extract the response body from the HttpResponse wrapper
+      // WHY: The HttpResponse wraps the actual body. map() unwraps it to get { url: string }
       map(event => (event as HttpResponse<{ url: string }>).body!)
     );
   }
@@ -4448,10 +5013,19 @@ export class UserListComponent implements OnInit {
   addUser(): void {
     this.creating = true;
     this.userService.createUser({ name: 'New User' }).pipe(
-      switchMap(() => this.userService.getUsers(true)),  // Refresh list
+      // switchMap() — after create succeeds, switch to a fresh getUsers() call
+      // WHY: We need to chain TWO sequential HTTP calls: POST (create) → GET (refresh list).
+      //      switchMap flattens the inner Observable (getUsers) into the outer pipe chain.
+      //      The created user is discarded (we pass void) and we switch to fetching the full list.
+      //      Using concatMap would also work here; switchMap is fine since we only fire once.
+      switchMap(() => this.userService.getUsers(true)),  // forceRefresh=true bypasses cache
+
+      // finalize() — run cleanup code whether the observable completes OR errors
+      // WHY: Like a finally{} block for Observables. Ensures creating=false is reset
+      //      regardless of success or failure — prevents stuck "Adding..." button state.
       finalize(() => this.creating = false)
     ).subscribe({
-      next: users => this.users$ = of(users),
+      next: users => this.users$ = of(users),  // of(users) wraps array back as Observable for async pipe
       error: err => this.error = err.message
     });
   }
@@ -4624,6 +5198,14 @@ const Form = () => {
 
 ```typescript
 // RxJS Fundamentals for React Developers
+// ─────────────────────────────────────────────────────────────────────────────
+// MENTAL MODEL: Think of RxJS Observables as "smart arrays that emit over time"
+//   Regular Array:   [1, 2, 3]               → all values available NOW
+//   Promise:         fetch('/api')            → ONE value, in the FUTURE
+//   Observable:      interval(1000)           → MANY values, over TIME, cancellable
+//
+// The key insight: pipe() chains operators like UNIX pipes → each transforms the stream
+// ─────────────────────────────────────────────────────────────────────────────
 
 import {
   Observable, Subject, BehaviorSubject, ReplaySubject,
@@ -4640,159 +5222,252 @@ import {
 } from 'rxjs/operators';
 
 // ============================================
-// CREATION OPERATORS
+// CREATION OPERATORS — Wrap existing data sources as Observables
 // ============================================
 
-// From Promise (what React devs know)
+// from() — Wraps a Promise, array, or iterable as an Observable
+// WHY: Bridges the React/JS world (Promises) with the Angular/RxJS world (Observables)
+//      so you can chain pipe() operators on top of async data sources
 const promise$ = from(fetch('/api/users').then(r => r.json()));
 
-// From array
+// from(array) — Converts an array into a stream that emits each item sequentially
+// WHY: Lets you apply RxJS operators (map, filter, mergeMap) over array items
 const array$ = from([1, 2, 3, 4, 5]);
 
-// From event
+// fromEvent() — Turns DOM events into an Observable stream
+// WHY: Instead of addEventListener + removeEventListener (manual cleanup),
+//      fromEvent gives you a stream you can pipe, filter, debounce, and
+//      unsubscribe cleanly with takeUntil
 const click$ = fromEvent(document, 'click');
 
-// Timer / Interval
-const timer$ = timer(1000);  // Emit once after 1s
-const interval$ = interval(1000);  // Emit every 1s
+// timer(ms) — Emits ONE value after a delay, then completes
+// WHY: Use for one-shot delays, retry backoffs, or debouncing without setInterval.
+//      Unlike setTimeout, it's cancellable via unsubscribe()
+const timer$ = timer(1000);
+
+// interval(ms) — Emits incrementing numbers repeatedly (like setInterval, but as a stream)
+// WHY: Use for polling. Unlike setInterval, the whole polling pipeline can be
+//      paused, resumed, or cancelled by changing upstream Observables
+const interval$ = interval(1000);
 
 // ============================================
-// SUBJECTS (Observable + Observer)
+// SUBJECTS (Observable + Observer) — The bridges between imperative and reactive code
 // ============================================
 
-// Subject - Basic pub/sub
+// Subject — Pure event bus: no memory, no initial value
+// WHY: Use when you want to manually push values into a stream.
+//      Like an event emitter (Node.js EventEmitter), but as an Observable.
+//      Late subscribers MISS past values — only get future emissions.
+// MENTAL MODEL: A radio broadcast — tune in late and you've missed what was said
 const subject = new Subject<string>();
-subject.next('Hello');  // Nothing happens (no subscribers)
+subject.next('Hello');  // Nothing happens — no subscribers yet
 subject.subscribe(val => console.log(val));
-subject.next('World');  // Logs: "World"
+subject.next('World');  // Logs: "World" — subscriber only gets this one
 
-// BehaviorSubject - Has current value, emits to new subscribers
-const behavior = new BehaviorSubject<number>(0);  // Initial value required
-console.log(behavior.value);  // 0 (sync access)
+// BehaviorSubject — Holds current state + emits it to every new subscriber
+// WHY: The #1 tool for shared state in Angular services.
+//      New subscribers ALWAYS get the current value immediately (no missed data).
+//      Use for: currentUser$, cartItems$, selectedTheme$, isLoading$
+// MENTAL MODEL: A TV with replay — any viewer who tunes in sees the current frame
+const behavior = new BehaviorSubject<number>(0);  // Initial value REQUIRED
+console.log(behavior.value);  // 0 — can read current value synchronously
 behavior.subscribe(val => console.log('Sub1:', val));  // Immediately logs: 0
-behavior.next(1);  // Logs: 1
-behavior.subscribe(val => console.log('Sub2:', val));  // Immediately logs: 1 (current value)
+behavior.next(1);  // Logs: 1 to Sub1
+behavior.subscribe(val => console.log('Sub2:', val));  // Immediately logs: 1 (current!)
 
-// ReplaySubject - Replays N values to new subscribers
+// ReplaySubject(n) — Buffers the last N values, replays them to every new subscriber
+// WHY: Use when late subscribers need history (e.g., last 3 notifications,
+//      audit log, or chat messages that must be visible to latecomers)
+// MENTAL MODEL: DVR recording — rewinds last N frames for any new viewer
 const replay = new ReplaySubject<number>(3);  // Buffer last 3 values
 replay.next(1); replay.next(2); replay.next(3); replay.next(4);
-replay.subscribe(val => console.log(val));  // Logs: 2, 3, 4
+replay.subscribe(val => console.log(val));  // Logs: 2, 3, 4 (skips 1 — buffer is 3)
 
 // ============================================
-// TRANSFORMATION OPERATORS
+// TRANSFORMATION OPERATORS — Shape data as it flows through the pipe
 // ============================================
 
-// map - Transform each value
+// map() — Transform each emitted value into a new value (same as Array.map)
+// WHY: Most common operator. Use to project API response fields, convert types,
+//      or compute derived values without breaking the stream
 of(1, 2, 3).pipe(
-  map(x => x * 10)
+  map(x => x * 10)  // WHY: scale each number — same value shape, different magnitude
 ).subscribe(console.log);  // 10, 20, 30
 
-// filter - Only emit matching values
+// filter() — Only let matching values through (same as Array.filter)
+// WHY: Gate the stream. Avoids unnecessary downstream processing.
+//      Example: filter(event => event.type === 'click') on a mixed event stream
 of(1, 2, 3, 4, 5).pipe(
-  filter(x => x % 2 === 0)
+  filter(x => x % 2 === 0)  // WHY: only even numbers pass — odd numbers are dropped
 ).subscribe(console.log);  // 2, 4
 
-// tap - Side effects without modifying stream
+// tap() — Run a side effect on each value WITHOUT changing it
+// WHY: Perfect for debugging (log values mid-pipe), analytics, or updating external
+//      state (BehaviorSubject) without interrupting the data flow.
+//      Never mutate the stream value inside tap — it's for side effects only.
 of(1, 2, 3).pipe(
-  tap(x => console.log('Before:', x)),
+  tap(x => console.log('Before:', x)),  // WHY: inspect value BEFORE map transforms it
   map(x => x * 10),
-  tap(x => console.log('After:', x))
+  tap(x => console.log('After:', x))   // WHY: inspect the transformed value — great for debugging
 ).subscribe();
 
-// scan - Like reduce, but emits each accumulated value
+// scan() — Running accumulator that emits each intermediate result (like Array.reduce but streams)
+// WHY: Build up state incrementally from a stream of actions/events.
+//      Use for: running totals, accumulating items into arrays,
+//      Redux-style state machines from an action stream
 of(1, 2, 3, 4, 5).pipe(
-  scan((acc, val) => acc + val, 0)
+  scan((acc, val) => acc + val, 0)  // WHY: running sum — emits 1, 3, 6, 10, 15 (not just final 15)
 ).subscribe(console.log);  // 1, 3, 6, 10, 15
 
 // ============================================
-// FLATTENING OPERATORS (CRITICAL!)
+// FLATTENING OPERATORS — Handle Observables that produce inner Observables
 // ============================================
+// MENTAL MODEL: You have a stream of search queries. Each query triggers an HTTP call.
+// You now have an Observable OF Observables. These operators "flatten" that into one stream.
+// The ONLY difference between them is what happens when a NEW outer value arrives
+// while an inner Observable is still running.
 
-// switchMap - Cancel previous, switch to new (MOST COMMON)
-// Use for: Search, navigation, latest value matters
+// ─────────────────────────────────────
+// switchMap() — CANCEL previous inner, SWITCH to new one (MOST COMMON in Angular)
+// ─────────────────────────────────────
+// WHY: Prevents stale data. If user types "ang" then "angu" before the first HTTP
+//      completes, the "ang" request is cancelled. Only the result for "angu" arrives.
+// USE FOR: Autocomplete/search, route param changes, any "latest value wins" scenario
+// DANGER: Do NOT use for writes (PUT/POST/DELETE) — cancelling mid-write corrupts data
 searchInput$.pipe(
-  debounceTime(300),
+  debounceTime(300),    // WHY: wait 300ms after user stops typing before firing HTTP
   switchMap(query => this.http.get(`/search?q=${query}`))
-  // If user types again before response, previous request is cancelled
+  // ↑ If user types again before response, previous HTTP request is CANCELLED
+  // Only the most recent query's result will reach .subscribe()
 ).subscribe(results => this.results = results);
 
-// mergeMap - Run all in parallel
-// Use for: Independent requests, order doesn't matter
+// ─────────────────────────────────────
+// mergeMap() — Run ALL inner Observables CONCURRENTLY (parallel)
+// ─────────────────────────────────────
+// WHY: When order doesn't matter and you want maximum throughput.
+//      All requests fire immediately — no waiting, no cancellation.
+// USE FOR: Fetching multiple independent users/files in parallel, bulk operations
+// DANGER: No backpressure — too many concurrent requests can overwhelm the server
 userIds$.pipe(
   mergeMap(id => this.http.get(`/users/${id}`))
-  // All requests run simultaneously
+  // ↑ All requests fire simultaneously — responses arrive in any order
 ).subscribe(user => this.users.push(user));
 
-// concatMap - Run sequentially, maintain order
-// Use for: Order matters, queue operations
+// ─────────────────────────────────────
+// concatMap() — Queue inner Observables SEQUENTIALLY (one at a time, in order)
+// ─────────────────────────────────────
+// WHY: When ORDER matters. Each inner Observable must complete before the next starts.
+// USE FOR: Sequential saves, ordered API calls, step-by-step wizard submissions
+// TRADE-OFF: Slowest — each operation waits for the previous (but guarantees order)
 saveOperations$.pipe(
   concatMap(data => this.http.post('/save', data))
-  // Each save waits for previous to complete
+  // ↑ Save 1 must complete before Save 2 starts. Order guaranteed.
 ).subscribe();
 
-// exhaustMap - Ignore new while processing
-// Use for: Prevent double-submit, button clicks
+// ─────────────────────────────────────
+// exhaustMap() — IGNORE new values while current inner is still running
+// ─────────────────────────────────────
+// WHY: Prevents double-submissions. While the login HTTP call is in flight,
+//      any additional button clicks are silently dropped.
+// USE FOR: Login buttons, form submit buttons, any "one at a time" action
+// MENTAL MODEL: A bouncer — only lets one person in at a time; latecomers wait outside (dropped)
 submitButton$.pipe(
   exhaustMap(() => this.http.post('/submit', this.form.value))
-  // Clicks while request is pending are ignored
+  // ↑ All clicks during the active request are IGNORED — no double-submit possible
 ).subscribe();
 
+// ┌──────────────────────────────────────────────────────────────┐
+// │  FLATMAP DECISION CHART                                       │
+// │  switchMap  → Latest wins, cancel old  (search, navigation)  │
+// │  mergeMap   → All run in parallel      (bulk fetch)          │
+// │  concatMap  → Sequential queue         (ordered writes)       │
+// │  exhaustMap → Ignore while busy        (login, submit)       │
+// └──────────────────────────────────────────────────────────────┘
+
 // ============================================
-// COMBINATION OPERATORS
+// COMBINATION OPERATORS — Merge multiple streams into one
 // ============================================
 
-// combineLatest - Emit when any source emits (after all have emitted once)
+// combineLatest() — Wait for ALL sources to emit once, then re-emit on ANY change
+// WHY: Build a view-model from multiple independent data sources.
+//      Whenever user$ OR settings$ emits a new value, you get a fresh combined snapshot.
+//      Critical for dashboards, filter pages, or any UI driven by multiple observables.
+// GOTCHA: Does NOT emit until ALL sources have emitted at least once
 const user$ = this.store.select(selectUser);
 const settings$ = this.store.select(selectSettings);
 
 combineLatest([user$, settings$]).pipe(
-  map(([user, settings]) => ({ user, settings }))
+  map(([user, settings]) => ({ user, settings }))  // WHY: merge into single viewModel object
 ).subscribe(data => this.viewModel = data);
 
-// forkJoin - Wait for all to complete, emit final values
+// forkJoin() — Like Promise.all: wait for ALL to COMPLETE, emit only their final values
+// WHY: When you need multiple HTTP calls to ALL finish before rendering the page.
+//      Once any source errors, the whole forkJoin fails (like Promise.all).
+// USE FOR: Page init that requires data from 3+ endpoints simultaneously
+// GOTCHA: If any source never completes, forkJoin never emits
 forkJoin({
   user: this.http.get<User>('/user'),
   posts: this.http.get<Post[]>('/posts'),
   comments: this.http.get<Comment[]>('/comments')
 }).subscribe(({ user, posts, comments }) => {
-  // All three requests completed
+  // ↑ ALL three requests completed — data is fully available here
 });
 
-// merge - Combine multiple streams into one
+// merge() — Combine multiple streams, pass through ALL values from ALL sources
+// WHY: Listen to multiple event sources simultaneously as one unified stream.
+//      Unlike combineLatest, each value passes through independently (no combining).
+// USE FOR: Listening to multiple button clicks, multiple event types, multiple data feeds
 merge(
-  fromEvent(saveBtn, 'click').pipe(map(() => 'save')),
-  fromEvent(deleteBtn, 'click').pipe(map(() => 'delete'))
+  fromEvent(saveBtn, 'click').pipe(map(() => 'save')),    // WHY: normalise click → action string
+  fromEvent(deleteBtn, 'click').pipe(map(() => 'delete')) // WHY: both clicks go to one handler
 ).subscribe(action => this.handleAction(action));
 
 // ============================================
-// ERROR HANDLING
+// ERROR HANDLING — Handle failures gracefully without breaking the stream
 // ============================================
 
 this.http.get('/api/data').pipe(
-  retry(3),  // Retry up to 3 times on error
+  // retry(n) — Re-subscribe to the source Observable up to n times on error
+  // WHY: Handles transient network failures automatically (503s, timeouts)
+  //      without any manual retry logic. Counts fresh from 1 each time.
+  retry(3),
+
+  // catchError() — Intercept an error and recover by returning a new Observable
+  // WHY: Like try/catch for async streams. Returning of([]) means the stream
+  //      CONTINUES with an empty array instead of crashing.
+  //      Returning throwError() re-throws so upstream handlers can catch it.
   catchError(error => {
     console.error('Error:', error);
-    return of([]);  // Return fallback value
-    // Or: return throwError(() => error);  // Re-throw
+    return of([]);           // ← recover with fallback value — stream survives
+    // return throwError(() => error);  // ← re-throw — propagates to subscribe's error handler
   })
 ).subscribe();
 
-// retryWhen with exponential backoff
+// retryWhen() + scan() + delayWhen() — Exponential backoff retry strategy
+// WHY: Don't hammer a failing server. Wait 1s, 2s, 4s, 8s between retries.
+//      retryWhen gives you control over WHEN to retry (vs retry which retries immediately).
+//      scan() tracks the retry count. delayWhen() delays based on that count.
 this.http.get('/api/data').pipe(
   retryWhen(errors => errors.pipe(
+    // scan() — accumulate retry count; throw after 3 to stop retrying
     scan((retryCount, error) => {
-      if (retryCount >= 3) throw error;
+      if (retryCount >= 3) throw error;  // WHY: bail out after 3 attempts
       return retryCount + 1;
     }, 0),
+    // delayWhen() — dynamic delay: 2^retryCount seconds (1s, 2s, 4s...)
+    // WHY: Exponential backoff prevents thundering herd on a recovering server
     delayWhen(retryCount => timer(Math.pow(2, retryCount) * 1000))
   ))
 ).subscribe();
 
 // ============================================
-// PRACTICAL PATTERNS
+// PRACTICAL PATTERNS — Real-world compositions of the above operators
 // ============================================
 
-// 1. Typeahead Search
+// ─────────────────────────────────────
+// PATTERN 1: Typeahead Search
+// Operators: debounceTime → distinctUntilChanged → filter → switchMap → catchError → shareReplay
+// ─────────────────────────────────────
 @Component({
   template: `<input [formControl]="searchControl">`
 })
@@ -4802,61 +5477,123 @@ export class SearchComponent {
 
   constructor(private searchService: SearchService) {
     this.results$ = this.searchControl.valueChanges.pipe(
+      // debounceTime(300) — wait 300ms after the user STOPS typing
+      // WHY: Without this, every single keystroke fires an HTTP call (terrible UX + performance)
       debounceTime(300),
+
+      // distinctUntilChanged() — skip if value hasn't changed since last emission
+      // WHY: If user types "ang" then clicks elsewhere and back, value is still "ang"
+      //      — no need to re-fetch the same results
       distinctUntilChanged(),
+
+      // filter() — only proceed if query is long enough to be meaningful
+      // WHY: Prevents fetching results for 1-character queries ("a" would return thousands)
       filter(query => query.length >= 2),
+
+      // switchMap() — cancel previous HTTP call, fire new one for latest query
+      // WHY: If user types fast, only the LAST query's HTTP call matters.
+      //      Previous in-flight calls are cancelled — prevents race conditions and stale results
       switchMap(query => this.searchService.search(query).pipe(
-        catchError(() => of([]))  // Don't break on error
+        // catchError() INSIDE switchMap — critical placement
+        // WHY: If placed inside, only this search fails gracefully.
+        //      If placed outside, any error would TERMINATE the entire results$ stream
+        catchError(() => of([]))  // recover with empty array — search box stays functional
       )),
-      shareReplay(1)  // Share result among template subscriptions
+
+      // shareReplay(1) — multicast the result to multiple template subscriptions
+      // WHY: The template may have multiple | async pipes consuming results$.
+      //      Without shareReplay, each async pipe would trigger a separate HTTP call.
+      //      shareReplay(1) executes ONE HTTP call and shares the cached result.
+      shareReplay(1)
     );
   }
 }
 
-// 2. Polling with pause/resume
+// ─────────────────────────────────────
+// PATTERN 2: Polling with pause/resume
+// Operators: BehaviorSubject → switchMap → EMPTY / interval → startWith → shareReplay
+// ─────────────────────────────────────
 export class PollingService {
+  // BehaviorSubject<boolean> — current pause state; false = running
+  // WHY: Gives us a reactive on/off switch. Any change immediately affects data$
   private pause$ = new BehaviorSubject<boolean>(false);
 
   data$ = this.pause$.pipe(
-    switchMap(paused => paused ? EMPTY : interval(5000).pipe(
-      startWith(0),
-      switchMap(() => this.http.get('/api/data'))
-    )),
+    // switchMap() — react to pause state changes
+    // WHY: When pause$ flips from false→true, switchMap CANCELS the active interval.
+    //      When it flips back, a new interval starts fresh.
+    switchMap(paused => paused
+      ? EMPTY  // WHY: EMPTY completes immediately → effectively stops polling
+      : interval(5000).pipe(
+          // startWith(0) — trigger immediately on subscribe (don't wait 5s for first tick)
+          // WHY: Users see data on load, not after a 5 second blank screen
+          startWith(0),
+          // switchMap() nested — for each tick, fetch fresh data
+          // WHY: Cancel any in-flight HTTP from the previous tick if still pending
+          switchMap(() => this.http.get('/api/data'))
+        )
+    ),
+    // shareReplay(1) — all subscribers share one active poll, get last value on subscribe
+    // WHY: If 5 components subscribe, there's still only ONE interval running
     shareReplay(1)
   );
 
-  pause() { this.pause$.next(true); }
-  resume() { this.pause$.next(false); }
+  pause()  { this.pause$.next(true);  }  // flip BehaviorSubject → kills interval via switchMap
+  resume() { this.pause$.next(false); }  // flip BehaviorSubject → restarts interval via switchMap
 }
 
-// 3. Optimistic updates
+// ─────────────────────────────────────
+// PATTERN 3: Optimistic updates
+// Operators: of() → merge() → catchError
+// ─────────────────────────────────────
 updateUser(user: User): Observable<User> {
-  const optimistic$ = of(user);  // Immediately return optimistic value
+  // of(user) — emit the local user object immediately (no HTTP wait)
+  // WHY: UI updates instantly, making the app feel snappy
+  const optimistic$ = of(user);
+
   const server$ = this.http.put<User>(`/users/${user.id}`, user).pipe(
+    // catchError() — if server rejects the update, revert by re-fetching server state
+    // WHY: Optimistic update failed → show error + rollback to truth from server
     catchError(error => {
       this.notificationService.error('Update failed, reverting...');
-      return this.http.get<User>(`/users/${user.id}`);  // Revert to server state
+      return this.http.get<User>(`/users/${user.id}`);  // revert to real server state
     })
   );
 
+  // merge() — emit optimistic value FIRST, then server value when it arrives
+  // WHY: Component sees instant update (optimistic$) then final value (server$).
+  //      If server confirms: same value = no visual change.
+  //      If server rejects: catchError provides the reverted value.
   return merge(
     optimistic$,
-    server$.pipe(delay(0))  // Server response comes after optimistic
+    server$.pipe(delay(0))  // WHY: delay(0) puts server$ in next microtask after optimistic$
   );
 }
 
-// 4. Caching with expiry
+// ─────────────────────────────────────
+// PATTERN 4: HTTP Caching with expiry
+// Operators: shareReplay → timeout → catchError
+// ─────────────────────────────────────
 private cache$ = new Map<string, Observable<any>>();
 private cacheTime = 5 * 60 * 1000;  // 5 minutes
 
 getData(key: string): Observable<Data> {
   if (!this.cache$.has(key)) {
     const request$ = this.http.get<Data>(`/api/${key}`).pipe(
+      // shareReplay({ bufferSize: 1, refCount: true }) — cache + multicast
+      // WHY: bufferSize:1 = keep last value. refCount:true = clear when all unsubscribe.
+      //      Multiple components calling getData('users') share ONE HTTP call.
       shareReplay({ bufferSize: 1, refCount: true }),
+
+      // timeout(ms) — throw an error if no emission within cacheTime
+      // WHY: Forces cache expiry — after 5 minutes, the next subscriber triggers a fresh fetch
       timeout(this.cacheTime),
+
+      // catchError() — on timeout or error, remove stale cache entry and retry fresh
+      // WHY: Ensures stale cache entries don't serve expired data indefinitely
       catchError(() => {
-        this.cache$.delete(key);  // Remove from cache on expiry/error
-        return this.getData(key);  // Retry
+        this.cache$.delete(key);  // evict stale entry
+        return this.getData(key);  // recursive retry with fresh HTTP call
       })
     );
     this.cache$.set(key, request$);
@@ -4864,7 +5601,10 @@ getData(key: string): Observable<Data> {
   return this.cache$.get(key)!;
 }
 
-// 5. Coordinated loading state
+// ─────────────────────────────────────
+// PATTERN 5: Coordinated loading state (loading/error/data ViewModel)
+// Operators: Subject → switchMap → map → startWith → catchError
+// ─────────────────────────────────────
 @Component({
   template: `
     <div *ngIf="vm$ | async as vm">
@@ -4875,22 +5615,37 @@ getData(key: string): Observable<Data> {
   `
 })
 export class DataComponent {
+  // Subject<void> — manual trigger (no value needed, just the signal)
+  // WHY: Using a Subject as a trigger lets you re-fire the data load from refresh()
+  //      without re-subscribing. Push void → data$ pipeline runs again.
   private load$ = new Subject<void>();
 
   vm$ = this.load$.pipe(
+    // switchMap() — when load$ fires, cancel any in-flight HTTP, start fresh
+    // WHY: If user hits "Refresh" rapidly, only the LAST click's HTTP call completes
     switchMap(() => this.dataService.getData().pipe(
+      // map() — wrap successful data in the ViewModel shape
       map(data => ({ loading: false, error: null, data })),
+
+      // startWith() — emit loading state BEFORE the HTTP call completes
+      // WHY: Without this, the template shows nothing until data arrives.
+      //      With this, loading spinner shows immediately when load$ fires.
+      //      MUST be INSIDE switchMap so each refresh resets to loading: true
       startWith({ loading: true, error: null, data: null }),
+
+      // catchError() INSIDE switchMap — recover per-request, not globally
+      // WHY: If placed outside, a single HTTP error would kill vm$ permanently.
+      //      Placed inside, each failed request emits the error state and the stream lives on.
       catchError(error => of({ loading: false, error: error.message, data: null }))
     ))
   );
 
   ngOnInit() {
-    this.load$.next();
+    this.load$.next();  // WHY: kick off the initial load
   }
 
   refresh() {
-    this.load$.next();
+    this.load$.next();  // WHY: trigger pipeline again — switchMap cancels old, starts new
   }
 }
 ```
