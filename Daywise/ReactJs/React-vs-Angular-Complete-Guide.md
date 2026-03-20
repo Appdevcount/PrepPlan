@@ -1858,16 +1858,77 @@ export class AppModule {}
 // It acts as a gatekeeper: return true → allow navigation,
 //                          return false/UrlTree → block and optionally redirect.
 //
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// canActivate  vs  canLoad  — THE KEY DIFFERENCE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//
+// ┌─────────────────────────────────────────────────────────────────────────┐
+// │  canActivate  — controls whether a route can be RENDERED                │
+// │  canLoad      — controls whether the JS bundle is even DOWNLOADED       │
+// └─────────────────────────────────────────────────────────────────────────┘
+//
+//  WITHOUT canLoad  (only canActivate on a lazy route):
+//  ─────────────────────────────────────────────────────
+//  User navigates to /admin
+//        │
+//        ▼
+//  Angular downloads admin.chunk.js  ← ⚠️ JS is fetched from server HERE
+//        │                              (unauthenticated user now has the code)
+//        ▼
+//  canActivate() runs — returns false/UrlTree
+//        │
+//        ▼
+//  Redirect to /login  (bundle already downloaded — too late to protect it)
+//
+//  WITH canLoad  (guard on the lazy load itself):
+//  ──────────────────────────────────────────────
+//  User navigates to /admin
+//        │
+//        ▼
+//  canLoad() runs — returns false/UrlTree  ← ✅ checked BEFORE any download
+//        │
+//        ▼
+//  Redirect to /login  (admin.chunk.js was NEVER fetched — bundle is protected)
+//
+// ─────────────────────────────────────────────────────────────────────────────
+// WHEN TO USE WHICH:
+//
+//  canActivate   → use on EVERY protected route (eager or lazy).
+//                  Runs every visit, so it re-validates the session on each nav.
+//                  E.g. token expired mid-session → next navigation is caught here.
+//
+//  canLoad       → use ONLY on lazy-loaded routes (loadChildren / loadComponent).
+//                  Prevents the bundle download entirely for unauthorized users.
+//                  Runs ONCE — when the module is first loaded. Subsequent visits
+//                  to the same lazy route skip canLoad (bundle is already in memory).
+//
+//  BEST PRACTICE: use BOTH together on sensitive lazy routes:
+//    canActivate: [AuthGuard]  — re-validates on every visit (session expiry etc.)
+//    canLoad:     [AuthGuard]  — prevents initial bundle download
+//
+// ─────────────────────────────────────────────────────────────────────────────
+// SIDE-BY-SIDE COMPARISON:
+// ┌──────────────────┬───────────────────────────┬────────────────────────────┐
+// │ Aspect           │ canActivate               │ canLoad                    │
+// ├──────────────────┼───────────────────────────┼────────────────────────────┤
+// │ Called when      │ Every navigation to route │ First load of lazy module  │
+// │ Protects         │ Route rendering/view      │ JS bundle download         │
+// │ Works on         │ Eager + lazy routes       │ Lazy routes ONLY           │
+// │ Runs again?      │ Yes, every visit          │ No, only first time        │
+// │ Access to route  │ ActivatedRouteSnapshot    │ Route + Segments           │
+// │ Can redirect?    │ Yes (UrlTree)             │ Yes (UrlTree)              │
+// │ Session expiry   │ ✅ catches it             │ ❌ won't re-run            │
+// │ Bundle security  │ ❌ bundle already loaded  │ ✅ prevents download       │
+// └──────────────────┴───────────────────────────┴────────────────────────────┘
+//
 // WHEN DOES THE ROUTER CALL EACH INTERFACE METHOD?
 // ┌─────────────────────┬───────────────────────────────────────────────────────┐
 // │ Interface           │ Called when...                                        │
 // ├─────────────────────┼───────────────────────────────────────────────────────┤
 // │ CanActivate         │ User navigates TO a route (every visit)               │
 // │ CanActivateChild    │ User navigates to any CHILD route under this parent   │
-// │ CanLoad             │ Lazy-loaded module is about to be DOWNLOADED          │
+// │ CanLoad             │ Lazy-loaded module is about to be DOWNLOADED (once)   │
 // └─────────────────────┴───────────────────────────────────────────────────────┘
-// CanLoad is the most powerful: it prevents the bundle from even being fetched
-// if the user is not logged in — saves bandwidth, hides protected code entirely.
 import { Injectable } from '@angular/core';
 import { CanActivate, CanActivateChild, CanLoad, Router, UrlTree } from '@angular/router';
 import { Observable } from 'rxjs';
@@ -1880,24 +1941,46 @@ import { selectIsAuthenticated } from '../store/auth.selectors';
 export class AuthGuard implements CanActivate, CanActivateChild, CanLoad {
   constructor(private store: Store, private router: Router) {}
 
-  // Called by the router when navigating directly to a guarded route.
-  // e.g. user hits /dashboard — router calls canActivate() before rendering
+  // ── canActivate ─────────────────────────────────────────────────────────────
+  // WHEN: Router calls this on EVERY navigation attempt to this route.
+  // WHAT IT PROTECTS: whether the route's component is rendered.
+  // KEY POINT: by the time canActivate runs on a lazy route, the JS chunk has
+  //   already been downloaded. canActivate guards the VIEW, not the download.
+  // USE CASE: re-validate the session on every visit (catches token expiry,
+  //   logout in another tab, role changes mid-session).
+  // RECEIVES: ActivatedRouteSnapshot (path params, data, queryParams)
   canActivate(): Observable<boolean | UrlTree> {
     return this.checkAuth();
+    // → true        : component renders normally
+    // → UrlTree     : router redirects, component never renders
   }
 
-  // Called when navigating to a CHILD of a guarded route.
-  // e.g. parent route has canActivateChild: [AuthGuard] — every child is protected
-  // without needing to repeat the guard on each child route definition
+  // ── canActivateChild ─────────────────────────────────────────────────────────
+  // WHEN: Router calls this before activating ANY child route of the parent.
+  // WHAT IT PROTECTS: child route rendering under a parent route.
+  // WHY USE IT: instead of adding canActivate:[AuthGuard] on every child route
+  //   individually, put canActivateChild:[AuthGuard] once on the parent and ALL
+  //   children are protected automatically — DRY, easier to maintain.
+  // DIFFERENCE FROM canActivate: canActivate protects the parent route itself;
+  //   canActivateChild protects the children without restricting the parent shell.
   canActivateChild(): Observable<boolean | UrlTree> {
     return this.checkAuth();
   }
 
-  // Called BEFORE the lazy-loaded chunk is downloaded from the server.
-  // Strongest protection: unauthenticated users never receive the JS bundle.
-  // canActivate() only blocks rendering — the JS is already downloaded by then.
+  // ── canLoad ──────────────────────────────────────────────────────────────────
+  // WHEN: Router calls this BEFORE fetching the lazy-loaded JS chunk from server.
+  // WHAT IT PROTECTS: the network request for the bundle itself.
+  // KEY DIFFERENCE FROM canActivate:
+  //   canActivate  → bundle downloaded first, THEN guard runs (protects rendering)
+  //   canLoad      → guard runs FIRST, bundle only downloads if guard passes
+  //                  (protects both rendering AND the JS source code)
+  // RUNS ONLY ONCE: after the module loads into memory, canLoad is never called
+  //   again for that module — use canActivate alongside it for per-visit checks.
+  // USE CASE: prevent unauthenticated users from ever receiving admin/feature code.
+  //   Saves bandwidth + hides proprietary business logic from anonymous users.
   canLoad(): Observable<boolean | UrlTree> {
     return this.checkAuth();
+    // If false/UrlTree → loadChildren() import() is NEVER called → chunk stays on server
   }
 
   // ─── Shared auth logic ───────────────────────────────────────────────────────
@@ -1990,17 +2073,44 @@ export class RoleGuard implements CanActivate {
   }
 }
 
-// ─── Usage in routing ─────────────────────────────────────────────────────────
-// Guards listed in canActivate[] run IN ORDER — AuthGuard first, then RoleGuard.
-// If AuthGuard returns a UrlTree (redirects to /login), RoleGuard never runs.
-// data.roles is the contract between the route config and RoleGuard —
-// RoleGuard reads it via route.data['roles'] inside canActivate().
+// ─── Usage in routing — canActivate + canLoad together ────────────────────────
+//
+// WHY use BOTH on the same route?
+//   canLoad      → prevents the admin bundle being downloaded on first visit
+//                  (runs once, before the import() ever fires)
+//   canActivate  → re-validates auth on EVERY subsequent visit to /admin
+//                  (canLoad won't re-run once the module is cached in memory)
+//
+// Together they give full protection:
+//   • First visit unauthenticated  → canLoad blocks, bundle never fetched
+//   • First visit authenticated    → canLoad passes, bundle downloads, canActivate passes, page renders
+//   • Return visit, token expired  → canLoad skipped (bundle cached), canActivate catches expiry → /login
+//   • Return visit, role revoked   → canLoad skipped, canActivate+RoleGuard catch it → /forbidden
+//
+// Guard execution ORDER within canActivate[]:
+//   [AuthGuard, RoleGuard] — Angular runs them left to right.
+//   If AuthGuard returns UrlTree, RoleGuard is never called (short-circuit).
 const routes: Routes = [
   {
     path: 'admin',
-    canActivate: [AuthGuard, RoleGuard],   // 1st: "are you logged in?" 2nd: "do you have the role?"
-    data: { roles: ['admin', 'superadmin'] },  // RoleGuard reads this — either role grants access
-    // loadChildren — lazy loads the AdminModule bundle only AFTER both guards pass
+
+    // canLoad — runs BEFORE import() fires; blocks bundle download for unauth users
+    // Only AuthGuard needed here (RoleGuard isn't useful at download-time — roles
+    // are per-page, not per-bundle; use canActivate for role enforcement)
+    canLoad: [AuthGuard],
+
+    // canActivate — runs on every visit; layered auth + role check
+    // 1st guard: AuthGuard  → "are you logged in?"
+    // 2nd guard: RoleGuard  → "do you have admin/superadmin role?"
+    // Short-circuits: if AuthGuard fails, RoleGuard never runs
+    canActivate: [AuthGuard, RoleGuard],
+
+    // data.roles — static config passed to RoleGuard via route.data['roles']
+    // ['admin', 'superadmin'] means EITHER role is sufficient (Array.some logic)
+    data: { roles: ['admin', 'superadmin'] },
+
+    // loadChildren — the import() only fires if canLoad passes
+    // After first load, Angular caches the module; canLoad won't run again
     loadChildren: () => import('./features/admin/admin.module').then(m => m.AdminModule)
   }
 ];
@@ -3941,22 +4051,90 @@ const routes: Routes = [
   { path: '**', component: NotFoundComponent }
 ];
 
-// Resolver - Pre-fetch data before navigation
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// snapshot  vs  Observable (paramMap / queryParamMap) — THE KEY DIFFERENCE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//
+// ActivatedRoute exposes BOTH a snapshot (frozen value) and reactive Observables
+// for path params and query params. Choosing the wrong one causes subtle bugs.
+//
+//  route.snapshot.paramMap.get('id')       ← reads value ONCE at the moment of construction
+//  route.paramMap.subscribe(...)           ← reactive stream, re-emits whenever URL changes
+//
+// ┌────────────────────┬──────────────────────────────┬────────────────────────────────────┐
+// │ Aspect             │ snapshot                     │ Observable (paramMap)               │
+// ├────────────────────┼──────────────────────────────┼────────────────────────────────────┤
+// │ Value timing       │ Frozen at component creation │ Live — emits on every URL change   │
+// │ Re-emits?          │ No — single read only        │ Yes — on every navigation           │
+// │ Component reused?  │ Misses subsequent changes    │ Always receives latest value        │
+// │ Use when           │ Component always re-created  │ Component is REUSED across navs    │
+// │ Memory leak risk   │ No (no subscription)         │ Yes — must unsubscribe             │
+// │ Example scenario   │ Fresh page load, guards      │ Tab changes, pagination, filters   │
+// └────────────────────┴──────────────────────────────┴────────────────────────────────────┘
+//
+// WHEN DOES ANGULAR REUSE A COMPONENT?
+//   By default Angular DESTROYS and RE-CREATES the component on each navigation.
+//   snapshot is safe in that case — ngOnInit runs fresh each time.
+//
+//   BUT: if you navigate from /users/1 → /users/2 and Angular decides to REUSE
+//   the component (same route, different param), ngOnInit does NOT re-run.
+//   snapshot still holds '1'. Only the Observable detects '2'.
+//
+//   Route reuse happens:
+//     • Same route, different params  (e.g. pagination: /products?page=1 → ?page=2)
+//     • Parent route with child outlets
+//     • Custom RouteReuseStrategy
+//
+// SAME RULES APPLY TO QUERY PARAMS:
+//   route.snapshot.queryParamMap.get('tab')   ← one-time read
+//   route.queryParamMap.subscribe(...)         ← reactive — updates as ?tab= changes
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Resolver - Pre-fetch data BEFORE navigation completes
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// WHY Resolver: without it, the component renders with an empty user, shows a
+//   loading spinner, then re-renders when data arrives (flash of empty content).
+//   With a Resolver, Angular waits for the HTTP call to complete BEFORE activating
+//   the route — component always receives fully loaded data in route.data.
+//
+// resolve() receives ActivatedRouteSnapshot (not ActivatedRoute) because:
+//   - Resolvers run BEFORE the component is instantiated — no live route object yet
+//   - A snapshot is sufficient: the resolver just needs the current URL params once
 @Injectable({ providedIn: 'root' })
 export class UserResolver implements Resolve<User> {
   constructor(private userService: UserService) {}
 
+  // route: ActivatedRouteSnapshot — frozen snapshot of the route being resolved.
+  // WHY snapshot here (not Observable): resolver runs once per navigation, reads
+  //   the path param, fires the HTTP call, and completes. No need to react to changes.
   resolve(route: ActivatedRouteSnapshot): Observable<User> {
+    // paramMap.get() — reads a path segment variable defined as :userId in the route config
+    // WHY paramMap over params: paramMap.get() returns string|null (type-safe);
+    //   route.params['userId'] returns any (no null safety)
+    // ! (non-null assertion) — safe here because the route wouldn't activate without :userId
     const userId = route.paramMap.get('userId')!;
     return this.userService.getUser(userId);
+    // Router waits for this Observable to COMPLETE before rendering the component.
+    // The resolved value is placed into route.data['user'] automatically.
   }
 }
 
-// Component using resolver and route params
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Component — snapshot vs Observable, query param updates
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 @Component({
   template: `
     <h1>User: {{ user.name }}</h1>
     <nav>
+      <!--
+        [routerLink]="[]"  — empty array = STAY on the current route path
+        WHY []: we only want to UPDATE the query params, not navigate to a new path.
+              [] means "same URL, same path, just change the ?tab= part".
+
+        [queryParams]="{ tab: 'overview' }" — sets ?tab=overview in the URL.
+        WHY update URL: makes the tab state bookmarkable + browser-back-button works.
+              The component reads ?tab= from queryParamMap and reacts automatically.
+      -->
       <a [routerLink]="[]" [queryParams]="{ tab: 'overview' }"
          [class.active]="tab === 'overview'">Overview</a>
       <a [routerLink]="[]" [queryParams]="{ tab: 'settings' }"
@@ -3968,29 +4146,77 @@ export class UserDetailComponent implements OnInit {
   user!: User;
   tab = 'overview';
 
+  // ActivatedRoute — the live route object for THIS component instance.
+  // Exposes both .snapshot (frozen) and reactive Observables (.paramMap, .queryParamMap, .data).
+  // Router — for programmatic navigation (navigating by code, not template links).
   constructor(private route: ActivatedRoute, private router: Router) {}
 
   ngOnInit() {
-    // Resolver data
-    this.user = this.route.snapshot.data['user'];
+    // ── SNAPSHOT: read resolver data ONCE ──────────────────────────────────────
+    // route.snapshot.data — frozen map of all resolved data at the time of activation.
+    // WHY snapshot here: resolver data is loaded once before the component activates.
+    //   If user navigated away and back, the component is DESTROYED and RE-CREATED,
+    //   so snapshot is fresh each time. No need for a live subscription.
+    // DANGER: if the component is REUSED (e.g. navigating /users/1 → /users/2
+    //   without destroy), snapshot.data still holds the OLD user. Use .data Observable then.
+    this.user = this.route.snapshot.data['user'];  // 'user' matches the resolve key in route config
 
-    // Or subscribe to route data for dynamic updates
+    // ── OBSERVABLE: subscribe to resolver data for reused components ───────────
+    // route.data — reactive stream that re-emits whenever the resolver runs again.
+    // WHY subscribe here too: if this component is reused across navigations
+    //   (same route, different path param), snapshot won't update but .data will.
+    // NOTE: adds a subscription — should be paired with takeUntil(destroy$) in production.
     this.route.data.subscribe(data => {
-      this.user = data['user'];
+      this.user = data['user'];  // always the freshest resolved value
     });
 
-    // Query params
+    // ── OBSERVABLE: query params — reactive tab state ──────────────────────────
+    // route.queryParamMap — Observable<ParamMap> that re-emits whenever ?anything= changes.
+    // WHY Observable (not snapshot): the user clicks tab links which ONLY change query params
+    //   without destroying/recreating this component. snapshot.queryParamMap would be frozen
+    //   at '?tab=overview' forever — tab clicks would not reflect in this.tab.
+    //
+    // ParamMap vs plain object:
+    //   params.get('tab')        → string | null  (type-safe, null if param absent)
+    //   route.queryParams['tab'] → any             (no null safety, use only if needed)
     this.route.queryParamMap.subscribe(params => {
+      // || 'overview' — fallback when ?tab= is absent (direct URL load, no query string)
       this.tab = params.get('tab') || 'overview';
     });
   }
 
-  // Programmatic navigation
+  // ── PROGRAMMATIC NAVIGATION — updating query params by code ────────────────
   navigateToSettings() {
-    this.router.navigate(['/user', this.user.id], {
-      queryParams: { tab: 'settings' },
-      queryParamsHandling: 'merge'  // Keep existing params
-    });
+    this.router.navigate(
+      ['/user', this.user.id],  // path: /user/abc-123
+      {
+        // queryParams — sets the query string on the new URL
+        // This produces: /user/abc-123?tab=settings
+        queryParams: { tab: 'settings' },
+
+        // queryParamsHandling — controls what happens to EXISTING query params
+        // ┌────────────┬──────────────────────────────────────────────────────────┐
+        // │ Value      │ Behaviour                                                │
+        // ├────────────┼──────────────────────────────────────────────────────────┤
+        // │ ''         │ Default: replace ALL existing params with the new ones   │
+        // │            │ /user/1?sort=asc&page=2  + { tab:'settings' }            │
+        // │            │ → /user/1?tab=settings  (sort and page are LOST)         │
+        // ├────────────┼──────────────────────────────────────────────────────────┤
+        // │ 'merge'    │ Merge: keeps all existing params, adds/overwrites new    │
+        // │            │ /user/1?sort=asc&page=2  + { tab:'settings' }            │
+        // │            │ → /user/1?sort=asc&page=2&tab=settings  (sort/page kept) │
+        // ├────────────┼──────────────────────────────────────────────────────────┤
+        // │ 'preserve' │ Ignore the new queryParams entirely, keep existing as-is │
+        // │            │ /user/1?sort=asc  + { tab:'settings' }                   │
+        // │            │ → /user/1?sort=asc  (tab is NOT added)                   │
+        // └────────────┴──────────────────────────────────────────────────────────┘
+        // WHY 'merge' here: navigating to settings tab should not wipe out any
+        //   other filters/pagination that might be in the URL at the same time.
+        queryParamsHandling: 'merge'
+      }
+    );
+    // After navigate() resolves, route.queryParamMap emits {tab:'settings'}
+    // → this.tab updates to 'settings' via the subscription in ngOnInit above.
   }
 }
 
