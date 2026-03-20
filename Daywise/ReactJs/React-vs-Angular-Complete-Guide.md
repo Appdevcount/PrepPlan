@@ -5155,6 +5155,418 @@ export class UserListComponent implements OnInit {
 
 ---
 
+### Detailed HTTP Call Examples (Angular HttpClient — All Patterns)
+
+> **Mental Model:** `HttpClient` is a thin RxJS wrapper around the browser's `fetch` API.
+> Every method (`get`, `post`, `put`, `patch`, `delete`) returns a **cold Observable** —
+> nothing happens until `.subscribe()` (or `| async` pipe) is called.
+> You can pipe RxJS operators between the call and the subscription to transform,
+> cache, retry, or cancel the request.
+
+```
+HTTP CALL LIFECYCLE
+──────────────────
+Component / Service           HttpClient              Server
+      │                           │                     │
+      │── .get<T>(url).pipe() ──▶ │── fetch(url) ──────▶│
+      │                           │                     │
+      │◀── tap() side effects ────│◀─── 200 JSON ───────│
+      │◀── map() transform        │                     │
+      │◀── catchError() fallback  │      (or 4xx/5xx)   │
+      │                           │                     │
+   subscribe()                  done                  done
+```
+
+#### 1. GET — Fetch a list with typed response
+
+```typescript
+// services/product.service.ts
+import { Injectable } from '@angular/core';
+import { HttpClient, HttpParams, HttpHeaders } from '@angular/common/http';
+import {
+  Observable, throwError, BehaviorSubject, EMPTY, of, forkJoin
+} from 'rxjs';
+import {
+  map, catchError, tap, retry, timeout,
+  switchMap, concatMap, mergeMap, exhaustMap,
+  takeUntil, finalize, shareReplay, startWith
+} from 'rxjs/operators';
+
+@Injectable({ providedIn: 'root' })
+export class ProductService {
+  private readonly baseUrl = '/api/products';
+
+  constructor(private http: HttpClient) {}
+
+  // ── GET all products ───────────────────────────────────────────────────────
+  // http.get<T>() — sends GET, deserializes JSON body into T automatically
+  // WHY generic <Product[]>: TypeScript infers the type of the emitted value so
+  //   callers get full intellisense without any manual casting
+  getProducts(): Observable<Product[]> {
+    return this.http.get<Product[]>(this.baseUrl).pipe(
+
+      // map() — project the raw array into a sorted copy (never mutate server data in place)
+      // WHY: keeps the service boundary clean; callers always get a consistently sorted list
+      map(products => [...products].sort((a, b) => a.name.localeCompare(b.name))),
+
+      // catchError() — intercept any HTTP error and return a safe fallback
+      // WHY: returning EMPTY completes the stream silently (no value emitted),
+      //      so the async pipe shows nothing rather than crashing the template.
+      //      Use of([]) if you need to emit an empty array instead.
+      catchError(err => {
+        console.error('Failed to load products', err);
+        return EMPTY;   // stream ends cleanly, no value, no error propagated to template
+      })
+    );
+  }
+
+  // ── GET with query parameters ──────────────────────────────────────────────
+  // HttpParams is immutable — each .set() returns a NEW params object
+  // WHY immutable: prevents accidental shared-state bugs across multiple calls
+  searchProducts(query: string, category: string, page = 1): Observable<PaginatedResult<Product>> {
+    const params = new HttpParams()
+      .set('q', query)           // ?q=shoes
+      .set('category', category) // &category=footwear
+      .set('page', page)         // &page=1
+      .set('limit', 20);         // &limit=20
+
+    // HttpClient automatically serializes params into the URL query string
+    return this.http.get<PaginatedResult<Product>>(this.baseUrl, { params }).pipe(
+
+      // timeout(10_000) — error if the server hasn't responded within 10 seconds
+      // WHY: Without a timeout, a hung server causes the Observable to wait forever.
+      //      The error propagates to catchError below for graceful handling.
+      timeout(10_000),
+
+      // retry(2) — re-subscribe (resend the request) up to 2 times on error
+      // WHY: transient network hiccups (brief connectivity loss, server restart)
+      //      often resolve on the next attempt. retry() sits BEFORE catchError so
+      //      it gets a chance to recover before the error handler gives up.
+      retry(2),
+
+      catchError(err => {
+        // throwError() re-throws as an Observable error so the caller's
+        // error callback / catchError in the chain receives it
+        return throwError(() => new Error(`Search failed: ${err.message}`));
+      })
+    );
+  }
+
+  // ── GET single item ────────────────────────────────────────────────────────
+  getProduct(id: string): Observable<Product> {
+    // Template literal builds: /api/products/abc-123
+    return this.http.get<Product>(`${this.baseUrl}/${id}`).pipe(
+
+      // tap() — log for debugging WITHOUT touching the stream value
+      // WHY: console.log inside map() would work but forces you to return the value;
+      //      tap() is specifically designed for side effects with no return value
+      tap(product => console.log('Loaded product:', product.id)),
+
+      catchError(err => {
+        if (err.status === 404) {
+          // 404 = resource genuinely missing — return null so caller can show "not found" UI
+          return of(null as unknown as Product);
+        }
+        return throwError(() => err);  // all other errors re-throw to caller
+      })
+    );
+  }
+}
+```
+
+#### 2. POST — Create a resource
+
+```typescript
+// ── POST — create new product ──────────────────────────────────────────────
+// http.post<T>(url, body) — serializes body to JSON, sends Content-Type: application/json
+// WHY generic <Product>: server returns the created product (with generated id, timestamps)
+createProduct(dto: CreateProductDto): Observable<Product> {
+  // Custom headers — e.g. idempotency key to prevent duplicate submissions on retry
+  const headers = new HttpHeaders({
+    'X-Idempotency-Key': crypto.randomUUID()  // server deduplicates retried POSTs
+  });
+
+  return this.http.post<Product>(this.baseUrl, dto, { headers }).pipe(
+
+    // tap() — trigger cache invalidation as a side effect after successful creation
+    // WHY: the product list cache is now stale; tap() busts it without altering
+    //      the stream value (the newly created Product still flows to the subscriber)
+    tap(newProduct => {
+      console.log('Created:', newProduct.id);
+      this.invalidateCache();  // force next getProducts() to re-fetch from server
+    }),
+
+    catchError(err => {
+      if (err.status === 409) {
+        // 409 Conflict = duplicate record — surface a clear message to the UI
+        return throwError(() => new Error('A product with this name already exists'));
+      }
+      return throwError(() => err);
+    })
+  );
+}
+```
+
+#### 3. PUT / PATCH — Update a resource
+
+```typescript
+// ── PUT — full replace (send the entire updated object) ───────────────────
+// WHY PUT not PATCH: PUT semantics = "replace the whole resource".
+//   Omitting a field in a PUT body means the server REMOVES that field.
+updateProduct(id: string, dto: UpdateProductDto): Observable<Product> {
+  return this.http.put<Product>(`${this.baseUrl}/${id}`, dto).pipe(
+    tap(() => this.invalidateCache()),
+    catchError(err => throwError(() => err))
+  );
+}
+
+// ── PATCH — partial update (send only changed fields) ─────────────────────
+// WHY PATCH: more efficient than PUT when only one or two fields change.
+//   Partial<UpdateProductDto> enforces that only a subset of fields is sent.
+patchProduct(id: string, changes: Partial<UpdateProductDto>): Observable<Product> {
+  return this.http.patch<Product>(`${this.baseUrl}/${id}`, changes).pipe(
+    tap(() => this.invalidateCache()),
+    catchError(err => throwError(() => err))
+  );
+}
+```
+
+#### 4. DELETE — Remove a resource
+
+```typescript
+// ── DELETE ─────────────────────────────────────────────────────────────────
+// http.delete<void>() — <void> because DELETE responses typically have no body
+// WHY not <any>: using <void> makes the intent explicit and prevents callers
+//   from accidentally reading a body that doesn't exist
+deleteProduct(id: string): Observable<void> {
+  return this.http.delete<void>(`${this.baseUrl}/${id}`).pipe(
+    tap(() => {
+      this.invalidateCache();
+      console.log('Deleted product', id);
+    }),
+    catchError(err => {
+      if (err.status === 404) {
+        // Already deleted — treat as success (idempotent delete)
+        return of(undefined as unknown as void);
+      }
+      return throwError(() => err);
+    })
+  );
+}
+```
+
+#### 5. Chaining HTTP Calls (sequential & parallel)
+
+```typescript
+// ── SEQUENTIAL: concatMap — create product, THEN upload image ─────────────
+// concatMap() — waits for the first Observable to complete before starting the next
+// WHY concatMap not switchMap: we MUST NOT cancel mid-chain. If the user triggers
+//   another call while the POST is in flight, concatMap queues it; switchMap would
+//   cancel the POST (data loss). Use concatMap for writes that must complete in order.
+createProductWithImage(dto: CreateProductDto, imageFile: File): Observable<Product> {
+  return this.createProduct(dto).pipe(
+
+    concatMap(createdProduct =>
+      // runs ONLY after createProduct() completes successfully
+      this.uploadImage(createdProduct.id, imageFile).pipe(
+        // map() — attach the uploaded image URL to the product before returning
+        // WHY: callers get a fully enriched Product object in one chained call
+        map(uploadResult => ({
+          ...createdProduct,
+          imageUrl: uploadResult.url
+        }))
+      )
+    ),
+
+    catchError(err => {
+      console.error('Create+upload failed', err);
+      return throwError(() => err);
+    })
+  );
+}
+
+// ── PARALLEL: forkJoin — load product + reviews + seller simultaneously ────
+// forkJoin([obs1, obs2, obs3]) — subscribes to ALL at once, emits ONE array
+//   of the LAST values when ALL observables complete (like Promise.all)
+// WHY forkJoin not combineLatest: forkJoin is for one-shot HTTP calls that
+//   complete; combineLatest keeps re-emitting whenever any source changes —
+//   correct for live streams, wrong for HTTP which completes after one response
+loadProductPage(id: string): Observable<ProductPageData> {
+  return forkJoin([
+    this.getProduct(id),                          // GET /api/products/:id
+    this.http.get<Review[]>(`/api/reviews?productId=${id}`),   // GET /api/reviews
+    this.http.get<Seller>(`/api/sellers?productId=${id}`)      // GET /api/sellers
+  ]).pipe(
+    // map() — destructure the results array into a typed object
+    // WHY: callers deal with a clean { product, reviews, seller } shape,
+    //      not a positional [0][1][2] tuple
+    map(([product, reviews, seller]) => ({ product, reviews, seller })),
+
+    catchError(err => {
+      // If ANY of the three calls fails, forkJoin errors immediately.
+      // WHY: one missing piece means we can't render the full page anyway.
+      console.error('Failed to load product page data', err);
+      return throwError(() => err);
+    })
+  );
+}
+
+// ── PARALLEL with independent errors: mergeMap over array ─────────────────
+// mergeMap() — subscribes to all inner Observables concurrently
+// WHY mergeMap not forkJoin: we want ALL items attempted even if some fail
+//   (forkJoin fails-fast; mergeMap lets each item resolve independently)
+deleteMultipleProducts(ids: string[]): Observable<{ id: string; success: boolean }[]> {
+  return of(...ids).pipe(   // of(...ids) emits each id as a separate emission
+
+    mergeMap(id =>          // for each id, fire a DELETE in parallel
+      this.deleteProduct(id).pipe(
+        map(() => ({ id, success: true })),
+        catchError(() => of({ id, success: false }))  // swallow per-item errors, log them
+      )
+    )
+
+    // Results arrive in the ORDER RESPONSES COME BACK — not the original array order.
+    // Use concatMap instead of mergeMap if you need guaranteed sequential execution.
+  );
+}
+```
+
+#### 6. Cancel HTTP Calls with takeUntil
+
+```typescript
+// ── Cancel in-flight request when component is destroyed ──────────────────
+// Pattern: tie the subscription lifetime to the component's lifecycle
+@Component({ template: `<div *ngFor="let p of products">{{ p.name }}</div>` })
+export class ProductListComponent implements OnInit, OnDestroy {
+  products: Product[] = [];
+
+  // Subject<void> — a "kill switch" Observable used purely as a signal
+  // WHY void: we never care about the emitted VALUE, only WHEN it emits
+  private destroy$ = new Subject<void>();
+
+  constructor(private productService: ProductService) {}
+
+  ngOnInit(): void {
+    this.productService.getProducts().pipe(
+
+      // takeUntil(destroy$) — automatically unsubscribes when destroy$ emits
+      // WHY: Without this, the subscription outlives the component. If the HTTP
+      //   response arrives after ngOnDestroy, Angular tries to update a destroyed
+      //   component's view → memory leak + "ExpressionChangedAfterCheck" error.
+      //   takeUntil is the standard Angular pattern for tying subscriptions to
+      //   the component lifecycle without storing a Subscription reference to unsubscribe.
+      takeUntil(this.destroy$)
+
+    ).subscribe(products => this.products = products);
+  }
+
+  ngOnDestroy(): void {
+    // Emit once to trigger takeUntil in every active pipe in this component
+    // WHY next() + complete(): next() signals takeUntil, complete() prevents
+    //   the Subject itself from being a memory leak (GC can collect it)
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+}
+```
+
+#### 7. Upload with Progress Tracking
+
+```typescript
+// ── File upload with real-time progress percentage ─────────────────────────
+uploadImage(productId: string, file: File): Observable<number | string> {
+  const formData = new FormData();
+  formData.append('image', file, file.name);  // 'image' = field name the server expects
+
+  return this.http.post('/api/upload', formData, {
+    // observe: 'events' — tells HttpClient to emit EVERY HTTP event (not just the response)
+    // WHY: default observe:'body' only emits the final response. 'events' gives us
+    //   UploadProgress events so we can calculate % and show a progress bar.
+    observe: 'events',
+
+    // reportProgress: true — enables UploadProgress events in the stream
+    // WHY: must be combined with observe:'events'; without it, progress events are suppressed
+    reportProgress: true
+  }).pipe(
+
+    // map() — convert raw HttpEvent into a progress % (number) or final URL (string)
+    // WHY: callers shouldn't deal with HttpEvent types — map() provides a clean union type
+    map(event => {
+      if (event.type === HttpEventType.UploadProgress && event.total) {
+        // UploadProgress event: calculate 0–100 percentage
+        return Math.round(100 * event.loaded / event.total);  // e.g. 45 (= 45%)
+      }
+      if (event.type === HttpEventType.Response) {
+        // Response event: upload complete — return the server-assigned URL
+        return (event.body as { url: string }).url;            // e.g. 'https://cdn.../img.jpg'
+      }
+      return 0;  // Sent / other events — treat as 0% to avoid gaps in the progress bar
+    }),
+
+    // filter() — skip zero-progress events (Sent, other non-meaningful events)
+    // WHY: emitting 0 after 45 would reset the progress bar visually — filter it out
+    filter(value => value !== 0),
+
+    catchError(err => throwError(() => new Error(`Upload failed: ${err.message}`)))
+  );
+}
+
+// ── Component wiring for the progress bar ─────────────────────────────────
+@Component({
+  template: `
+    <input type="file" (change)="onFileSelected($event)" />
+    <div *ngIf="uploadProgress !== null">
+      <!-- Show % while uploading, URL when done -->
+      <ng-container *ngIf="isNumber(uploadProgress)">
+        Uploading... {{ uploadProgress }}%
+        <progress [value]="uploadProgress" max="100"></progress>
+      </ng-container>
+      <ng-container *ngIf="!isNumber(uploadProgress)">
+        Done! <a [href]="uploadProgress">View image</a>
+      </ng-container>
+    </div>
+  `
+})
+export class UploadComponent {
+  uploadProgress: number | string | null = null;
+  isNumber = (v: unknown): v is number => typeof v === 'number';
+
+  constructor(private productService: ProductService) {}
+
+  onFileSelected(event: Event): void {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+
+    this.productService.uploadImage('product-123', file).subscribe({
+      next: progress => this.uploadProgress = progress, // updates progress bar reactively
+      error: err    => console.error(err),
+      complete: ()  => console.log('Upload complete')
+    });
+  }
+}
+```
+
+#### 8. HTTP Error Handling Patterns — Reference Table
+
+```
+┌─────────────────────┬──────────────────────────────────────────────────────────────────┐
+│ Scenario            │ RxJS Pattern                                                     │
+├─────────────────────┼──────────────────────────────────────────────────────────────────┤
+│ Transient failure   │ retry(3) — resend up to 3 times before giving up                 │
+│ Timeout             │ timeout(5000) — error if no response within 5 s                  │
+│ Fallback value      │ catchError(() => of(defaultValue))                               │
+│ Silent failure      │ catchError(() => EMPTY) — stream ends, no value, no crash        │
+│ Re-throw to caller  │ catchError(err => throwError(() => err))                         │
+│ 401 → refresh token │ catchError → switchMap(refresh) → retry original (interceptor)   │
+│ Chain on success    │ switchMap / concatMap inside pipe()                              │
+│ Parallel calls      │ forkJoin([obs1, obs2]) — all must complete                       │
+│ Cancel on destroy   │ takeUntil(destroy$)                                              │
+│ Progress tracking   │ observe:'events' + reportProgress:true + filter(HttpEventType)   │
+└─────────────────────┴──────────────────────────────────────────────────────────────────┘
+```
+
+---
+
 ## 10. Dependency Injection (Angular Unique)
 
 > **This is one of Angular's most powerful features with no direct React equivalent.**
