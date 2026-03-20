@@ -1777,6 +1777,9 @@ export class ErrorInterceptor implements HttpInterceptor {
 
   intercept(request: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
     return next.handle(request).pipe(
+      // catchError() — intercept ALL HTTP errors globally, show notification, re-throw
+      // WHY: This interceptor provides a single location for user-facing error messages.
+      //      Every HTTP error in the app flows through here — no per-component error handling needed.
       catchError((error: HttpErrorResponse) => {
         let errorMessage = 'An error occurred';
 
@@ -1823,6 +1826,9 @@ export class LoadingInterceptor implements HttpInterceptor {
     this.activeRequests++;
 
     return next.handle(request).pipe(
+      // finalize() — runs cleanup whether the HTTP request completes OR errors
+      // WHY: Like a finally{} block for Observables. Decrement counter + hide spinner
+      //      regardless of success or failure — prevents stuck loading indicators.
       finalize(() => {
         this.activeRequests--;
         if (this.activeRequests === 0) {
@@ -1846,6 +1852,22 @@ export class AppModule {}
 
 ```typescript
 // core/guards/auth.guard.ts
+//
+// 🔒 WHAT IS A GUARD?
+// A Guard is a service that the Angular Router calls BEFORE activating a route.
+// It acts as a gatekeeper: return true → allow navigation,
+//                          return false/UrlTree → block and optionally redirect.
+//
+// WHEN DOES THE ROUTER CALL EACH INTERFACE METHOD?
+// ┌─────────────────────┬───────────────────────────────────────────────────────┐
+// │ Interface           │ Called when...                                        │
+// ├─────────────────────┼───────────────────────────────────────────────────────┤
+// │ CanActivate         │ User navigates TO a route (every visit)               │
+// │ CanActivateChild    │ User navigates to any CHILD route under this parent   │
+// │ CanLoad             │ Lazy-loaded module is about to be DOWNLOADED          │
+// └─────────────────────┴───────────────────────────────────────────────────────┘
+// CanLoad is the most powerful: it prevents the bundle from even being fetched
+// if the user is not logged in — saves bandwidth, hides protected code entirely.
 import { Injectable } from '@angular/core';
 import { CanActivate, CanActivateChild, CanLoad, Router, UrlTree } from '@angular/router';
 import { Observable } from 'rxjs';
@@ -1853,58 +1875,132 @@ import { map, take } from 'rxjs/operators';
 import { Store } from '@ngrx/store';
 import { selectIsAuthenticated } from '../store/auth.selectors';
 
+// providedIn: 'root' — singleton, one instance shared across the whole app
 @Injectable({ providedIn: 'root' })
 export class AuthGuard implements CanActivate, CanActivateChild, CanLoad {
   constructor(private store: Store, private router: Router) {}
 
+  // Called by the router when navigating directly to a guarded route.
+  // e.g. user hits /dashboard — router calls canActivate() before rendering
   canActivate(): Observable<boolean | UrlTree> {
     return this.checkAuth();
   }
 
+  // Called when navigating to a CHILD of a guarded route.
+  // e.g. parent route has canActivateChild: [AuthGuard] — every child is protected
+  // without needing to repeat the guard on each child route definition
   canActivateChild(): Observable<boolean | UrlTree> {
     return this.checkAuth();
   }
 
+  // Called BEFORE the lazy-loaded chunk is downloaded from the server.
+  // Strongest protection: unauthenticated users never receive the JS bundle.
+  // canActivate() only blocks rendering — the JS is already downloaded by then.
   canLoad(): Observable<boolean | UrlTree> {
     return this.checkAuth();
   }
 
+  // ─── Shared auth logic ───────────────────────────────────────────────────────
+  // All three guard methods funnel into this one, keeping the logic DRY.
   private checkAuth(): Observable<boolean | UrlTree> {
+    // store.select() returns a hot, infinite NgRx selector stream that replays
+    // the current state value immediately and then emits on every state change.
     return this.store.select(selectIsAuthenticated).pipe(
+
+      // take(1) — snap the CURRENT auth state and then COMPLETE the observable
+      // WHY: Guards must return a completing Observable so the router knows the
+      //      decision is final. NgRx selectors never complete on their own — they
+      //      keep emitting forever as the store changes. take(1) takes the first
+      //      emission (the current value right now), completes the stream, and
+      //      unsubscribes automatically. Without it, the guard would hang forever.
       take(1),
+
+      // map() — convert the boolean auth flag into the value the router expects
+      // WHY: The router accepts Observable<boolean | UrlTree>.
+      //      • true         → allow the navigation to proceed
+      //      • false        → block navigation (shows nothing, bad UX)
+      //      • UrlTree      → block AND redirect to the specified path (preferred)
+      // createUrlTree(['/login']) builds a UrlTree the router uses to navigate
+      // the user to /login instead of just silently blocking them.
       map(isAuthenticated =>
-        isAuthenticated ? true : this.router.createUrlTree(['/login'])
+        isAuthenticated
+          ? true                                     // ✅ authenticated — let them through
+          : this.router.createUrlTree(['/login'])    // ❌ not logged in — redirect to /login
       )
     );
   }
 }
 
 // core/guards/role.guard.ts
+//
+// 🔑 WHAT IS RoleGuard?
+// AuthGuard answers "are you logged in?". RoleGuard answers "do you have PERMISSION?".
+// They are layered: AuthGuard runs first (configured in canActivate array order).
+// If AuthGuard passes, RoleGuard checks whether the authenticated user holds one
+// of the roles listed in route.data['roles'].
+//
+// HOW ROLES REACH THE GUARD:
+// Route config  →  data: { roles: ['admin'] }
+//                          ↓
+// canActivate(route)  →  route.data['roles']  →  ['admin']
+//                                                     ↓
+//                               user.roles.includes('admin')  →  true/false
 @Injectable({ providedIn: 'root' })
 export class RoleGuard implements CanActivate {
   constructor(private store: Store, private router: Router) {}
 
+  // route: ActivatedRouteSnapshot — snapshot of the route being activated.
+  // Contains path params, query params, and static data (our roles array).
   canActivate(route: ActivatedRouteSnapshot): Observable<boolean | UrlTree> {
+
+    // Read the roles required for this specific route from its static data config.
+    // Defined in the route as: data: { roles: ['admin', 'superadmin'] }
+    // WHY string[]?: roles differ per route — the guard is generic, routes are specific.
     const requiredRoles = route.data['roles'] as string[];
 
+    // store.select(selectUser) — stream of the currently authenticated user object
+    // (or null if unauthenticated). Emits current value immediately, then on changes.
     return this.store.select(selectUser).pipe(
+
+      // take(1) — take the current user snapshot and complete
+      // WHY: Same reason as AuthGuard — guards must complete. Selectors don't.
+      //      We only need to know the user's roles at THIS moment, not track changes.
       take(1),
+
+      // map() — perform the role check and return allow/redirect decision
+      // WHY: All logic lives here so the stream stays functional (no subscribe inside).
+      //      Two separate redirects for two different failure cases (better UX):
+      //        → not logged in at all  →  /login   (need to authenticate first)
+      //        → logged in, wrong role →  /forbidden (authenticated but unauthorized)
       map(user => {
+        // Guard against null: if no user in store, send to login
+        // (Shouldn't normally reach here if AuthGuard runs first, but defensive.)
         if (!user) return this.router.createUrlTree(['/login']);
 
+        // Array.some() — returns true if the user has AT LEAST ONE of the required roles.
+        // WHY some() not every(): routes typically allow multiple qualifying roles
+        // e.g. ['admin', 'superadmin'] — either role is sufficient.
         const hasRole = requiredRoles.some(role => user.roles.includes(role));
-        return hasRole ? true : this.router.createUrlTree(['/forbidden']);
+
+        return hasRole
+          ? true                                         // ✅ has a qualifying role — allow
+          : this.router.createUrlTree(['/forbidden']);   // ❌ authenticated but wrong role
       })
     );
   }
 }
 
-// Usage in routing
+// ─── Usage in routing ─────────────────────────────────────────────────────────
+// Guards listed in canActivate[] run IN ORDER — AuthGuard first, then RoleGuard.
+// If AuthGuard returns a UrlTree (redirects to /login), RoleGuard never runs.
+// data.roles is the contract between the route config and RoleGuard —
+// RoleGuard reads it via route.data['roles'] inside canActivate().
 const routes: Routes = [
   {
     path: 'admin',
-    canActivate: [AuthGuard, RoleGuard],
-    data: { roles: ['admin', 'superadmin'] },
+    canActivate: [AuthGuard, RoleGuard],   // 1st: "are you logged in?" 2nd: "do you have the role?"
+    data: { roles: ['admin', 'superadmin'] },  // RoleGuard reads this — either role grants access
+    // loadChildren — lazy loads the AdminModule bundle only AFTER both guards pass
     loadChildren: () => import('./features/admin/admin.module').then(m => m.AdminModule)
   }
 ];
@@ -3101,6 +3197,9 @@ const SmartSearch = () => {
 
 @Injectable({ providedIn: 'root' }) // Singleton: shared across entire app
 export class UserDataService {
+  // BehaviorSubject<User | null> — holds current user state, replays it to every new subscriber
+  // WHY: Any component that subscribes to user$ immediately gets the current user value —
+  //      no need to wait for a new emission. null = user not yet loaded or not logged in.
   private userSubject = new BehaviorSubject<User | null>(null);
   user$ = this.userSubject.asObservable();
 
@@ -3342,6 +3441,9 @@ export class AuthService {
 
   token$ = this.tokenSubject.asObservable();
   user$ = this.userSubject.asObservable();
+  // map() — derive a boolean "is logged in" stream from the token stream
+  // WHY: Components and guards need boolean, not raw token. Using map() keeps
+  //      isAuthenticated$ reactive — it updates automatically whenever token$ changes.
   isAuthenticated$ = this.token$.pipe(map(token => !!token));
 
   constructor(
@@ -3360,6 +3462,10 @@ export class AuthService {
 
   login(credentials: LoginCredentials): Observable<AuthResponse> {
     return this.http.post<AuthResponse>('/api/auth/login', credentials).pipe(
+      // tap() — persist tokens and update state as a side effect, without altering the stream
+      // WHY: tap() is the correct tool here because the caller (component) still needs to receive
+      //      the AuthResponse to navigate or show success UI. Using map() would require returning
+      //      the value explicitly; tap() handles side effects transparently.
       tap(response => {
         localStorage.setItem('token', response.token);
         localStorage.setItem('refreshToken', response.refreshToken);
@@ -3385,12 +3491,20 @@ export class AuthService {
     }
 
     return this.http.post<{ token: string }>('/api/auth/refresh', { refreshToken }).pipe(
+      // map() — extract the token string from the HTTP response body
+      // WHY: Callers (JwtInterceptor) need a plain string token, not the full response object.
+      //      map() projects the response into just the token so the caller doesn't know about
+      //      the HTTP response shape.
       map(response => {
         localStorage.setItem('token', response.token);
         this.setToken(response.token);
         this.startRefreshTokenTimer();
         return response.token;
       }),
+      // catchError() — if refresh fails, force logout and re-throw the error
+      // WHY: A failed refresh means the refresh token is expired or revoked — the user
+      //      must log in again. Calling logout() clears state; throwError() propagates
+      //      the error to the JwtInterceptor so it can handle the failed retry.
       catchError(error => {
         this.logout();
         return throwError(() => error);
@@ -3404,6 +3518,10 @@ export class AuthService {
 
   hasRole(role: string): Observable<boolean> {
     return this.user$.pipe(
+      // map() — project the User object to a boolean role-membership check
+      // WHY: Guards and templates need a boolean, not the full User object.
+      //      map() keeps the stream reactive — any time user$ updates (login/logout),
+      //      hasRole() automatically emits the new role status.
       map(user => user?.roles?.includes(role) ?? false)
     );
   }
@@ -3664,6 +3782,9 @@ export class AppRoutingModule {}
 @Injectable({ providedIn: 'root' })
 export class SelectivePreloadStrategy implements PreloadAllModules {
   preload(route: Route, load: () => Observable<any>): Observable<any> {
+    // of(null) — creates an observable that emits null immediately then completes (no-op preload)
+    // WHY: The preload method MUST return an Observable. of(null) is the conventional
+    //      "don't preload this route" return value — it completes immediately with no side effects.
     return route.data?.['preload'] ? load() : of(null);
   }
 }
@@ -6111,6 +6232,8 @@ export class CounterComponent {
 // OLD: RxJS Observable approach
 count$ = new BehaviorSubject(0);
 isEven$ = this.count$.pipe(
+  // map() — derives a boolean "is even" stream from the count stream
+  // WHY: Keeps isEven$ reactive — automatically updates whenever count$ changes.
   map(count => count % 2 === 0)
 );
 
@@ -6328,6 +6451,9 @@ export class AuthState {
   @Action(Login)
   login(ctx: StateContext<AuthStateModel>, action: Login) {
     return this.authService.login(action.payload).pipe(
+      // tap() — update NGXS state as a side effect without altering the stream value
+      // WHY: tap() is the NGXS pattern for updating state inside an @Action handler.
+      //      patchState() is called for its side effect; the auth response still flows through.
       tap(result => ctx.patchState({ user: result.user, token: result.token }))
     );
   }
@@ -6679,10 +6805,14 @@ export class MyComponent { }
 **2. Unsubscribe from Observables**
 ```typescript
 // ✅ DO: Use takeUntil pattern for automatic cleanup
+// Subject<void> — a destroy signal; void = we only care WHEN it fires, not the value
+// WHY: Subject acts as a kill switch. next() in ngOnDestroy triggers all takeUntil operators.
 private destroy$ = new Subject<void>();
 
 ngOnInit() {
   this.service.data$
+    // takeUntil() — unsubscribes when destroy$ emits (in ngOnDestroy)
+    // WHY: Primary Angular memory-leak prevention pattern. No manual unsubscribe calls needed.
     .pipe(takeUntil(this.destroy$))
     .subscribe(data => this.data = data);
 }
@@ -6989,6 +7119,10 @@ this.users$ = this.userService.getUsers().subscribe(users => {
 ```typescript
 // Flat observable chain - no nesting!
 this.data$ = this.userService.getUsers().pipe(
+  // switchMap() — cancels previous inner observable and switches to new one
+  // WHY: Flattens the nested subscription into a single stream. No callback hell.
+  //      The users result is available in the outer scope, and we can use it if needed.
+  //      Use concatMap instead if you need to process users before fetching posts.
   switchMap(users => this.postsService.getPosts()),
   // Posts data flows through, never nested
 );

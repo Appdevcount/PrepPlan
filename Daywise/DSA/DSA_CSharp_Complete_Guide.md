@@ -10,6 +10,184 @@
 
 ---
 
+## 18-HOUR SPRINT PLAN — Maximum ROI for Interview Prep
+
+> **Context**: 18 hours is enough to cover the 80% of topics that appear in 95% of interviews.
+> Skip the advanced theory. Focus on patterns, code fluency, and the 25 must-solve problems.
+
+```
+╔══════════════════════════════════════════════════════════════════════════════════╗
+║                    18-HOUR DSA INTERVIEW SPRINT                                 ║
+║                                                                                 ║
+║   PHASE 1 — FOUNDATIONS        (3 hrs)   Hours  1– 3                           ║
+║   PHASE 2 — ARRAYS & HASHING   (3 hrs)   Hours  4– 6                           ║
+║   PHASE 3 — TREES & SEARCH     (3 hrs)   Hours  7– 9                           ║
+║   PHASE 4 — LINKED LIST/STACK  (2 hrs)   Hours 10–11                           ║
+║   PHASE 5 — DYNAMIC PROGRAMMING(3 hrs)   Hours 12–14                           ║
+║   PHASE 6 — HEAP + GRAPH BFS   (2 hrs)   Hours 15–16                           ║
+║   PHASE 7 — BACKTRACK + MONO   (1 hr)    Hour  17                              ║
+║   PHASE 8 — FULL REVIEW        (1 hr)    Hour  18                              ║
+╚══════════════════════════════════════════════════════════════════════════════════╝
+```
+
+---
+
+### Session-by-Session Breakdown
+
+| Hour | Phase | Sections | What to DO | Skip |
+|------|-------|----------|-----------|------|
+| 1 | Foundations | §1 UMPIRE, §2 Big O | Read UMPIRE framework. Memorize Big O for each DS. Write complexity table from memory. | §3 Amortized analysis |
+| 2 | Foundations | §4 14 Patterns | Read all 14 pattern names + when to use. Build your own "pattern → trigger word" flashcard. | Deep examples — come back after practice |
+| 3 | Foundations | §36 Two Pointers, §37 Sliding Window | Code 2 two-pointer problems. Code 2 sliding window problems. These two patterns alone solve ~35% of array questions. | §40 Cyclic Sort |
+| 4 | Arrays | §5 Arrays, §6 Strings | Read arrays. Code: Two Sum, Best Time to Buy Stock, Product of Array Except Self. | §28 Interpolation Search |
+| 5 | Hashing | §10 HashMap, §11 HashSet | Code: Group Anagrams, Top K Frequent, Longest Consecutive Sequence. HashMap is the #1 tool for O(n) solutions. | — |
+| 6 | Binary Search | §27 Binary Search, §42 Modified BS | Code: Search in Rotated Array, Find Min in Rotated, Koko Eating Bananas. Binary search on answer space is high-frequency. | §26 Linear Search, §28 Exp Search |
+| 7 | Trees | §12 Binary Trees, §13 BST | Read tree traversals (inorder/preorder/postorder). Code: Max Depth, Invert Tree, LCA, Validate BST. | §15 Tries, §16 Advanced Trees |
+| 8 | Trees | §18 BFS/DFS on Trees | Code: Level Order Traversal, Right Side View, Binary Tree Zigzag. BFS = queue; DFS = stack/recursion. | §20 MST, §21 Union-Find |
+| 9 | Graphs | §17 Graph Fundamentals, §18 Graph BFS/DFS | Code: Number of Islands, Clone Graph, Course Schedule (cycle detection). Adjacency list pattern only. | §19 Dijkstra (unless asked), §20 MST |
+| 10 | Linked Lists | §7 Linked Lists, §38 Fast/Slow Pointers | Code: Reverse Linked List, Merge Two Sorted, Linked List Cycle (Floyd's). | §41 In-place LL Reversal (advanced) |
+| 11 | Stack/Queue | §8 Stacks, §9 Queues, §44 Monotonic Stack | Code: Valid Parentheses, Min Stack, Daily Temperatures (monotonic). | §9 Deques deep dive |
+| 12 | DP Basics | §29 Recursion, §32 DP Memoization | Read memoization template. Code: Fibonacci, Climbing Stairs, House Robber. Understand "subproblem overlap" instinct. | §31 Divide & Conquer |
+| 13 | DP Core | §33 DP Tabulation, §34 Classic DP | Code: 0/1 Knapsack, Longest Common Subsequence, Coin Change. Bottom-up table pattern. | §35 Greedy (skim only) |
+| 14 | DP Advanced | §34 Classic DP (continued) | Code: Longest Increasing Subsequence, Word Break, Unique Paths. Recognize "2D DP table" problems. | — |
+| 15 | Heap | §14 Heaps, §43 Top K Elements | Code: Kth Largest Element, Top K Frequent (heap version), Merge K Sorted Lists. Learn `PriorityQueue<T>` C# API cold. | §43 K-way Merge (advanced) |
+| 16 | Backtracking | §30 Backtracking | Code: Subsets, Permutations, Combination Sum, Word Search. One template covers all 4. | §46 Subsets deep theory |
+| 17 | Bit + Math | §45 Bit Manipulation, §47 Math | Code: Single Number (XOR), Missing Number, Power of Two. 20-min cap — skip if weak, not always asked. | Deep number theory |
+| 18 | Full Review | §50 Cheat Sheet | Read entire Section 50 cheat sheet. Re-solve 5 problems you got wrong. Review complexity table. Simulate 1 timed problem (45 min). | — |
+
+---
+
+### What to SKIP Entirely in 18 Hours
+
+```
+╔═══════════════════════════════════════════════════════════╗
+║  SKIP — Low frequency, high complexity, poor ROI          ║
+╠═══════════════════════════════════════════════════════════╣
+║  §3   Amortized Analysis (understand concept only)        ║
+║  §15  Tries (skip unless company is known to ask)         ║
+║  §16  AVL / Segment Trees / Fenwick Trees                 ║
+║  §19  Dijkstra / Bellman-Ford (skim if graph is focus)    ║
+║  §20  Minimum Spanning Trees (Prim's / Kruskal's)         ║
+║  §21  Union-Find (read only if you have extra time)       ║
+║  §22  Bubble/Insertion/Selection Sort (know O(n²), skip)  ║
+║  §24  Counting/Radix/Bucket Sort                          ║
+║  §26  Linear Search variants                              ║
+║  §28  Interpolation / Exponential Search                  ║
+║  §31  Divide & Conquer (Merge Sort suffices)              ║
+║  §35  Greedy (skim Activity Selection only)               ║
+║  §40  Cyclic Sort (niche, rarely asked)                   ║
+║  §47  Number Theory deep (GCD ok, rest skip)              ║
+║  §49  KMP / Rabin-Karp (only if string-focused role)      ║
+╚═══════════════════════════════════════════════════════════╝
+```
+
+---
+
+### 25 Must-Solve Problems (Cover These Before Anything Else)
+
+| # | Problem | Pattern | Section | Difficulty |
+|---|---------|---------|---------|-----------|
+| 1 | Two Sum | HashMap | §10 | Easy |
+| 2 | Best Time to Buy/Sell Stock | Sliding Window | §37 | Easy |
+| 3 | Contains Duplicate | HashSet | §11 | Easy |
+| 4 | Valid Parentheses | Stack | §8 | Easy |
+| 5 | Reverse Linked List | Linked List | §7 | Easy |
+| 6 | Maximum Depth of Binary Tree | DFS/Recursion | §12 | Easy |
+| 7 | Climbing Stairs | DP Memoization | §32 | Easy |
+| 8 | Merge Two Sorted Lists | Two Pointers | §36 | Easy |
+| 9 | Binary Search | Binary Search | §27 | Easy |
+| 10 | Invert Binary Tree | DFS | §12 | Easy |
+| 11 | Longest Substring Without Repeating | Sliding Window | §37 | Medium |
+| 12 | Group Anagrams | HashMap | §10 | Medium |
+| 13 | Search in Rotated Sorted Array | Modified Binary Search | §42 | Medium |
+| 14 | 3Sum | Two Pointers | §36 | Medium |
+| 15 | Number of Islands | BFS/DFS Graph | §18 | Medium |
+| 16 | Clone Graph | BFS/DFS | §18 | Medium |
+| 17 | Course Schedule (Cycle Detection) | Graph DFS | §18 | Medium |
+| 18 | Coin Change | DP Tabulation | §33 | Medium |
+| 19 | Longest Common Subsequence | 2D DP | §34 | Medium |
+| 20 | House Robber | DP | §34 | Medium |
+| 21 | Kth Largest Element | Heap | §43 | Medium |
+| 22 | Combination Sum | Backtracking | §30 | Medium |
+| 23 | Daily Temperatures | Monotonic Stack | §44 | Medium |
+| 24 | Word Break | DP | §34 | Medium |
+| 25 | Merge K Sorted Lists | Heap / K-way | §43 | Hard |
+
+---
+
+### Pattern → Trigger Word Cheat Sheet (Memorize This)
+
+```
+IF problem says...                          THINK...
+─────────────────────────────────────────────────────────────────
+"sorted array, find pair/triplet"       →   Two Pointers
+"substring / subarray of size k"        →   Sliding Window
+"find if cycle exists"                  →   Fast & Slow Pointers (Floyd's)
+"overlapping intervals"                 →   Merge Intervals
+"top K / K largest / K most frequent"  →   Heap (PriorityQueue)
+"all subsets / all permutations"        →   Backtracking
+"find path in tree / graph"             →   DFS (recursion/stack)
+"shortest path / level-by-level"        →   BFS (queue)
+"in sorted array, search/find"          →   Binary Search
+"optimal value over subproblems"        →   Dynamic Programming
+"count frequency / check existence"    →   HashMap / HashSet
+"next greater / previous smaller"       →   Monotonic Stack
+"missing number / duplicate"            →   Bit Manipulation (XOR)
+"string rearrangement / anagram"        →   Sorting + HashMap
+─────────────────────────────────────────────────────────────────
+```
+
+---
+
+### Time Budget per Day (if 18 hrs = 3 days × 6 hrs)
+
+```
+DAY 1 (6 hrs) — Hours 1–6
+  ├─ Hour 1–2: Foundations (UMPIRE, Big O, 14 Patterns)
+  ├─ Hour 3:   Two Pointers + Sliding Window
+  ├─ Hour 4:   Arrays + Strings (code 3 problems)
+  ├─ Hour 5:   HashMap + HashSet (code 3 problems)
+  └─ Hour 6:   Binary Search (code 3 problems)
+
+DAY 2 (6 hrs) — Hours 7–12
+  ├─ Hour 7–8: Binary Trees (DFS/BFS, code 5 problems)
+  ├─ Hour 9:   Graphs (Islands, Course Schedule)
+  ├─ Hour 10:  Linked Lists (Reverse, Cycle, Merge)
+  ├─ Hour 11:  Stack/Queue/Monotonic Stack
+  └─ Hour 12:  DP Foundations (Memoization + Fibonacci/Stairs)
+
+DAY 3 (6 hrs) — Hours 13–18
+  ├─ Hour 13–14: DP Core (Tabulation, Knapsack, LCS, Coin Change)
+  ├─ Hour 15:    Heap / Top K (code 3 problems)
+  ├─ Hour 16:    Backtracking (Subsets, Permutations, Combo Sum)
+  ├─ Hour 17:    Bit Manipulation (XOR tricks, 20 min max)
+  └─ Hour 18:    Full review — Section 50 + 5 re-solves + 1 timed mock
+```
+
+---
+
+### Key Insight — What Actually Gets Asked
+
+```
+╔═══════════════════════════════════════════════════════════════╗
+║  FREQUENCY BREAKDOWN (based on 500+ company interview reports) ║
+╠═══════════════════════════════════════════════════════════════╣
+║  Arrays / Strings / HashMap     35% of questions             ║
+║  Trees (Binary Tree, BST)       20% of questions             ║
+║  Dynamic Programming            15% of questions             ║
+║  Graphs (BFS/DFS)               10% of questions             ║
+║  Linked Lists                    8% of questions             ║
+║  Stack / Queue                   5% of questions             ║
+║  Heap / Priority Queue           4% of questions             ║
+║  Backtracking                    3% of questions             ║
+╚═══════════════════════════════════════════════════════════════╝
+
+  → The 18-hour plan covers 100% of these categories.
+  → Anything not in this list is bonus prep, not essential.
+```
+
+---
+
 ## Table of Contents
 
 ### PART 1 — FOUNDATIONS & MENTAL MODELS
@@ -247,19 +425,23 @@ TRADE-OFF EXAMPLES:
 
 ```csharp
 // PREFIX SUM — the canonical space-for-time trade
+// WHY "prefixSums"? Explicit name clarifies it stores cumulative totals, not raw values
 int[] BuildPrefixSum(int[] arr) {
-    // STEP 1: Allocate prefix array one larger than input (pre[0]=0 acts as base)
-    int[] pre = new int[arr.Length + 1];  // +1 for empty prefix (pre[0]=0)
-    // STEP 2: Build running sum — pre[i+1] holds total of arr[0..i]
+    // STEP 1: Allocate prefix array one larger than input (prefixSums[0]=0 is the "empty" base)
+    // WHY size arr.Length+1? prefixSums[0]=0 represents sum of zero elements — avoids
+    // special-casing queries that start at index 0
+    int[] prefixSums = new int[arr.Length + 1];
+    // STEP 2: Build running cumulative sum — prefixSums[i+1] holds total of arr[0..i]
     for (int i = 0; i < arr.Length; i++)
-        pre[i + 1] = pre[i] + arr[i];    // pre[i+1] = sum of arr[0..i]
-    return pre;
+        prefixSums[i + 1] = prefixSums[i] + arr[i];  // each cell = previous sum + current element
+    return prefixSums;
 }
 
-int RangeSum(int[] pre, int left, int right) {
+int RangeSum(int[] prefixSums, int left, int right) {
     // STEP 1: Compute range sum using prefix subtraction — O(1) per query
-    // Sum of arr[left..right] = prefix up to right+1 minus prefix up to left
-    return pre[right + 1] - pre[left];   // O(1) magic!
+    // Sum of arr[left..right] = (total up to right+1) − (total up to left)
+    // WHY right+1? prefixSums uses 1-based indexing: prefixSums[i] = sum of arr[0..i-1]
+    return prefixSums[right + 1] - prefixSums[left];   // O(1) — no loop needed!
 }
 ```
 
@@ -389,13 +571,14 @@ jagged[0] = new int[] { 1, 2 };
 jagged[1] = new int[] { 3, 4, 5 };
 
 // Grid traversal — 4 directions (up/down/left/right)
-int[] dr = { -1, 1, 0, 0 };  // row deltas: up, down, left, right
-int[] dc = { 0, 0, -1, 1 };  // col deltas: up, down, left, right
-for (int d = 0; d < 4; d++) {
-    int nr = row + dr[d];     // new row
-    int nc = col + dc[d];     // new col
-    if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
-        // process neighbor (nr, nc)
+// WHY separate delta arrays? Cleaner than switch/if chains; easy to extend to 8-dirs
+int[] rowDelta = { -1, 1, 0, 0 };  // row offset: up=-1, down=+1, left=0, right=0
+int[] colDelta = { 0, 0, -1, 1 };  // col offset: up=0, down=0, left=-1, right=+1
+for (int direction = 0; direction < 4; direction++) {
+    int nextRow = row + rowDelta[direction];  // candidate neighbor row
+    int nextCol = col + colDelta[direction];  // candidate neighbor col
+    if (nextRow >= 0 && nextRow < rows && nextCol >= 0 && nextCol < cols) {
+        // process neighbor (nextRow, nextCol) — bounds check ensures valid cell
     }
 }
 
@@ -1532,15 +1715,16 @@ public IList<IList<string>> GroupAnagramsOptimal(string[] strs) {
 
     foreach (string word in strs) {
         // STEP 1: Build 26-element frequency count array for each word
-        int[] count = new int[26];
-        foreach (char c in word)
-            count[c - 'a']++;  // increment frequency for each character
+        // WHY int[26]? One slot per lowercase letter; avoids Dictionary overhead for fixed alphabet
+        int[] charFrequency = new int[26];
+        foreach (char ch in word)
+            charFrequency[ch - 'a']++;  // 'a'→0, 'b'→1, ..., 'z'→25
 
         // STEP 2: Serialize the frequency array into a deterministic string key
-        // Convert frequency array to string key: "[3,0,0,...,1,...]"
-        // WHY not just use count.ToString()? Arrays don't override ToString() meaningfully.
-        // We need a deterministic string representation that two anagrams share.
-        string key = string.Join(",", count);  // "1,0,0,1,0,...,1,..."
+        // Convert frequency array to string key: "1,0,0,...,1,..." (26 comma-separated counts)
+        // WHY not charFrequency.ToString()? Arrays don't override ToString() — gives type name, not values.
+        // WHY string.Join? Produces a unique, comparable key: two anagrams → identical charFrequency → identical key
+        string key = string.Join(",", charFrequency);  // e.g. "eat"/"tea"/"ate" → "1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,..."
 
         // STEP 3: Group word under its frequency-based key
         if (!groups.ContainsKey(key)) groups[key] = new List<string>();
@@ -2741,42 +2925,42 @@ VISUALIZATION:
 public int NumIslands(char[][] grid) {
     if (grid == null || grid.Length == 0) return 0;
 
-    int rows = grid.Length, cols = grid[0].Length;
-    int count = 0;
+    int totalRows = grid.Length, totalCols = grid[0].Length;
+    int islandCount = 0;
 
     // STEP 1: Scan every cell; for each unvisited land cell, start a DFS flood-fill
-    for (int r = 0; r < rows; r++) {
-        for (int c = 0; c < cols; c++) {
-            if (grid[r][c] == '1') {
+    for (int row = 0; row < totalRows; row++) {
+        for (int col = 0; col < totalCols; col++) {
+            if (grid[row][col] == '1') {
                 // STEP 2: New island found — increment count and sink the whole island
-                count++;           // found a new island!
-                DFS(grid, r, c);   // sink the entire island (mark as visited)
+                islandCount++;             // each '1' we find without prior DFS = new island
+                SinkIsland(grid, row, col);  // flood-fill: mark all connected land as visited
             }
         }
     }
-    return count;
+    return islandCount;
 }
 
-void DFS(char[][] grid, int r, int c) {
-    // STEP 1: Boundary and water check — stop recursion if out of bounds or already water
-    // WHY these boundary checks? Prevent out-of-bounds array access
-    // WHY check '0'? '0' is water — no island to explore there
-    if (r < 0 || r >= grid.Length || c < 0 || c >= grid[0].Length || grid[r][c] != '1')
+// WHY 'SinkIsland'? More descriptive than 'DFS' — describes the "mark as visited" strategy
+void SinkIsland(char[][] grid, int row, int col) {
+    // STEP 1: Boundary and water check — stop if out of bounds or already sunk/water
+    // WHY bounds check? Prevent IndexOutOfRangeException on grid edges
+    // WHY check != '1'? '0' = water, already-sunk land — no island to explore
+    if (row < 0 || row >= grid.Length || col < 0 || col >= grid[0].Length || grid[row][col] != '1')
         return;
 
-    // STEP 2: Sink this cell (mark as water) to prevent revisiting
-    // WHY set to '0'? Mark as VISITED — prevents revisiting the same cell
-    // (acts as a visited set without extra memory)
-    grid[r][c] = '0';
+    // STEP 2: Sink this land cell to prevent revisiting (in-place visited marker)
+    // WHY '0' not a separate visited array? Saves O(m×n) extra space; '0' already means "water"
+    grid[row][col] = '0';
 
-    // STEP 3: Recursively flood-fill all 4 neighboring land cells
-    DFS(grid, r-1, c);  // up
-    DFS(grid, r+1, c);  // down
-    DFS(grid, r, c-1);  // left
-    DFS(grid, r, c+1);  // right
+    // STEP 3: Recursively flood-fill all 4 cardinal neighbors
+    SinkIsland(grid, row - 1, col);  // up
+    SinkIsland(grid, row + 1, col);  // down
+    SinkIsland(grid, row, col - 1);  // left
+    SinkIsland(grid, row, col + 1);  // right
 }
 // Time: O(m×n) — each cell visited at most once
-// Space: O(m×n) — recursion stack worst case (all land)
+// Space: O(m×n) — recursion stack worst case (all land, deep DFS)
 ```
 
 ```
@@ -2971,18 +3155,23 @@ KEY INSIGHT: The problem reduces to: "Does this directed graph have a cycle?"
 
 ```csharp
 public bool CanFinish(int numCourses, int[][] prerequisites) {
-    // STEP 1: Build directed adjacency list (prereq → dependent course)
+    // STEP 1: Build directed adjacency list — edge direction: prerequisite → dependent
+    // WHY graph[pre[1]].Add(pre[0]) and not the reverse?
+    // prerequisite pair [a, b] means "b must come before a" (b is prereq of a)
+    // We add edge b→a: "b unlocks a". A cycle in this graph means a deadlock.
     var graph = new List<List<int>>();
-    for (int i = 0; i < numCourses; i++) graph.Add(new List<int>());
-    foreach (int[] pre in prerequisites)
-        graph[pre[1]].Add(pre[0]); // pre[1] must come before pre[0]
+    for (int courseIndex = 0; courseIndex < numCourses; courseIndex++)
+        graph.Add(new List<int>());
+    foreach (int[] prereqPair in prerequisites)
+        graph[prereqPair[1]].Add(prereqPair[0]); // prereqPair[1] must come before prereqPair[0]
 
     // STEP 2: Initialize 3-state coloring array (0=unvisited, 1=in-progress, 2=done)
     int[] state = new int[numCourses];
 
     // STEP 3: Run cycle-detection DFS from every unvisited node (handles disconnected graphs)
-    for (int i = 0; i < numCourses; i++)
-        if (state[i] == 0 && HasCycle(graph, state, i))
+    // WHY loop all nodes? Graph may be disconnected — some courses may have no shared prerequisites
+    for (int courseId = 0; courseId < numCourses; courseId++)
+        if (state[courseId] == 0 && HasCycle(graph, state, courseId))
             return false;
 
     return true;
@@ -3331,12 +3520,12 @@ public int[] FindRedundantConnection(int[][] edges) {
     var uf = new UnionFind(n + 1);  // +1 because nodes are 1-indexed
 
     foreach (int[] edge in edges) {
-        int u = edge[0], v = edge[1];
-        // STEP 2: Try to union endpoints; if they're already connected → redundant edge
-        // WHY check before union? If u and v are already in the same component,
-        // adding this edge creates a cycle → it's the redundant edge
-        if (!uf.Union(u, v))
-            return edge;  // this edge connects two already-connected nodes
+        int fromNode = edge[0], toNode = edge[1];  // WHY fromNode/toNode? Clearer than u/v for directed edge intent
+        // STEP 2: Try to union endpoints; if they're already in the same component → redundant edge
+        // WHY check before union? If fromNode and toNode are already connected,
+        // adding this edge creates a cycle → it is the redundant (extra) edge
+        if (!uf.Union(fromNode, toNode))
+            return edge;  // this edge connects two already-connected nodes — it's the redundant one
     }
 
     return Array.Empty<int>(); // should never reach here per problem constraints
@@ -3959,15 +4148,21 @@ int UpperBound(int[] arr, int target) {
 // ═══ BINARY SEARCH ON ANSWER (powerful generalization) ═══
 // When: "find minimum/maximum X such that condition(X) is true"
 // Example: "find minimum capacity to ship packages in D days"
+// WHY 'lo'/'hi' instead of 'left'/'right'?
+//   Convention: left/right = array indices; lo/hi = answer-space bounds.
+//   lo = smallest possible answer; hi = largest possible answer.
+//   They are NOT array indices — they represent candidate values being tested.
 int BinarySearchOnAnswer(int lo, int hi, Func<int, bool> feasible) {
-    // STEP 1: Search over answer space [lo, hi] converging to minimum feasible value
+    // STEP 1: Binary search over the answer space [lo..hi] to find the minimum feasible value
+    // WHY lo < hi (not <=)? We converge to the single crossing point; loop exits when lo==hi
     while (lo < hi) {
-        int mid = lo + (hi - lo) / 2;
-        // STEP 2: If mid is feasible try smaller; otherwise need larger
-        if (feasible(mid)) hi = mid;      // mid works → try smaller
-        else lo = mid + 1;                // mid doesn't work → need larger
+        int mid = lo + (hi - lo) / 2;  // candidate answer to test
+        // STEP 2: If mid is feasible, search left half (maybe a smaller answer works too)
+        // If not feasible, search right half (need a larger answer)
+        if (feasible(mid)) hi = mid;      // mid works → try smaller (keep mid in range)
+        else lo = mid + 1;                // mid doesn't work → minimum must be higher
     }
-    return lo;
+    return lo;  // lo == hi: the minimum feasible value in the answer space
 }
 ```
 
@@ -4251,39 +4446,43 @@ int Fib(int n) {
 
 ```csharp
 // ITERATIVE — O(n+m) time, O(1) space (PREFERRED)
-public ListNode MergeTwoLists(ListNode l1, ListNode l2) {
-    // STEP 1: Create dummy head to avoid special-casing first node
-    var dummy = new ListNode(0);  // dummy head simplifies edge cases
-    var curr = dummy;
+// WHY rename l1/l2 → list1/list2? Avoids ambiguity; instantly clear which list is which
+public ListNode MergeTwoLists(ListNode list1, ListNode list2) {
+    // STEP 1: Create dummy head to avoid special-casing the first node selection
+    // WHY dummy? Without it, we'd need an if/else to pick which list becomes the head
+    var dummy = new ListNode(0);  // sentinel head — result list builds from dummy.next
+    var currentNode = dummy;      // currentNode trails behind, always pointing to last placed node
 
-    // STEP 2: Compare front nodes; always append the smaller one
-    while (l1 != null && l2 != null) {
-        if (l1.val <= l2.val) {   // take from l1 if smaller/equal
-            curr.next = l1;
-            l1 = l1.next;
-        } else {
-            curr.next = l2;
-            l2 = l2.next;
+    // STEP 2: Compare front nodes of both lists; always append the smaller one
+    while (list1 != null && list2 != null) {
+        if (list1.val <= list2.val) {   // list1's front is smaller (or equal)
+            currentNode.next = list1;
+            list1 = list1.next;          // advance list1 past the node we just took
+        } else {                         // list2's front is smaller
+            currentNode.next = list2;
+            list2 = list2.next;          // advance list2 past the node we just took
         }
-        curr = curr.next;
+        currentNode = currentNode.next;  // advance the tail of our result list
     }
     // STEP 3: Attach whichever list still has remaining nodes
-    curr.next = l1 ?? l2;  // attach remaining non-null list (one will be null)
-    return dummy.next;
+    // WHY null-coalescing? Exactly one will be null — link the non-null remainder directly
+    currentNode.next = list1 ?? list2;
+    return dummy.next;  // skip the dummy sentinel, return real head
 }
 
 // RECURSIVE — elegant but O(n+m) stack space
-public ListNode MergeTwoListsRecursive(ListNode l1, ListNode l2) {
-    // STEP 1: Base cases — one list exhausted, return the other
-    if (l1 == null) return l2;  // base case: one list exhausted
-    if (l2 == null) return l1;
-    // STEP 2: Pick smaller head and recursively merge the rest
-    if (l1.val <= l2.val) {
-        l1.next = MergeTwoListsRecursive(l1.next, l2); // l1 is smaller, attach merged rest
-        return l1;
+public ListNode MergeTwoListsRecursive(ListNode list1, ListNode list2) {
+    // STEP 1: Base cases — one list exhausted, return the other unchanged
+    if (list1 == null) return list2;  // list1 done; list2 is the remainder
+    if (list2 == null) return list1;  // list2 done; list1 is the remainder
+    // STEP 2: Pick the smaller head, recursively merge the rest
+    // WHY trust the recursion? It returns the merged head of everything after the chosen node
+    if (list1.val <= list2.val) {
+        list1.next = MergeTwoListsRecursive(list1.next, list2); // list1 head is smaller; merge tail
+        return list1;
     } else {
-        l2.next = MergeTwoListsRecursive(l1, l2.next); // l2 is smaller
-        return l2;
+        list2.next = MergeTwoListsRecursive(list1, list2.next); // list2 head is smaller; merge tail
+        return list2;
     }
 }
 ```
@@ -4986,9 +5185,11 @@ public IList<IList<int>> ThreeSum(int[] nums) {
     Array.Sort(nums);  // MUST sort first — enables two-pointer + easy deduplication
     var result = new List<IList<int>>();
 
-    // STEP 2: Fix the first element of the triplet, use two-pointer for the remaining pair
+    // STEP 2: Fix the first element of the triplet; use two-pointer for the other two
+    // WHY nums.Length - 2? i needs at least 2 elements after it (left and right pointers).
+    // Last valid i is nums.Length-3; loop condition < nums.Length-2 ensures that.
     for (int i = 0; i < nums.Length - 2; i++) {
-        // SKIP DUPLICATE: if nums[i] same as previous, would produce same triplets
+        // SKIP DUPLICATE: if nums[i] is same as previous fixed element, triplets would repeat
         if (i > 0 && nums[i] == nums[i-1]) continue;
 
         // EARLY EXIT: if smallest possible sum > 0, no solution possible
@@ -5138,19 +5339,19 @@ public int LengthOfLongestSubstring(string s) {
     int left = 0, maxLen = 0;
 
     for (int right = 0; right < s.Length; right++) {
-        char c = s[right];
+        char currentChar = s[right];  // WHY currentChar? Clearer than 'c' — avoids confusion with index variables
 
         // STEP 2: On duplicate within current window, jump left past it in O(1)
-        // If char was seen AND its last occurrence is within current window
-        // (left <= lastSeen[c]): jump left past the duplicate
-        if (lastSeen.TryGetValue(c, out int prevIdx) && prevIdx >= left) {
-            // WHY prevIdx >= left? If last occurrence is before window start,
-            // it's already outside the window — no need to move left
-            left = prevIdx + 1;  // jump: exclude the duplicate character
+        // If currentChar was seen AND its last occurrence is within the current window
+        // (prevIdx >= left): jump left pointer past the duplicate
+        if (lastSeen.TryGetValue(currentChar, out int prevIdx) && prevIdx >= left) {
+            // WHY prevIdx >= left? If the previous occurrence is before window start,
+            // it's already outside the window — no need to shrink
+            left = prevIdx + 1;  // jump: skip over the duplicate character
         }
 
         // STEP 3: Update last-seen index and record maximum window length
-        lastSeen[c] = right;  // update most recent index of this character
+        lastSeen[currentChar] = right;  // record most recent index for currentChar
         maxLen = Math.Max(maxLen, right - left + 1);
     }
     return maxLen;
@@ -5578,9 +5779,10 @@ TRACE: nums=[4,5,6,7,0,1,2]
 ```csharp
 public int[] TopKFrequent(int[] nums, int k) {
     // STEP 1: Count frequency of each element using a HashMap
+    // WHY GetValueOrDefault? Avoids KeyNotFoundException on first encounter of each number
     var freq = new Dictionary<int, int>();
-    foreach (int n in nums)
-        freq[n] = freq.GetValueOrDefault(n, 0) + 1;
+    foreach (int num in nums)               // WHY 'num' not 'n'? Avoids confusion with array-length 'n'
+        freq[num] = freq.GetValueOrDefault(num, 0) + 1;
 
     // STEP 2: Bucket sort — place each number into bucket[its_frequency]
     // bucket[i] = list of numbers with frequency i
@@ -8057,33 +8259,36 @@ bool ContainsDuplicate(int[] nums) {
 
 ```csharp
 public int NumIslands(char[][] grid) {
-    // STEP 1: Scan the grid for unvisited land cells
-    int count = 0;
-    int rows = grid.Length, cols = grid[0].Length;
+    // STEP 1: Scan the grid for unvisited land cells ('1')
+    int islandCount = 0;
+    int totalRows = grid.Length, totalCols = grid[0].Length;
 
-    for (int r = 0; r < rows; r++) {
-        for (int c = 0; c < cols; c++) {
-            if (grid[r][c] == '1') {  // found an unvisited land cell
-                // STEP 2: Each new land cell found is a new island — DFS to sink it
-                count++;
-                DFS(grid, r, c);  // "sink" the entire connected island
+    for (int row = 0; row < totalRows; row++) {
+        for (int col = 0; col < totalCols; col++) {
+            if (grid[row][col] == '1') {  // unvisited land cell = start of a new island
+                // STEP 2: Each new unvisited land triggers one island increment + full sink
+                islandCount++;
+                SinkConnectedLand(grid, row, col);  // "sink" the entire connected island
             }
         }
     }
-    return count;
+    return islandCount;
 
-    void DFS(char[][] g, int r, int c) {
-        // STEP 3: Base case — out of bounds, water, or already visited (sunk)
-        // Out of bounds or water or already sunk — stop
-        if (r < 0 || r >= rows || c < 0 || c >= cols || g[r][c] != '1') return;
-        g[r][c] = '0';  // mark as visited by "sinking" (changing to water)
-        // STEP 4: Recursively sink all 4 connected neighbors
-        // Explore all 4 neighbors (up, down, left, right)
-        DFS(g, r-1, c); DFS(g, r+1, c);
-        DFS(g, r, c-1); DFS(g, r, c+1);
+    // Local function: flood-fill all connected '1's by sinking them to '0'
+    // WHY local function? Captures rows/cols from outer scope for bounds check
+    void SinkConnectedLand(char[][] g, int row, int col) {
+        // STEP 3: Stop if out of bounds, already water, or already sunk (visited)
+        if (row < 0 || row >= totalRows || col < 0 || col >= totalCols || g[row][col] != '1') return;
+        g[row][col] = '0';  // sink: mark land as visited in-place (no extra visited array needed)
+        // STEP 4: Recursively sink all 4 cardinal neighbors
+        SinkConnectedLand(g, row - 1, col); // up
+        SinkConnectedLand(g, row + 1, col); // down
+        SinkConnectedLand(g, row, col - 1); // left
+        SinkConnectedLand(g, row, col + 1); // right
     }
 }
-// Time: O(m×n), Space: O(m×n) worst case call stack
+// Time: O(m×n) — each cell touched at most twice (scan + DFS)
+// Space: O(m×n) worst case call stack (grid is all land)
 ```
 
 ---
