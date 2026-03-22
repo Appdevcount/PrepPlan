@@ -13127,3 +13127,326 @@ import { axiosInstance } from '@shared/api/axiosInstance';
 ---
 
 *Mid-scale structure scales well from 5 to 30+ features without restructuring*
+
+
+Great — this is exactly the kind of **scenario-based thinking** expected for a **Senior React / Architect-level interview**. I’ll go deep, structured, and practical (with patterns + trade-offs + code where needed).
+
+---
+
+# 🔥 Scenario-Based React Answers (Architect-Level)
+
+---
+
+## **1. Infinite Scrolling (LinkedIn Feed)**
+
+### ✅ Approach
+
+* Use **pagination + lazy loading**
+* Trigger fetch using:
+
+  * `IntersectionObserver` (best)
+  * or scroll event (fallback)
+
+### ✅ Key Optimizations
+
+* Virtualization → `react-window` / `react-virtualized`
+* Avoid DOM explosion
+* Backend should support:
+
+  * cursor-based pagination (better than offset)
+
+### ✅ Sample
+
+```tsx
+const observer = useRef<IntersectionObserver>();
+
+const lastItemRef = useCallback((node) => {
+  if (observer.current) observer.current.disconnect();
+
+  observer.current = new IntersectionObserver(entries => {
+    if (entries[0].isIntersecting) {
+      loadMore();
+    }
+  });
+
+  if (node) observer.current.observe(node);
+}, []);
+```
+
+### 🧠 Architect Insight
+
+* Always combine:
+
+  * **UI virtualization**
+  * **backend pagination**
+  * **cache (React Query)**
+
+---
+
+## **2. Auto Logout After Inactivity**
+
+### ✅ Approach
+
+* Track user activity:
+
+  * `mousemove`, `keydown`, `scroll`
+* Reset timer on activity
+* Logout after timeout
+
+### ✅ Example
+
+```tsx
+useEffect(() => {
+  let timer;
+
+  const resetTimer = () => {
+    clearTimeout(timer);
+    timer = setTimeout(logout, 30 * 60 * 1000);
+  };
+
+  window.addEventListener("mousemove", resetTimer);
+  window.addEventListener("keydown", resetTimer);
+
+  resetTimer();
+
+  return () => {
+    clearTimeout(timer);
+  };
+}, []);
+```
+
+### 🧠 Architect Insight
+
+* Sync across tabs using:
+
+  * `localStorage` events OR
+  * BroadcastChannel API
+
+---
+
+## **3. Internationalization (i18n)**
+
+### ✅ Approach
+
+* Use `react-i18next`
+
+### ✅ Setup
+
+```tsx
+i18n.init({
+  resources: {
+    en: { translation: { welcome: "Welcome" }},
+    ta: { translation: { welcome: "வணக்கம்" }}
+  },
+  lng: "en"
+});
+```
+
+### 🧠 Architect Insight
+
+* Lazy load translations per locale
+* Store user language in:
+
+  * cookie / profile
+* Use **namespace-based splitting**
+
+---
+
+## **4. Large File Upload (100MB+)**
+
+### ✅ Approach
+
+* Chunk upload (important)
+* Resume capability
+
+### ✅ Options
+
+* Direct upload to cloud:
+
+  * Azure Blob SAS URL
+* Or use:
+
+  * Tus protocol
+  * Multipart upload
+
+### 🧠 Architect Insight (Azure)
+
+* Generate **SAS token from backend**
+* Upload directly → avoids API bottleneck
+
+---
+
+## **5. React SPA SEO Issue**
+
+### ❌ Problem
+
+* Google can't index client-rendered content
+
+### ✅ Solutions
+
+1. SSR → Next.js (best)
+2. Pre-rendering → static pages
+3. Dynamic rendering (fallback)
+
+### 🧠 Architect Insight
+
+* Prefer:
+
+  * **Next.js App Router**
+  * hybrid rendering (SSR + CSR)
+
+---
+
+## **6. Stale Closures in useEffect**
+
+### ❌ Problem
+
+* useEffect captures old state
+
+### ✅ Fixes
+
+1. Add dependency
+
+```tsx
+useEffect(() => {
+  console.log(count);
+}, [count]);
+```
+
+2. Use `useRef`
+
+```tsx
+const countRef = useRef(count);
+countRef.current = count;
+```
+
+### 🧠 Architect Insight
+
+* Prefer:
+
+  * functional updates
+
+```tsx
+setCount(prev => prev + 1);
+```
+
+---
+
+## **7. Reduce Bundle Size**
+
+### ✅ Techniques
+
+* Code splitting
+
+```tsx
+const Page = React.lazy(() => import("./Page"));
+```
+
+* Remove unused libs
+* Tree shaking
+* Use lighter alternatives (e.g., dayjs vs moment)
+
+### 🧠 Architect Insight
+
+* Analyze with:
+
+  * `webpack-bundle-analyzer`
+* Split:
+
+  * vendor bundle
+  * route-based chunks
+
+---
+
+## **8. Role-Based Routing**
+
+### ✅ Approach
+
+* Create Protected Route
+
+```tsx
+const ProtectedRoute = ({ role, children }) => {
+  const user = getUser();
+
+  if (user.role !== role) return <Navigate to="/unauthorized" />;
+  return children;
+};
+```
+
+### 🧠 Architect Insight
+
+* Never rely only on frontend
+* Always enforce in:
+
+  * API (JWT claims / Azure AD B2C)
+
+---
+
+## **9. Smooth Animations**
+
+### ✅ Libraries
+
+* Framer Motion (best)
+* React Transition Group
+
+```tsx
+<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} />
+```
+
+### 🧠 Architect Insight
+
+* Avoid heavy animations on:
+
+  * large lists
+* Use GPU-friendly properties:
+
+  * transform, opacity
+
+---
+
+## **10. API Rate Limiting / Throttling**
+
+### ✅ Techniques
+
+* Debounce
+
+```tsx
+const debouncedSearch = debounce(fetchData, 300);
+```
+
+* Throttle
+* Retry with backoff
+
+### 🧠 Architect Insight
+
+* Use React Query:
+
+  * caching
+  * deduplication
+  * retry
+
+---
+
+# 🧠 Final Architect Summary (VERY IMPORTANT)
+
+In interviews, don’t just say solution — say **layers**:
+
+### 🔥 Always mention:
+
+* UI optimization (React)
+* Network optimization (debounce/cache)
+* Backend support (pagination, auth)
+* Cloud integration (Azure Blob, CDN)
+* Security (never trust frontend)
+
+---
+
+# 💥 If you want next level prep:
+
+I can take this further into:
+
+✅ Full **System Design Round (Frontend + Azure + Microservices)**
+✅ Convert these into **15–20 real interview Q&A with expected answers**
+✅ Give **React + .NET integration scenarios (very important for you)**
+
+Just tell me 👍
