@@ -7592,6 +7592,400 @@ const routes = [
 ];
 ```
 
+---
+
+## Angular Signals — Reactive Primitives
+
+> **Mental Model:**
+> An RxJS Observable is a **river** — data flows through pipes, you subscribe at the bank and
+> watch it pass. A Signal is a **whiteboard** — anyone can read the current value at any time,
+> and Angular automatically knows which components need re-drawing when the value changes.
+
+---
+
+### What is a Signal?
+
+A Signal is a **synchronous reactive value holder** introduced in Angular 16+.
+It always holds a current value (unlike Observables which may never emit).
+Angular's change-detection engine tracks which signals a template reads and
+re-renders only those components when a signal changes — no `subscribe`, no
+`async` pipe, no `takeUntil` needed.
+
+```
+┌────────────────────────────────────────────────────────────────────────────┐
+│                    SIGNAL vs OBSERVABLE — CORE COMPARISON                  │
+├────────────────────────┬───────────────────────┬───────────────────────────┤
+│ Aspect                 │ Signal                 │ Observable (RxJS)         │
+├────────────────────────┼───────────────────────┼───────────────────────────┤
+│ Has a current value?   │ YES — always           │ NO — emits over time      │
+│ Synchronous read?      │ YES — call signal()    │ NO — must subscribe       │
+│ Lazy (cold)?           │ NO — always active     │ YES — cold until subscribed│
+│ Operators (map/filter)?│ computed() only        │ Full RxJS operator library │
+│ Async (HTTP, WS)?      │ NO — sync only         │ YES — built for async      │
+│ subscribe() needed?    │ NO                     │ YES                       │
+│ Memory leak risk?      │ NO — framework manages │ YES — must unsubscribe    │
+│ Change detection       │ Fine-grained / zoneless│ Zone.js or markForCheck   │
+│ Available since        │ Angular 16             │ Always (Angular 2+)       │
+└────────────────────────┴───────────────────────┴───────────────────────────┘
+```
+
+---
+
+### The Three Signal Primitives
+
+```typescript
+import { signal, computed, effect } from '@angular/core';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 1. signal(initialValue) — writable reactive value
+// ─────────────────────────────────────────────────────────────────────────────
+// WHY: Replace simple component state (boolean flags, primitive values, objects)
+//      that used to be plain class fields + manual change detection.
+const count = signal(0);           // WritableSignal<number>
+
+count();                           // READ  — call it like a function → returns current value (0)
+count.set(5);                      // WRITE — replace the value entirely
+count.update(n => n + 1);          // UPDATE — derive new value from current (like setState)
+count.mutate(arr => arr.push(item)); // MUTATE — for arrays/objects in-place (Angular 16/17)
+// WHY .update() over .set(): when new value depends on old value (increment, toggle)
+// WHY .mutate(): avoids spreading large arrays just to trigger reactivity
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 2. computed(() => derivedValue) — read-only derived signal
+// ─────────────────────────────────────────────────────────────────────────────
+// WHY: Like a spreadsheet formula — auto-recalculates when dependencies change.
+//      Angular memoizes the result — only recomputes when input signals change.
+//      Equivalent to a BehaviorSubject derived via combineLatest + map in RxJS.
+const doubled = computed(() => count() * 2);  // Signal<number> — read-only
+const label   = computed(() =>
+  count() === 0 ? 'empty' : `${count()} items`
+);
+// doubled() → 2 (if count is 1)
+// WHY NOT a plain getter: plain getters recompute on EVERY read;
+//   computed() recomputes ONLY when dependencies (count) change — memoized.
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 3. effect(() => sideEffect) — runs when dependencies change
+// ─────────────────────────────────────────────────────────────────────────────
+// WHY: Run imperative side effects (logging, localStorage, DOM manipulation)
+//      in response to signal changes — replaces ngOnChanges + manual subscription.
+// IMPORTANT: effects run at least once immediately (reactive, like ngOnInit + watcher).
+// IMPORTANT: do NOT update a signal inside an effect that reads it — infinite loop.
+const logEffect = effect(() => {
+  // Angular automatically tracks which signals are read inside here
+  console.log('count changed to:', count());
+  // WHY: every time count changes, this re-runs automatically
+  // No subscribe, no unsubscribe — framework manages the lifecycle
+});
+// effects are destroyed when the enclosing component/injection context is destroyed
+```
+
+---
+
+### Signals in Components — Full Example
+
+```typescript
+import { Component, signal, computed, effect, OnInit } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { catchError, of, EMPTY, finalize } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+
+interface Product { id: number; name: string; price: number; }
+
+@Component({
+  selector: 'app-products',
+  standalone: true,
+  template: `
+    <!-- Signals are read directly in templates — no async pipe needed       -->
+    <!-- WHY no async pipe: signals are synchronous, always have a value     -->
+
+    <p *ngIf="loading()">Loading...</p>
+
+    <!-- errorMessage() reads the signal — template re-renders only when it changes -->
+    <p *ngIf="errorMessage()" class="error">{{ errorMessage() }}</p>
+
+    <!-- cartCount/cartTotal — derived via computed, update automatically    -->
+    <p>Cart: {{ cartCount() }} items | Total: {{ cartTotal() | currency }}</p>
+
+    <ul>
+      <!-- products() reads the signal — only re-renders when products change -->
+      <li *ngFor="let p of sortedProducts()">
+        {{ p.name }} — {{ p.price | currency }}
+        <button (click)="addToCart(p)">Add</button>
+      </li>
+    </ul>
+
+    <button (click)="clearCart()">Clear Cart</button>
+  `
+})
+export class ProductsComponent implements OnInit {
+
+  // ── Writable signals — replace plain class fields ──────────────────────
+  // WHY signal over plain field: Angular tracks reads in templates automatically
+  //   and only re-renders this component when these specific values change.
+  //   With plain fields + zone.js, Angular re-checks the WHOLE component tree.
+  products     = signal<Product[]>([]);         // starts empty, filled after HTTP
+  loading      = signal(false);                 // tracks HTTP in-flight state
+  errorMessage = signal<string | null>(null);   // null = no error
+  cart         = signal<Product[]>([]);         // items added to cart
+
+  // ── Computed signals — derived state, auto-memoized ────────────────────
+  // WHY computed: recalculates only when cart() changes, not on every render
+  cartCount = computed(() => this.cart().length);
+  cartTotal = computed(() =>
+    // cart() — reading this signal makes cartTotal depend on cart
+    this.cart().reduce((sum, p) => sum + p.price, 0)
+  );
+
+  // ── Expensive computed — Angular caches until dependency changes ────────
+  sortedProducts = computed(() =>
+    // products() — dependency tracked automatically
+    [...this.products()].sort((a, b) => a.price - b.price)
+    // WHY spread: computed must not mutate the original signal array
+  );
+
+  constructor(private http: HttpClient) {
+    // effect() — side effect: sync cart to localStorage whenever it changes.
+    // WHY in constructor (injection context): effects must be created inside an
+    //   injection context (constructor, field initializer) — NOT in ngOnInit.
+    effect(() => {
+      // Reading cart() here registers it as a dependency of this effect
+      localStorage.setItem('cart', JSON.stringify(this.cart()));
+      // WHY: every time user adds/removes from cart, localStorage stays in sync.
+      // No manual subscribe, no ngOnChanges watcher needed.
+    });
+  }
+
+  ngOnInit(): void {
+    this.loadProducts();
+  }
+
+  // ── HTTP call — still uses Observable/subscribe for async work ──────────
+  // WHY still Observable here: Signals are synchronous — they cannot represent
+  //   an HTTP request that hasn't completed yet. Use Observable for async work,
+  //   then push the result INTO a signal once data arrives.
+  loadProducts(): void {
+    this.loading.set(true);       // signal.set() — update value
+    this.errorMessage.set(null);  // clear previous error
+
+    this.http.get<Product[]>('/api/products').pipe(
+      // catchError in pipe — provides fallback [] if HTTP fails
+      // WHY: sortedProducts() computed always receives an array — never null/undefined
+      catchError((err) => {
+        // Push error message INTO a signal — template reacts automatically
+        this.errorMessage.set(`Failed to load products: ${err.message}`);
+        return of([] as Product[]);  // fallback empty array
+      }),
+      // finalize — resets loading whether HTTP succeeded or failed
+      // WHY finalize not complete callback: complete doesn't fire after error
+      finalize(() => this.loading.set(false))
+    ).subscribe({
+      // next — bridge from async (Observable) to sync (Signal) via .set()
+      // WHY .set() here: this is the only correct bridge between the two worlds
+      next: products => this.products.set(products)
+      // error will NOT fire — catchError above swallowed it and returned of([])
+      // complete fires after next — finalize() above handles loading reset
+    });
+  }
+
+  addToCart(product: Product): void {
+    // update() — derive new value from current
+    // WHY update over set: we need to read the current array to append to it
+    this.cart.update(current => [...current, product]);
+    // Angular detects cart changed → cartCount and cartTotal recompute automatically
+  }
+
+  clearCart(): void {
+    this.cart.set([]);  // set() — replace entirely
+    // cartCount() becomes 0, cartTotal() becomes 0 — no manual update needed
+  }
+}
+```
+
+---
+
+### toSignal / toObservable — Bridging Signals and Observables
+
+```typescript
+import { toSignal, toObservable } from '@angular/core/rxjs-interop';
+import { inject } from '@angular/core';
+import { debounceTime, distinctUntilChanged, switchMap } from 'rxjs/operators';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// toSignal() — convert an Observable INTO a Signal
+// ─────────────────────────────────────────────────────────────────────────────
+// WHY: you have an existing Observable (route params, store selector, HTTP)
+//      but want to read it in a template without async pipe.
+//      toSignal subscribes internally and unsubscribes when the injection context
+//      (component) is destroyed — NO manual takeUntil needed.
+
+@Component({ standalone: true, template: `<p>{{ userName() }}</p>` })
+export class ProfileComponent {
+  private route = inject(ActivatedRoute);
+  private http  = inject(HttpClient);
+
+  // Convert route queryParamMap Observable → Signal
+  // WHY: template reads userName() synchronously — no async pipe, no subscribe
+  // initialValue: what to return before the Observable emits its first value
+  userName = toSignal(
+    this.route.queryParamMap.pipe(
+      map(params => params.get('name') ?? 'Guest')
+    ),
+    { initialValue: 'Guest' }
+    // WHY initialValue: Signals must always have a value — toSignal needs
+    //   a starting value for the moment before the Observable emits
+  );
+
+  // toSignal with HTTP Observable — simplest possible approach
+  // WHY: removes subscribe + manual field assignment in ngOnInit entirely
+  // Products is [] until HTTP resolves, then automatically updates
+  products = toSignal(
+    this.http.get<Product[]>('/api/products').pipe(
+      catchError(() => of([] as Product[]))  // fallback inside pipe as usual
+    ),
+    { initialValue: [] as Product[] }
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// toObservable() — convert a Signal INTO an Observable
+// ─────────────────────────────────────────────────────────────────────────────
+// WHY: you have a signal (e.g. search input) but need RxJS operators like
+//      debounceTime / switchMap that don't exist on signals.
+
+@Component({ standalone: true })
+export class SearchComponent {
+  private http = inject(HttpClient);
+
+  // User's search input as a signal — updated on every keystroke
+  searchTerm = signal('');
+
+  // Convert signal → Observable to access RxJS operators → back to Signal for template
+  results = toSignal(
+    toObservable(this.searchTerm).pipe(
+      // debounceTime — wait 300ms after user stops typing before firing HTTP
+      // WHY: without debounce, HTTP fires on every keystroke (expensive)
+      debounceTime(300),
+
+      // distinctUntilChanged — skip if value hasn't changed
+      // WHY: prevents duplicate HTTP calls (user types then deletes to same value)
+      distinctUntilChanged(),
+
+      // switchMap — cancel previous HTTP call when new search term arrives
+      // WHY: user types "ang" (HTTP starts), then "angu" → previous HTTP CANCELLED
+      switchMap(term =>
+        term.length < 2
+          ? of([])   // don't search single characters
+          : this.http.get<string[]>(`/api/search?q=${term}`).pipe(
+              // catchError PER INNER OBSERVABLE — prevents switchMap stream dying on error
+              // WHY here not outside: if catchError were outside switchMap, a single HTTP
+              //   error would kill the ENTIRE search stream permanently
+              catchError(() => of([] as string[]))
+            )
+      )
+    ),
+    { initialValue: [] as string[] }
+  );
+  // In template: results() → string[] — auto-updates as user types, no subscribe
+}
+```
+
+---
+
+### Error Handling with Signals — Three-State Pattern
+
+```typescript
+// ─────────────────────────────────────────────────────────────────────────────
+// Three-state signal replaces boolean flag soup
+// ─────────────────────────────────────────────────────────────────────────────
+// ❌ WRONG (boolean flags) — can reach invalid states:
+//    isLoading=true AND isError=true simultaneously — which wins in the template?
+//    isLoading  = false;
+//    isError    = false;
+//    isSuccess  = false;
+
+// ✅ CORRECT — discriminated union: only ONE valid state at a time
+type LoadState<T> =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'success'; data: T }
+  | { status: 'error'; message: string };
+
+@Component({
+  standalone: true,
+  template: `
+    <ng-container [ngSwitch]="state().status">
+      <p *ngSwitchCase="'loading'">Loading...</p>
+      <p *ngSwitchCase="'error'" class="error">{{ state().message }}</p>
+      <ul *ngSwitchCase="'success'">
+        <li *ngFor="let u of state().data">{{ u.name }}</li>
+      </ul>
+    </ng-container>
+  `
+})
+export class UsersComponent implements OnInit {
+
+  // Single signal — impossible to be in two states at once
+  state = signal<LoadState<User[]>>({ status: 'idle' });
+
+  // computed — derive boolean helpers so template stays readable
+  // WHY computed: template uses isLoading() instead of state().status === 'loading'
+  isLoading = computed(() => this.state().status === 'loading');
+  hasError  = computed(() => this.state().status === 'error');
+
+  constructor(private http: HttpClient) {}
+
+  ngOnInit(): void {
+    this.state.set({ status: 'loading' });  // single .set() replaces 3 boolean updates
+
+    this.http.get<User[]>('/api/users').pipe(
+      catchError((err: HttpErrorResponse) => {
+        // Push error state INTO signal — template reacts immediately
+        this.state.set({ status: 'error', message: `Error ${err.status}: ${err.message}` });
+        // Return EMPTY — no next() fires, complete fires, subscribe stays clean
+        // WHY EMPTY over of([]): we already set error state above; we don't want
+        //   next() to overwrite it with { status: 'success', data: [] }
+        return EMPTY;
+      })
+    ).subscribe({
+      // next — only fires if catchError was NOT triggered (HTTP succeeded)
+      next: users => this.state.set({ status: 'success', data: users }),
+      // error will NOT fire — catchError returned EMPTY (swallowed the error)
+      // complete fires after next — state already set, nothing to do
+    });
+  }
+}
+```
+
+---
+
+### Signals vs RxJS — When to Use Each
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         DECISION GUIDE                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Use SIGNALS for:                          Use OBSERVABLES (RxJS) for:
+────────────────────────────────────────  ──────────────────────────────────────
+✅ Component state (count, isOpen,        ✅ HTTP calls (async, one-shot)
+   selectedTab, formMode)                ✅ WebSockets (long-lived streams)
+✅ Derived/computed values                ✅ Route params / queryParams
+   (total, filteredList, label)          ✅ User events (debounce + switchMap)
+✅ Sharing state between components       ✅ Polling with interval()
+   via a service (replaces BehaviorSubject✅ Combining multiple async sources
+   for simple shared values)                 (combineLatest, forkJoin)
+✅ Simple synchronous reactive UI         ✅ Complex operator chains
+✅ Zoneless Angular (signal-based CD)         (retry, throttle, buffer, audit)
+
+Use BOTH (bridge with toSignal / toObservable):
+  ✅ HTTP call → subscribe → signal.set()            async source, sync result
+  ✅ toSignal(http.get(...))                          no subscribe in component
+  ✅ toObservable(signal) → debounce → switchMap      signal drives async pipeline
+```
+
+---
+
 ### Interview Questions You'll Be Asked
 
 **Q: How do you prevent memory leaks in React vs Angular?**
