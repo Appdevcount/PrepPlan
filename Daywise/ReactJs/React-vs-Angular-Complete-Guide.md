@@ -429,10 +429,16 @@ export class UserCardComponent implements OnInit, OnDestroy, OnChanges {
       .pipe(
         takeUntil(this.destroy$)  // ← Automatically unsubscribe on destroy
       )
+      // SHORTHAND subscribe(fn) — passes a single function as the `next` callback only.
+      // WHY shorthand here: this is a demo component. In production always use the object form
+      //   { next, error } so HTTP failures don't silently fall into the global error handler.
+      // `next` fires once when getUser() emits the User object, then the HTTP Observable completes.
       .subscribe(user => {
-        // Called when data arrives - update component state
+        // next callback — called when the Observable emits the user value
         this.user = user;
         this.loading = false;
+        // complete() fires automatically after this (HTTP Observable always completes) — not handled here
+        // error callback omitted — if the HTTP request fails, the error is unhandled (use object form instead)
       });
   }
 
@@ -2387,8 +2393,18 @@ export class PostViewerComponent implements OnInit, OnChanges, OnDestroy {
 
     this.http.get<Post>(`/api/posts/${this.postId}`)
       .pipe(takeUntil(this.destroy$))  // ← Auto-unsubscribe on destroy
+      // Object form subscribe — explicitly handles both success and failure paths.
+      // WHY object form over shorthand: HTTP calls can fail (network, 4xx, 5xx).
+      //   Shorthand subscribe(fn) has no `error` handler — unhandled errors crash the stream silently.
       .subscribe({
+        // next — fires ONCE when the HTTP response arrives with the Post body
+        // WHY: HTTP GET Observables emit exactly ONE value then complete — so next fires once only
         next: post => { this.post = post; this.loading = false; },
+
+        // error — fires if HTTP returns 4xx/5xx or the network fails; next/complete won't fire after this
+        // WHY reset loading: prevents the spinner from being stuck on screen after a failure
+        // NOTE: `complete` is intentionally omitted — not needed here because we don't need a "done" callback
+        //   (loading=false is already handled in both next and error above)
         error: err => { this.error = err.message; this.loading = false; }
       });
   }
@@ -4627,11 +4643,19 @@ export class UserFormComponent implements OnInit {
   onSubmit(): void {
     if (this.userForm.valid) {
       this.isSubmitting = true;
+      // Object form subscribe — POST requests MUST handle errors; shorthand would silently lose failures.
       this.userService.createUser(this.userForm.value).subscribe({
+        // next — HTTP POST succeeded (2xx response). Void return type — we only care it worked.
+        // WHY void: the API returns 201 Created with no body we need, so next() carries nothing useful.
         next: () => {
-          this.isSubmitting = false;
-          this.userForm.reset();
+          this.isSubmitting = false;  // re-enable submit button
+          this.userForm.reset();       // clear all form fields and reset validation state
+          // complete() fires immediately after this — not handled, no cleanup needed
         },
+
+        // error — HTTP POST failed (validation error 422, auth error 401, network failure, etc.)
+        // WHY only reset isSubmitting: we keep form values intact so the user can fix and retry.
+        // NOTE: complete() is NOT called after error fires — stream terminates here.
         error: () => this.isSubmitting = false
       });
     } else {
@@ -4762,11 +4786,22 @@ export class LoginComponent {
     if (form.invalid) return;  // safety check (button should already be disabled)
 
     this.isLoading = true;
+    // Object form — login HTTP call must handle both success and failure explicitly.
+    // WHY isLoading is set to true BEFORE subscribe: gives immediate UI feedback.
+    // isLoading is reset to false in error only — in next() we navigate away (component destroyed).
     this.authService.login(this.credentials).subscribe({
+      // next — login POST returned 200 with a token.
+      // WHY we don't reset isLoading here: router.navigate() destroys this component
+      //   immediately, so keeping isLoading=true prevents a flicker of the button re-enabling.
       next: () => {
         form.resetForm();            // ← resets value AND all validation state (touched, dirty)
         this.router.navigate(['/dashboard']);
+        // complete() fires after this — component is being destroyed, nothing to do
       },
+
+      // error — login failed (401 wrong password, 403 locked, network error).
+      // WHY re-enable the button: user needs to correct credentials and try again.
+      // NOTE: next() did NOT fire — form values are still intact so user can edit them.
       error: () => { this.isLoading = false; }
     });
   }
@@ -4922,11 +4957,19 @@ export class RegisterComponent {
     }
 
     this.isSubmitting = true;
+    // Object form — POST calls always need an error handler. Shorthand would lose server errors silently.
     this.userService.createUser(this.user).subscribe({
+      // next — server returned 201/200. Registration succeeded.
+      // WHY void: we only need success confirmation, not the response body.
       next: () => {
         this.isSubmitting = false;
-        form.resetForm();   // ← clears values + resets pristine/touched/dirty state
+        form.resetForm();   // ← clears values + resets pristine/touched/dirty state (NgForm)
+        // complete() fires right after — HTTP POST always completes after emitting once
       },
+
+      // error — registration failed (e.g. 409 email already taken, 422 validation, network error).
+      // WHY keep form values: user needs to read their input to fix the problem.
+      // complete() will NOT fire — stream terminated by error.
       error: () => { this.isSubmitting = false; }
     });
   }
@@ -5371,8 +5414,18 @@ export class UserListComponent implements OnInit {
       // WHY: Like a finally{} block for Observables. Ensures creating=false is reset
       //      regardless of success or failure — prevents stuck "Adding..." button state.
       finalize(() => this.creating = false)
+    // NOTE: finalize() above already handles resetting `creating=false` for BOTH success and error paths.
+    //   That is why the subscribe callbacks here are lean — no need to repeat cleanup logic.
     ).subscribe({
-      next: users => this.users$ = of(users),  // of(users) wraps array back as Observable for async pipe
+      // next — the full refreshed user list arrived after the create succeeded.
+      // of(users) — wraps the plain User[] array back into an Observable so the async pipe can consume it.
+      // WHY of(): this.users$ is typed as Observable<User[]>; we can't assign a plain array to it.
+      next: users => this.users$ = of(users),
+
+      // error — create OR getUsers failed. finalize() already ran (creating=false reset).
+      // WHY still handle error here: finalize doesn't swallow the error — it still propagates.
+      //   We capture the message to display an error banner in the template.
+      // complete() — fires after next() if the pipe completes normally. Not handled — nothing to do.
       error: err => this.error = err.message
     });
   }
@@ -5763,9 +5816,67 @@ export class UploadComponent {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) return;
 
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // subscribe() ANATOMY — all three callbacks explained
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    //
+    //  subscribe(fn)                   ← SHORTHAND — only handles `next`. Errors are
+    //                                    silently swallowed into the global error handler.
+    //                                    NEVER use for HTTP calls — you'll miss failures.
+    //
+    //  subscribe({ next, error, complete }) ← OBJECT FORM — handle all three phases:
+    //
+    //  ┌───────────┬──────────────────────────────────────────────────────────────────┐
+    //  │ Callback  │ When it fires                                                    │
+    //  ├───────────┼──────────────────────────────────────────────────────────────────┤
+    //  │ next      │ Every time the Observable emits a value (0 → N times).           │
+    //  │           │ For HTTP GET: fires exactly ONCE (the response), then complete.  │
+    //  │           │ For upload with reportProgress: fires MANY times (% progress).   │
+    //  │           │ For BehaviorSubject: fires immediately + on every .next() call.  │
+    //  ├───────────┼──────────────────────────────────────────────────────────────────┤
+    //  │ error     │ Fires ONCE if the Observable errors. The stream TERMINATES here. │
+    //  │           │ `complete` is NEVER called after `error`.                        │
+    //  │           │ Common sources: HTTP 4xx/5xx, network failure, thrown exception. │
+    //  │           │ After `error` fires — no more `next`, no `complete`.             │
+    //  ├───────────┼──────────────────────────────────────────────────────────────────┤
+    //  │ complete  │ Fires ONCE when the stream ends SUCCESSFULLY with no more values.│
+    //  │           │ `error` is NEVER called after `complete`.                        │
+    //  │           │ HTTP calls: always complete after emitting the response.         │
+    //  │           │ BehaviorSubject/interval: NEVER complete unless you call         │
+    //  │           │   subject.complete() / takeUntil explicitly.                     │
+    //  └───────────┴──────────────────────────────────────────────────────────────────┘
+    //
+    //  LIFECYCLE DIAGRAM:
+    //
+    //  ── Happy path ──────────────────────────────────────────────────────────────
+    //  next(10%) → next(40%) → next(70%) → next(100%) → complete()
+    //              (stream is DONE — no more callbacks will fire)
+    //
+    //  ── Error path ──────────────────────────────────────────────────────────────
+    //  next(10%) → next(40%) → error(NetworkError)
+    //              (stream TERMINATED — complete() will NOT fire)
+    //
+    //  ── Unsubscribed path (takeUntil / component destroy) ───────────────────────
+    //  next(10%) → next(40%) → [unsubscribe] → silence (no error, no complete)
+    //
+    //  WHY this upload Observable fires `next` MANY times:
+    //    uploadImage() uses HttpClient with { reportProgress: true, observe: 'events' }.
+    //    HttpClient emits HttpUploadProgressEvent on each chunk, then HttpResponse on done.
+    //    The pipe maps each event to a % number — so next fires repeatedly until 100%.
+    //    Most HTTP GET/POST observables only emit ONE value then complete immediately.
     this.productService.uploadImage('product-123', file).subscribe({
-      next: progress => this.uploadProgress = progress, // updates progress bar reactively
+      // next — called for EACH upload progress event (10%, 40%, 70%, 100%)
+      // WHY: update the progress bar UI on every chunk — gives the user live feedback
+      next: progress => this.uploadProgress = progress,
+
+      // error — called ONCE if the upload fails (network drop, server error, timeout)
+      // WHY: show an error message to the user; complete() will NOT fire after this
       error: err    => console.error(err),
+
+      // complete — called ONCE after the final next() when the stream finishes successfully
+      // WHY: show "Upload done!" message or navigate away — only fires on clean finish
+      // NOTE: complete is NOT called if error fires first
+      // NOTE: for plain GET/POST requests, complete fires right after the single next()
       complete: ()  => console.log('Upload complete')
     });
   }
