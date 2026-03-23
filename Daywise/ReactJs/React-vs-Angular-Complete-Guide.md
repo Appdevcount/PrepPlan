@@ -6738,21 +6738,135 @@ export class RepeatDirective {
 }
 // Usage: <div *appRepeat="5; let i = index">Item {{ i }}</div>
 
-// Attribute Directive (modifies element behavior)
+// ─────────────────────────────────────────────────────────────────────────────
+// @HostBinding — bind a property or CSS on the HOST element
+// ─────────────────────────────────────────────────────────────────────────────
+// Mental Model: @HostBinding is like doing `element.style.backgroundColor = x`
+//   or `element.classList.add('active')` — but declaratively, in the class.
+//
+// WHY @HostBinding instead of ElementRef:
+//   ElementRef gives you raw DOM access (imperative, hard to test).
+//   @HostBinding is declarative — Angular applies it during change detection,
+//   works with AOT compilation, and is safer (no direct DOM manipulation).
+//
+// Syntax:  @HostBinding('targetProp') field = value;
+//          targetProp can be:
+//   ├── 'style.color'             → sets element.style.color
+//   ├── 'style.backgroundColor'   → sets element.style.backgroundColor
+//   ├── 'class.active'            → toggles CSS class 'active' (boolean value)
+//   ├── 'class.disabled'          → toggles CSS class 'disabled'
+//   ├── 'attr.aria-label'         → sets an HTML attribute
+//   ├── 'attr.tabindex'           → sets tabindex attribute
+//   └── 'disabled'                → sets the disabled DOM property (boolean)
+//
+// ─────────────────────────────────────────────────────────────────────────────
+// @HostListener — listen to DOM events on the HOST element
+// ─────────────────────────────────────────────────────────────────────────────
+// Mental Model: @HostListener is like addEventListener on the element itself,
+//   but managed by Angular (auto-removed on destroy, no memory leak).
+//
+// WHY @HostListener instead of (click) in template:
+//   Directives don't have templates — they attach to existing elements.
+//   @HostListener lets the directive react to events on THAT element without
+//   the user having to add (event) handlers in their own template.
+//
+// Syntax:  @HostListener('eventName', ['$event']) methodName(event?) {}
+//   ├── 'click'             → element click
+//   ├── 'mouseenter'        → mouse hover in
+//   ├── 'mouseleave'        → mouse hover out
+//   ├── 'keydown.enter'     → keyboard Enter key
+//   ├── 'document:click'    → click ANYWHERE in the document (global listener)
+//   └── 'window:resize'     → window resize event
+//
+// ['$event'] — passes the native DOM event object as the first argument.
+// Omit it if you don't need the event details.
+
+// Attribute Directive — full explanation of @HostBinding + @HostListener
 @Directive({ selector: '[appHighlight]' })
 export class HighlightDirective {
+
+  // @Input() — receives the color value from the parent template
+  // Usage: <p appHighlight="pink">  → appHighlight = 'pink'
+  // Default 'yellow' is used when no value is passed: <p appHighlight>
   @Input() appHighlight = 'yellow';
 
+  // @HostBinding('style.backgroundColor')
+  // ↑ Tells Angular: "keep element.style.backgroundColor in sync with bgColor"
+  // Angular reads bgColor on every change-detection cycle and sets the CSS.
+  // WHY getter instead of plain field: bgColor must return the CURRENT value of
+  //   appHighlight — which changes on hover. A getter re-reads it each time.
   @HostBinding('style.backgroundColor')
   get bgColor() { return this.appHighlight; }
 
+  // @HostListener('mouseenter') — fires when the mouse enters the host element.
+  // No $event needed here — we only care that the event happened, not its details.
+  // WHY update appHighlight (not bgColor directly): bgColor is a getter that
+  //   reads appHighlight, so changing appHighlight automatically changes bgColor.
   @HostListener('mouseenter')
-  onMouseEnter() { this.appHighlight = 'lightblue'; }
+  onMouseEnter() {
+    this.appHighlight = 'lightblue';   // → bgColor returns 'lightblue' → CSS updates
+  }
 
+  // @HostListener('mouseleave') — fires when the mouse leaves the host element.
+  // Resets the color to whatever was originally passed via @Input.
   @HostListener('mouseleave')
-  onMouseLeave() { this.appHighlight = 'yellow'; }
+  onMouseLeave() {
+    this.appHighlight = 'yellow';      // → bgColor returns 'yellow' → CSS resets
+  }
 }
 // Usage: <p appHighlight="pink">Hover me</p>
+//   On mouseenter → background becomes 'lightblue'
+//   On mouseleave → background returns to 'yellow' (resets to default, not 'pink')
+
+// ── More @HostBinding examples ─────────────────────────────────────────────
+
+// Example: Toggle an 'active' CSS class on the host element
+@Directive({ selector: '[appActive]' })
+export class ActiveDirective {
+  isActive = false;
+
+  // class.active — Angular adds/removes the 'active' CSS class based on isActive
+  // WHY: parent template doesn't need [class.active]="..." — directive manages it
+  @HostBinding('class.active')
+  get active() { return this.isActive; }
+
+  // ['$event'] — passes the MouseEvent to the method
+  // WHY: we need event.target to check which element was clicked (global listener)
+  @HostListener('document:click', ['$event'])
+  onClick(event: MouseEvent) {
+    // If the user clicked outside this element, deactivate
+    // WHY document: instead of just 'click': 'click' only fires on the host element;
+    //   'document:click' fires for ANY click anywhere — lets us detect outside clicks
+    this.isActive = false;
+  }
+}
+
+// Example: @HostBinding on @Component itself (not just directives)
+// Components ARE directives — @HostBinding works on components too
+@Component({
+  selector: 'app-button',
+  template: `<ng-content></ng-content>`
+})
+export class ButtonComponent {
+  @Input() disabled = false;
+
+  // Sync the host element's disabled attribute with the @Input
+  // WHY: <app-button [disabled]="true"> should make the custom element behave
+  //   like a native button — screen readers and CSS :disabled selector work correctly
+  @HostBinding('attr.disabled')
+  get disabledAttr() { return this.disabled ? '' : null; }
+  // null removes the attribute entirely; '' sets it (disabled="")
+
+  // Prevent click events when disabled — host-level guard
+  // WHY: even if disabled attr is set, Angular events still fire — this blocks them
+  @HostListener('click', ['$event'])
+  onClick(event: MouseEvent) {
+    if (this.disabled) {
+      event.stopPropagation();   // don't bubble up
+      event.preventDefault();    // don't trigger default behavior
+    }
+  }
+}
 
 // React: Would need HOC or custom hook + explicit props
 
@@ -6831,6 +6945,152 @@ export class LayoutComponent {}
 // </app-layout>
 
 // React: Uses children prop or named slots via props
+
+// ─────────────────────────────────────────────────────────────────────────────
+// @ContentChild / @ContentChildren — access PROJECTED content
+// ─────────────────────────────────────────────────────────────────────────────
+// Mental Model: Think of a card component with a <ng-content> slot.
+//   The PARENT decides what goes inside the card. The card component itself
+//   sometimes needs a reference to that projected content — e.g. to call a method
+//   on it, read its value, or observe it. That's @ContentChild.
+//
+// ┌─────────────────────────────────────────────────────────────────────────────┐
+// │             @ViewChild  vs  @ContentChild  — KEY DIFFERENCE                 │
+// ├───────────────────────┬────────────────────────────────────────────────────┤
+// │ @ViewChild            │ @ContentChild                                       │
+// ├───────────────────────┼────────────────────────────────────────────────────┤
+// │ Accesses elements in  │ Accesses elements the PARENT projected via          │
+// │ THIS component's own  │ <ng-content> — defined in PARENT's template         │
+// │ template (.html)      │                                                     │
+// │                       │                                                     │
+// │ Available in:         │ Available in:                                       │
+// │ ngAfterViewInit       │ ngAfterContentInit                                  │
+// │                       │                                                     │
+// │ React equivalent:     │ React equivalent:                                   │
+// │ useRef on own element │ React.Children.map(children, ...) or                │
+// │                       │ passing render props                                │
+// └───────────────────────┴────────────────────────────────────────────────────┘
+//
+// WHY the lifecycle hook difference matters:
+//   Angular initialises the component's OWN view (ViewChild) BEFORE projected content.
+//   Projected content (ContentChild) is ready only in ngAfterContentInit.
+//   Reading @ContentChild in ngOnInit → always undefined.
+
+// ── Scenario: TabGroupComponent that needs to know about projected TabComponents ──
+
+// Child tab component — projected by the parent
+@Component({
+  selector: 'app-tab',
+  template: `<div *ngIf="active"><ng-content></ng-content></div>`
+})
+export class TabComponent {
+  @Input() label = '';
+  active = false;     // TabGroup will control this
+}
+
+// TabGroup component — the host that projects app-tab elements
+@Component({
+  selector: 'app-tab-group',
+  template: `
+    <nav>
+      <!-- Show a button per projected tab, using tabs queried via @ContentChildren -->
+      <button
+        *ngFor="let tab of tabs"
+        [class.active]="tab.active"
+        (click)="activate(tab)">
+        {{ tab.label }}
+      </button>
+    </nav>
+    <!-- The actual tab bodies come from the projected <app-tab> elements -->
+    <ng-content></ng-content>
+  `
+})
+export class TabGroupComponent implements AfterContentInit {
+
+  // @ContentChildren — queries ALL projected elements matching TabComponent.
+  // WHY QueryList: there can be many tabs (not just one), so Angular returns
+  //   a QueryList<T> — a live, iterable collection that updates if tabs are added/removed.
+  // Static false (default) — query is resolved after change detection (live).
+  // Static true — resolved once at init (only for queries that never change).
+  @ContentChildren(TabComponent)
+  tabs!: QueryList<TabComponent>;
+
+  // ngAfterContentInit — fires after Angular has set projected content.
+  // WHY NOT ngOnInit: at ngOnInit, @ContentChildren is still undefined.
+  //   Projected content is resolved by Angular between ngOnInit and ngAfterContentInit.
+  ngAfterContentInit() {
+    // Activate the first tab by default
+    const firstTab = this.tabs.first;   // QueryList.first — first projected tab
+    if (firstTab) {
+      firstTab.active = true;
+    }
+
+    // QueryList.changes — Observable that fires when tabs are added/removed
+    // WHY subscribe: if tabs are dynamically added at runtime, re-activate first
+    this.tabs.changes.subscribe(() => {
+      if (!this.tabs.some(t => t.active)) {
+        this.activate(this.tabs.first);
+      }
+    });
+  }
+
+  activate(selectedTab: TabComponent) {
+    // Deactivate all tabs, then activate the selected one
+    this.tabs.forEach(tab => tab.active = false);
+    selectedTab.active = true;
+  }
+}
+
+// Usage in a parent template:
+// <app-tab-group>
+//   <app-tab label="Overview">Overview content here</app-tab>
+//   <app-tab label="Settings">Settings content here</app-tab>
+//   <app-tab label="History">History content here</app-tab>
+// </app-tab-group>
+//
+// How it works:
+//   1. Parent projects three <app-tab> elements into <app-tab-group>
+//   2. @ContentChildren(TabComponent) queries them — tabs QueryList has 3 items
+//   3. ngAfterContentInit activates tabs[0]
+//   4. User clicks a nav button → activate() deactivates all, activates selected
+
+// ── @ContentChild (singular) — when you expect exactly ONE projected child ──
+
+@Component({
+  selector: 'app-panel',
+  template: `
+    <div class="panel">
+      <div class="panel-header">{{ headerText }}</div>
+      <ng-content></ng-content>
+    </div>
+  `
+})
+export class PanelComponent implements AfterContentInit {
+
+  headerText = '';
+
+  // @ContentChild — queries the FIRST projected element matching PanelHeaderComponent.
+  // WHY ContentChild not ViewChild: PanelHeaderComponent is defined in the PARENT's
+  //   template and projected in via <ng-content>, not defined inside panel.component.html
+  @ContentChild(PanelHeaderComponent)
+  headerRef?: PanelHeaderComponent;
+
+  // Available in ngAfterContentInit — not in ngOnInit (still undefined at that point)
+  ngAfterContentInit() {
+    if (this.headerRef) {
+      // Read data from the projected child component
+      this.headerText = this.headerRef.title;
+      // WHY: the panel can now render the header text in its own template
+      //   even though the PanelHeaderComponent was defined by the parent
+    }
+  }
+}
+
+// Usage:
+// <app-panel>
+//   <app-panel-header title="User Details"></app-panel-header>
+//   <p>Panel body content...</p>
+// </app-panel>
 
 // 8. Built-in HTTP Client
 // Angular has HttpClientModule built-in with:
@@ -8564,7 +8824,27 @@ COMMUNICATION PATTERNS
 │                        @ViewChildren → QueryList<T>
 │
 ├── Content Projection   <ng-content>  (child defines slots)
-│   (slot pattern)       @ContentChild / @ContentChildren
+│   (slot pattern)      @ContentChild(Type)            ← ONE projected element
+│                       @ContentChildren(Type)          ← ALL projected elements → QueryList<T>
+│                       │
+│                       ├── Available in: ngAfterContentInit  (NOT ngOnInit — undefined there)
+│                       ├── WHY different from @ViewChild: projected content lives in the
+│                       │   PARENT's template; @ViewChild reads THIS component's own template
+│                       └── QueryList.changes → Observable — fires when projected items added/removed
+│
+├── Directives           @HostBinding / @HostListener
+│   (host DOM control)  │
+│                       ├── @HostBinding('style.color')     ← bind CSS property on host element
+│                       │   @HostBinding('class.active')    ← toggle CSS class (boolean)
+│                       │   @HostBinding('attr.aria-label') ← set HTML attribute
+│                       │   @HostBinding('disabled')        ← set DOM property
+│                       │   WHY: declarative, safe, no direct ElementRef DOM manipulation
+│                       │
+│                       └── @HostListener('click', ['$event'])     ← element event
+│                           @HostListener('mouseenter')             ← hover in
+│                           @HostListener('document:click', ['$event']) ← global event
+│                           @HostListener('window:resize')          ← window event
+│                           WHY: Angular removes listeners on destroy — no memory leak
 │
 └── Sibling / Any        Shared Service + BehaviorSubject (see Ph 10)
     (via service)        OR NgRx Store (see Ph 10)
@@ -8572,10 +8852,14 @@ COMMUNICATION PATTERNS
 
 **Decision tree:**
 ```
-Direct parent-child?  →  @Input / @Output
-Need child's method?  →  @ViewChild
-Unrelated / distant?  →  Service (BehaviorSubject) or NgRx
-Slot content?         →  ng-content
+Direct parent-child?           →  @Input / @Output
+Need child's method/ref?       →  @ViewChild  (own template, ready in ngAfterViewInit)
+Need projected child's ref?    →  @ContentChild  (parent's template, ready in ngAfterContentInit)
+Need all projected children?   →  @ContentChildren → QueryList<T>
+Unrelated / distant?           →  Service (BehaviorSubject) or NgRx
+Slot content (composition)?    →  ng-content
+Bind CSS/attr on host element? →  @HostBinding
+React to host DOM events?      →  @HostListener
 ```
 
 ---
