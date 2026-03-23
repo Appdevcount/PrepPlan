@@ -8631,22 +8631,47 @@ ROUTING
 │       [routerLinkActiveOptions]="{ exact: true }"  ← exact match
 │
 ├── Route params
-│   ├── Path:  /products/:id           → route.snapshot.paramMap.get('id')
-│   │                                    route.paramMap.subscribe(...)
-│   └── Query: /products?page=2        → route.snapshot.queryParamMap.get('page')
+│   ├── Path:  /products/:id
+│   │   ├── route.snapshot.paramMap.get('id')    ← one-time read; safe when component recreated
+│   │   └── route.paramMap.subscribe(...)         ← reactive; needed if component REUSED
+│   │
+│   ├── Query: /products?page=2
+│   │   ├── route.snapshot.queryParamMap.get('page')  ← frozen at load time
+│   │   └── route.queryParamMap.subscribe(...)         ← updates on every ?param= change
+│   │
+│   └── snapshot vs Observable rule:
+│       component destroyed/recreated on nav? → snapshot is fine (ngOnInit reruns)
+│       component REUSED across navigations?  → MUST use Observable (snapshot is stale)
 │
-└── Programmatic: this.router.navigate(['/products', id], { queryParams: { x: 1 }})
+├── queryParamsHandling
+│   ├── ''          → replace ALL existing params (default)
+│   ├── 'merge'     → keep existing, add/overwrite new  ★ use for tab/filter updates
+│   └── 'preserve'  → ignore new params, keep URL as-is
+│
+└── Programmatic: this.router.navigate(['/products', id], { queryParams: { x: 1 }, queryParamsHandling: 'merge' })
 ```
 
 **Guards quick reference:**
 
-| Guard | When Runs | Use For |
-|-------|-----------|---------|
-| `CanActivate` / `canActivateFn` | Before entering | Auth check |
-| `CanActivateChild` | Before child route | Protect all children |
-| `CanDeactivate` | Before leaving | Unsaved changes warning |
-| `Resolve` | Before route loads | Pre-fetch data |
-| `CanLoad` | Before lazy module download | Don't even download if unauthorized |
+| Guard | Runs when | Re-runs? | Use for |
+|-------|-----------|----------|---------|
+| `CanActivate` / `canActivateFn` | Before EVERY activation | YES — every visit | Auth check, session expiry, role check |
+| `CanActivateChild` | Before child route | YES | Protect all children at once |
+| `CanDeactivate` | Before leaving | YES | Unsaved changes warning |
+| `Resolve` | Before route loads | YES | Pre-fetch data (no empty-component flash) |
+| `CanLoad` | Before lazy MODULE download | NO — only first load | Don't even download bundle if unauthorized |
+
+**`canActivate` vs `canLoad` — key difference:**
+```
+canActivate  → runs on EVERY navigation to that route (even if already downloaded)
+               → catches session expiry, role changes, token refresh
+               → receives ActivatedRouteSnapshot (path params, data, queryParams)
+
+canLoad      → runs ONCE: before the lazy module JS is downloaded
+               → if user is NOT authorized, the bundle is never fetched (saves bandwidth)
+               → does NOT re-run on subsequent visits to the same lazy route
+               → use TOGETHER: canLoad (block download) + canActivate (recheck each visit)
+```
 
 **Lazy loading:**
 ```typescript
@@ -8776,10 +8801,28 @@ RXJS — Streams of data over time
 │   ├── scan((acc, val) => ...)  ← running accumulator
 │   └── shareReplay(1)           ← multicast + replay (cache HTTP)
 │
-└── Error handling
-    catchError(err => of(fallback))
-    retry(3)
-    retryWhen(errors$ => errors$.pipe(delay(1000)))
+├── Error handling
+│   ├── subscribe({ next, error, complete })
+│   │   ├── error callback  → fires when stream errors; stream is DEAD after this
+│   │   │   ├── cannot provide fallback (return value is ignored by RxJS)
+│   │   │   └── use for: reset loading, show error message, navigate to error page
+│   │   └── complete callback → fires when stream ends normally (not on error)
+│   │
+│   ├── pipe(catchError(err => replacement$))
+│   │   ├── intercepts error BEFORE it reaches subscribe — stream can SURVIVE
+│   │   ├── return of(fallback)   → next() fires with fallback; subscribe error never fires
+│   │   ├── return EMPTY          → stream ends silently; complete fires; next never fires
+│   │   ├── return throwError(()=>new Error(msg)) → re-throw clean error → subscribe error fires
+│   │   └── catchError POSITION matters: must be AFTER the operator that might throw
+│   │
+│   ├── subscribe error vs catchError — choose by intent:
+│   │   need fallback data?         → catchError → of(fallback)
+│   │   retry on failure?           → retry(3) or retryWhen before catchError
+│   │   component UI update only?   → subscribe({ error }) is sufficient
+│   │   service + component layers? → catchError in service (translate) + subscribe error in component (UI)
+│   │
+│   └── retry(3)
+│       retryWhen(errors$ => errors$.pipe(delay(1000)))  ← exponential backoff
 ```
 
 **flatMap cheatsheet:**
@@ -8883,40 +8926,98 @@ src/app/
 ```
 SIGNALS — Fine-grained, synchronous reactivity (v16 preview → v17/18 stable)
 │
-├── signal(value)          ← writable signal (like ref in Vue)
-│   count.set(5)           ← replace value
-│   count.update(v => v+1) ← transform value
-│   count()                ← read value (call it like a function)
+├── THREE PRIMITIVES
+│   │
+│   ├── signal(initialValue)          ← WritableSignal<T>
+│   │   count()                       ← READ: call like a function → current value
+│   │   count.set(5)                  ← WRITE: replace entirely
+│   │   count.update(v => v + 1)      ← UPDATE: new value from current (increment, toggle)
+│   │   count.mutate(arr => arr.push(x)) ← MUTATE: in-place update for arrays/objects
+│   │   │
+│   │   ├── WHY set vs update: use update when new value DEPENDS on current value
+│   │   └── WHY mutate: avoids re-creating large arrays; still triggers reactivity
+│   │
+│   ├── computed(() => derivedExpr)   ← Signal<T>, read-only, memoized
+│   │   doubleCount = computed(() => count() * 2)
+│   │   label       = computed(() => count() === 0 ? 'empty' : `${count()} items`)
+│   │   │
+│   │   ├── WHY computed vs plain getter:
+│   │   │     plain getter — recomputes on EVERY read
+│   │   │     computed()   — recomputes ONLY when dependencies change (memoized)
+│   │   └── Dependencies tracked automatically (any signal() call inside)
+│   │
+│   └── effect(() => { sideEffect })  ← runs at least once, re-runs on dependency change
+│       ├── Must be created in INJECTION CONTEXT (constructor or field init — NOT ngOnInit)
+│       ├── Angular manages lifecycle — destroyed with the component automatically
+│       ├── ⚠ NEVER update a signal inside an effect that reads it → infinite loop
+│       ├── Use for: localStorage sync, analytics, imperative DOM, logging
+│       └── WHY not ngOnChanges: effect() reacts to ANY signal, not just @Input()
 │
-├── computed(() => expr)   ← derived, read-only, auto-updates
-│   doubleCount = computed(() => count() * 2)
+├── SIGNAL-BASED INPUTS / OUTPUTS (v17+)
+│   ├── name    = input<string>('default')       ← required input with default
+│   ├── userId  = input.required<number>()       ← required, no default
+│   ├── clicked = output<void>()                 ← typed output event
+│   └── model() ← two-way binding (replaces [(ngModel)] in component API)
 │
-├── effect(() => { ... })  ← side-effect on signal change (like useEffect)
+├── BRIDGE — RxJS ↔ Signals
+│   ├── toSignal(obs$, { initialValue: [] })
+│   │   ├── Subscribes internally, unsubscribes on context destroy (no takeUntil needed)
+│   │   ├── initialValue required for Signals that must always have a value
+│   │   └── Use: toSignal(route.queryParamMap.pipe(map(...))) — no async pipe needed
+│   │
+│   └── toObservable(signal)
+│       ├── Converts signal to Observable — lets you use RxJS operators
+│       └── Use: toObservable(searchTerm).pipe(debounceTime(300), switchMap(...))
 │
-├── input() / output()     ← v17+ signal-based @Input / @Output
-│   name = input<string>('default')
-│   clicked = output<void>()
-│
-├── toSignal(obs$)         ← convert Observable → Signal
-└── toObservable(sig)      ← convert Signal → Observable
+└── THREE-STATE PATTERN (replace boolean flag soup)
+    type LoadState<T> =
+      | { status: 'idle' }
+      | { status: 'loading' }
+      | { status: 'success'; data: T }
+      | { status: 'error'; message: string }
+
+    state = signal<LoadState<User[]>>({ status: 'idle' })
+    ├── Single signal — impossible to be loading AND error simultaneously
+    ├── isLoading = computed(() => state().status === 'loading')
+    └── hasError  = computed(() => state().status === 'error')
 ```
 
-**Signal vs Observable:**
+**Signal vs Observable — full comparison:**
 
-| Aspect | Signal | Observable |
-|--------|--------|-----------|
-| Sync/Async | Synchronous | Async |
-| Subscription | No need to subscribe | Must subscribe |
-| Memory leak | No leak risk | Must unsubscribe |
-| Best for | UI state, computed values | HTTP, events, time-based |
+| Aspect | Signal | Observable (RxJS) |
+|--------|--------|-------------------|
+| Always has a value? | YES | NO — emits over time |
+| Synchronous read? | YES — `signal()` | NO — must subscribe |
+| Subscribe needed? | NO | YES |
+| Memory leak risk? | NO — framework manages | YES — must unsubscribe |
+| Operators (map/filter)? | `computed()` only | Full RxJS library |
+| Async (HTTP, WS, events)? | NO | YES |
+| Change detection | Fine-grained, zoneless-ready | Zone.js or `markForCheck` |
+| Best for | UI state, derived values, shared state | HTTP, WebSockets, timers, debounce |
+
+**When to use each:**
+```
+Signal  → component state (isOpen, count, selectedTab)
+        → derived values (total, label, filteredList)
+        → shared service state replacing BehaviorSubject
+
+Observable → HTTP calls, WebSockets, route params
+           → debounce + switchMap search pipelines
+           → combining multiple async sources (combineLatest, forkJoin)
+
+BOTH    → HTTP result → .subscribe(data => signal.set(data))
+        → toSignal(http.get(...))         no subscribe in component
+        → toObservable(signal).pipe(...)  signal drives async pipeline
+```
 
 **Zoneless (v18+ experimental):**
 ```typescript
 bootstrapApplication(AppComponent, {
   providers: [provideZonelessChangeDetection()]
+  // Removes Zone.js → no monkey-patching → smaller bundle, faster startup
+  // Requires all reactivity to use Signals or explicit markForCheck()
 })
 ```
-Removes Zone.js → smaller bundle, faster apps.
 
 ---
 
