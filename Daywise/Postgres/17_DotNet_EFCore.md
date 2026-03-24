@@ -3,6 +3,16 @@
 
 ---
 
+## 🎬 Quick Learn
+
+| Format | Video |
+|--------|-------|
+| **⚙️ EF Core Setup** | [PostgreSQL EF Core .NET Tutorial — YouTube Search](https://www.youtube.com/results?search_query=postgresql+entity+framework+core+dotnet+npgsql+tutorial+2024) |
+| **🐘 Npgsql + Dapper** | [PostgreSQL Dapper .NET Npgsql — YouTube Search](https://www.youtube.com/results?search_query=postgresql+dapper+npgsql+dotnet+csharp+tutorial) |
+| **🗃️ Migrations** | [EF Core Migrations PostgreSQL — YouTube Search](https://www.youtube.com/results?search_query=entity+framework+core+migrations+postgresql+dotnet+tutorial) |
+
+---
+
 ## 17. PostgreSQL with .NET / EF Core
 
 ```

@@ -3,6 +3,16 @@
 
 ---
 
+## 🎬 Quick Learn
+
+| Format | Video |
+|--------|-------|
+| **📡 Streaming Replication** | [PostgreSQL Streaming Replication Setup — YouTube Search](https://www.youtube.com/results?search_query=postgresql+streaming+replication+primary+replica+setup+tutorial) |
+| **🔄 Logical Replication** | [PostgreSQL Logical Replication Tutorial — YouTube Search](https://www.youtube.com/results?search_query=postgresql+logical+replication+tutorial+2023+2024) |
+| **🛡️ Patroni HA** | [PostgreSQL High Availability Patroni — YouTube Search](https://www.youtube.com/results?search_query=postgresql+high+availability+patroni+automatic+failover+tutorial) |
+
+---
+
 ## 13. Replication & High Availability
 
 ```

@@ -3,6 +3,17 @@
 
 ---
 
+## 🎬 Quick Learn
+
+| Format | Video |
+|--------|-------|
+| **🤖 pgvector Intro** | [pgvector PostgreSQL Vector Database — YouTube Search](https://www.youtube.com/results?search_query=pgvector+postgresql+vector+database+embeddings+tutorial+2024) |
+| **🧠 RAG Pattern** | [Build RAG with PostgreSQL pgvector — YouTube Search](https://www.youtube.com/results?search_query=RAG+retrieval+augmented+generation+postgresql+pgvector+tutorial+2024) |
+| **📐 HNSW vs IVFFlat** | [pgvector HNSW IVFFlat Index Comparison — YouTube Search](https://www.youtube.com/results?search_query=pgvector+hnsw+ivfflat+index+vector+search+comparison) |
+| **🏗️ Supabase + pgvector** | [Supabase Vector Database pgvector — YouTube Search](https://www.youtube.com/results?search_query=supabase+pgvector+vector+database+embeddings+semantic+search+2024) |
+
+---
+
 ## 16. pgvector — AI Vector Database (Complete)
 
 ```

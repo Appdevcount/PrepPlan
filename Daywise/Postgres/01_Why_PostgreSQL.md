@@ -3,6 +3,16 @@
 
 ---
 
+## 🎬 Quick Learn
+
+| Format | Video |
+|--------|-------|
+| **⚡ 100 Seconds** | [PostgreSQL in 100 Seconds — Fireship](https://www.youtube.com/watch?v=n2Fluyr3lbc) |
+| **📘 Full Course** | [Learn PostgreSQL — Amigoscode · 4 hr](https://www.youtube.com/watch?v=qw--VYLpxG4) `freeCodeCamp` |
+| **🔍 Deep Dive** | [PostgreSQL vs SQL Server — YouTube Search](https://www.youtube.com/results?search_query=postgresql+vs+sql+server+advantages+2024) |
+
+---
+
 ## 1. Why PostgreSQL? — Advantages Over SQL Server
 
 ```

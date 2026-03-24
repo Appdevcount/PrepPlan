@@ -3,6 +3,16 @@
 
 ---
 
+## 🎬 Quick Learn
+
+| Format | Video |
+|--------|-------|
+| **📘 Beginner Course** | [PostgreSQL Full Course — freeCodeCamp · 3 hr](https://www.youtube.com/watch?v=SpfIwlAYaKk) — covers advanced SELECT, GROUP BY, aggregate |
+| **🪟 Window Functions** | [SQL Window Functions Tutorial — YouTube Search](https://www.youtube.com/results?search_query=postgresql+window+functions+tutorial+ROW_NUMBER+RANK+LAG) |
+| **📋 CTEs** | [PostgreSQL CTEs Common Table Expressions — YouTube Search](https://www.youtube.com/results?search_query=postgresql+CTE+common+table+expression+recursive+writeable+tutorial) |
+
+---
+
 ## 9. Advanced Queries — CTEs, Window Functions, JSONB
 
 ```

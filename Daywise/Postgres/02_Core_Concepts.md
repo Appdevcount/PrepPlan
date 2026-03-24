@@ -3,6 +3,15 @@
 
 ---
 
+## 🎬 Quick Learn
+
+| Format | Video |
+|--------|-------|
+| **📘 Full Course** | [Learn PostgreSQL — Amigoscode · 4 hr](https://www.youtube.com/watch?v=qw--VYLpxG4) `freeCodeCamp` — covers terminology, connection strings |
+| **🔍 Deep Dive** | [PostgreSQL Core Concepts Explained — YouTube Search](https://www.youtube.com/results?search_query=postgresql+core+concepts+sql+server+comparison+tutorial) |
+
+---
+
 ## 2. Core Concepts — SQL Server vs PostgreSQL Mapping
 
 ```

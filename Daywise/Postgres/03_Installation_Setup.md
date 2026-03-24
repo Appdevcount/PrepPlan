@@ -3,6 +3,15 @@
 
 ---
 
+## 🎬 Quick Learn
+
+| Format | Video |
+|--------|-------|
+| **📘 Full Course** | [Learn PostgreSQL — Amigoscode · 4 hr](https://www.youtube.com/watch?v=qw--VYLpxG4) `freeCodeCamp` — starts with Docker + pgAdmin setup |
+| **🔍 Docker Setup** | [PostgreSQL Docker Setup — YouTube Search](https://www.youtube.com/results?search_query=postgresql+docker+setup+pgadmin+tutorial+2024) |
+
+---
+
 ## 3. Installation & Setup (Local + Docker)
 
 ### Option A — Docker (Recommended for Dev)

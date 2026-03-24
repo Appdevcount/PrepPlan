@@ -3,6 +3,17 @@
 
 ---
 
+## 🎬 Quick Learn
+
+| Format | Video |
+|--------|-------|
+| **🔍 EXPLAIN ANALYZE** | [PostgreSQL EXPLAIN ANALYZE Tutorial — YouTube Search](https://www.youtube.com/results?search_query=postgresql+explain+analyze+query+plan+tutorial+performance) |
+| **⚙️ Config Tuning** | [PostgreSQL Performance Tuning postgresql.conf — YouTube Search](https://www.youtube.com/results?search_query=postgresql+performance+tuning+shared_buffers+work_mem+config) |
+| **📊 Partitioning** | [PostgreSQL Table Partitioning Tutorial — YouTube Search](https://www.youtube.com/results?search_query=postgresql+table+partitioning+range+partition+tutorial+2024) |
+| **🏗️ Channel** | [Crunchy Data PostgreSQL Channel](https://www.youtube.com/c/CrunchyDataPostgres) — production PostgreSQL best practices |
+
+---
+
 ## 12. Performance Tuning & EXPLAIN ANALYZE
 
 ```

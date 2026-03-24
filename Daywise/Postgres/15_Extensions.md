@@ -3,6 +3,17 @@
 
 ---
 
+## 🎬 Quick Learn
+
+| Format | Video |
+|--------|-------|
+| **⚡ 100 Seconds** | [PostgreSQL in 100 Seconds — Fireship](https://www.youtube.com/watch?v=n2Fluyr3lbc) `mentions key extensions` |
+| **🌐 PostGIS** | [PostGIS Geospatial PostgreSQL — YouTube Search](https://www.youtube.com/results?search_query=postgis+geospatial+postgresql+tutorial+2024) |
+| **⏱️ TimescaleDB** | [TimescaleDB Time Series PostgreSQL — YouTube Search](https://www.youtube.com/results?search_query=timescaledb+time+series+postgresql+tutorial) |
+| **🏗️ Channel** | [Crunchy Data PostgreSQL Channel](https://www.youtube.com/c/CrunchyDataPostgres) — PostgreSQL extensions deep dives |
+
+---
+
 ## 15. PostgreSQL Extensions Ecosystem
 
 ```

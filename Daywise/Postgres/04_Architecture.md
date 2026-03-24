@@ -3,6 +3,17 @@
 
 ---
 
+## 🎬 Quick Learn
+
+| Format | Video |
+|--------|-------|
+| **🏗️ Architecture** | [Postgres Architecture Explained — Hussein Nasser · 33 min](https://www.youtube.com/results?search_query=postgres+architecture+explained+hussein+nasser) `covers MVCC, postmaster, WAL, shared_buffers` |
+| **🔍 MVCC Deep Dive** | [PostgreSQL MVCC Concurrency — YouTube Search](https://www.youtube.com/results?search_query=postgresql+MVCC+concurrency+control+explained) |
+
+> **Channel**: [Hussein Nasser (@hnasr)](https://www.youtube.com/@hnasr) — best source for PostgreSQL internals
+
+---
+
 ## 4. PostgreSQL Architecture Deep Dive
 
 ```

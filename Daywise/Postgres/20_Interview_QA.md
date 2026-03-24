@@ -3,6 +3,17 @@
 
 ---
 
+## 🎬 Quick Learn
+
+| Format | Video |
+|--------|-------|
+| **📘 Full Review** | [PostgreSQL Full Course — freeCodeCamp · 3 hr](https://www.youtube.com/watch?v=SpfIwlAYaKk) — best pre-interview recap |
+| **📘 Advanced Topics** | [Learn PostgreSQL — Amigoscode · 4 hr](https://www.youtube.com/watch?v=qw--VYLpxG4) `freeCodeCamp` — covers UPSERT, constraints, joins |
+| **🎯 Interview Prep** | [PostgreSQL Interview Questions — YouTube Search](https://www.youtube.com/results?search_query=postgresql+interview+questions+answers+experienced+2024) |
+| **🏗️ System Design** | [Database System Design Interview — YouTube Search](https://www.youtube.com/results?search_query=database+system+design+interview+postgresql+microservices+2024) |
+
+---
+
 ## 20. Interview Q&A — 30 Expert Questions
 
 ### Beginner Level

@@ -3,6 +3,16 @@
 
 ---
 
+## 🎬 Quick Learn
+
+| Format | Video |
+|--------|-------|
+| **📘 Full Course** | [Learn PostgreSQL — Amigoscode · 4 hr](https://www.youtube.com/watch?v=qw--VYLpxG4) `freeCodeCamp` — covers all core data types |
+| **🗂️ JSONB Focus** | [PostgreSQL JSONB Tutorial — YouTube Search](https://www.youtube.com/results?search_query=postgresql+JSONB+data+type+tutorial+2024) |
+| **🕐 Date/Time** | [PostgreSQL Timestamps & Timezones — YouTube Search](https://www.youtube.com/results?search_query=postgresql+timestamptz+timestamp+timezone+tutorial) |
+
+---
+
 ## 5. Data Types — Full Reference
 
 ```

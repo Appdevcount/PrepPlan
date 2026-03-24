@@ -3,6 +3,15 @@
 
 ---
 
+## 🎬 Quick Learn
+
+| Format | Video |
+|--------|-------|
+| **📘 Full Course** | [Learn PostgreSQL — Amigoscode · 4 hr](https://www.youtube.com/watch?v=qw--VYLpxG4) `freeCodeCamp` — INSERT, SELECT, UPDATE, DELETE, UPSERT |
+| **🔍 UPSERT Focus** | [PostgreSQL INSERT ON CONFLICT UPSERT — YouTube Search](https://www.youtube.com/results?search_query=postgresql+upsert+on+conflict+insert+update+tutorial) |
+
+---
+
 ## 7. DML — CRUD with PostgreSQL Flavor
 
 ### INSERT

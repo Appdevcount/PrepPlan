@@ -3,6 +3,18 @@
 
 ---
 
+## 🎬 Quick Learn
+
+| Format | Video |
+|--------|-------|
+| **🗂️ Index Types** | [Database Indexing Explained — Hussein Nasser · YouTube Search](https://www.youtube.com/results?search_query=database+indexing+explained+hussein+nasser+postgresql) |
+| **⚡ B-Tree vs GIN** | [PostgreSQL Index Types B-Tree GIN BRIN — YouTube Search](https://www.youtube.com/results?search_query=postgresql+index+types+btree+gin+brin+partial+index+tutorial) |
+| **🔍 HNSW/IVFFlat** | [pgvector Index Types HNSW IVFFlat — YouTube Search](https://www.youtube.com/results?search_query=pgvector+hnsw+ivfflat+index+comparison+tutorial) |
+
+> **Channel**: [Hussein Nasser (@hnasr)](https://www.youtube.com/@hnasr) — excellent deep dives on database indexing
+
+---
+
 ## 8. Indexes — Types & When to Use
 
 ```

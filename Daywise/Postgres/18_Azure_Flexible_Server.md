@@ -3,6 +3,16 @@
 
 ---
 
+## 🎬 Quick Learn
+
+| Format | Video |
+|--------|-------|
+| **☁️ Azure PG Setup** | [Azure Database for PostgreSQL Flexible Server — YouTube Search](https://www.youtube.com/results?search_query=azure+database+postgresql+flexible+server+setup+tutorial+2024) |
+| **🔧 Bicep/CLI** | [Azure PostgreSQL Bicep ARM Template — YouTube Search](https://www.youtube.com/results?search_query=azure+postgresql+flexible+server+bicep+azure+cli+tutorial) |
+| **🏗️ Microsoft Learn** | [Azure Friday — PostgreSQL Flexible Server intro](https://www.youtube.com/results?search_query=azure+friday+postgresql+flexible+server+managed+database) |
+
+---
+
 ## 18. PostgreSQL on Azure (Flexible Server)
 
 ```

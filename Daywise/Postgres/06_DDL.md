@@ -3,6 +3,15 @@
 
 ---
 
+## 🎬 Quick Learn
+
+| Format | Video |
+|--------|-------|
+| **📘 Full Course** | [Learn PostgreSQL — Amigoscode · 4 hr](https://www.youtube.com/watch?v=qw--VYLpxG4) `freeCodeCamp` — CREATE TABLE, constraints, foreign keys |
+| **🔍 DDL Deep Dive** | [PostgreSQL DDL Tables Schemas Constraints — YouTube Search](https://www.youtube.com/results?search_query=postgresql+DDL+create+table+schema+constraints+tutorial) |
+
+---
+
 ## 6. DDL — Tables, Schemas, Constraints
 
 ### Creating Tables

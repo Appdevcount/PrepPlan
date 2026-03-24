@@ -3,6 +3,16 @@
 
 ---
 
+## 🎬 Quick Learn
+
+| Format | Video |
+|--------|-------|
+| **🔐 Roles & Perms** | [PostgreSQL Roles Permissions Tutorial — YouTube Search](https://www.youtube.com/results?search_query=postgresql+roles+permissions+grant+revoke+tutorial) |
+| **🛡️ Row-Level Security** | [PostgreSQL Row Level Security RLS — YouTube Search](https://www.youtube.com/results?search_query=postgresql+row+level+security+RLS+multi+tenant+tutorial+2024) |
+| **🔒 Encryption** | [PostgreSQL pgcrypto Encryption — YouTube Search](https://www.youtube.com/results?search_query=postgresql+pgcrypto+encryption+security+tutorial) |
+
+---
+
 ## 14. Security — Roles, RLS, Encryption
 
 ```

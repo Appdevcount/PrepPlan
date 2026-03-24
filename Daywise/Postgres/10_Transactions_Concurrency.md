@@ -3,6 +3,18 @@
 
 ---
 
+## 🎬 Quick Learn
+
+| Format | Video |
+|--------|-------|
+| **🔒 MVCC Explained** | [PostgreSQL MVCC Concurrency Control — YouTube Search](https://www.youtube.com/results?search_query=postgresql+MVCC+multi+version+concurrency+control+explained) |
+| **📊 Isolation Levels** | [Database Isolation Levels Explained — YouTube Search](https://www.youtube.com/results?search_query=database+transaction+isolation+levels+explained+postgresql) |
+| **🔑 Locking** | [PostgreSQL Locking SELECT FOR UPDATE SKIP LOCKED — YouTube Search](https://www.youtube.com/results?search_query=postgresql+locking+select+for+update+skip+locked+advisory+locks) |
+
+> **Channel**: [Hussein Nasser (@hnasr)](https://www.youtube.com/@hnasr) — covers ACID, MVCC, isolation in depth
+
+---
+
 ## 10. Transactions & Concurrency (MVCC)
 
 ```

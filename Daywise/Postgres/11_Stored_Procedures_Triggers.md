@@ -3,6 +3,16 @@
 
 ---
 
+## 🎬 Quick Learn
+
+| Format | Video |
+|--------|-------|
+| **🔧 PL/pgSQL** | [PostgreSQL PL/pgSQL Functions & Procedures — YouTube Search](https://www.youtube.com/results?search_query=postgresql+plpgsql+stored+procedures+functions+tutorial) |
+| **⚡ Triggers** | [PostgreSQL Triggers Audit Log — YouTube Search](https://www.youtube.com/results?search_query=postgresql+triggers+audit+log+plpgsql+tutorial+2023) |
+| **📘 Full Reference** | [PostgreSQL Full Course — Derek Banas · YouTube Search](https://www.youtube.com/results?search_query=postgresql+tutorial+full+course+derek+banas+functions+triggers) |
+
+---
+
 ## 11. Stored Procedures, Functions & Triggers
 
 ```

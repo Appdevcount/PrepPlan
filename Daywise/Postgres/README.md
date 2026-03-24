@@ -65,5 +65,19 @@
 
 ---
 
+## 🎬 Core Video Resources
+
+| Video | Channel | What it covers |
+|-------|---------|----------------|
+| [PostgreSQL in 100 Seconds](https://www.youtube.com/watch?v=n2Fluyr3lbc) | Fireship | Quick overview, extensions, AI use case |
+| [Learn PostgreSQL — 4 hr Full Course](https://www.youtube.com/watch?v=qw--VYLpxG4) | Amigoscode · freeCodeCamp | Beginner → DDL, DML, constraints, joins |
+| [PostgreSQL Tutorial — 3 hr Beginner](https://www.youtube.com/watch?v=SpfIwlAYaKk) | freeCodeCamp | SELECT, aggregate, GROUP BY, advanced queries |
+| [Hussein Nasser — PostgreSQL Internals](https://www.youtube.com/@hnasr) | @hnasr | Architecture, MVCC, indexing, locking, WAL |
+| [Crunchy Data — Production PostgreSQL](https://www.youtube.com/c/CrunchyDataPostgres) | CrunchyData | CTEs, window functions, EXPLAIN, production |
+
+> Each section file (01–20) has its own `🎬 Quick Learn` table with topic-specific video links.
+
+---
+
 *Stack: PostgreSQL 16 + pgvector + .NET 10 + EF Core 9 + Azure Flexible Server*
 *Created: 2026-03-24 | Split from: [PostgreSQL_Complete_Guide.md](PostgreSQL_Complete_Guide.md)*

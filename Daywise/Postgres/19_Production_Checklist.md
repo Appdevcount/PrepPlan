@@ -3,6 +3,17 @@
 
 ---
 
+## 🎬 Quick Learn
+
+| Format | Video |
+|--------|-------|
+| **🔭 Monitoring** | [PostgreSQL Monitoring Production — YouTube Search](https://www.youtube.com/results?search_query=postgresql+production+monitoring+pg_stat_activity+tutorial) |
+| **🔄 pgBouncer** | [pgBouncer Connection Pooling Tutorial — YouTube Search](https://www.youtube.com/results?search_query=pgbouncer+connection+pooling+postgresql+tutorial+setup) |
+| **✅ Checklist** | [PostgreSQL Production Checklist Best Practices — YouTube Search](https://www.youtube.com/results?search_query=postgresql+production+checklist+security+performance+best+practices) |
+| **🏗️ Channel** | [Crunchy Data PostgreSQL Channel](https://www.youtube.com/c/CrunchyDataPostgres) — production DBA content |
+
+---
+
 ## 19. Production Checklist & Monitoring
 
 ### Configuration Checklist
