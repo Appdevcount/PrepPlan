@@ -4096,3 +4096,144 @@ For each problem you practice:
 ---
 
 *Guide Version: 1.0 | Created: 2026-03-17 | Stack: .NET 10, PostgreSQL, Redis, Kafka, Elasticsearch, SignalR*
+
+
+Here’s a **pure list of real system design problems** asked in **Indian product & service companies (incl. .NET roles)** — compiled from **Reddit threads, interview experiences, LinkedIn posts, and prep platforms** (no theory, just problems).
+
+---
+
+# 🔥 Real System Design Problems (India – .NET / Backend / Fullstack)
+
+## 🟢 Common (VERY frequently asked in India)
+
+* Design URL Shortener (TinyURL / Bitly)
+* Design Notification System (Email + SMS + Push)
+* Design Authentication System (JWT / OAuth / SSO)
+* Design Rate Limiter (API Gateway level)
+* Design Logging & Monitoring System
+* Design Distributed Cache (Redis-like)
+* Design File Upload Service (Azure Blob / S3 style)
+* Design API Gateway (routing, throttling, auth)
+
+👉 These are asked because interviewers check **practical backend thinking, not fancy systems**
+
+---
+
+## 🟡 Real Problems from Indian Interview Experiences (Reddit / LinkedIn)
+
+### From Reddit discussions (developersIndia etc.)
+
+* Design **parking lot system (LLD + HLD mix)**
+* Design **multi-tenant SaaS system**
+* Design **chat system (WhatsApp-like)**
+* Design **job queue system (background processing)**
+* Design **audit logging system for enterprise apps**
+* Design **configurable workflow engine**
+* Design **feature flag system**
+* Design **document storage & versioning system**
+
+💬 Example insight from Reddit:
+
+> “Some interviewers focus on DB design, others on scalability, others on extensibility.” ([Reddit][1])
+
+---
+
+## 🟠 Product Companies (Flipkart, Amazon, Swiggy, Razorpay style)
+
+* Design **payment system (UPI / wallet / Razorpay-like)**
+* Design **order management system (e-commerce)**
+* Design **inventory management system**
+* Design **real-time delivery tracking system (Swiggy/Zomato)**
+* Design **search autocomplete system**
+* Design **recommendation system (basic level)**
+* Design **high-scale product catalog system**
+* Design **shopping cart system with concurrency**
+
+---
+
+## 🔴 FinTech / Banking (.NET-heavy domain in India)
+
+* Design **transaction processing system**
+* Design **fraud detection pipeline (basic design)**
+* Design **ledger system (double-entry accounting)**
+* Design **payment reconciliation system**
+* Design **rate-limited secure API for banking**
+* Design **KYC document verification system**
+
+---
+
+## 🟣 Enterprise / Service Companies (TCS, Infosys, Cognizant, Accenture)
+
+* Design **HRMS system**
+* Design **leave management system**
+* Design **role-based access control (RBAC) system**
+* Design **multi-region enterprise app (Azure-based)**
+* Design **reporting/analytics system**
+* Design **batch processing system (ETL jobs)**
+* Design **file processing pipeline (CSV → DB → API)**
+
+---
+
+## 🔵 Real-world .NET-focused scenarios (VERY IMPORTANT for you)
+
+These are **high probability for your profile (Architect / .NET / Azure)**:
+
+* Design **microservices architecture using Azure App Services + APIM**
+* Design **health check & monitoring system for microservices**
+* Design **distributed caching with fallback (Redis + DB)**
+* Design **event-driven system using Service Bus / Kafka**
+* Design **secure API with Azure AD B2C**
+* Design **multi-tenant SaaS using .NET + Azure**
+* Design **file processing system using Azure Functions**
+* Design **CI/CD pipeline + zero downtime deployment**
+
+---
+
+## 🟤 Advanced / Architect-Level (less common but asked for 10+ yrs)
+
+* Design **global scalable system (multi-region, DR strategy)**
+* Design **distributed locking system**
+* Design **event sourcing + CQRS system**
+* Design **real-time analytics pipeline**
+* Design **system handling 1M+ concurrent users**
+* Design **data consistency strategy across services**
+* Design **graceful degradation system**
+
+---
+
+## ⚫ Classic Big-Tech style (also asked in Indian interviews now)
+
+* Design WhatsApp
+* Design YouTube
+* Design Uber
+* Design Netflix
+* Design Google Docs
+* Design BookMyShow (VERY common in India) ([DEV Community][2])
+
+---
+
+# 🧠 Important Reality (from real experiences)
+
+* Same problem → **different expectations per interviewer**
+* Focus areas vary:
+
+  * HLD (components, scalability)
+  * LLD (classes, DB schema)
+  * Trade-offs (VERY important for senior roles)
+* No single “correct” answer → evaluation is on **thinking process** ([Reddit][1])
+
+---
+
+# 🚀 If you want next level (highly recommended)
+
+I can:
+
+* Convert this into **Top 20 MUST prepare problems for your exact profile**
+* Give **expected answers + architecture diagrams (Azure + .NET)**
+* Run **mock architect-level system design interview**
+
+Just tell:
+👉 *“Give me top 20 with solutions”*
+
+[1]: https://www.reddit.com/r/developersIndia/comments/ok3lvr/system_design_interviews_in_india/?utm_source=chatgpt.com "System Design Interviews in India : r/developersIndia"
+[2]: https://dev.to/somadevtoo/top-50-system-design-interview-questions-for-2024-5dbk?utm_source=chatgpt.com "Top 50 System Design Interview Questions for 2026"
