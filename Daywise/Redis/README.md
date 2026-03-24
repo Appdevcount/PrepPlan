@@ -18,6 +18,12 @@
 | 07 | [07-Redis-Leaderboards-SortedSets.md](07-Redis-Leaderboards-SortedSets.md) | Sorted Sets | Leaderboards, Multi-Period, Priority Queue, Delayed Jobs, Activity Feed, Trending |
 | 08 | [08-Redis-Advanced-Patterns.md](08-Redis-Advanced-Patterns.md) | Advanced | Pipelines, Transactions, Lua Scripts, Bloom Filter, Two-Level Cache, Cluster, Azure |
 
+
+https://www.youtube.com/watch?v=XCsS_NVAa1g&t=2938s
+https://www.youtube.com/watch?v=Tt5zIKVMMbs
+https://www.youtube.com/watch?v=i_3I6XLAOt0
+https://www.youtube.com/watch?v=SzLhUq1Hezk&t=394s
+https://www.youtube.com/watch?v=4UP6L8cDBN8
 ---
 
 ## Quick Decision Map
