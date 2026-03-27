@@ -1378,3 +1378,35 @@ builder.Services.AddTransient<IEmailMessageBuilder, EmailMessageBuilder>();
 - ✔ Master end-to-end request flow explanation
 - ✔ Understand Clean Architecture layers
 - ✔ Know where different logic belongs
+
+
+### 📚 Recommended Course: .NET Web API Zero to Hero
+
+**Course by:** Mukesh Murugan  
+**Platform:** [CodeWithMukesh](https://codewithmukesh.com/courses/dotnet-webapi-zero-to-hero/#curriculum)  
+**Rating:** ⭐ 4.9/5 (847 reviews) | 12,500+ students  
+**Cost:** **FREE** | 125+ lessons
+
+**What's Covered:**
+- ✅ REST API fundamentals
+- ✅ Entity Framework Core 10
+- ✅ JWT authentication with refresh tokens
+- ✅ Clean Architecture
+- ✅ Domain-Driven Design (DDD)
+- ✅ CQRS with MediatR
+- ✅ Redis caching
+- ✅ Docker containerization
+- ✅ CI/CD with GitHub Actions
+- ✅ OpenTelemetry observability
+- ✅ Integration t
+esting with TestContainers
+
+> 🎯 **Note:**  This is the most comprehensive free ASP.NET Core Web API course available in 2026 - covering everything from your first REST endpoint to deploying a production-ready, Docker-containerized API with observability and automated testing.
+
+Unlike most tutorials that stop at CRUD operations, this course takes you through 125+ lessons across 12 modules, including advanced topics that even paid courses on Udemy and Pluralsight skip: Clean Architecture, Domain-Driven Design (DDD), CQRS (Command Query Responsibility Segregation) with MediatR, OpenTelemetry-based observability with Prometheus and Grafana, integration testing with TestContainers, and CI/CD deployment with GitHub Actions.
+
+Built entirely on .NET 10 - one of the fastest backend frameworks available, consistently outperforming Node.js and Spring Boot in TechEmpower benchmarks - this course teaches the exact patterns and practices used by senior .NET developers at companies like Microsoft, Stack Overflow, and Accenture.
+
+Whether you're a beginner learning your first framework, a developer transitioning from Node.js or Java, or an experienced .NET developer looking to fill gaps in architecture, caching, or observability - this course is structured to take you from zero to production-ready. Every lesson includes complete source code on GitHub, and the curriculum is updated regularly to reflect the latest .NET releases and best practices.
+
+🔗 **Course Link:** https://codewithmukesh.com/courses/dotnet-webapi-zero-to-hero/#curriculum
