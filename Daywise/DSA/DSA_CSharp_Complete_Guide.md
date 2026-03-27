@@ -83,7 +83,9 @@
 
 ---
 
-### 25 Must-Solve Problems (Cover These Before Anything Else)
+### 🔥 25 Must-Solve Problems — Cover These Before Anything Else
+> Problems marked **🔥 MUST SOLVE** throughout this guide correspond to this list.
+> Scan any section — if you see 🔥, do not skip it.
 
 | # | Problem | Pattern | Section | Difficulty |
 |---|---------|---------|---------|-----------|
@@ -631,7 +633,7 @@ int[] filtered = arr.Where(x => x > 0).ToArray(); // O(n)
 
 ---
 
-### 🔴 Practice Problem: Two Sum (LeetCode #1 — Easy)
+### 🔴🔥 Practice Problem: Two Sum (LeetCode #1 — Easy) — MUST SOLVE
 
 **Problem:** Given `nums` array and integer `target`, return indices of two numbers that add up to `target`.
 
@@ -1063,7 +1065,7 @@ ListNode Reverse(ListNode head) {
 
 ---
 
-### 🔴 Practice Problem: Reverse Linked List (LeetCode #206 — Easy)
+### 🔴🔥 Practice Problem: Reverse Linked List (LeetCode #206 — Easy) — MUST SOLVE
 
 **Problem:** Reverse a singly linked list. Return the new head.
 
@@ -1270,7 +1272,7 @@ int[] NextGreater(int[] arr) {
 
 ---
 
-### 🔴 Practice Problem: Valid Parentheses (LeetCode #20 — Easy)
+### 🔴🔥 Practice Problem: Valid Parentheses (LeetCode #20 — Easy) — MUST SOLVE
 
 **Problem:** Given a string of brackets `()[]{}`, determine if the input string is valid (correctly opened and closed).
 
@@ -1640,7 +1642,7 @@ foreach (string word in words) {
 
 ---
 
-### 🔴 Practice Problem: Group Anagrams (LeetCode #49 — Medium)
+### 🔴🔥 Practice Problem: Group Anagrams (LeetCode #49 — Medium) — MUST SOLVE
 
 **Problem:** Given array of strings, group anagrams together.
 
@@ -2422,7 +2424,7 @@ int FindKthLargest(int[] nums, int k) {
 
 ---
 
-### 🔴 Practice Problem: Kth Largest Element (LeetCode #215 — Medium)
+### 🔴🔥 Practice Problem: Kth Largest Element (LeetCode #215 — Medium) — MUST SOLVE
 
 **Problem:** Find the kth largest element in an unsorted array (not necessarily distinct).
 
@@ -2884,7 +2886,7 @@ foreach (int[] e in edges) {
 
 ---
 
-### 🔴 Practice Problem: Number of Islands (LeetCode #200 — Medium)
+### 🔴🔥 Practice Problem: Number of Islands (LeetCode #200 — Medium) — MUST SOLVE
 
 **Problem:** Given 2D grid of '1's (land) and '0's (water), count number of islands.
 
@@ -3105,7 +3107,7 @@ int BFSShortestPath(Dictionary<int, List<int>> graph, int start, int end) {
 
 ---
 
-### 🔴 Practice Problem: Course Schedule (LeetCode #207 — Medium)
+### 🔴🔥 Practice Problem: Course Schedule (LeetCode #207 — Medium) — MUST SOLVE
 
 **Problem:** There are `n` courses. Some courses have prerequisites. Can you finish all courses?
 
@@ -4168,7 +4170,7 @@ int BinarySearchOnAnswer(int lo, int hi, Func<int, bool> feasible) {
 
 ---
 
-### 🔴 Practice Problem: Search in Rotated Sorted Array (LeetCode #33 — Medium)
+### 🔴🔥 Practice Problem: Search in Rotated Sorted Array (LeetCode #33 — Medium) — MUST SOLVE
 
 **Problem:** Array was sorted, then rotated at an unknown pivot. Search for target in O(log n).
 
@@ -4425,7 +4427,7 @@ int Fib(int n) {
 
 ---
 
-### 🔴 Practice Problem: Merge Two Sorted Lists (LeetCode #21 — Easy)
+### 🔴🔥 Practice Problem: Merge Two Sorted Lists (LeetCode #21 — Easy) — MUST SOLVE
 
 ```
 ╔══════════════════════════════════════════════════════════════════╗
@@ -4781,7 +4783,7 @@ int Fib(int n) {
 
 ---
 
-### 🔴 Practice Problem: Climbing Stairs (LeetCode #70 — Easy)
+### 🔴🔥 Practice Problem: Climbing Stairs (LeetCode #70 — Easy) — MUST SOLVE
 
 **Problem:** To reach the top, you can climb 1 or 2 steps at a time. How many distinct ways to climb n stairs?
 
@@ -4862,7 +4864,7 @@ TABULATION vs MEMOIZATION:
 
 ---
 
-### 🔴 Practice Problem: Coin Change (LeetCode #322 — Medium)
+### 🔴🔥 Practice Problem: Coin Change (LeetCode #322 — Medium) — MUST SOLVE
 
 **Problem:** Given coins of different denominations and amount, find fewest coins to make amount. Return -1 if impossible.
 
@@ -4961,7 +4963,7 @@ TRACE: coins=[2,3,7], amount=10
 >
 > Classic DP problems follow recurring patterns. Master these 6 and you can solve 80% of interview DP problems by recognizing which pattern applies.
 
-### 🔴 Practice Problem: Longest Common Subsequence (LeetCode #1143 — Medium)
+### 🔴🔥 Practice Problem: Longest Common Subsequence (LeetCode #1143 — Medium) — MUST SOLVE
 
 ```
 ╔══════════════════════════════════════════════════════════════════╗
@@ -5157,7 +5159,7 @@ TWO POINTER PATTERNS:
 
 ---
 
-### 🔴 Practice Problem: 3Sum (LeetCode #15 — Medium)
+### 🔴🔥 Practice Problem: 3Sum (LeetCode #15 — Medium) — MUST SOLVE
 
 **Problem:** Find all unique triplets that sum to zero.
 
@@ -5307,7 +5309,7 @@ int LongestSubarraySumAtMostTarget(int[] arr, int target) {
 
 ---
 
-### 🔴 Practice Problem: Longest Substring Without Repeating Characters (LeetCode #3 — Medium)
+### 🔴🔥 Practice Problem: Longest Substring Without Repeating Characters (LeetCode #3 — Medium) — MUST SOLVE
 
 ```
 ╔══════════════════════════════════════════════════════════════════╗
@@ -5831,7 +5833,7 @@ NEXT GREATER ELEMENT visualization: [2,1,5,3,6]
 
 ---
 
-### 🔴 Practice Problem: Daily Temperatures (LeetCode #739 — Medium)
+### 🔴🔥 Practice Problem: Daily Temperatures (LeetCode #739 — Medium) — MUST SOLVE
 
 **Problem:** Given daily temperatures, return array where `answer[i]` = days until warmer temperature.
 
@@ -8174,7 +8176,7 @@ WHERE Salary > (SELECT AVG(Salary) FROM Employees);
 
 ---
 
-### Q1 — Two Sum *(Amazon, Flipkart, Swiggy — Most Frequent)*
+### Q1 — Two Sum *(Amazon, Flipkart, Swiggy — Most Frequent)* 🔥 MUST SOLVE
 
 **Real interview note:** "Asked in Amazon SDE1 India. Interviewer wanted HashMap approach and explanation of WHY."
 
@@ -8182,7 +8184,7 @@ WHERE Salary > (SELECT AVG(Salary) FROM Employees);
 
 ---
 
-### Q2 — Valid Parentheses *(Microsoft India, Amazon, Razorpay)*
+### Q2 — Valid Parentheses *(Microsoft India, Amazon, Razorpay)* 🔥 MUST SOLVE
 
 *See Section 8. Key insight: Stack + closing-to-opening map. Check `stack.Count == 0` at end.*
 
@@ -8194,13 +8196,13 @@ WHERE Salary > (SELECT AVG(Salary) FROM Employees);
 
 ---
 
-### Q4 — Reverse a Linked List *(Amazon, Microsoft, Paytm)*
+### Q4 — Reverse a Linked List *(Amazon, Microsoft, Paytm)* 🔥 MUST SOLVE
 
 *See Section 7. Key insight: 3-pointer `prev/curr/next` — save-next, flip, advance-both.*
 
 ---
 
-### Q5 — Best Time to Buy and Sell Stock *(Amazon India, Flipkart, Groww)*
+### Q5 — Best Time to Buy and Sell Stock *(Amazon India, Flipkart, Groww)* 🔥 MUST SOLVE
 
 **Real interview note:** "Amazon SDE1 Bangalore asked this. Very common as a warm-up."
 
@@ -8227,7 +8229,7 @@ public int MaxProfit(int[] prices) {
 
 ---
 
-### Q6 — Contains Duplicate *(Amazon, Microsoft, Juspay)*
+### Q6 — Contains Duplicate *(Amazon, Microsoft, Juspay)* 🔥 MUST SOLVE
 
 ```csharp
 bool ContainsDuplicate(int[] nums) {
@@ -8241,19 +8243,19 @@ bool ContainsDuplicate(int[] nums) {
 
 ---
 
-### Q7 — Merge Two Sorted Lists *(Amazon, Flipkart, Swiggy)*
+### Q7 — Merge Two Sorted Lists *(Amazon, Flipkart, Swiggy)* 🔥 MUST SOLVE
 
 *See Section 29. Key insight: dummy head + two-pointer merge. `curr.next = l1 ?? l2` for tail.*
 
 ---
 
-### Q8 — Climbing Stairs *(Amazon, Microsoft, CRED)*
+### Q8 — Climbing Stairs *(Amazon, Microsoft, CRED)* 🔥 MUST SOLVE
 
 *See Section 32. Key insight: `ways(n) = ways(n-1) + ways(n-2)` — Fibonacci with O(1) space.*
 
 ---
 
-### Q9 — Number of Islands *(Amazon India, Swiggy SDE2, Zepto)*
+### Q9 — Number of Islands *(Amazon India, Swiggy SDE2, Zepto)* 🔥 MUST SOLVE
 
 **Real interview note:** "Amazon SDE2 Hyderabad. BFS or DFS — both accepted. 'Sink' visited islands by marking '0'."
 
@@ -8293,7 +8295,7 @@ public int NumIslands(char[][] grid) {
 
 ---
 
-### Q10 — Coin Change *(Microsoft India, Amazon, PhonePe)*
+### Q10 — Coin Change *(Microsoft India, Amazon, PhonePe)* 🔥 MUST SOLVE
 
 *See Section 33. Key insight: DP table `dp[i] = min coins for amount i`. Fill with `amount+1` as "infinity".*
 
@@ -8357,13 +8359,13 @@ public int[] ProductExceptSelf(int[] nums) {
 
 ---
 
-### Q13 — 3Sum *(Amazon, Google India, Swiggy)*
+### Q13 — 3Sum *(Amazon, Google India, Swiggy)* 🔥 MUST SOLVE
 
 *See Section 36. Key insight: sort first, then two-pointer for inner loop. Skip duplicates at both levels.*
 
 ---
 
-### Q14 — Binary Search *(Microsoft India, Amazon, Juspay)*
+### Q14 — Binary Search *(Microsoft India, Amazon, Juspay)* 🔥 MUST SOLVE
 
 **Real interview note:** "Microsoft India SDE1 — asked classic binary search, then asked for lower-bound variant."
 
@@ -8454,13 +8456,13 @@ public IList<IList<int>> LevelOrder(TreeNode root) {
 
 ---
 
-### Q19 — Longest Substring Without Repeating Characters *(Amazon, Swiggy, Juspay)*
+### Q19 — Longest Substring Without Repeating Characters *(Amazon, Swiggy, Juspay)* 🔥 MUST SOLVE
 
 *See Section 37. Key insight: HashMap stores last-seen index; jump `left` directly past duplicate instead of shrinking one-by-one.*
 
 ---
 
-### Q20 — Maximum Depth of Binary Tree *(Amazon, Flipkart, CRED)*
+### Q20 — Maximum Depth of Binary Tree *(Amazon, Flipkart, CRED)* 🔥 MUST SOLVE
 
 ```csharp
 public int MaxDepth(TreeNode root) {
@@ -8474,7 +8476,7 @@ public int MaxDepth(TreeNode root) {
 
 ---
 
-### Q21 — Search in Rotated Sorted Array *(Amazon, Google India, PhonePe)*
+### Q21 — Search in Rotated Sorted Array *(Amazon, Google India, PhonePe)* 🔥 MUST SOLVE
 
 *See Section 27. Key insight: one half is always sorted — check if target falls in the sorted half.*
 
@@ -8505,7 +8507,7 @@ public string ReverseWords(string s) {
 
 ---
 
-### Q24 — Top K Frequent Elements *(Amazon, Microsoft, Zepto)*
+### Q24 — Top K Frequent Elements *(Amazon, Microsoft, Zepto)* 🔥 MUST SOLVE
 
 *See Section 43. Key insight: bucket sort by frequency — bucket index = frequency — gives O(n).*
 
@@ -8985,7 +8987,7 @@ public int[] SortedSquares(int[] nums) {
 
 ---
 
-### Q43 — Course Schedule (Cycle Detection in Directed Graph) *(Amazon, Microsoft, Swiggy)*
+### Q43 — Course Schedule (Cycle Detection in Directed Graph) *(Amazon, Microsoft, Swiggy)* 🔥 MUST SOLVE
 
 *See Section 18 (graph traversals). Key insight: 3-color DFS — 0=unvisited, 1=in-progress (gray), 2=done (black). Gray + back-edge = cycle.*
 

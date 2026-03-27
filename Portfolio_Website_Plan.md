@@ -5951,4 +5951,67 @@ Following along on this journey? Drop a 👋
 
 **NOW GO BUILD! Your future self is counting on you. 🚀**
 
+---
+
+## ✅ Final Decided Tech Stack (Implementation Ready)
+
+> Decided after evaluating Angular+SWA, React+Vercel, Next.js+Clerk, and Auth.js options.
+> Chosen for minimum setup time, zero vendor lock-in, and Azure ecosystem alignment.
+
+| Concern | Tool | Why |
+|---------|------|-----|
+| **Framework** | Next.js 14 (App Router) | React + API routes + SSR in one repo; SWA compatible |
+| **UI** | DaisyUI + Tailwind | `npm i daisyui` only — just class names, 35 themes, zero imports |
+| **Auth** | Azure SWA built-in auth | Zero code — config file only, login with Microsoft account, single user |
+| **AI calls** | Next.js API routes → Claude API | Key stays server-side; auto-converts to Azure Functions on SWA |
+| **Hosting** | Azure Static Web Apps (free) | GitHub Actions auto-deploy, Azure ecosystem, custom domain, HTTPS |
+| **Content** | Markdown files in `/content` | Drop `.md` files, rendered as blog/guides |
+
+### No auth library. No UI component library. Only 1 env var needed.
+
+```
+ANTHROPIC_API_KEY=...   ← only secret needed
+```
+
+### Auth config (zero code)
+```json
+// staticwebapp.config.json
+{
+  "auth": {
+    "identityProviders": { "azureActiveDirectory": {} }
+  },
+  "routes": [
+    { "route": "/protected/*", "allowedRoles": ["authenticated"] }
+  ],
+  "responseOverrides": {
+    "401": { "redirect": "/.auth/login/aad", "statusCode": 302 }
+  }
+}
+```
+
+### Project structure
+```
+portfolio/
+├── app/
+│   ├── page.tsx                       ← Home / About
+│   ├── tools/quiz/page.tsx            ← Architect Quiz (public, AI)
+│   ├── tools/kubectl/page.tsx         ← kubectl/Docker cheatsheet (public, static)
+│   ├── blog/[slug]/page.tsx           ← Markdown blog
+│   ├── (protected)/
+│   │   ├── layout.tsx                 ← SWA auth gate
+│   │   ├── interview-eval/page.tsx
+│   │   └── resume-analyzer/page.tsx
+│   └── api/ai/route.ts                ← Claude API proxy
+├── content/                           ← .md files
+└── staticwebapp.config.json           ← Auth + routing
+```
+
+### Build order
+| Day | Tasks |
+|-----|-------|
+| 1 | Scaffold → DaisyUI → Home/About → Deploy to SWA |
+| 2 | `staticwebapp.config.json` auth → protected route placeholders |
+| 3 | `/api/ai` proxy → Quiz page → kubectl cheatsheet |
+| 4 | Interview Evaluator → Resume Analyzer |
+
 
