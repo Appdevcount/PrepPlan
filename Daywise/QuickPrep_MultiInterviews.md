@@ -2642,3 +2642,386 @@ public class DiscountService
     // WHY: new types added without touching this class
 }
 ```
+
+
+---
+
+# ADVANCED TOPICS — Concurrency & Table-Valued Functions
+
+---
+
+## A1. Optimistic Concurrency — SQL & EF Core
+
+### What is it?
+
+Mental model: "I assume nobody else changed this row while I was reading it. I check before saving."
+
+No locks held during the transaction. Conflict detected only at the time of UPDATE.
+
+### When to use?
+- Low contention (conflicts are rare)
+- Read-heavy systems
+- Web apps, REST APIs — users read data, make changes, save back
+
+---
+
+### Optimistic Concurrency in SQL
+
+**Approach: rowversion / timestamp column**
+
+```sql
+-- Add rowversion column to table
+ALTER TABLE Orders ADD RowVersion ROWVERSION NOT NULL;
+
+-- Read row
+SELECT Id, ProductId, Quantity, RowVersion FROM Orders WHERE Id = 1;
+-- RowVersion returned to client: 0x00000000000007D2
+
+-- Update — include RowVersion in WHERE clause
+UPDATE Orders
+SET Quantity = 5
+WHERE Id = 1
+  AND RowVersion = 0x00000000000007D2; -- check version matches
+
+-- Check rows affected
+-- IF @@ROWCOUNT = 0 -> someone else modified it -> conflict!
+```
+
+**Interview answer:**
+If `@@ROWCOUNT = 0`, the row was changed by another transaction between your read and write. You then return a conflict error to the user.
+
+---
+
+### Optimistic Concurrency in EF Core
+
+**Step 1: Add concurrency token to entity**
+
+```csharp
+public class Order
+{
+    public int Id { get; set; }
+    public int Quantity { get; set; }
+
+    [Timestamp]                         // WHY: maps to SQL rowversion, auto-updated on every save
+    public byte[] RowVersion { get; set; } = null!;
+}
+```
+
+**Or via Fluent API:**
+
+```csharp
+modelBuilder.Entity<Order>()
+    .Property(o => o.RowVersion)
+    .IsRowVersion();                    // WHY: EF includes it in UPDATE WHERE clause automatically
+```
+
+**Step 2: EF Core adds it to WHERE automatically**
+
+EF generates:
+```sql
+UPDATE Orders SET Quantity = 5
+WHERE Id = 1 AND RowVersion = 0x000007D2
+```
+
+**Step 3: Handle conflict**
+
+```csharp
+try
+{
+    await _context.SaveChangesAsync();
+}
+catch (DbUpdateConcurrencyException ex)
+{
+    // WHY: EF throws this when @@ROWCOUNT = 0 (row changed by someone else)
+    var entry = ex.Entries.Single();
+    var dbValues = await entry.GetDatabaseValuesAsync(); // current DB state
+    var clientValues = entry.CurrentValues;              // what you tried to save
+
+    // Strategy 1: Client wins — overwrite DB with your changes
+    entry.OriginalValues.SetValues(dbValues!);
+    await _context.SaveChangesAsync();
+
+    // Strategy 2: DB wins — discard client changes, reload
+    entry.CurrentValues.SetValues(dbValues!);
+
+    // Strategy 3: Merge — show conflict to user, let them decide
+    throw new ConflictException("Data was modified by another user");
+}
+```
+
+**Interview key points:**
+- `[Timestamp]` / `IsRowVersion()` tells EF to include column in WHERE clause
+- EF throws `DbUpdateConcurrencyException` when 0 rows affected
+- Three resolution strategies: Client Wins, DB Wins, User Merge
+
+---
+
+## A2. Pessimistic Concurrency — SQL & EF Core
+
+### What is it?
+
+Mental model: "I lock the row when I read it so nobody else can change it until I am done."
+
+Locks are held for the duration of the transaction. Prevents conflicts by blocking.
+
+### When to use?
+- High contention (conflicts are frequent)
+- Financial transactions, inventory deduction
+- Short, fast operations where locking is acceptable
+
+---
+
+### Pessimistic Concurrency in SQL
+
+```sql
+-- Lock the row on read — nobody else can update until COMMIT/ROLLBACK
+BEGIN TRANSACTION;
+
+SELECT * FROM Orders WITH (UPDLOCK, ROWLOCK)
+WHERE Id = 1;
+-- UPDLOCK: intent to update (prevents other readers from also taking UPDLOCK)
+-- ROWLOCK: lock at row level, not page or table
+
+-- Do your business logic
+
+UPDATE Orders SET Quantity = 5 WHERE Id = 1;
+
+COMMIT TRANSACTION;
+-- Lock released here
+```
+
+**SQL lock hints:**
+
+| Hint | Behaviour |
+|---|---|
+| `NOLOCK` | Read without lock (dirty read — not recommended) |
+| `UPDLOCK` | Lock for update, block other updaters |
+| `ROWLOCK` | Lock at row level |
+| `TABLOCK` | Lock entire table |
+| `XLOCK` | Exclusive lock — blocks all readers and writers |
+
+---
+
+### Pessimistic Concurrency in EF Core
+
+EF Core does NOT have built-in pessimistic locking. You use raw SQL within a transaction.
+
+```csharp
+using var transaction = await _context.Database.BeginTransactionAsync();
+try
+{
+    // Raw SQL with lock hint
+    var order = await _context.Orders
+        .FromSqlRaw("SELECT * FROM Orders WITH (UPDLOCK, ROWLOCK) WHERE Id = {0}", orderId)
+        .FirstOrDefaultAsync();
+
+    if (order is null) return NotFound();
+
+    order.Quantity = 5;                 // modify
+    await _context.SaveChangesAsync();  // UPDATE issued while lock held
+    await transaction.CommitAsync();
+}
+catch
+{
+    await transaction.RollbackAsync();
+    throw;
+}
+```
+
+**Why raw SQL for pessimistic in EF?**
+EF's LINQ queries do not support lock hints natively. You must use `FromSqlRaw` or `ExecuteSqlRawAsync` inside a transaction.
+
+---
+
+## A3. Optimistic vs Pessimistic — Interview Comparison
+
+| | Optimistic | Pessimistic |
+|---|---|---|
+| Lock held? | No | Yes (during transaction) |
+| Conflict detection | At save time | Prevented upfront |
+| Performance | Better (no blocking) | Worse (blocking) |
+| Risk | Conflict exception possible | Deadlocks possible |
+| Use case | Low contention, web APIs | High contention, financial |
+| EF support | Native (`[Timestamp]`) | Manual (raw SQL + transaction) |
+| SQL mechanism | `RowVersion` in WHERE | `WITH (UPDLOCK)` |
+
+**Interview answer pattern:**
+
+> "In our API I used optimistic concurrency with a `RowVersion` column. EF Core automatically includes it in the WHERE clause of updates. If a conflict occurs, EF throws `DbUpdateConcurrencyException` and we return a 409 Conflict to the client with the current DB values so the user can retry."
+
+---
+
+## A4. Table-Valued Functions (TVF) — Deep Dive
+
+### What is a Table-Valued Function?
+
+Mental model: "A function that returns a table — like a parameterized view."
+
+Returns a result set (table) instead of a single value.
+
+---
+
+### Types of TVFs
+
+**1. Inline Table-Valued Function (ITVF)**
+
+Single SELECT, no BEGIN/END. SQL Server can inline/optimize it like a view.
+
+```sql
+CREATE FUNCTION dbo.GetEmployeesByDept(@DeptId INT)
+RETURNS TABLE
+AS
+RETURN
+(
+    SELECT Id, Name, Salary, DeptId
+    FROM Employees
+    WHERE DeptId = @DeptId
+);
+
+-- Usage
+SELECT * FROM dbo.GetEmployeesByDept(3);
+
+-- Can JOIN it
+SELECT e.Name, d.DeptName
+FROM dbo.GetEmployeesByDept(3) e
+JOIN Departments d ON e.DeptId = d.Id;
+```
+
+**2. Multi-Statement Table-Valued Function (MSTVF)**
+
+Uses BEGIN/END, builds result in a table variable. Less performant than ITVF.
+
+```sql
+CREATE FUNCTION dbo.GetHighEarners(@MinSalary DECIMAL)
+RETURNS @Result TABLE
+(
+    Id   INT,
+    Name NVARCHAR(100),
+    Salary DECIMAL
+)
+AS
+BEGIN
+    INSERT INTO @Result
+    SELECT Id, Name, Salary FROM Employees WHERE Salary > @MinSalary;
+
+    -- Can add more complex logic here
+    UPDATE @Result SET Name = UPPER(Name);
+
+    RETURN;
+END
+
+-- Usage
+SELECT * FROM dbo.GetHighEarners(50000);
+```
+
+---
+
+### TVF vs Stored Procedure vs View
+
+| | TVF | Stored Procedure | View |
+|---|---|---|---|
+| Accepts parameters | Yes | Yes | No |
+| Returns table | Yes | Via result set | Yes |
+| Usable in SELECT/JOIN | Yes | No | Yes |
+| Can use DML inside | No | Yes | No |
+| Performance (inline) | Excellent | Good | Excellent |
+| Performance (multi-stmt) | Slower | Good | N/A |
+
+**Key interview line:**
+> "Use TVF when you need a parameterized view — something like a view that takes a parameter and returns filtered rows for use in JOINs."
+
+---
+
+### TVF in EF Core
+
+**Step 1: Create model for return type**
+
+```csharp
+public class EmployeeResult
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public decimal Salary { get; set; }
+    public int DeptId { get; set; }
+}
+```
+
+**Step 2: Register in DbContext**
+
+```csharp
+public class AppDbContext : DbContext
+{
+    public DbSet<EmployeeResult> EmployeeResults { get; set; }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        // Mark as keyless — TVF results have no PK
+        modelBuilder.Entity<EmployeeResult>().HasNoKey();
+    }
+
+    // Map the TVF method
+    [DbFunction("GetEmployeesByDept", "dbo")]
+    public IQueryable<EmployeeResult> GetEmployeesByDept(int deptId)
+        => FromExpression(() => GetEmployeesByDept(deptId));
+}
+```
+
+**Step 3: Call it in LINQ**
+
+```csharp
+// Simple query
+var employees = await _context
+    .GetEmployeesByDept(3)
+    .Where(e => e.Salary > 40000)
+    .ToListAsync();
+
+// Join with another table
+var result = await _context
+    .GetEmployeesByDept(3)
+    .Join(_context.Departments,
+          e => e.DeptId,
+          d => d.Id,
+          (e, d) => new { e.Name, d.DeptName })
+    .ToListAsync();
+```
+
+EF Core translates this to:
+```sql
+SELECT e.Name, d.DeptName
+FROM dbo.GetEmployeesByDept(3) AS e
+JOIN Departments AS d ON e.DeptId = d.Id
+WHERE e.Salary > 40000
+```
+
+---
+
+### TVF via Raw SQL in EF Core (simpler alternative)
+
+```csharp
+var deptId = 3;
+var employees = await _context.EmployeeResults
+    .FromSqlRaw("SELECT * FROM dbo.GetEmployeesByDept({0})", deptId)
+    .Where(e => e.Salary > 40000)
+    .ToListAsync();
+```
+
+---
+
+### Common Interview Questions on TVF
+
+**Q: When would you use a TVF over a stored procedure?**
+
+> When you need to use the result in a JOIN or subquery. SP results cannot be joined. TVF results can be used directly in FROM/JOIN clauses.
+
+**Q: What is the difference between inline and multi-statement TVF?**
+
+> Inline TVF is a single SELECT — SQL Server can optimize it like a view (query plan inlining). Multi-statement TVF uses a table variable with BEGIN/END — SQL treats the result as an opaque black box, preventing optimization. Always prefer inline TVF for performance.
+
+**Q: Can a TVF modify data?**
+
+> No. TVFs are read-only — they cannot execute INSERT, UPDATE, or DELETE. Use a stored procedure for data modification.
+
+**Q: How do you use TVF in EF Core?**
+
+> Register it with `[DbFunction]` attribute on a method in DbContext that returns `IQueryable<T>`. Use `HasNoKey()` on the return entity since TVF results have no primary key. Then call it in LINQ and EF generates the correct SQL with the TVF in the FROM clause.
+
