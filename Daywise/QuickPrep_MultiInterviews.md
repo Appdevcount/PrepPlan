@@ -1603,3 +1603,1042 @@ I’ll compress entire PDF into:
 
 Just tell:
 👉 **“Take mock interview from this PDF”** (best for you)
+
+---
+
+# MISSING TOPICS — Added from All Company Question Lists
+
+---
+
+## M1. LINQ Join Query (Train + Crew)
+
+```csharp
+var result = from crew in crewList
+             join train in trainList on crew.TrainId equals train.Id
+             select new { crew.Name, train.TrainNumber };
+```
+
+---
+
+## M2. Stored Procedures
+
+Pre-compiled SQL stored in DB, executed by name.
+
+```sql
+CREATE PROCEDURE GetEmployees AS BEGIN SELECT * FROM Employees; END
+EXEC GetEmployees;
+```
+
+**SP vs Function**
+
+| Stored Procedure | Function |
+|---|---|
+| Can use DML (INSERT/UPDATE) | Cannot use DML |
+| Cannot be used in SELECT | Can be used in SELECT |
+| Called with EXEC | Called inline in SELECT |
+
+**SP vs Raw SQL in ADO.NET**
+
+```csharp
+cmd.CommandType = CommandType.Text;
+cmd.CommandText = "SELECT * FROM Employees"; // raw SQL
+
+cmd.CommandType = CommandType.StoredProcedure;
+cmd.CommandText = "GetEmployees"; // SP
+```
+
+---
+
+## M3. SDLC
+
+Requirement → Design → Development → Testing → Deployment → Maintenance
+
+Agile = iterative SDLC in 2-week sprints. Ceremonies: Planning, Standup, Review, Retro.
+
+---
+
+## M4. SQL: Avg Salary of Dept > 5000
+
+```sql
+SELECT DepartmentId, AVG(Salary) AS AvgSalary
+FROM Employees
+GROUP BY DepartmentId
+HAVING AVG(Salary) > 5000;
+```
+
+---
+
+## M5. Security Beyond JWT
+
+| Option | Use Case |
+|---|---|
+| API Keys | Server-to-server |
+| OAuth 2.0 | Third-party login |
+| Client Certificates (mTLS) | High-security enterprise |
+| HMAC | Webhook signature verification |
+| Azure AD B2C | Enterprise/social login |
+
+---
+
+## M6. Query Parameters in HTTP Request
+
+```csharp
+// URL: /api/users?page=1&size=10
+[HttpGet]
+public IActionResult Get([FromQuery] int page, [FromQuery] int size) { }
+
+// Route param: /api/users/5
+[HttpGet("{id}")]
+public IActionResult GetById([FromRoute] int id) { }
+
+// Body
+[HttpPost]
+public IActionResult Create([FromBody] UserDto dto) { }
+```
+
+---
+
+## M7. Array vs ArrayList
+
+| Array | ArrayList |
+|---|---|
+| Fixed size | Dynamic size |
+| Strongly typed | Stores object (boxing overhead) |
+| Faster | Slower |
+
+Use `List<T>` instead of ArrayList in modern C#.
+
+---
+
+## M8. Liskov Substitution — Code Example
+
+```csharp
+// Violation
+public class Bird { public virtual void Fly() { } }
+public class Penguin : Bird
+{
+    public override void Fly() => throw new Exception("Cannot fly!"); // breaks LSP
+}
+
+// Fix — separate contracts
+public interface IFlyable { void Fly(); }
+public class Eagle : IFlyable { public void Fly() { } }
+public class Penguin { /* no Fly method needed */ }
+```
+
+---
+
+## M9. Create Tables in Azure SQL
+
+Via Portal: Azure Portal > SQL Database > Query Editor > run CREATE TABLE.
+
+Via EF migrations:
+```bash
+dotnet ef migrations add InitialCreate
+dotnet ef database update
+```
+
+Connection string in appsettings.json:
+```json
+"DefaultConnection": "Server=tcp:myserver.database.windows.net;Database=mydb;User ID=admin;Password=xxx;Encrypt=True;"
+```
+
+---
+
+## M10. Method Overload vs Override
+
+```csharp
+// Overload — same name, different params (compile-time polymorphism)
+public int Add(int a, int b) => a + b;
+public double Add(double a, double b) => a + b;
+
+// Override — child replaces parent behaviour (runtime polymorphism)
+public class Animal { public virtual void Speak() => Console.WriteLine("..."); }
+public class Dog : Animal { public override void Speak() => Console.WriteLine("Woof"); }
+```
+
+| Overload | Override |
+|---|---|
+| Same class | Parent to Child |
+| Different signature | Same signature |
+| Compile-time | Runtime |
+
+---
+
+## M11. SQL: Patients by Doctor on Today's Date
+
+```sql
+SELECT DoctorId, COUNT(PatientId) AS PatientCount
+FROM Consultations
+WHERE CAST(ConsultationDate AS DATE) = CAST(GETDATE() AS DATE)
+GROUP BY DoctorId;
+```
+
+---
+
+## M12. 3rd Largest Element — 1 Loop Only
+
+```csharp
+int[] arr = { 5, 1, 9, 3, 7 };
+int first = int.MinValue, second = int.MinValue, third = int.MinValue;
+
+foreach (int n in arr)
+{
+    if (n > first) { third = second; second = first; first = n; }
+    else if (n > second) { third = second; second = n; }
+    else if (n > third) { third = n; }
+}
+// third = 3rd largest
+```
+
+---
+
+## M13. REST API Skeleton Code
+
+```csharp
+[ApiController]
+[Route("api/[controller]")]
+public class UsersController : ControllerBase
+{
+    private readonly IUserService _service;
+    public UsersController(IUserService service) => _service = service;
+
+    [HttpGet]
+    public async Task<ActionResult<List<UserDto>>> GetAll()
+        => Ok(await _service.GetAllAsync());
+
+    [HttpGet("{id}")]
+    public async Task<ActionResult<UserDto>> GetById(int id)
+    {
+        var user = await _service.GetByIdAsync(id);
+        return user is null ? NotFound() : Ok(user);
+    }
+
+    [HttpPost]
+    public async Task<ActionResult<UserDto>> Create([FromBody] CreateUserDto dto)
+    {
+        var created = await _service.CreateAsync(dto);
+        return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        await _service.DeleteAsync(id);
+        return NoContent();
+    }
+}
+```
+
+---
+
+## M14. Multiple Inheritance in C#
+
+C# does NOT support multiple class inheritance. Workaround: implement multiple interfaces.
+
+```csharp
+public interface ILogger { void Log(); }
+public interface INotifier { void Notify(); }
+
+public class OrderService : ILogger, INotifier
+{
+    public void Log() { }
+    public void Notify() { }
+}
+```
+
+---
+
+## M15. Same Method in Multiple Interfaces — Explicit Implementation
+
+```csharp
+public interface IA { void Show(); }
+public interface IB { void Show(); }
+
+public class MyClass : IA, IB
+{
+    void IA.Show() => Console.WriteLine("From IA");
+    void IB.Show() => Console.WriteLine("From IB");
+}
+
+// Call:
+((IA)obj).Show(); // From IA
+((IB)obj).Show(); // From IB
+```
+
+---
+
+## M16. Swap Without 3rd Variable
+
+```csharp
+int a = 5, b = 10;
+
+// Arithmetic
+a = a + b; b = a - b; a = a - b;
+
+// XOR
+a = a ^ b; b = a ^ b; a = a ^ b;
+
+// Tuple (modern C# — cleanest)
+(a, b) = (b, a);
+```
+
+---
+
+## M17. DTO Pattern
+
+DTO (Data Transfer Object) — carries data between layers, never exposes domain model internals.
+
+```csharp
+// Domain model
+public class User { public int Id; public string PasswordHash; }
+
+// DTO — only what client needs
+public record UserDto(int Id, string Name, string Email);
+
+// In controller — never expose PasswordHash
+return Ok(new UserDto(user.Id, user.Name, user.Email));
+```
+
+---
+
+## M18. Get User Input in JavaScript
+
+```javascript
+const name = prompt("Enter your name");
+const value = document.getElementById("myInput").value;
+
+document.getElementById("myForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const val = e.target.elements["fieldName"].value;
+});
+```
+
+---
+
+## M19. How to Design SQL Database
+
+1. Identify entities (tables)
+2. Define attributes (columns)
+3. Set primary keys
+4. Normalize (1NF, 2NF, 3NF — remove duplicates/redundancy)
+5. Define relationships (FK)
+6. Add indexes on frequently queried columns
+
+```sql
+CREATE TABLE Department (Id INT PRIMARY KEY, Name NVARCHAR(100));
+CREATE TABLE Employee (
+    Id INT PRIMARY KEY,
+    Name NVARCHAR(100),
+    DeptId INT FOREIGN KEY REFERENCES Department(Id)
+);
+```
+
+---
+
+## M20. Constraints in SQL
+
+| Constraint | Purpose |
+|---|---|
+| PRIMARY KEY | Unique + Not Null |
+| FOREIGN KEY | References another table |
+| UNIQUE | No duplicates |
+| NOT NULL | Must have value |
+| CHECK | Custom validation rule |
+| DEFAULT | Default value if not provided |
+
+```sql
+ALTER TABLE Employees ADD CONSTRAINT chk_salary CHECK (Salary > 0);
+```
+
+---
+
+## M21. Attributes in .NET
+
+```csharp
+[ApiController]                         // marks as API controller
+[Route("api/[controller]")]             // route template
+[Authorize(Roles = "Admin")]            // auth
+[HttpGet], [HttpPost]                   // HTTP verbs
+[FromBody], [FromQuery], [FromRoute]    // param binding
+[Required], [MaxLength(50)]             // validation
+[Obsolete("Use NewMethod")]             // deprecation
+
+// Custom attribute example
+public class LogAttribute : ActionFilterAttribute
+{
+    public override void OnActionExecuting(ActionExecutingContext ctx)
+        => Console.WriteLine($"Calling: {ctx.ActionDescriptor.DisplayName}");
+}
+```
+
+---
+
+## M22. Handling 2 Databases
+
+```csharp
+services.AddDbContext<PrimaryDbContext>(o => o.UseSqlServer(config["Db1"]));
+services.AddDbContext<SecondaryDbContext>(o => o.UseSqlServer(config["Db2"]));
+
+public class OrderService
+{
+    public OrderService(PrimaryDbContext db1, SecondaryDbContext db2) { }
+}
+```
+
+---
+
+## M23. .NET Core vs .NET Framework
+
+| .NET Core / .NET 5+ | .NET Framework |
+|---|---|
+| Cross-platform | Windows only |
+| Open source | Proprietary |
+| High performance (Kestrel) | Slower (IIS only) |
+| Minimal APIs | MVC only |
+| Side-by-side versioning | Machine-wide install |
+
+Always use .NET 8+ for new projects.
+
+---
+
+## M24. Extension Methods
+
+```csharp
+public static class StringExtensions
+{
+    public static bool IsNullOrEmpty(this string str) => string.IsNullOrEmpty(str);
+    public static string ToTitleCase(this string str)
+        => System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(str);
+}
+
+"hello".ToTitleCase(); // "Hello"
+"".IsNullOrEmpty();    // true
+```
+
+---
+
+## M25. FirstOrDefault vs SingleOrDefault vs First
+
+| Method | Throws if empty | Throws if multiple |
+|---|---|---|
+| First | Yes | No |
+| FirstOrDefault | No (returns null/default) | No |
+| Single | Yes | Yes |
+| SingleOrDefault | No (returns null/default) | Yes |
+
+```csharp
+var user = db.Users.FirstOrDefault(u => u.Id == id); // safe for unknowns
+var user = db.Users.Single(u => u.Id == id);          // throws if 0 or 2+ found
+```
+
+---
+
+## M26. Startup.cs / Program.cs Methods
+
+```csharp
+// .NET 6+ Program.cs (replaces Startup.cs)
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddControllers();
+builder.Services.AddDbContext<AppDbContext>(...);
+builder.Services.AddScoped<IUserService, UserService>();
+
+var app = builder.Build();
+app.UseRouting();
+app.UseAuthentication();
+app.UseAuthorization();
+app.MapControllers();
+app.Run();
+```
+
+---
+
+## M27. Azure SQL Connection in API
+
+```json
+"ConnectionStrings": {
+  "DefaultConnection": "Server=tcp:xyz.database.windows.net,1433;Database=mydb;User ID=admin;Password=xxx;Encrypt=True;"
+}
+```
+
+```csharp
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+```
+
+---
+
+## M28. Singleton Pattern Implementation Code
+
+```csharp
+public sealed class ConfigManager
+{
+    private static ConfigManager? _instance;
+    private static readonly object _lock = new();
+
+    private ConfigManager() { }
+
+    public static ConfigManager Instance
+    {
+        get
+        {
+            if (_instance is null)
+                lock (_lock)           // WHY: thread-safe lazy init
+                    _instance ??= new ConfigManager();
+            return _instance;
+        }
+    }
+}
+```
+
+---
+
+## M29. Anagram Code
+
+```csharp
+bool IsAnagram(string s1, string s2)
+{
+    if (s1.Length != s2.Length) return false;
+    return s1.OrderBy(c => c).SequenceEqual(s2.OrderBy(c => c));
+}
+// "listen" and "silent" -> true
+```
+
+---
+
+## M30. Agile Methodology
+
+Iterative development in sprints (2-week cycles).
+
+- Ceremonies: Sprint Planning, Daily Standup, Sprint Review, Retrospective
+- Roles: Product Owner, Scrum Master, Dev Team
+- Artifacts: Product Backlog, Sprint Backlog, Burndown Chart
+
+---
+
+## M31. Validation Before Controller (Action Filter)
+
+```csharp
+public class ValidateModelFilter : ActionFilterAttribute
+{
+    public override void OnActionExecuting(ActionExecutingContext ctx)
+    {
+        if (!ctx.ModelState.IsValid)
+            ctx.Result = new BadRequestObjectResult(ctx.ModelState);
+    }
+}
+
+// Register globally
+services.AddControllers(o => o.Filters.Add<ValidateModelFilter>());
+```
+
+---
+
+## M32. SQL Functions
+
+```sql
+-- Scalar function (returns single value)
+CREATE FUNCTION dbo.GetFullName(@Id INT)
+RETURNS NVARCHAR(200) AS
+BEGIN
+    DECLARE @Name NVARCHAR(200)
+    SELECT @Name = FirstName + ' ' + LastName FROM Employees WHERE Id = @Id
+    RETURN @Name
+END
+
+-- Table-valued function
+CREATE FUNCTION dbo.GetByDept(@DeptId INT)
+RETURNS TABLE AS
+RETURN (SELECT * FROM Employees WHERE DeptId = @DeptId)
+```
+
+Functions cannot have multiple return types. They return either a scalar or a table.
+
+---
+
+## M33. Same View for Different Controllers in MVC
+
+```csharp
+// Place in /Views/Shared/Dashboard.cshtml
+public class AdminController : Controller
+{
+    public IActionResult Dashboard() => View("~/Views/Shared/Dashboard.cshtml", model);
+}
+public class ManagerController : Controller
+{
+    public IActionResult Dashboard() => View("~/Views/Shared/Dashboard.cshtml", model);
+}
+```
+
+---
+
+## M34. Scoped DI + 60s SQL Connection Expiry
+
+```csharp
+// Retry on failure
+options.UseSqlServer(connStr, sqlOptions =>
+    sqlOptions.EnableRetryOnFailure(maxRetryCount: 3));
+
+// Extend command timeout beyond 60s
+options.UseSqlServer(connStr, sqlOptions =>
+    sqlOptions.CommandTimeout(120));
+
+// Connection pooling (default in EF) handles reconnections automatically
+```
+
+---
+
+## M35. Azure VM
+
+Full OS-level control. You manage patching, scaling, software.
+Use when: legacy apps, custom OS config, non-HTTP workloads.
+Prefer App Service for APIs/web apps — managed, auto-scaling, zero infra.
+
+---
+
+## M36. IActionResult vs IHttpResult
+
+| IActionResult | IHttpResult |
+|---|---|
+| MVC/Controller-based | Minimal API |
+| `return Ok()`, `NotFound()` | `Results.Ok()`, `Results.NotFound()` |
+
+```csharp
+// Controller
+public IActionResult Get() => Ok(data);
+
+// Minimal API
+app.MapGet("/data", () => Results.Ok(data));
+```
+
+---
+
+## M37. DI Lifetime for Multithreading and Cache
+
+| Scenario | Lifetime | Why |
+|---|---|---|
+| Multithreading / background service | Transient | Each thread gets own instance, avoids shared state bugs |
+| Cache (IMemoryCache) | Singleton | Must persist across all requests |
+| DB Context | Scoped | One connection per HTTP request |
+
+---
+
+## M38. Cross Join
+
+Returns every combination of rows (cartesian product).
+
+```sql
+SELECT e.Name, d.Name
+FROM Employees e
+CROSS JOIN Departments d;
+-- 5 employees x 3 departments = 15 rows
+```
+
+---
+
+## M39. Joins in LINQ
+
+```csharp
+// Inner join
+var result = from e in employees
+             join d in departments on e.DeptId equals d.Id
+             select new { e.Name, d.DeptName };
+
+// Left join
+var result = from e in employees
+             join d in departments on e.DeptId equals d.Id into grp
+             from d in grp.DefaultIfEmpty()
+             select new { e.Name, DeptName = d?.DeptName ?? "No Dept" };
+```
+
+---
+
+## M40. Count Occurrences in String
+
+```csharp
+string str = "hello world";
+
+// Without Dictionary
+foreach (char c in str.Distinct())
+    Console.WriteLine($"{c}: {str.Count(x => x == c)}");
+
+// With Dictionary
+var counts = new Dictionary<char, int>();
+foreach (char c in str)
+    counts[c] = counts.GetValueOrDefault(c) + 1;
+
+// With LINQ
+var counts = str.GroupBy(c => c).Select(g => new { g.Key, Count = g.Count() });
+```
+
+---
+
+## M41. Repeated Elements as Alphabet+Number Format
+
+```csharp
+// Input: "aaabbc" -> Output: "a3b2c1"
+string Encode(string str) =>
+    string.Concat(str.GroupBy(c => c).Select(g => $"{g.Key}{g.Count()}"));
+```
+
+---
+
+## M42. LINQ Group and Sum
+
+```csharp
+var result = employees
+    .GroupBy(e => e.DepartmentId)
+    .Select(g => new
+    {
+        DeptId = g.Key,
+        TotalSalary = g.Sum(e => e.Salary),
+        Count = g.Count()
+    });
+```
+
+---
+
+## M43. DRY Principle
+
+**Don't Repeat Yourself** — extract duplicated logic into one place.
+
+```csharp
+// Violation — ValidateUser duplicated
+public void CreateOrder() { ValidateUser(); }
+public void UpdateOrder() { ValidateUser(); }
+
+// DRY — single definition, called everywhere
+private void ValidateUser() { /* single definition */ }
+```
+
+---
+
+## M44. ref vs out Parameters
+
+| ref | out |
+|---|---|
+| Must initialize before passing | No prior initialization needed |
+| Passes value in AND writes back | Only writes back |
+
+```csharp
+void Double(ref int x) => x *= 2;
+int a = 5; Double(ref a); // a = 10
+
+bool TryParse(string s, out int result)
+{
+    result = 0;
+    return int.TryParse(s, out result);
+}
+```
+
+---
+
+## M45. Connect Azure Key Vault to API (Code)
+
+```csharp
+// Install: Azure.Extensions.AspNetCore.Configuration.Secrets
+// Program.cs
+builder.Configuration.AddAzureKeyVault(
+    new Uri($"https://{builder.Configuration["KeyVaultName"]}.vault.azure.net/"),
+    new DefaultAzureCredential()); // WHY: uses Managed Identity, no secrets in code
+
+// Access like normal config
+var secret = builder.Configuration["MySecretName"];
+```
+
+---
+
+## M46. EF Core Migrations Commands
+
+```bash
+dotnet ef migrations add InitialCreate     # create migration
+dotnet ef database update                  # apply to DB
+dotnet ef migrations remove                # undo last (if not applied)
+dotnet ef migrations script                # generate SQL script
+dotnet ef migrations list                  # list all migrations
+```
+
+---
+
+## M47. Constructor Chaining in C#
+
+```csharp
+public class Order
+{
+    public int Id { get; }
+    public string Name { get; }
+    public decimal Amount { get; }
+
+    public Order(int id) : this(id, "Default") { }
+    public Order(int id, string name) : this(id, name, 0) { }
+    public Order(int id, string name, decimal amount)
+    {
+        Id = id; Name = name; Amount = amount;
+    }
+}
+```
+
+---
+
+## M48. Hashtable vs Dictionary
+
+| Hashtable | Dictionary&lt;K,V&gt; |
+|---|---|
+| Non-generic (stores object) | Generic (type-safe) |
+| Boxing/unboxing overhead | No boxing |
+| Older API (.NET 1.0) | Modern, preferred |
+
+Use `ConcurrentDictionary<K,V>` for thread-safe scenarios.
+
+---
+
+## M49. Partial Class in Different Projects
+
+**No** — partial class parts must be in the **same assembly (project)**.
+
+```csharp
+// Same project — allowed
+// File1.cs
+public partial class User { public int Id { get; set; } }
+// File2.cs
+public partial class User { public string Name { get; set; } }
+
+// Different projects — NOT allowed (compile error)
+```
+
+---
+
+## M50. Views vs Indexes in SQL
+
+| View | Index |
+|---|---|
+| Virtual table (saved SELECT query) | Data structure for fast lookup |
+| Simplifies complex queries | Speeds up WHERE/JOIN performance |
+| No storage (unless materialized) | Uses storage |
+
+```sql
+CREATE VIEW ActiveEmployees AS SELECT * FROM Employees WHERE IsActive = 1;
+CREATE INDEX idx_dept ON Employees(DeptId);
+```
+
+---
+
+## M51. Triggers in SQL
+
+Auto-executes on INSERT, UPDATE, or DELETE.
+
+```sql
+CREATE TRIGGER trg_AfterInsert
+ON Employees AFTER INSERT
+AS
+BEGIN
+    INSERT INTO AuditLog (Action, Date) VALUES ('Employee Added', GETDATE())
+END
+```
+
+Types: `AFTER` trigger (post-action), `INSTEAD OF` trigger (replace action).
+
+---
+
+## M52. SQL ISNULL / COALESCE for Null Column
+
+```sql
+SELECT Name, ISNULL(Commission, 0) AS Commission FROM Employees;
+
+-- COALESCE: returns first non-null from multiple columns
+SELECT Name, COALESCE(Commission, Bonus, 0) AS Earnings FROM Employees;
+```
+
+---
+
+## M53. Latest .NET Features
+
+| Feature | Version |
+|---|---|
+| Minimal APIs | .NET 6 |
+| Record types | C# 9 (.NET 5) |
+| Nullable reference types | C# 8 |
+| Pattern matching (switch expressions) | C# 8+ |
+| Primary constructors | C# 12 |
+| `required` modifier | C# 11 |
+| Native AOT compilation | .NET 7+ |
+| `IExceptionHandler` interface | .NET 8 |
+
+---
+
+## M54. Return Error Message to Client
+
+```csharp
+// Standard Problem Details (RFC 7807)
+return Problem(title: "Validation failed", detail: "Name is required", statusCode: 400);
+
+// Custom response
+return BadRequest(new { error = "Name is required", code = "VAL001" });
+
+// Global exception handler (.NET 8)
+app.UseExceptionHandler(b => b.Run(async ctx =>
+{
+    ctx.Response.StatusCode = 500;
+    await ctx.Response.WriteAsJsonAsync(new { error = "Internal server error" });
+}));
+```
+
+---
+
+## M55. Display Same Data in Multiple Views (MVC)
+
+```csharp
+// Option 1: Partial view
+@Html.Partial("_OrderList", Model.Orders)
+
+// Option 2: ViewComponent (reusable across any page)
+public class OrderSummaryViewComponent : ViewComponent
+{
+    public IViewComponentResult Invoke() => View(orders);
+}
+// In any view:
+@await Component.InvokeAsync("OrderSummary")
+```
+
+---
+
+## M56. Two Dropdowns Customer + Orders in MVC (Efficient)
+
+```csharp
+// Load customers on page load, fetch orders via AJAX on selection
+public IActionResult Index()
+{
+    ViewBag.Customers = new SelectList(db.Customers, "Id", "Name");
+    return View();
+}
+
+[HttpGet]
+public IActionResult GetOrders(int customerId)
+    => Json(db.Orders.Where(o => o.CustomerId == customerId).ToList());
+```
+
+```javascript
+$("#customerDdl").change(function() {
+    $.get("/Home/GetOrders?customerId=" + this.value, function(data) {
+        var opts = data.map(o => "<option value='" + o.id + "'>" + o.name + "</option>");
+        $("#orderDdl").html(opts.join(""));
+    });
+});
+```
+
+---
+
+## M57. Letter Count in String
+
+```csharp
+string str = "hello";
+
+// With LINQ
+var count = str.GroupBy(c => c).ToDictionary(g => g.Key, g => g.Count());
+
+// Specific char count
+int lCount = str.Count(c => c == 'l'); // 2
+
+// Without LINQ
+var dict = new Dictionary<char, int>();
+foreach (char c in str)
+    dict[c] = dict.GetValueOrDefault(c) + 1;
+```
+
+---
+
+## M58. Finally Block
+
+```csharp
+try { /* code */ }
+catch (Exception ex) { /* handle error */ }
+finally
+{
+    // Always runs — even if exception thrown or return used
+    // WHY: cleanup resources (close connection, dispose file handles)
+    connection.Close();
+}
+// Only skipped by: Environment.FailFast() or power failure
+```
+
+---
+
+## M59. POST Attribute on GET Action
+
+**No** — `[HttpPost]` means that action only responds to POST requests.
+
+```csharp
+[HttpPost]
+public IActionResult GetData() { } // Only via POST
+
+// Respond to both:
+[HttpGet]
+[HttpPost]
+public IActionResult GetData() { }
+```
+
+Bad practice — GET should be idempotent and have no side effects.
+
+---
+
+## M60. Memory Cache vs Redis — When to Choose
+
+| In-Memory Cache | Redis |
+|---|---|
+| Single server only | Multi-server / distributed |
+| Lost on app restart | Persists independently |
+| Faster (no network hop) | Slightly slower |
+| No extra infrastructure | Needs Redis instance |
+| Good for: small reference data | Good for: sessions, shared cart, scale-out |
+
+Choose Redis when scaling out to multiple servers or sharing state across instances.
+
+---
+
+## M61. How to Identify Missing Index in SQL
+
+```sql
+-- SQL Server DMV query
+SELECT
+    migs.avg_user_impact,
+    mid.statement AS TableName,
+    mid.equality_columns,
+    mid.inequality_columns
+FROM sys.dm_db_missing_index_group_stats migs
+JOIN sys.dm_db_missing_index_groups mig ON migs.group_handle = mig.index_group_handle
+JOIN sys.dm_db_missing_index_details mid ON mig.index_handle = mid.index_handle
+ORDER BY migs.avg_user_impact DESC;
+
+-- Also: check execution plan — yellow warning icon = missing index suggestion
+-- Also: slow queries with Table Scan or Index Scan in execution plan
+```
+
+---
+
+## M62. Open/Closed Principle — Violation + Fix
+
+```csharp
+// Violation — must modify class every time a new discount type is added
+public class DiscountService
+{
+    public decimal GetDiscount(string type)
+    {
+        if (type == "Student") return 20;
+        if (type == "Senior") return 30;
+        return 0;
+    }
+}
+
+// Fix — open for extension, closed for modification
+public interface IDiscountStrategy { decimal GetDiscount(); }
+public class StudentDiscount : IDiscountStrategy { public decimal GetDiscount() => 20; }
+public class SeniorDiscount : IDiscountStrategy { public decimal GetDiscount() => 30; }
+
+public class DiscountService
+{
+    private readonly IDiscountStrategy _strategy;
+    public DiscountService(IDiscountStrategy strategy) => _strategy = strategy;
+    public decimal GetDiscount() => _strategy.GetDiscount();
+    // WHY: new types added without touching this class
+}
+```
