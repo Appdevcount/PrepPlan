@@ -30,6 +30,199 @@
 
 ---
 
+## Mind Map — Azure Service Bus (Quick Recall)
+
+> Mental Model: Service Bus = **Enterprise Post Office**. Namespace = building, Queue = private mailbox (one recipient), Topic = public bulletin board (many readers), Subscription = personal filter on that board, Session = ordered envelope bundle per sender.
+
+```
+AZURE SERVICE BUS
+│
+├── WHAT IT IS
+│   ├── Fully managed enterprise message broker
+│   ├── Guaranteed delivery (at-least-once / at-most-once)
+│   ├── Persistent (replicated 3× per region)
+│   └── FQDN: <namespace>.servicebus.windows.net
+│
+├── TIERS
+│   ├── Basic   → Queues only, 256 KB, no Topics/Sessions/Transactions
+│   ├── Standard→ Topics, Sessions, Transactions, Duplicate Detection, 256 KB
+│   └── Premium → + VNET, Geo-DR, AZ, dedicated, 1 MB (100 MB large msgs), $682/mo base
+│
+├── MESSAGING PATTERNS
+│   ├── Point-to-Point     → Queue  (competing consumers)
+│   ├── Publish-Subscribe  → Topic + Subscriptions (fan-out)
+│   ├── Request-Reply      → ReplyTo + CorrelationId
+│   └── Session-Based      → FIFO ordered per session group
+│
+├── CORE COMPONENTS
+│   ├── Namespace  → Container / billing unit / FQDN
+│   ├── Queue      → FIFO store, single active consumer per msg
+│   ├── Topic      → Distribution hub → many subscriptions
+│   ├── Subscription → Virtual queue under topic + filter rule
+│   └── Message    → Body (bytes) + System props + App props
+│
+├── MESSAGE LIFECYCLE
+│   ├── Active      → Available to receive
+│   ├── Locked      → Received, lock timer running (default 60s)
+│   ├── Completed   → Deleted (success)
+│   ├── Abandoned   → Returned, DeliveryCount++
+│   ├── Dead-Letter → Moved to DLQ (poison / expired / max retries)
+│   ├── Deferred    → Set aside; retrieve by SequenceNumber
+│   └── Scheduled   → Enqueued at future UTC time
+│
+├── QUEUES — KEY CONFIG
+│   ├── MaxSizeInMB: 1–5 GB (Standard) / 80 GB (Premium)
+│   ├── MaxDeliveryCount: 10 (default) → triggers DLQ
+│   ├── LockDuration: 60s default (max 5 min)
+│   ├── TTL: 14 days default (90 days Premium)
+│   ├── DuplicateDetectionWindow: 10 min default
+│   └── Sessions: on/off (requires Premium for best perf)
+│
+├── RECEIVE MODES
+│   ├── PeekLock (default)
+│   │   ├── Receive → Locked (invisible to others)
+│   │   ├── Complete  → delete
+│   │   ├── Abandon   → return + retry
+│   │   ├── DeadLetter→ move to DLQ
+│   │   ├── Defer     → store by SeqNum
+│   │   └── RenewLock → extend timer
+│   └── ReceiveAndDelete → deleted on receive ⚠️ no retry on failure
+│
+├── TOPICS & SUBSCRIPTIONS
+│   ├── Topic → single sender → N subscriptions each get copy
+│   ├── Filter types
+│   │   ├── SQL Filter      → full predicate ("Priority='High' AND Amt>1000")
+│   │   ├── Correlation Filter → equality only, 50–100× faster than SQL
+│   │   └── Boolean Filter  → TrueFilter (all) / FalseFilter (none)
+│   ├── Filter Actions → SET properties as msg enters subscription
+│   └── Use cases: regional routing, priority lanes, content-type routing
+│
+├── MESSAGE PROPERTIES
+│   ├── System
+│   │   ├── MessageId       → duplicate detection key
+│   │   ├── SessionId       → FIFO session group
+│   │   ├── CorrelationId   → request-reply tracing
+│   │   ├── ReplyTo         → response queue name
+│   │   ├── Subject         → message label (routing/filtering)
+│   │   ├── ContentType     → MIME (application/json)
+│   │   ├── PartitionKey    → partition routing
+│   │   ├── TimeToLive      → message expiration
+│   │   └── ScheduledEnqueueTime → delayed delivery
+│   └── ApplicationProperties → custom KV (string/int/long/double/bool/DateTime)
+│
+├── SESSIONS (FIFO)
+│   ├── SessionId groups msgs → consumer locks entire session
+│   ├── Only one consumer processes a session at a time
+│   ├── State can be persisted on session (GetSessionStateAsync)
+│   └── Use cases: order steps, approval workflows, chat, financial trades, Saga
+│
+├── DEAD-LETTER QUEUE (DLQ)
+│   ├── Auto path: <queue>/$DeadLetterQueue
+│   ├── Triggered by: MaxDeliveryCount exceeded, TTL expired,
+│   │               explicit DeadLetterAsync(), filter exception
+│   ├── Contains: DeadLetterReason + DeadLetterErrorDescription
+│   ├── Monitor: GetQueueRuntimePropertiesAsync → DeadLetterMessageCount
+│   └── Remediate: inspect → fix → re-enqueue to main queue
+│
+├── DEFERRAL & SCHEDULING
+│   ├── Defer  → message invisible; retrieve via ReceiveDeferredMessageAsync(seqNum)
+│   │           Use: dependency not ready yet (e.g. wait for payment before shipping)
+│   └── Schedule → ScheduleMessageAsync(msg, futureTime) / CancelScheduledMessageAsync
+│                  Use: reminders, retry with exponential backoff, business-hour delivery
+│
+├── TRANSACTIONS & BATCHING
+│   ├── Transactions → TransactionScope wraps send+receive+complete atomically
+│   │                  Rollback on any failure; Standard/Premium only
+│   └── Batching     → CreateMessageBatchAsync → TryAddMessage → SendMessagesAsync
+│                      Reduces network calls; auto-chunks when batch is full
+│
+├── SECURITY & AUTH
+│   ├── Managed Identity (preferred) → no secrets
+│   ├── SAS (Shared Access Signature) → token scoped to Listen/Send/Manage
+│   ├── RBAC roles: Azure Service Bus Data Owner/Sender/Receiver
+│   ├── TLS 1.2+ enforced in transit
+│   └── VNET / Private Endpoints (Premium only)
+│
+├── KEY CODE PATTERNS (C#)
+│   ├── ServiceBusClient → thread-safe singleton (reuse via DI)
+│   ├── ServiceBusSender → send / scheduleSend / sendBatch
+│   ├── ServiceBusReceiver → receive / peek / receiveDeferred
+│   ├── ServiceBusProcessor → event-driven (ProcessMessageAsync / ProcessErrorAsync)
+│   └── ServiceBusSessionProcessor → session-aware processor
+│
+├── ADVANCED PATTERNS
+│   ├── Competing Consumers → multiple receivers on same queue (load balance)
+│   ├── Priority Queue     → multiple queues + priority-aware dispatcher
+│   ├── Pub-Sub Fan-Out    → topic → N subscriptions → N consumers
+│   ├── Request-Reply      → ReplyTo + CorrelationId + temp reply queue
+│   ├── Outbox Pattern     → DB txn + outbox table → relay to SB atomically
+│   ├── Saga / Workflow    → sessions + session state for stateful multi-step flows
+│   ├── Auto-Forward       → chain queues/topics (regional → central)
+│   └── Message Deferral   → reorder processing without losing message
+│
+├── AZURE FUNCTIONS INTEGRATION
+│   ├── ServiceBusTrigger → binds queue/topic/subscription
+│   ├── Auto-scales based on queue depth (KEDA-compatible)
+│   ├── Supports sessions: IsSessionsEnabled = true on trigger
+│   └── Output binding → ServiceBus output to send messages from Function
+│
+├── MONITORING & DIAGNOSTICS
+│   ├── Metrics: ActiveMessages, DeadLetterMessages, IncomingMessages, ServerErrors
+│   ├── Azure Monitor → Alert rules on DLQ count or error rate
+│   ├── Application Insights → distributed tracing with correlation
+│   ├── Diagnostic logs → OperationalLogs, VNetAndIPFilteringLogs
+│   └── GetQueueRuntimePropertiesAsync → programmatic queue stats
+│
+├── PERFORMANCE OPTIMIZATION
+│   ├── Prefetch → fetch N messages ahead (PrefetchCount)
+│   ├── Batch operations → send/receive in bulk
+│   ├── Correlation filters over SQL filters (50–100× faster)
+│   ├── Partitioning → distribute load across brokers
+│   ├── Connection reuse → singleton ServiceBusClient
+│   └── Premium tier → dedicated compute for predictable latency
+│
+├── HIGH AVAILABILITY & DR
+│   ├── Built-in: 3× replication within region
+│   ├── Availability Zones → Premium, zone-redundant (auto)
+│   ├── Geo-Disaster Recovery (Premium) → alias FQDN → passive failover namespace
+│   │   ├── Metadata replicated; messages NOT replicated
+│   │   └── Initiate failover via API/portal; alias re-points in <1 min
+│   └── Active-Active → app sends to both namespaces (duplicate detection dedupes)
+│
+├── PRICING
+│   ├── Basic:    $0.05/million ops; queues only
+│   ├── Standard: $0.05–$0.80/million ops; full features; shared capacity
+│   └── Premium:  $682/month/messaging unit; dedicated; VNET; AZ; Geo-DR
+│
+├── SERVICE BUS vs ALTERNATIVES
+│   ├── Storage Queue   → simple, cheap, <64 KB, no ordering, no pub-sub
+│   ├── Event Grid      → reactive eventing, high fanout, no ordering, 24h retry
+│   ├── Event Hubs      → high-throughput streaming, GB/s, partition-ordered
+│   └── Service Bus ✅  → enterprise, guaranteed FIFO, transactions, DLQ, filtering
+│
+├── BEST PRACTICES
+│   ├── Always use PeekLock (never ReceiveAndDelete for critical msgs)
+│   ├── Set MaxDeliveryCount to reasonable value (5–10)
+│   ├── Monitor DLQ and alert on non-zero count
+│   ├── Use MessageId for idempotency + duplicate detection
+│   ├── Prefer Correlation filters over SQL for hot paths
+│   ├── Reuse ServiceBusClient as singleton
+│   ├── Renew lock for long-running processing
+│   ├── Use sessions for workflow ordering (not partitioning for ordering)
+│   └── Separate DLQ processing as independent background service
+│
+└── TROUBLESHOOTING
+    ├── Message stuck in DLQ      → check DeadLetterReason; fix & re-enqueue
+    ├── Lock expired              → increase LockDuration or call RenewLock
+    ├── Messages out of order     → enable Sessions (ordering ≠ partitioning)
+    ├── Duplicate messages        → enable DuplicateDetection + idempotent consumer
+    ├── Throttling (429)          → scale to Premium or reduce send rate
+    ├── Connection drops          → SDK auto-retries; check firewall/VNET rules
+    └── High latency              → check PrefetchCount; switch to Premium tier
+```
+
+---
+
 ## Introduction & Overview
 
 ### What is Azure Service Bus?

@@ -30,6 +30,273 @@
 
 ---
 
+## MINDMAP — Azure Cosmos DB (Quick Recall Reference)
+
+```
+                        ┌─────────────────────────────────────┐
+                        │         AZURE COSMOS DB              │
+                        │  Globally distributed · JSON docs    │
+                        │  Horizontally scalable · Low latency │
+                        └──────────────┬──────────────────────┘
+                                       │
+        ┌──────────────────────────────┼──────────────────────────────┐
+        │                              │                              │
+        ▼                              ▼                              ▼
+ ┌─────────────┐              ┌────────────────┐             ┌──────────────┐
+ │  HIERARCHY  │              │   CORE IDEAS   │             │  WHEN TO USE │
+ └──────┬──────┘              └───────┬────────┘             └──────┬───────┘
+        │                             │                             │
+  Account                      Request Units                  ✅ Use Cosmos
+  └── Database(s)              ├── ~1 RU = 1KB point read     ├── Global scale
+      └── Container(s)         ├── Writes cost more           ├── Low latency
+          ├── /partitionKey    ├── Cross-partition queries     ├── Variable schema
+          └── Item(s) (JSON)   │   cost most                  ├── Multi-region
+              └── id (req)     └── 429 = throttled            └── IoT/telemetry
+                                                              ❌ Prefer SQL/Postgres
+                                                              ├── Complex JOINs
+                                                              ├── ACID across entities
+                                                              └── Relational workloads
+```
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                            PARTITION KEY (Critical)                              │
+└────────────────────────────────────┬─────────────────────────────────────────────┘
+                                     │
+           ┌─────────────────────────┼──────────────────────────┐
+           ▼                         ▼                          ▼
+     GOOD CHOICES              BAD CHOICES            SYNTHETIC / COMPOUND
+     ├── High cardinality      ├── /status (few vals) ├── tenantId#userId
+     ├── Even distribution     ├── /country (hot)     ├── category#yyyyMM
+     ├── In query filters      └── /boolean fields    ├── region#storeId
+     └── /customerId ✅                               └── dept#employeeId
+                                                        Max 2KB value
+                                                        Immutable — plan carefully!
+```
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                         CONSISTENCY LEVELS (5 levels)                           │
+└──────────────────────────────────────────────────────────────────────────────────┘
+
+  STRONG ──── Bounded Staleness ──── SESSION ──── Consistent Prefix ──── EVENTUAL
+  │           │                     │(default)   │                       │
+  Highest     K versions or         Causal per   Never out-of-order      Best
+  consistency T time lag            session      writes                  performance
+  Most RU     Good for RPO SLA      ✅ Best       Good for               Lowest RU
+  Highest     requirements          balance      read-heavy              guarantee
+  latency
+```
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                          THROUGHPUT / SCALING                                    │
+└──────────────────────────────────────────────────────────────────────────────────┘
+
+  PROVISIONED                  AUTOSCALE                    SERVERLESS
+  ├── Fixed RU/s (e.g. 400)    ├── 10%–100% of max          ├── Pay per request
+  ├── Billed hourly            ├── e.g. 400–4000 RU/s       ├── No minimum
+  ├── Predictable cost         ├── Scales automatically      ├── Sporadic traffic
+  └── Stable workloads         └── Variable workloads        └── Dev/test/low vol
+
+  RU BUDGETING: (RU per op) × (ops/sec) + 20-30% buffer = provisioned RU/s
+```
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                              INDEXING POLICY                                     │
+└──────────────────────────────────────────────────────────────────────────────────┘
+
+  DEFAULT                      COMPOSITE                    SPATIAL / PARTIAL
+  ├── All paths indexed (/*) ──►Multi-property ORDER BY  ──►GeoJSON point queries
+  ├── Range indexes            ├── [/field1 ASC,            Partial: filter subset
+  ├── Consistent (sync)        │    /field2 DESC]           of items
+  └── Good for prototyping     └── Required for multi-
+                                   field ORDER BY
+  OPTIMIZATION TIPS:
+  ├── Exclude unused large fields (saves write RUs)
+  ├── Use projections: SELECT c.id, c.status (not SELECT *)
+  └── Lazy indexing for bulk-write scenarios (async)
+```
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                           .NET SDK OPERATIONS                                    │
+└──────────────────────────────────────────────────────────────────────────────────┘
+
+  CLIENT SETUP
+  ├── CosmosClient (singleton — reuse across app lifetime)
+  ├── Key auth: new CosmosClient(endpoint, key, options)
+  └── Managed identity: new CosmosClient(endpoint, new DefaultAzureCredential())
+
+  CRUD
+  ├── CreateItemAsync(item, pk)          — inserts, fails if id exists
+  ├── ReadItemAsync(id, pk)              — point read ~1 RU ✅ cheapest
+  ├── ReplaceItemAsync(item, id, pk)     — full document replace
+  ├── UpsertItemAsync(item, pk)          — insert or replace
+  ├── DeleteItemAsync(id, pk)            — hard delete
+  └── PatchItemAsync(id, pk, patchOps)   — partial update (JSON Patch)
+
+  QUERYING
+  ├── GetItemQueryIterator<T>(queryDef)
+  ├── FeedIterator — page-by-page with HasMoreResults
+  ├── Continuation tokens — for pagination (not OFFSET/SKIP)
+  └── QueryRequestOptions
+      ├── PartitionKey — scope to single partition (cheapest)
+      ├── MaxItemCount — page size
+      └── MaxConcurrency = -1 — parallelize cross-partition
+
+  TRANSACTIONAL BATCH (single logical partition only)
+  └── container.CreateTransactionalBatch(pk)
+      ├── .CreateItem / .ReplaceItem / .DeleteItem
+      └── .ExecuteAsync() — all or nothing
+```
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                         DATA MODELING DECISIONS                                  │
+└──────────────────────────────────────────────────────────────────────────────────┘
+
+  EMBED (denormalize)                    REFERENCE (by id)
+  ├── Child always loaded with parent    ├── Large child data
+  ├── 1:few relationship                 ├── Child shared across parents
+  ├── Items array inside order ✅        ├── Looked up separately
+  └── Reduces round-trips               └── Allows independent updates
+
+  NO JOINS ACROSS CONTAINERS — denormalize or use application-side joins
+  MAX DOCUMENT SIZE: 2 MB — store blobs in Azure Blob Storage, keep refs in Cosmos
+  TTL: Set per container or per item for automatic expiry
+```
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                        CHANGE FEED (Event-Driven)                                │
+└──────────────────────────────────────────────────────────────────────────────────┘
+
+  Ordered log of all inserts + updates (not deletes by default)
+  │
+  ├── Pull Model (SDK) ─── ChangeFeedProcessor
+  │   ├── WithLeaseContainer(leaseContainer)  — tracks progress
+  │   ├── WithInstanceName("worker-1")         — multiple instances scale out
+  │   ├── StartAsync() / StopAsync()
+  │   └── Handles partitioned fan-out automatically
+  │
+  └── USE CASES
+      ├── Invalidate cache on data change
+      ├── Trigger downstream events → Service Bus
+      ├── Real-time analytics
+      ├── Container-to-container migration
+      └── Materialized views / denormalization
+```
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                   SECURITY & NETWORKING                                          │
+└──────────────────────────────────────────────────────────────────────────────────┘
+
+  AUTH
+  ├── Primary Keys — dev/local only
+  ├── Managed Identity + DefaultAzureCredential — production ✅
+  └── RBAC: "Cosmos DB Built-in Data Contributor" role
+
+  NETWORK
+  ├── Private Endpoints — no public internet exposure
+  ├── IP Firewall — restrict to known CIDRs
+  └── TLS (HTTPS) — always enforced
+
+  CONNECTION MODE
+  ├── Direct (TCP)   — best perf, default for prod
+  └── Gateway (HTTP) — simpler firewall rules, slightly slower
+
+  OPTIMISTIC CONCURRENCY
+  └── ETags — IfMatchEtag on replace → 412 PreconditionFailed on conflict
+```
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                    DIAGNOSTICS & TROUBLESHOOTING                                 │
+└──────────────────────────────────────────────────────────────────────────────────┘
+
+  KEY RESPONSE PROPERTIES
+  ├── response.RequestCharge   — RUs consumed (log always!)
+  ├── response.ActivityId      — share with Azure support for tracing
+  └── response.Diagnostics     — timing, retries, server info
+
+  HTTP STATUS CODES
+  ├── 200/201  — OK / Created
+  ├── 404      — Item not found (check id + partition key)
+  ├── 409      — Conflict (id already exists)
+  ├── 412      — Precondition Failed (ETag mismatch)
+  └── 429      — Throttled → SDK auto-retries with backoff
+                 Tune: MaxRetryAttemptsOnThrottledRequests (default 9)
+                       MaxRetryWaitTimeOnThrottledRequests (default 30s)
+
+  COMMON PRODUCTION ISSUES
+  ├── Hot partitions → redesign partition key or use synthetic keys
+  ├── High RU queries → add partition filter, projections, composite indexes
+  ├── Cross-partition ORDER BY slow → scope to partition or add composite index
+  ├── Large docs (>2MB) → offload blobs to Azure Blob Storage
+  ├── Concurrency conflicts → optimistic locking with ETags
+  ├── High latency from region → add replica, set preferred regions in client
+  └── Schema drift → validate at app layer, use versioning field in docs
+```
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                  STORED PROCEDURES · TRIGGERS · UDFs                             │
+└──────────────────────────────────────────────────────────────────────────────────┘
+
+  All written in JAVASCRIPT, run server-side within a single partition
+  │
+  ├── Stored Procedures — multi-op atomic within partition
+  │   └── container.Scripts.ExecuteStoredProcedureAsync(id, pk, params)
+  │
+  ├── Triggers — pre/post item operations
+  │   ├── PreTrigger — validate/transform before write
+  │   └── PostTrigger — audit/react after write
+  │
+  └── UDFs — custom functions usable in SQL queries
+      └── SELECT udf.myFunc(c.field) FROM c
+```
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                     MULTI-REGION & GLOBAL DISTRIBUTION                           │
+└──────────────────────────────────────────────────────────────────────────────────┘
+
+  WRITE REGIONS
+  ├── Single-write (active-passive) — one write region, N read replicas
+  └── Multi-write (active-active)   — write to any region, conflict resolution
+
+  CLIENT CONFIG
+  └── ApplicationPreferredRegions = ["East US", "West Europe"]
+      → SDK routes reads to nearest preferred region automatically
+
+  CONFLICT RESOLUTION (multi-write)
+  ├── Last-Write-Wins (default) — by _ts timestamp
+  ├── Custom (merge procedure)  — JavaScript merge logic
+  └── No conflict possible      — design around single write region
+```
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                       TOP INTERVIEW TRIGGERS                                     │
+└──────────────────────────────────────────────────────────────────────────────────┘
+
+  Logical vs Physical partitions ──── Know the difference + mapping
+  Partition key choice             ──── Cardinality, distribution, query alignment
+  RU estimation                   ──── Point read ~1 RU, scans cost much more
+  Consistency trade-offs           ──── Session default; Strong costs most RU
+  Pagination                       ──── Continuation tokens, NOT OFFSET (expensive)
+  Optimistic concurrency           ──── ETags + IfMatchEtag + 412 handling
+  Change feed                      ──── Ordered log, lease container, scale-out
+  Transactional batch              ──── Single logical partition only (ACID)
+  Managed identity                 ──── DefaultAzureCredential, no secrets in code
+  Hot partitions / 429             ──── Redesign key, synthetic keys, autoscale
+```
+
+---
+
 ## 1. Mental Model & Big Picture
 
 ### 1.1 Simple Mental Model
