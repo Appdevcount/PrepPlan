@@ -9222,5 +9222,1594 @@ int[] IntersectSorted(int[] nums1, int[] nums2) {
 ╚══════════════════════════════════════════════════════════════════╝
 ```
 
+---
 
+# PART 11 — REPEATED / KNOWN INTERVIEW QUESTIONS (C# & SQL)
+
+> **🧠 Mental Model: The "Classic Hits" Playlist**
+>
+> Every interviewer has a shortlist of 30–40 questions they trust. These aren't trick questions — they test whether you can map a familiar English description to working code quickly and cleanly. Treat each one as a reflex, not a puzzle. The goal: write the correct solution in under 3 minutes while narrating your thought process.
+
+---
+
+## Section 52 — String Manipulation
+
+---
+
+### Q1 — Reverse a String
+
+> **🧠 Mental Model:** Two people swap shirts walking toward each other from opposite ends of a room — they meet in the middle and stop.
+
+```csharp
+// ── Reverse a String ──────────────────────────────────────────────
+// WHY char array: strings are immutable in C#; char[] allows in-place swap
+public static string ReverseString(string input)
+{
+    char[] characters = input.ToCharArray(); // convert to mutable array
+
+    int left  = 0;
+    int right = characters.Length - 1;
+
+    // WHY two-pointer: O(n/2) swaps — most efficient in-place reversal
+    while (left < right)
+    {
+        // swap characters at both ends, then move pointers inward
+        (characters[left], characters[right]) = (characters[right], characters[left]);
+        left++;
+        right--;
+    }
+
+    return new string(characters); // reconstruct string from reversed chars
+}
+// Time: O(n) — each character visited once  |  Space: O(n) — char array copy
+// Input: "hello"  →  Output: "olleh"
+// Input: "abcde"  →  Output: "edcba"
+// Input: "a"      →  Output: "a"      (single char — loop never runs)
+// Input: ""       →  Output: ""       (empty — loop never runs)
+```
+
+---
+
+### Q2 — Reverse Words in a String
+
+> **🧠 Mental Model:** Flip the order of index cards on a table — keep the text on each card intact, just reorder the cards themselves.
+
+```csharp
+// ── Reverse Words in a String ─────────────────────────────────────
+// WHY Split + Reverse + Join: handles multiple spaces automatically
+public static string ReverseWords(string sentence)
+{
+    // WHY StringSplitOptions.RemoveEmptyEntries: collapses multiple consecutive
+    // spaces ("hello   world") into a clean ["hello","world"] array
+    string[] words = sentence.Split(
+        separator: ' ',
+        options:   StringSplitOptions.RemoveEmptyEntries
+    );
+
+    Array.Reverse(words); // reverse the order of words, not characters
+
+    return string.Join(" ", words); // rejoin with a single space delimiter
+}
+// Time: O(n)  |  Space: O(n)
+// Input: "Hello World"          →  Output: "World Hello"
+// Input: "  the sky  is blue "  →  Output: "blue is sky the"
+// Input: "a good   example"     →  Output: "example good a"
+
+// ── LINQ one-liner alternative ────────────────────────────────────
+public static string ReverseWordsLinq(string sentence) =>
+    string.Join(" ", sentence.Split(' ', StringSplitOptions.RemoveEmptyEntries).Reverse());
+```
+
+---
+
+### Q3 — Find the Occurrence of Each Character in a String
+
+> **🧠 Mental Model:** A tally chart — walk through the string once and make a tick under each letter.
+
+```csharp
+// ── Character Frequency Count ─────────────────────────────────────
+// WHY Dictionary<char,int>: O(1) lookup/update per character
+public static Dictionary<char, int> GetCharacterFrequency(string input)
+{
+    var frequencyMap = new Dictionary<char, int>();
+
+    foreach (char character in input)
+    {
+        // WHY TryGetValue: avoids double-lookup vs ContainsKey + indexer
+        if (frequencyMap.TryGetValue(character, out int count))
+            frequencyMap[character] = count + 1; // increment existing count
+        else
+            frequencyMap[character] = 1;         // first occurrence
+    }
+
+    return frequencyMap;
+}
+
+// ── Usage / Demo ──────────────────────────────────────────────────
+public static void PrintCharacterFrequency(string input)
+{
+    var frequency = GetCharacterFrequency(input);
+
+    // order by character for consistent output
+    foreach (var (character, count) in frequency.OrderBy(kv => kv.Key))
+        Console.WriteLine($"'{character}' → {count}");
+}
+// Input: "programming"
+// Output:
+//   'a' → 1  |  'g' → 2  |  'i' → 1  |  'm' → 2
+//   'n' → 1  |  'o' → 1  |  'p' → 1  |  'r' → 2
+
+// ── LINQ one-liner alternative ────────────────────────────────────
+public static Dictionary<char, int> GetCharFrequencyLinq(string input) =>
+    input.GroupBy(c => c).ToDictionary(g => g.Key, g => g.Count());
+// Time: O(n)  |  Space: O(k) where k = number of distinct characters
+```
+
+---
+
+### Q4 — Find Two Numbers That Add Up to a Target (Two Sum)
+
+> **🧠 Mental Model:** You need $30. Check your wallet ($20), then ask: "has anyone seen a $10?" — a HashSet is the "memory" of what you've already seen.
+
+```csharp
+// ── Two Sum — HashSet complement approach ─────────────────────────
+// WHY HashSet: O(1) lookup vs O(n) linear scan → reduces overall from O(n²) to O(n)
+public static (int index1, int index2) TwoSum(int[] numbers, int target)
+{
+    // WHY store index alongside value: we need positions, not just values
+    var seenValues = new Dictionary<int, int>(); // value → index
+
+    for (int i = 0; i < numbers.Length; i++)
+    {
+        int complement = target - numbers[i]; // what we need to pair with numbers[i]
+
+        // WHY check complement first: avoids using the same element twice
+        if (seenValues.TryGetValue(complement, out int complementIndex))
+            return (complementIndex, i); // found a valid pair
+
+        seenValues[numbers[i]] = i; // record this value for future lookups
+    }
+
+    return (-1, -1); // no pair found — signal with sentinel values
+}
+// Time: O(n)  |  Space: O(n) — dictionary stores up to n entries
+// Input: [2, 7, 11, 15], target=9   →  Output: (0, 1)  because 2+7=9
+// Input: [3, 2, 4],      target=6   →  Output: (1, 2)  because 2+4=6
+// Input: [3, 3],         target=6   →  Output: (0, 1)  because 3+3=6
+
+// ── Brute force (O(n²)) — only for comparison / small arrays ──────
+public static (int, int) TwoSumBrute(int[] numbers, int target)
+{
+    for (int i = 0; i < numbers.Length - 1; i++)
+        for (int j = i + 1; j < numbers.Length; j++)
+            if (numbers[i] + numbers[j] == target)
+                return (i, j);
+    return (-1, -1);
+}
+```
+
+---
+
+### Q5 — Check if a String is a Palindrome
+
+> **🧠 Mental Model:** Read a word forwards and backwards — if it sounds the same, it's a palindrome. "racecar" reversed is still "racecar".
+
+```csharp
+// ── Palindrome Check ──────────────────────────────────────────────
+// WHY two-pointer: O(n/2) comparisons — stops as soon as mismatch found
+public static bool IsPalindrome(string input)
+{
+    int left  = 0;
+    int right = input.Length - 1;
+
+    while (left < right)
+    {
+        // mismatched characters prove it's not a palindrome — exit early
+        if (input[left] != input[right])
+            return false;
+
+        left++;   // move inward from both ends
+        right--;
+    }
+
+    return true; // all mirrored pairs matched
+}
+// Time: O(n)  |  Space: O(1) — no extra allocation
+// Input: "racecar"  →  true   |  Input: "hello"  →  false
+// Input: "madam"    →  true   |  Input: "a"      →  true (single char)
+// Input: ""         →  true   (empty string — vacuously palindrome)
+
+// ── Case-insensitive / alphanumeric-only variant ──────────────────
+// WHY needed: "A man a plan a canal Panama" should return true
+public static bool IsPalindromeIgnoreCase(string input)
+{
+    // WHY ToLowerInvariant: avoids culture-specific casing edge cases (Turkish 'i')
+    string cleaned = new string(
+        input.ToLowerInvariant()
+             .Where(char.IsLetterOrDigit) // strip spaces and punctuation
+             .ToArray()
+    );
+    return cleaned == new string(cleaned.Reverse().ToArray());
+}
+```
+
+---
+
+### Q6 — Reverse an Array
+
+> **🧠 Mental Model:** A queue of people — the last person walks to the front, repeating until the order is fully reversed.
+
+```csharp
+// ── Reverse an Array (in-place) ───────────────────────────────────
+// WHY in-place: O(1) extra space vs O(n) for a new array
+public static void ReverseArray<T>(T[] array)
+{
+    int left  = 0;
+    int right = array.Length - 1;
+
+    while (left < right)
+    {
+        // standard swap — no temp variable needed with tuple deconstruction
+        (array[left], array[right]) = (array[right], array[left]);
+        left++;
+        right--;
+    }
+    // array is mutated in-place — no return needed
+}
+// Time: O(n)  |  Space: O(1)
+// Input: [1, 2, 3, 4, 5]  →  [5, 4, 3, 2, 1]
+// Input: [1, 2]            →  [2, 1]
+// Input: [42]              →  [42]   (single element — no swap)
+
+// ── LINQ non-mutating alternative ────────────────────────────────
+// WHY useful when caller needs original array preserved
+public static T[] ReverseArrayCopy<T>(T[] array) => array.Reverse().ToArray();
+
+// ── Built-in alternative ──────────────────────────────────────────
+// Array.Reverse(array); // mutates in-place — same O(n) complexity
+```
+
+---
+
+### Q7 — Check if Two Strings Are Anagrams
+
+> **🧠 Mental Model:** Two bags of Scrabble tiles — if both bags contain exactly the same letters in the same quantities, they are anagrams.
+
+```csharp
+// ── Anagram Check ─────────────────────────────────────────────────
+// WHY frequency array [26]: fixed-size O(1) space vs Dictionary overhead
+public static bool AreAnagrams(string first, string second)
+{
+    // WHY early exit: different lengths can never be anagrams
+    if (first.Length != second.Length)
+        return false;
+
+    int[] letterCounts = new int[26]; // one slot per lowercase English letter
+
+    for (int i = 0; i < first.Length; i++)
+    {
+        letterCounts[first[i]  - 'a']++; // WHY subtract 'a': maps 'a'→0, 'z'→25
+        letterCounts[second[i] - 'a']--; // if same letter, cancels out
+    }
+
+    // WHY All(0): any non-zero means first has a letter second doesn't (or vice-versa)
+    return letterCounts.All(count => count == 0);
+}
+// Time: O(n)  |  Space: O(1) — array size is always 26
+// Input: "anagram", "nagaram"  →  true
+// Input: "rat",     "car"      →  false
+// Input: "listen",  "silent"   →  true
+
+// ── Unicode-safe version (supports non-ASCII) ─────────────────────
+public static bool AreAnagramsUnicode(string first, string second)
+{
+    if (first.Length != second.Length) return false;
+    var counts = new Dictionary<char, int>();
+    foreach (char c in first)  counts[c] = counts.GetValueOrDefault(c) + 1;
+    foreach (char c in second) counts[c] = counts.GetValueOrDefault(c) - 1;
+    return counts.Values.All(v => v == 0);
+}
+```
+
+---
+
+### Q8 — Move All Zeros to the End of an Array
+
+> **🧠 Mental Model:** A sorting office — let every non-zero package pass through a narrow gate; zeros wait at the back.
+
+```csharp
+// ── Move Zeros to End (in-place, order-preserving) ────────────────
+// WHY two-pointer write approach: single pass, stable relative order for non-zeros
+public static void MoveZerosToEnd(int[] numbers)
+{
+    int writePosition = 0; // next slot to write a non-zero element
+
+    // PASS 1: shift all non-zero elements to the front, maintaining order
+    foreach (int number in numbers)
+    {
+        if (number != 0)
+            numbers[writePosition++] = number; // place non-zero, advance write pointer
+    }
+
+    // PASS 2: fill remaining tail positions with zeros
+    // WHY separate pass: cleaner than checking inside the loop above
+    while (writePosition < numbers.Length)
+        numbers[writePosition++] = 0;
+}
+// Time: O(n) — two linear passes  |  Space: O(1) — in-place mutation
+// Input: [0, 1, 0, 3, 12]  →  [1, 3, 12, 0, 0]
+// Input: [0, 0, 1]         →  [1, 0, 0]
+// Input: [0]               →  [0]
+
+// ── LINQ alternative (not in-place — creates new array) ───────────
+public static int[] MoveZerosLinq(int[] numbers) =>
+    numbers.Where(n => n != 0).Concat(numbers.Where(n => n == 0)).ToArray();
+```
+
+---
+
+### Q9 — Find the First Non-Repeating Character
+
+> **🧠 Mental Model:** A concert ticket checker — first log all who've entered (frequency pass), then walk the list again and the first person with a single tick is your answer.
+
+```csharp
+// ── First Non-Repeating Character ────────────────────────────────
+// WHY two-pass: one pass to build frequency, one to find first with count=1
+public static char? FindFirstNonRepeatingChar(string input)
+{
+    if (string.IsNullOrEmpty(input))
+        return null; // edge case: nothing to search
+
+    // PASS 1: count frequency of every character
+    var frequencyMap = new Dictionary<char, int>();
+    foreach (char character in input)
+        frequencyMap[character] = frequencyMap.GetValueOrDefault(character) + 1;
+
+    // PASS 2: walk string in original order — return first with count = 1
+    // WHY iterate original string (not dictionary): dictionary order is not guaranteed
+    foreach (char character in input)
+        if (frequencyMap[character] == 1)
+            return character;
+
+    return null; // all characters repeat — no unique character exists
+}
+// Time: O(n)  |  Space: O(k) — k = distinct characters (max 26 for ASCII lowercase)
+// Input: "leetcode"    →  'l'
+// Input: "loveleetcode" →  'v'
+// Input: "aabb"        →  null  (all repeat)
+// Input: "z"           →  'z'   (single char — trivially unique)
+```
+
+---
+
+### Q10 — Remove Duplicates from a String
+
+> **🧠 Mental Model:** A bouncer at a nightclub — keep a guest list; if you're already on it, you don't get in again.
+
+```csharp
+// ── Remove Duplicate Characters (preserve first-occurrence order) ─
+// WHY LinkedHashSet equivalent: HashSet in insertion order via iteration
+public static string RemoveDuplicates(string input)
+{
+    var seen        = new HashSet<char>(); // O(1) membership check
+    var resultChars = new StringBuilder(); // WHY StringBuilder: avoids O(n²) string concat
+
+    foreach (char character in input)
+    {
+        // WHY Add returns bool: true only on first insertion — single check per char
+        if (seen.Add(character))
+            resultChars.Append(character); // keep only first occurrence
+    }
+
+    return resultChars.ToString();
+}
+// Time: O(n)  |  Space: O(k) — k = distinct characters
+// Input: "programming"   →  "progamin"
+// Input: "aabbccdd"      →  "abcd"
+// Input: "abcd"          →  "abcd"   (no duplicates — unchanged)
+
+// ── LINQ one-liner alternative ────────────────────────────────────
+public static string RemoveDuplicatesLinq(string input) =>
+    new string(input.Distinct().ToArray());
+// WHY Distinct() works on IEnumerable<char>: string implements IEnumerable<char>
+```
+
+---
+
+### Q11 — Swap Two Numbers
+
+> **🧠 Mental Model:** Three ways to swap two cups of coffee — use a third cup as temp, or do arithmetic gymnastics, or C# tuple deconstruction.
+
+```csharp
+// ── Swap Two Numbers ──────────────────────────────────────────────
+
+// METHOD 1: Temporary variable (most readable — use this in interviews)
+public static void SwapWithTemp(ref int a, ref int b)
+{
+    int temp = a;  // save a's value before it's overwritten
+    a = b;
+    b = temp;
+    // WHY ref: allows mutation of caller's variables — not just local copies
+}
+
+// METHOD 2: Arithmetic swap (no temp — only works for numbers)
+public static void SwapArithmetic(ref int a, ref int b)
+{
+    a = a + b; // a now holds the sum
+    b = a - b; // recover original a: sum - original b = original a
+    a = a - b; // recover original b: sum - original a = original b
+    // WHY caution: can overflow for very large integers — method 1 is safer
+}
+
+// METHOD 3: XOR swap (bit manipulation — no overflow, no temp)
+public static void SwapXor(ref int a, ref int b)
+{
+    a = a ^ b; // a ← a XOR b
+    b = a ^ b; // b ← (a XOR b) XOR b = original a
+    a = a ^ b; // a ← (a XOR b) XOR original a = original b
+    // WHY works: XOR is its own inverse — x ^ x = 0, x ^ 0 = x
+    // WHY caution: if a and b point to the same memory location, result is 0!
+}
+
+// METHOD 4: C# tuple deconstruction (most idiomatic modern C#)
+public static void SwapTuple(ref int a, ref int b) =>
+    (a, b) = (b, a); // compiler desugars this to a temp variable — zero overhead
+
+// ── Usage Demo ────────────────────────────────────────────────────
+// int x = 5, y = 10;
+// SwapTuple(ref x, ref y);
+// x → 10, y → 5
+```
+
+---
+
+### Q12 — Extract the Surname from a Full Name
+
+> **🧠 Mental Model:** The last word on a name tag is always the surname — split and take the last token.
+
+```csharp
+// ── Extract Surname from Full Name ───────────────────────────────
+// Assumption: surname is the LAST space-separated token ("John Michael Smith" → "Smith")
+public static string ExtractSurname(string fullName)
+{
+    if (string.IsNullOrWhiteSpace(fullName))
+        throw new ArgumentException("Full name cannot be blank.", nameof(fullName));
+
+    // WHY LastIndexOf: handles middle names without needing to split the entire string
+    int lastSpaceIndex = fullName.LastIndexOf(' ');
+
+    if (lastSpaceIndex == -1)
+        return fullName; // only one word — the whole name is the surname
+
+    // WHY + 1: skip the space itself; Substring reads from the character after it
+    return fullName.Substring(lastSpaceIndex + 1);
+}
+// Time: O(n)  |  Space: O(n) — substring allocation
+// Input: "John Smith"          →  "Smith"
+// Input: "John Michael Smith"  →  "Smith"
+// Input: "Madonna"             →  "Madonna"   (single name)
+
+// ── Alternative using Split ───────────────────────────────────────
+public static string ExtractSurnameViaSplit(string fullName)
+{
+    string[] parts = fullName.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+    return parts[^1]; // WHY [^1]: C# 8+ index-from-end — cleaner than [parts.Length-1]
+}
+```
+
+---
+
+### Q13 — Longest Substring Without Repeating Characters
+
+> **🧠 Mental Model:** A sliding glass door — expand right to let new characters in; when a duplicate knocks, slide the left side past the previous occurrence of that character.
+
+```csharp
+// ── Longest Substring Without Repeating Characters ────────────────
+// WHY sliding window + dictionary: O(n) vs O(n²) brute force
+public static int LengthOfLongestSubstring(string input)
+{
+    // maps each character to the index AFTER its last seen position
+    // WHY store index+1: allows direct jump of left pointer without extra +1 math
+    var lastSeenAt = new Dictionary<char, int>();
+
+    int maxLength = 0;
+    int windowStart = 0; // left boundary of the current window
+
+    for (int right = 0; right < input.Length; right++)
+    {
+        char current = input[right];
+
+        // WHY Math.Max: only jump left pointer forward, never backward
+        // (lastSeenAt may store a stale position to the left of windowStart)
+        if (lastSeenAt.TryGetValue(current, out int previousIndex))
+            windowStart = Math.Max(windowStart, previousIndex); // shrink window
+
+        // WHY right - windowStart + 1: window is inclusive on both ends
+        maxLength = Math.Max(maxLength, right - windowStart + 1);
+
+        lastSeenAt[current] = right + 1; // record one past current index
+    }
+
+    return maxLength;
+}
+// Time: O(n)  |  Space: O(min(n, k)) — k = charset size (128 for ASCII)
+// Input: "abcabcbb"  →  3  ("abc")
+// Input: "bbbbb"     →  1  ("b")
+// Input: "pwwkew"    →  3  ("wke")
+// Input: ""          →  0
+
+/*
+TRACE: "abcabcbb"
+  right=0('a'): window=[0..0]="a",   maxLen=1, seen={a→1}
+  right=1('b'): window=[0..1]="ab",  maxLen=2, seen={a→1,b→2}
+  right=2('c'): window=[0..2]="abc", maxLen=3, seen={a→1,b→2,c→3}
+  right=3('a'): 'a' last at 1 → windowStart=max(0,1)=1
+                window=[1..3]="bca", maxLen=3, seen={a→4}
+  right=4('b'): 'b' last at 2 → windowStart=max(1,2)=2
+                window=[2..4]="cab", maxLen=3
+  ...
+*/
+```
+
+---
+
+### Q14 — Remove All Whitespace from a String
+
+> **🧠 Mental Model:** A vacuum cleaner that only sucks up spaces — everything else passes through.
+
+```csharp
+// ── Remove All Whitespace ─────────────────────────────────────────
+
+// METHOD 1: LINQ Where — handles all Unicode whitespace (tabs, newlines, etc.)
+public static string RemoveAllWhitespace(string input) =>
+    new string(input.Where(c => !char.IsWhiteSpace(c)).ToArray());
+// WHY char.IsWhiteSpace: catches ' ', '\t', '\n', '\r', '\f', '\v' — not just spaces
+
+// METHOD 2: Replace (only removes regular spaces — fast for simple cases)
+public static string RemoveSpacesOnly(string input) =>
+    input.Replace(" ", string.Empty);
+
+// METHOD 3: Regex (most powerful — use for complex whitespace patterns)
+// using System.Text.RegularExpressions;
+public static string RemoveWhitespaceRegex(string input) =>
+    Regex.Replace(input, @"\s+", string.Empty);
+// WHY \s+: matches one or more whitespace chars — efficient bulk removal
+
+// Time: O(n) for all methods  |  Space: O(n) — new string allocation
+// Input: "Hello World"    →  "HelloWorld"
+// Input: "  a  b  c  "   →  "abc"
+// Input: "no\twhite\nspace" →  "nowhitespace"
+```
+
+---
+
+### Q15 — Longest Palindromic Substring
+
+> **🧠 Mental Model:** Drop a stone in a pond at each character — ripples (expand outward) as long as both shores mirror each other; the widest ripple wins.
+
+```csharp
+// ── Longest Palindromic Substring — Expand Around Center ──────────
+// WHY expand-around-center: O(n²) time, O(1) space — beats brute force O(n³)
+// Key insight: every palindrome expands from a center (odd: single char; even: between two)
+public static string LongestPalindromicSubstring(string input)
+{
+    if (string.IsNullOrEmpty(input)) return string.Empty;
+
+    int resultStart  = 0;
+    int resultLength = 1; // minimum palindrome is a single character
+
+    for (int center = 0; center < input.Length; center++)
+    {
+        // WHY two expansions per center: handle both odd-length and even-length palindromes
+        ExpandAndUpdate(center, center);     // odd-length  (e.g. "aba")
+        ExpandAndUpdate(center, center + 1); // even-length (e.g. "abba")
+    }
+
+    return input.Substring(resultStart, resultLength);
+
+    // ── inner helper: expands outward while characters mirror ──────
+    void ExpandAndUpdate(int left, int right)
+    {
+        // expand while within bounds and characters match
+        while (left >= 0 && right < input.Length && input[left] == input[right])
+        {
+            left--;   // grow left boundary
+            right++;  // grow right boundary
+        }
+        // after loop: left+1..right-1 is the valid palindrome window
+        // WHY + 1 and - 1: loop overstepped by one on each side before failing
+        int currentLength = right - left - 1;
+
+        if (currentLength > resultLength)
+        {
+            resultLength = currentLength;
+            resultStart  = left + 1; // actual start is one past the invalid left
+        }
+    }
+}
+// Time: O(n²) — n centers, each expanding up to n  |  Space: O(1)
+// Input: "babad"     →  "bab"  (or "aba" — both valid)
+// Input: "cbbd"      →  "bb"
+// Input: "racecar"   →  "racecar"  (entire string)
+// Input: "a"         →  "a"
+
+/*
+TRACE: "babad", center=1('a')
+  Odd expand: left=1, right=1 → 'a'=='a' → expand left=0,right=2 → 'b'=='b' → expand
+  left=-1,right=3 → out of bounds → stop
+  palindrome = [0..2] = "bab", length=3  ✓
+*/
+```
+
+---
+
+### Q16 — Boxing and Unboxing in C#
+
+> **🧠 Mental Model:** Boxing is wrapping a coin (value type) in a gift box (object on the heap). Unboxing is tearing off the wrapping to get the coin back. Wrapping and unwrapping takes time and creates garbage.
+
+```csharp
+// ── Boxing and Unboxing ───────────────────────────────────────────
+
+// BOXING: value type → object reference (heap allocation)
+// WHY it happens: when a value type is assigned to object/interface/dynamic
+int    primitiveValue = 42;
+object boxedValue     = primitiveValue; // CLR allocates a heap object, copies value in
+// WHY matters: heap allocation + GC pressure — avoid in hot loops
+
+// UNBOXING: object reference → value type (copy back to stack)
+// WHY explicit cast required: compiler cannot verify type at compile time — checked at runtime
+int unboxedValue = (int)boxedValue;     // InvalidCastException if wrong type at runtime
+// WHY copy, not reference: value types don't have reference semantics
+
+// ── Verifying they are separate copies ───────────────────────────
+int original = 100;
+object boxed = original; // box
+original     = 200;      // mutate original — does NOT affect boxed copy
+
+Console.WriteLine(boxed);    // 100 — box holds the original value, unaffected by mutation
+Console.WriteLine(original); // 200
+
+// ── InvalidCastException example ─────────────────────────────────
+object wrongBox = 3.14;      // boxed as double
+try
+{
+    int bad = (int)wrongBox; // WHY throws: actual runtime type is double, not int
+}
+catch (InvalidCastException ex)
+{
+    Console.WriteLine($"Cannot unbox double as int: {ex.Message}");
+}
+
+// ── Performance impact demonstration ─────────────────────────────
+// BAD — boxing in a loop (creates n heap objects)
+var legacyList = new System.Collections.ArrayList();
+for (int i = 0; i < 1_000_000; i++)
+    legacyList.Add(i); // WHY: ArrayList stores object — every int is boxed
+
+// GOOD — generics eliminate boxing entirely
+var modernList = new List<int>();
+for (int i = 0; i < 1_000_000; i++)
+    modernList.Add(i); // WHY: List<int> stores int directly — zero boxing
+
+// ── Summary ───────────────────────────────────────────────────────
+// Boxing:   int   → object  | heap alloc | implicit
+// Unboxing: object → int    | explicit cast | throws on wrong type
+// Avoid: use generics (List<T>, Dictionary<K,V>) — no boxing ever
+```
+
+---
+
+### Q17 — Print Array Elements in a Shifted Pattern
+
+**Problem:** `int[] givenArray = { 1, 2, 3, 4, 5, 6 };`
+Print: `1 2 3 4` on line 1, and `5 6 1 2` on line 2.
+
+> **🧠 Mental Model:** A circular conveyor belt — the array wraps around using modulo arithmetic.
+
+```csharp
+// ── Print Shifted Array Pattern ───────────────────────────────────
+// Output line 1: elements at indices 0,1,2,3   → "1 2 3 4"
+// Output line 2: elements at indices 4,5,0,1   → "5 6 1 2"
+// Pattern: print n elements starting at 0, then n elements starting at n/2
+public static void PrintShiftedPattern(int[] array)
+{
+    int halfLength = array.Length / 2; // split point between the two output lines
+
+    // LINE 1: first half of the array (indices 0 to halfLength-1)
+    Console.WriteLine(string.Join(" ", array.Take(halfLength)));
+
+    // LINE 2: second half + first half (wrap-around using modulo)
+    // WHY modulo: % array.Length wraps index back to start when it exceeds array end
+    var secondLine = Enumerable.Range(halfLength, halfLength)
+                               .Select(i => array[i % array.Length]);
+    Console.WriteLine(string.Join(" ", secondLine));
+}
+
+// ── Explicit index version (clearer for interview whiteboard) ──────
+public static void PrintShiftedPatternExplicit(int[] array)
+{
+    int n          = array.Length;
+    int halfLength = n / 2;
+
+    // Line 1: indices 0 .. halfLength-1
+    for (int i = 0; i < halfLength; i++)
+        Console.Write(array[i] + (i < halfLength - 1 ? " " : ""));
+    Console.WriteLine();
+
+    // Line 2: indices halfLength .. n-1, then wrap to 0 .. halfLength-1
+    for (int i = halfLength; i < halfLength + halfLength; i++)
+        Console.Write(array[i % n] + (i < halfLength + halfLength - 1 ? " " : ""));
+    Console.WriteLine();
+}
+// Input: [1, 2, 3, 4, 5, 6]
+// Output:
+//   1 2 3 4
+//   5 6 1 2
+```
+
+---
+
+### Q18 — Left / Right Rotate an Array by K Places
+
+> **🧠 Mental Model:** A carousel — rotating left K times moves the front K horses to the back. Reversing in sections achieves the same result in O(n) with O(1) space.
+
+```csharp
+// ── Array Rotation by K Places ────────────────────────────────────
+// WHY three-reversal trick: achieves any rotation in O(n) time, O(1) space
+// Key insight: right rotate by K = reverse all, reverse first K, reverse rest
+
+// ── Helper: reverse a segment of the array in-place ───────────────
+private static void ReverseSegment(int[] array, int start, int end)
+{
+    while (start < end)
+    {
+        (array[start], array[end]) = (array[end], array[start]);
+        start++;
+        end--;
+    }
+}
+
+// ── RIGHT ROTATE by K ─────────────────────────────────────────────
+public static void RotateRight(int[] array, int k)
+{
+    int n = array.Length;
+    k %= n; // WHY mod: rotating by n is a no-op; handles k > n gracefully
+    if (k == 0) return;
+
+    ReverseSegment(array, 0, n - 1); // Step 1: reverse entire array
+    ReverseSegment(array, 0, k - 1); // Step 2: reverse first k elements
+    ReverseSegment(array, k, n - 1); // Step 3: reverse remaining n-k elements
+}
+// Input: [1,2,3,4,5,6,7], k=3  →  [5,6,7,1,2,3,4]
+
+// ── LEFT ROTATE by K ──────────────────────────────────────────────
+public static void RotateLeft(int[] array, int k)
+{
+    int n = array.Length;
+    k %= n; // normalize: left rotate by k = right rotate by (n-k)
+    if (k == 0) return;
+
+    ReverseSegment(array, 0, k - 1); // Step 1: reverse first k elements
+    ReverseSegment(array, k, n - 1); // Step 2: reverse remaining elements
+    ReverseSegment(array, 0, n - 1); // Step 3: reverse entire array
+}
+// Input: [1,2,3,4,5,6,7], k=3  →  [4,5,6,7,1,2,3]
+
+// Time: O(n)  |  Space: O(1)
+
+/*
+TRACE: Right rotate [1,2,3,4,5,6,7] by k=3
+  Step 1 reverse all:    [7,6,5,4,3,2,1]
+  Step 2 reverse [0..2]: [5,6,7,4,3,2,1]
+  Step 3 reverse [3..6]: [5,6,7,1,2,3,4]  ✓
+*/
+```
+
+---
+
+### Q19 — Print All Prime Numbers Up to N
+
+> **🧠 Mental Model:** The Sieve of Eratosthenes — imagine a grid of numbers. Cross out every multiple of 2, then 3, then 5… whatever remains uncrossed is prime.
+
+```csharp
+// ── Sieve of Eratosthenes ─────────────────────────────────────────
+// WHY sieve: O(n log log n) vs O(n√n) trial division — vastly faster for large n
+public static List<int> GetPrimesUpTo(int limit)
+{
+    if (limit < 2) return new List<int>(); // no primes below 2
+
+    // WHY bool array (not int): smallest data type — cache-friendly for large n
+    bool[] isComposite = new bool[limit + 1]; // false = "still potentially prime"
+
+    // STEP 1: mark all multiples of i as composite, starting from i×i
+    // WHY start at i*i: all smaller multiples of i already marked by previous primes
+    // WHY outer loop to √limit: a composite number n has a factor ≤ √n
+    for (int i = 2; (long)i * i <= limit; i++)
+    {
+        if (!isComposite[i]) // only process if i is still prime
+        {
+            for (int multiple = i * i; multiple <= limit; multiple += i)
+                isComposite[multiple] = true; // mark composite
+        }
+    }
+
+    // STEP 2: collect all indices that remain unmarked (prime)
+    var primes = new List<int>();
+    for (int number = 2; number <= limit; number++)
+        if (!isComposite[number])
+            primes.Add(number);
+
+    return primes;
+}
+// Time: O(n log log n)  |  Space: O(n)
+// Input: 10  →  [2, 3, 5, 7]
+// Input: 20  →  [2, 3, 5, 7, 11, 13, 17, 19]
+// Input: 1   →  []
+
+// ── Single number primality check ────────────────────────────────
+public static bool IsPrime(int number)
+{
+    if (number < 2) return false;
+    if (number == 2) return true;
+    if (number % 2 == 0) return false; // WHY: all even numbers > 2 are composite
+
+    // WHY only check up to √number: factors pair up — one must be ≤ √number
+    for (int divisor = 3; (long)divisor * divisor <= number; divisor += 2)
+        if (number % divisor == 0) return false;
+
+    return true;
+}
+```
+
+---
+
+### Q20 — Factorial Using Recursion
+
+> **🧠 Mental Model:** A Russian nesting doll — to open the doll of size n, you must first open the doll of size n-1, all the way down to the smallest doll (1! = 1).
+
+```csharp
+// ── Factorial Using Recursion ─────────────────────────────────────
+// WHY recursion: mirrors the mathematical definition directly
+// Base case: 0! = 1  |  Recursive case: n! = n × (n-1)!
+public static long FactorialRecursive(int n)
+{
+    // WHY ArgumentOutOfRangeException: factorial is undefined for negative numbers
+    if (n < 0) throw new ArgumentOutOfRangeException(nameof(n), "Must be non-negative.");
+
+    if (n == 0 || n == 1) return 1; // base case — recursion terminates here
+
+    return n * FactorialRecursive(n - 1); // recursive case
+}
+// Time: O(n) — n recursive calls  |  Space: O(n) — call stack depth
+// Input: 0  →  1   |  Input: 1  →  1   |  Input: 5  →  120
+// Input: 10 →  3628800               |  Input: 20 →  2432902008176640000
+
+// ── Iterative version (O(1) stack space — prefer for large n) ─────
+public static long FactorialIterative(int n)
+{
+    if (n < 0) throw new ArgumentOutOfRangeException(nameof(n), "Must be non-negative.");
+    long result = 1;
+    for (int i = 2; i <= n; i++)
+        result *= i; // WHY start at 2: multiplying by 1 is a no-op
+    return result;
+}
+// Time: O(n)  |  Space: O(1)
+
+/*
+CALL STACK TRACE: FactorialRecursive(4)
+  FactorialRecursive(4)
+    └─ 4 × FactorialRecursive(3)
+           └─ 3 × FactorialRecursive(2)
+                  └─ 2 × FactorialRecursive(1)
+                         └─ returns 1  (base case)
+                  returns 2 × 1 = 2
+           returns 3 × 2 = 6
+    returns 4 × 6 = 24
+*/
+```
+
+---
+
+### Q21 — Find the Maximum Number in an Array
+
+> **🧠 Mental Model:** Walk through a crowd holding a "current champion" sign — whenever someone taller appears, hand the sign to them.
+
+```csharp
+// ── Find Maximum Element ──────────────────────────────────────────
+public static int FindMaximum(int[] numbers)
+{
+    if (numbers is null || numbers.Length == 0)
+        throw new ArgumentException("Array must not be null or empty.", nameof(numbers));
+
+    int maximum = numbers[0]; // WHY start with first element: safe baseline
+
+    for (int i = 1; i < numbers.Length; i++)
+    {
+        // WHY compare each element: ensures we never miss the maximum
+        if (numbers[i] > maximum)
+            maximum = numbers[i]; // new champion found
+    }
+
+    return maximum;
+}
+// Time: O(n)  |  Space: O(1)
+// Input: [3, 1, 4, 1, 5, 9, 2, 6]  →  9
+// Input: [-5, -1, -3]               →  -1   (works with all negatives)
+// Input: [42]                       →  42   (single element)
+
+// ── LINQ alternative ──────────────────────────────────────────────
+public static int FindMaximumLinq(int[] numbers) => numbers.Max();
+// WHY Max() throws InvalidOperationException on empty — same safety guarantee needed
+```
+
+---
+
+### Q22 — Fibonacci Series
+
+**Expected Output:** `1, 1, 2, 3, 5, 8, 13, 21`
+
+> **🧠 Mental Model:** Each step forward is the sum of the last two steps — like climbing stairs where the current step's height is determined by the two steps you just climbed.
+
+```csharp
+// ── Fibonacci Series ──────────────────────────────────────────────
+// Convention used here: F(1)=1, F(2)=1, F(3)=2, ... (1-indexed, starts with two 1s)
+
+// ITERATIVE: O(n) time, O(1) space — best for generating the sequence
+public static IEnumerable<long> GenerateFibonacci(int count)
+{
+    if (count <= 0) yield break; // nothing to produce
+
+    long previous = 0; // WHY 0: seed value — F(0) in 0-indexed convention
+    long current  = 1; // WHY 1: F(1) — first visible term
+
+    for (int i = 0; i < count; i++)
+    {
+        yield return current; // yield makes this a lazy sequence — only computes on demand
+
+        long next = previous + current; // WHY temp: avoid overwriting before using
+        previous  = current;
+        current   = next;
+    }
+}
+// GenerateFibonacci(8)  →  1, 1, 2, 3, 5, 8, 13, 21
+
+// RECURSIVE: elegant but O(2^n) — only for education, not production
+public static long FibonacciRecursive(int n)
+{
+    if (n <= 0) throw new ArgumentOutOfRangeException(nameof(n));
+    if (n == 1 || n == 2) return 1; // base cases: F(1) = F(2) = 1
+    return FibonacciRecursive(n - 1) + FibonacciRecursive(n - 2);
+    // WHY avoid: exponential calls — F(50) takes minutes without memoization
+}
+
+// MEMOIZED RECURSIVE: O(n) time — fixes the exponential recursion problem
+public static long FibonacciMemo(int n, Dictionary<int, long>? memo = null)
+{
+    memo ??= new Dictionary<int, long>();
+    if (n == 1 || n == 2) return 1;
+    if (memo.TryGetValue(n, out long cached)) return cached; // WHY cache: avoid recomputation
+    return memo[n] = FibonacciMemo(n - 1, memo) + FibonacciMemo(n - 2, memo);
+}
+
+/*
+TRACE: GenerateFibonacci(8)
+  i=0: prev=0, curr=1 → yield 1  | next=1, prev=1, curr=1
+  i=1: prev=1, curr=1 → yield 1  | next=2, prev=1, curr=2
+  i=2: prev=1, curr=2 → yield 2  | next=3, prev=2, curr=3
+  i=3: prev=2, curr=3 → yield 3  | next=5, prev=3, curr=5
+  i=4: prev=3, curr=5 → yield 5  | next=8, ...
+  Output: 1 1 2 3 5 8 13 21  ✓
+*/
+```
+
+---
+
+### Q23 — Basic Star Pattern Examples
+
+> **🧠 Mental Model:** Nested loops — the outer loop controls rows, the inner loop controls how many stars to print per row.
+
+```csharp
+// ── Star Patterns ─────────────────────────────────────────────────
+
+// PATTERN 1: Right-aligned triangle (most common interview ask)
+// *
+// **
+// ***
+// ****
+// *****
+public static void PrintRightTriangle(int rows)
+{
+    for (int row = 1; row <= rows; row++)           // outer loop: each row
+    {
+        for (int star = 1; star <= row; star++)     // inner loop: row i has i stars
+            Console.Write("*");
+        Console.WriteLine(); // move to next line after each row
+    }
+}
+
+// PATTERN 2: Inverted triangle
+// *****
+// ****
+// ***
+// **
+// *
+public static void PrintInvertedTriangle(int rows)
+{
+    for (int row = rows; row >= 1; row--)
+    {
+        Console.WriteLine(new string('*', row)); // WHY new string: concise star repetition
+    }
+}
+
+// PATTERN 3: Full pyramid (centered)
+//     *
+//    ***
+//   *****
+//  *******
+// *********
+public static void PrintPyramid(int rows)
+{
+    for (int row = 1; row <= rows; row++)
+    {
+        // WHY (rows - row) spaces: aligns star cluster to center
+        Console.Write(new string(' ', rows - row));
+        Console.WriteLine(new string('*', 2 * row - 1)); // odd count per row
+    }
+}
+
+// PATTERN 4: Diamond
+//     *
+//    ***
+//   *****
+//    ***
+//     *
+public static void PrintDiamond(int rows)
+{
+    PrintPyramid(rows);     // top half (including middle)
+    // bottom half: inverted pyramid without the middle row
+    for (int row = rows - 1; row >= 1; row--)
+    {
+        Console.Write(new string(' ', rows - row));
+        Console.WriteLine(new string('*', 2 * row - 1));
+    }
+}
+// PrintRightTriangle(5) → see above  |  PrintPyramid(5) → see above
+```
+
+---
+
+### Q24 — Evaluate Prefix Expression to Infix
+
+**Problem:** Input: `ab+cde+**`  →  Output: `((a+b)(c(d+e)))`
+
+> **🧠 Mental Model:** A postfix (RPN) calculator — push operands onto a stack; when you hit an operator, pop two, combine them into a bracketed expression, and push the result back.
+
+```csharp
+// ── Postfix → Infix Expression Converter ─────────────────────────
+// NOTE: the input "ab+cde+**" is POSTFIX (Reverse Polish Notation), not prefix
+// WHY stack: postfix evaluation naturally uses a stack — LIFO matches right-to-left combination
+public static string PostfixToInfix(string postfixExpression)
+{
+    var operandStack = new Stack<string>();
+
+    foreach (char token in postfixExpression)
+    {
+        if (char.IsLetterOrDigit(token))
+        {
+            // operand: push as a string directly onto the stack
+            operandStack.Push(token.ToString());
+        }
+        else
+        {
+            // operator: pop two operands, combine into a bracketed infix expression
+            // WHY check count: malformed input guard
+            if (operandStack.Count < 2)
+                throw new InvalidOperationException("Malformed postfix expression.");
+
+            string rightOperand = operandStack.Pop(); // WHY pop right first: stack is LIFO
+            string leftOperand  = operandStack.Pop(); // left operand was pushed first
+
+            // wrap in parentheses to preserve evaluation order in infix notation
+            string infixExpression = $"({leftOperand}{token}{rightOperand})";
+            operandStack.Push(infixExpression);
+        }
+    }
+
+    if (operandStack.Count != 1)
+        throw new InvalidOperationException("Malformed postfix expression.");
+
+    return operandStack.Pop();
+}
+// Time: O(n)  |  Space: O(n) — stack depth proportional to expression length
+
+/*
+TRACE: "ab+cde+**"
+  'a' → stack: ["a"]
+  'b' → stack: ["a","b"]
+  '+' → pop b,a → push "(a+b)"         stack: ["(a+b)"]
+  'c' → stack: ["(a+b)","c"]
+  'd' → stack: ["(a+b)","c","d"]
+  'e' → stack: ["(a+b)","c","d","e"]
+  '+' → pop e,d → push "(d+e)"         stack: ["(a+b)","c","(d+e)"]
+  '*' → pop (d+e),c → push "(c*(d+e))" stack: ["(a+b)","(c*(d+e))"]
+  '*' → pop (c*(d+e)),(a+b) → push "((a+b)*(c*(d+e)))"
+  Result: "((a+b)*(c*(d+e)))"
+*/
+// Input: "ab+cde+**"  →  "((a+b)*(c*(d+e)))"
+// (Question's expected output slightly simplified — parentheses still fully correct)
+```
+
+---
+
+### Q25 — Next Number in the Series: 1, 3, 7, 13, …
+
+> **🧠 Mental Model:** Look at the gaps between terms: 2, 4, 6 — the differences form an arithmetic sequence increasing by 2. The next difference is 8, so the next term is 13 + 8 = **21**.
+
+```
+SERIES ANALYSIS:
+  Term:       1    3    7    13   21   31 ...
+  Difference:   +2   +4   +6   +8   +10
+  Pattern:  differences increase by 2 each time
+
+GENERAL FORMULA:
+  diff(n) = 2n  (n-th gap)
+  T(n) = 1 + 2(1 + 2 + 3 + ... + (n-1)) = 1 + n(n-1)
+  T(1)=1, T(2)=3, T(3)=7, T(4)=13, T(5)=21 ✓
+
+NEXT NUMBER: T(5) = 1 + 5×4 = 21
+```
+
+```csharp
+// ── Generate the Series: T(n) = n² - n + 1 ───────────────────────
+// WHY formula: n²-n+1 simplifies 1 + n(n-1) — direct O(1) computation per term
+public static long SeriesTerm(int n)
+{
+    if (n < 1) throw new ArgumentOutOfRangeException(nameof(n), "Term index must be ≥ 1.");
+    return (long)n * n - n + 1; // WHY cast to long: avoids int overflow for large n
+}
+
+public static IEnumerable<long> GenerateSeries(int count)
+{
+    for (int n = 1; n <= count; n++)
+        yield return SeriesTerm(n);
+}
+// GenerateSeries(6)  →  1, 3, 7, 13, 21, 31
+// SeriesTerm(5)      →  21  (answer to interview question)
+// SeriesTerm(6)      →  31
+```
+
+---
+
+## Section 53 — SQL Interview Questions
+
+---
+
+### Q26 — Find Duplicate Records in a Table
+
+> **🧠 Mental Model:** A roll call — GROUP BY groups identical names together; HAVING filters to groups where the count is more than one.
+
+```sql
+-- ── Find Duplicate Records ────────────────────────────────────────
+-- Assumption: duplicates = rows where the same combination of
+-- meaningful columns (e.g., Name + Email) appears more than once
+
+-- APPROACH 1: GROUP BY + HAVING (most common interview answer)
+SELECT
+    Name,
+    Email,
+    COUNT(*) AS DuplicateCount   -- how many times this combination appears
+FROM
+    Employees
+GROUP BY
+    Name, Email
+HAVING
+    COUNT(*) > 1;                -- HAVING filters AFTER grouping (WHERE filters before)
+-- WHY HAVING not WHERE: WHERE cannot reference aggregate functions like COUNT(*)
+
+-- APPROACH 2: Show ALL duplicate rows (including all occurrences)
+SELECT *
+FROM Employees
+WHERE Name IN (
+    SELECT Name
+    FROM   Employees
+    GROUP  BY Name
+    HAVING COUNT(*) > 1
+)
+ORDER BY Name;
+
+-- APPROACH 3: Using ROW_NUMBER() — also used for deletion of duplicates
+WITH RankedRows AS (
+    SELECT
+        *,
+        ROW_NUMBER() OVER (
+            PARTITION BY Name, Email   -- restart numbering per unique combination
+            ORDER BY     EmployeeId    -- keep the earliest record (lowest Id)
+        ) AS RowRank
+    FROM Employees
+)
+SELECT * FROM RankedRows WHERE RowRank > 1;  -- rows ranked 2+ are the duplicates
+
+-- ── Delete duplicates — keep only the first occurrence ────────────
+WITH RankedRows AS (
+    SELECT
+        EmployeeId,
+        ROW_NUMBER() OVER (PARTITION BY Name, Email ORDER BY EmployeeId) AS RowRank
+    FROM Employees
+)
+DELETE FROM Employees WHERE EmployeeId IN (
+    SELECT EmployeeId FROM RankedRows WHERE RowRank > 1
+);
+```
+
+---
+
+### Q27 — Find the Nth Highest Salary
+
+> **🧠 Mental Model:** Sort salaries in descending order, skip the top N-1 values, and take the next one — that's the Nth highest.
+
+```sql
+-- ── Nth Highest Salary ────────────────────────────────────────────
+
+-- APPROACH 1: DENSE_RANK() — handles ties correctly (recommended)
+-- WHY DENSE_RANK over RANK: if two employees share rank 1, DENSE_RANK gives
+-- next salary rank 2 (not rank 3 as RANK would) — interviewer usually expects DENSE_RANK
+WITH SalaryRanked AS (
+    SELECT
+        EmployeeId,
+        Name,
+        Salary,
+        DENSE_RANK() OVER (ORDER BY Salary DESC) AS SalaryRank
+    FROM Employees
+)
+SELECT *
+FROM   SalaryRanked
+WHERE  SalaryRank = 2;  -- change 2 to N for Nth highest
+
+-- APPROACH 2: OFFSET-FETCH (SQL Server 2012+ / PostgreSQL)
+-- WHY DISTINCT: eliminates duplicate salary values so OFFSET skips true N-1 unique salaries
+SELECT DISTINCT Salary
+FROM   Employees
+ORDER  BY Salary DESC
+OFFSET 1 ROWS        -- skip top 1 salary → gives 2nd highest (OFFSET N-1 for Nth)
+FETCH NEXT 1 ROW ONLY;
+
+-- APPROACH 3: Scalar function (reusable for any N)
+CREATE FUNCTION GetNthHighestSalary(@N INT)
+RETURNS TABLE
+AS
+RETURN (
+    WITH Ranked AS (
+        SELECT Salary, DENSE_RANK() OVER (ORDER BY Salary DESC) AS Rnk
+        FROM   Employees
+    )
+    SELECT Salary FROM Ranked WHERE Rnk = @N
+);
+-- Usage: SELECT * FROM GetNthHighestSalary(3);
+
+-- ── Example ───────────────────────────────────────────────────────
+-- Employees: [100k, 90k, 90k, 80k]
+-- DENSE_RANK: 1st=100k, 2nd=90k, 3rd=80k   (ties share same rank)
+-- RANK:       1st=100k, 2nd=90k, 4th=80k   (gap after tied rank)
+-- WHY prefer DENSE_RANK: no gaps — N=3 returns 80k as expected
+```
+
+---
+
+### Q28 — Count of Employees with the 2nd Highest Salary per Department
+
+> **🧠 Mental Model:** Group employees by department, rank salaries within each group, then count how many people share the second slot.
+
+```sql
+-- ── Count of Employees with 2nd Highest Salary per Department ─────
+WITH DepartmentRanked AS (
+    SELECT
+        DepartmentId,
+        DepartmentName,
+        EmployeeId,
+        Name,
+        Salary,
+        -- WHY DENSE_RANK() OVER PARTITION BY: ranks salaries independently per department
+        DENSE_RANK() OVER (
+            PARTITION BY DepartmentId   -- restart ranking for each department
+            ORDER BY     Salary DESC    -- highest salary = rank 1
+        ) AS SalaryRank
+    FROM
+        Employees
+)
+SELECT
+    DepartmentId,
+    DepartmentName,
+    Salary              AS SecondHighestSalary,
+    COUNT(EmployeeId)   AS EmployeeCount   -- how many share this salary within the dept
+FROM
+    DepartmentRanked
+WHERE
+    SalaryRank = 2       -- only the second-highest salary tier per department
+GROUP BY
+    DepartmentId,
+    DepartmentName,
+    Salary
+ORDER BY
+    DepartmentId;
+
+-- ── Result shape ──────────────────────────────────────────────────
+-- DeptId | DeptName | SecondHighestSalary | EmployeeCount
+-- -------+----------+---------------------+--------------
+-- 1      | Sales    | 75000               | 2
+-- 2      | IT       | 95000               | 1
+-- WHY two employees can share 2nd highest: ties at same salary level
+```
+
+---
+
+### Q29 — Find an Employee's Manager from the Same Table (Self Join)
+
+> **🧠 Mental Model:** A family tree stored in a single table — each person has a reference (ManagerId) pointing to another row in the same table that represents their parent.
+
+```sql
+-- ── Employee-Manager Self Join ────────────────────────────────────
+-- Table: Employees (EmployeeId, Name, ManagerId)
+-- ManagerId is a FK referencing EmployeeId in the SAME table
+
+-- APPROACH 1: INNER JOIN (excludes top-level employees with NULL ManagerId)
+SELECT
+    emp.EmployeeId,
+    emp.Name         AS EmployeeName,
+    mgr.Name         AS ManagerName
+FROM
+    Employees AS emp          -- "emp" alias = the employee
+    INNER JOIN Employees mgr  -- "mgr" alias = the same table, read as the manager row
+        ON emp.ManagerId = mgr.EmployeeId  -- link child row to parent row
+ORDER BY
+    emp.EmployeeId;
+
+-- APPROACH 2: LEFT JOIN (includes top-level employees — their ManagerName shows NULL)
+SELECT
+    emp.EmployeeId,
+    emp.Name             AS EmployeeName,
+    ISNULL(mgr.Name, 'No Manager') AS ManagerName  -- WHY ISNULL: replaces NULL with label
+FROM
+    Employees AS emp
+    LEFT JOIN Employees mgr
+        ON emp.ManagerId = mgr.EmployeeId;
+-- WHY LEFT JOIN: does not drop employees whose ManagerId is NULL (CEO has no manager)
+
+-- ── Sample Data & Output ──────────────────────────────────────────
+-- EmployeeId | Name    | ManagerId       EmployeeName | ManagerName
+-- -----------+---------+----------  →   -------------+------------
+-- 1          | Alice   | NULL            Alice        | No Manager   (CEO)
+-- 2          | Bob     | 1               Bob          | Alice
+-- 3          | Charlie | 1               Charlie      | Alice
+-- 4          | Dave    | 2               Dave         | Bob
+```
+
+---
+
+### Q30 — COUNT(\*) vs COUNT(name) vs COUNT(address) — Which Is Faster?
+
+> **🧠 Mental Model:** A census worker counting people in a room. `COUNT(*)` counts heads regardless of whether they're asleep; `COUNT(column)` skips anyone who didn't fill out that field (NULL).
+
+```sql
+-- ── COUNT variants explained ──────────────────────────────────────
+
+-- COUNT(*) — counts ALL rows including NULLs; fastest in most databases
+SELECT COUNT(*) FROM Employees;
+-- WHY fastest: no column evaluation — the engine counts physical rows.
+-- SQL Server can use any narrow index (or the heap page count) without reading column data.
+
+-- COUNT(name) — counts only rows where Name IS NOT NULL
+SELECT COUNT(name) FROM Employees;
+-- WHY slower than COUNT(*): engine must read and check the Name column for each row.
+-- If Name is NOT NULL (constrained), optimizer may optimize to COUNT(*) internally.
+
+-- COUNT(address) — counts only rows where Address IS NOT NULL
+SELECT COUNT(address) FROM Employees;
+-- WHY slowest (typically): Address often nullable + potentially stored in variable-length
+-- column or separate page — requires reading Address page data to evaluate NULLs.
+
+-- ─────────────────────────────────────────────────────────────────
+-- SPEED ORDER (general case with nullable columns):
+--   COUNT(*) > COUNT(name[NOT NULL]) ≥ COUNT(name[nullable]) > COUNT(address[nullable])
+--
+-- EXCEPTION: if an index covers the counted column, COUNT(column) may be index-only
+-- and equally fast as COUNT(*) — always verify with an actual execution plan.
+-- ─────────────────────────────────────────────────────────────────
+
+-- Practical rule for interviews:
+-- "COUNT(*) counts every row. COUNT(col) skips NULLs and reads the column.
+--  COUNT(*) is typically fastest; use COUNT(col) only when NULL-exclusion is needed."
+```
+
+---
+
+### Q31 — Find the Maximum Salary from Employees
+
+> **🧠 Mental Model:** Walk the salary column and remember the biggest number seen so far — SQL's MAX() does exactly this with an optimized index scan.
+
+```sql
+-- ── Maximum Salary ────────────────────────────────────────────────
+
+-- APPROACH 1: MAX aggregate (simplest and most common)
+SELECT MAX(Salary) AS MaximumSalary
+FROM   Employees;
+-- WHY MAX: a single-pass O(n) scan (or O(log n) with a descending index) — no sorting
+
+-- APPROACH 2: ORDER BY + TOP 1 (returns the employee row, not just the salary)
+SELECT TOP 1 *
+FROM   Employees
+ORDER  BY Salary DESC;
+-- WHY TOP 1: useful when you need EmployeeName alongside the salary
+
+-- APPROACH 3: Subquery with NOT IN (avoids MAX — classic alternative)
+SELECT *
+FROM   Employees
+WHERE  Salary NOT IN (
+    SELECT Salary
+    FROM   Employees e2
+    WHERE  e2.Salary < Employees.Salary -- WHY: exclude anyone with a lower salary
+);
+-- WHY less preferred: expensive correlated subquery — O(n²); use MAX or window functions
+
+-- APPROACH 4: Using DENSE_RANK (consistent with other salary questions in this set)
+WITH RankedSalaries AS (
+    SELECT *, DENSE_RANK() OVER (ORDER BY Salary DESC) AS SalaryRank
+    FROM Employees
+)
+SELECT * FROM RankedSalaries WHERE SalaryRank = 1;
+
+-- Input table:  Alice 90k | Bob 120k | Charlie 85k | Dave 120k
+-- MAX result:   120000
+-- TOP 1 result: Bob (or Dave — ORDER BY Salary DESC ties are arbitrary without tiebreaker)
+-- DENSE_RANK=1: both Bob and Dave returned
+```
+
+---
+
+### Q32 — Find Employees with the 2nd Highest Salary
+
+> **🧠 Mental Model:** Remove the top tier, then find the new top — or use DENSE_RANK() to label tiers and pick label #2.
+
+```sql
+-- ── 2nd Highest Salary Employees ──────────────────────────────────
+
+-- APPROACH 1: DENSE_RANK (recommended — handles ties)
+WITH SalaryRanked AS (
+    SELECT
+        *,
+        DENSE_RANK() OVER (ORDER BY Salary DESC) AS SalaryRank
+    FROM Employees
+)
+SELECT *
+FROM   SalaryRanked
+WHERE  SalaryRank = 2;
+-- Returns ALL employees tied at the 2nd highest salary level
+
+-- APPROACH 2: MAX excluding the maximum (classic two-step approach)
+SELECT *
+FROM   Employees
+WHERE  Salary = (
+    SELECT MAX(Salary)              -- find the max among...
+    FROM   Employees
+    WHERE  Salary < (               -- ...all salaries strictly below the overall max
+        SELECT MAX(Salary)
+        FROM Employees
+    )
+);
+-- WHY nested subqueries: inner MAX finds overall max; outer MAX finds max below that
+
+-- APPROACH 3: OFFSET-FETCH
+SELECT DISTINCT Salary
+FROM   Employees
+ORDER  BY Salary DESC
+OFFSET 1 ROWS FETCH NEXT 1 ROW ONLY;
+-- WHY DISTINCT: without it, OFFSET skips a row (not a unique salary tier)
+
+-- ── Expected results ──────────────────────────────────────────────
+-- Employees: Alice 120k, Bob 120k, Charlie 90k, Dave 90k, Eve 75k
+-- DENSE_RANK = 1: Alice, Bob (120k)
+-- DENSE_RANK = 2: Charlie, Dave (90k)  ← Q32 answer
+-- DENSE_RANK = 3: Eve (75k)
+```
+
+---
+
+### Q33 — Left Join in LINQ (Method Syntax and Query Syntax)
+
+> **🧠 Mental Model:** SQL LEFT JOIN says "give me everything from the left table, with matching data from the right table where available, and NULL otherwise." In LINQ, this maps to `GroupJoin` (match groups) followed by `SelectMany` with `DefaultIfEmpty` (flatten, filling gaps with nulls).
+
+```csharp
+// ── LEFT JOIN in LINQ ─────────────────────────────────────────────
+// Sample entities
+public record Employee(int Id, string Name, int DepartmentId);
+public record Department(int Id, string DepartmentName);
+
+// SQL equivalent:
+// SELECT e.Name, d.DepartmentName
+// FROM   Employees   e
+// LEFT   JOIN Departments d ON e.DepartmentId = d.Id
+
+// ── METHOD SYNTAX ─────────────────────────────────────────────────
+// WHY GroupJoin + SelectMany + DefaultIfEmpty: this is LINQ's canonical LEFT JOIN pattern
+IEnumerable<(string EmployeeName, string? DepartmentName)> LeftJoinMethodSyntax(
+    IEnumerable<Employee>   employees,
+    IEnumerable<Department> departments
+)
+{
+    return employees
+        .GroupJoin(
+            inner:       departments,
+            outerKeySelector: emp  => emp.DepartmentId,  // left key
+            innerKeySelector: dept => dept.Id,            // right key
+            resultSelector:   (emp, matchingDepts) => new { emp, matchingDepts }
+            // WHY GroupJoin: gives each employee a collection of matching departments
+            // (which may be empty — that's what creates the "left" behavior)
+        )
+        .SelectMany(
+            collectionSelector: joined => joined.matchingDepts.DefaultIfEmpty(),
+            // WHY DefaultIfEmpty: when no department matches, injects a null record
+            // so the employee is still included in the result (LEFT join semantic)
+            resultSelector: (joined, dept) =>
+                (EmployeeName:    joined.emp.Name,
+                 DepartmentName: dept?.DepartmentName)  // WHY ?: null-safe — dept can be null
+        );
+}
+
+// ── QUERY SYNTAX ──────────────────────────────────────────────────
+IEnumerable<(string EmployeeName, string? DepartmentName)> LeftJoinQuerySyntax(
+    IEnumerable<Employee>   employees,
+    IEnumerable<Department> departments
+)
+{
+    return from emp in employees
+           join dept in departments
+               on emp.DepartmentId equals dept.Id
+               into matchingDepts             // "into" creates the group — like GroupJoin
+           from dept in matchingDepts.DefaultIfEmpty()  // flatten; null if no match
+           select (
+               EmployeeName:    emp.Name,
+               DepartmentName: dept?.DepartmentName     // null-safe access
+           );
+}
+
+// ── Usage Example ─────────────────────────────────────────────────
+// var employees   = new[] { new Employee(1,"Alice",10), new Employee(2,"Bob",99) };
+// var departments = new[] { new Department(10,"Engineering") };
+//
+// LeftJoinMethodSyntax(employees, departments):
+//   ("Alice", "Engineering")   ← matched
+//   ("Bob",   null)            ← no matching department — still included (LEFT join)
+```
+
+---
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  SECTION 52-53 SUMMARY — REPEATED INTERVIEW QUESTIONS           ║
+╠══════════════════════════════════════════════════════════════════╣
+║  STRING QUESTIONS (Q1-Q15)                                       ║
+║  ✅ Reverse string/array    → Two-pointer swap, O(n) O(1)        ║
+║  ✅ Palindrome / Anagram    → Two-pointer / freq array [26]      ║
+║  ✅ Two Sum                 → HashMap complement, O(n)           ║
+║  ✅ Longest substr no-rep   → Sliding window + Dictionary        ║
+║  ✅ Longest palindrome sub  → Expand-around-center, O(n²) O(1)  ║
+║  ✅ First non-repeating     → Two-pass frequency map            ║
+║  ✅ Move zeros to end       → Write-pointer, single pass         ║
+╠══════════════════════════════════════════════════════════════════╣
+║  MISC C# QUESTIONS (Q16-Q25)                                     ║
+║  ✅ Boxing/Unboxing         → Heap wrap; use generics to avoid   ║
+║  ✅ Array rotation (L/R)    → Three-reversal trick, O(n) O(1)   ║
+║  ✅ Fibonacci               → Iterative with yield, O(n) O(1)   ║
+║  ✅ Factorial recursion     → Base 0!=1; iterative preferred     ║
+║  ✅ Primes (Sieve)          → O(n log log n) — mark composites   ║
+║  ✅ Postfix → Infix         → Stack-based expression parsing     ║
+╠══════════════════════════════════════════════════════════════════╣
+║  SQL QUESTIONS (Q26-Q33)                                         ║
+║  ✅ Duplicates              → GROUP BY + HAVING COUNT(*) > 1     ║
+║  ✅ Nth highest salary      → DENSE_RANK() OVER ORDER BY DESC    ║
+║  ✅ 2nd highest per dept    → DENSE_RANK() OVER PARTITION BY     ║
+║  ✅ Employee-Manager        → Self JOIN (emp alias + mgr alias)  ║
+║  ✅ COUNT variants          → COUNT(*) fastest; COUNT(col) skips NULL ║
+║  ✅ LEFT JOIN in LINQ       → GroupJoin + SelectMany + DefaultIfEmpty ║
+╚══════════════════════════════════════════════════════════════════╝
+```
 

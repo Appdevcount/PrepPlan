@@ -9,18 +9,19 @@
 5. [Programming Models & Languages](#programming-models--languages)
 6. [Triggers - Complete Reference](#triggers---complete-reference)
 7. [Bindings - Input & Output](#bindings---input--output)
-8. [Development Approaches](#development-approaches)
-9. [Code Implementation - C# .NET](#code-implementation---c-net)
-10. [Code Implementation - Python](#code-implementation---python)
-11. [Code Implementation - JavaScript/TypeScript](#code-implementation---javascripttypescript)
-12. [Durable Functions - Orchestration](#durable-functions---orchestration)
-13. [Dependency Injection & Configuration](#dependency-injection--configuration)
-14. [Testing Strategies](#testing-strategies)
-15. [Deployment Methods](#deployment-methods)
-16. [Monitoring & Observability](#monitoring--observability)
-17. [Security & Authentication](#security--authentication)
-18. [Error Handling & Middleware](#error-handling--middleware)
-19. [Azure Functions Platform Features & Configuration](#azure-functions-platform-features--configuration)
+8. [Connection String Management for Triggers & Bindings](#connection-string-management-for-triggers--bindings)
+9. [Development Approaches](#development-approaches)
+10. [Code Implementation - C# .NET](#code-implementation---c-net)
+11. [Code Implementation - Python](#code-implementation---python)
+12. [Code Implementation - JavaScript/TypeScript](#code-implementation---javascripttypescript)
+13. [Durable Functions - Orchestration](#durable-functions---orchestration)
+14. [Dependency Injection & Configuration](#dependency-injection--configuration)
+15. [Testing Strategies](#testing-strategies)
+16. [Deployment Methods](#deployment-methods)
+17. [Monitoring & Observability](#monitoring--observability)
+18. [Security & Authentication](#security--authentication)
+19. [Error Handling & Middleware](#error-handling--middleware)
+20. [Azure Functions Platform Features & Configuration](#azure-functions-platform-features--configuration)
     - [CORS Configuration](#1-cors-cross-origin-resource-sharing)
     - [Function Proxies](#2-proxies-function-proxies)
     - [Custom Handlers](#3-custom-handlers)
@@ -33,10 +34,10 @@
     - [Function Keys](#10-function-keys--authorization)
     - [Easy Auth](#11-easy-auth-authentication--authorization)
     - [Host.json Reference](#12-hostjson-complete-reference)
-20. [Real-World Scenarios](#real-world-scenarios)
-21. [Best Practices & Patterns](#best-practices--patterns)
-22. [Cost Optimization](#cost-optimization)
-23. [Troubleshooting Guide](#troubleshooting-guide)
+21. [Real-World Scenarios](#real-world-scenarios)
+22. [Best Practices & Patterns](#best-practices--patterns)
+23. [Cost Optimization](#cost-optimization)
+24. [Troubleshooting Guide](#troubleshooting-guide)
 
 ---
 
@@ -2748,6 +2749,407 @@ namespace MyFunctionApp.Bindings
         public DateTime LastModified { get; set; }
     }
 }
+```
+
+---
+
+## Connection String Management for Triggers & Bindings
+
+> **Mental Model:** Think of connection strings like backstage passes — the trigger/binding code only holds the *name* of the pass (e.g., `"ServiceBusConnection"`), while the actual secret lives in a locked cabinet (App Settings / Key Vault). The runtime fetches the real value at execution time, keeping secrets out of your code entirely.
+
+---
+
+### How the Runtime Resolves a Connection
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│              CONNECTION RESOLUTION CHAIN (at startup)                │
+├──────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  Attribute/function.json says:  connection = "ServiceBusConnection"  │
+│                                                                      │
+│  Runtime looks up "ServiceBusConnection" in this order:             │
+│                                                                      │
+│  1. Environment Variables / App Settings  ← primary source          │
+│  2. Key Vault Reference  (@Microsoft.KeyVault(...))                  │
+│  3. Managed Identity credential (connection-object pattern)          │
+│                                                                      │
+│  If not found → startup failure (fail-fast, not silent)             │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Where Connection Strings Live — Environment by Environment
+
+| Environment | Where Stored | Notes |
+|---|---|---|
+| **Local dev** | `local.settings.json` → `Values` section | Never committed to git; excluded by `.gitignore` |
+| **Azure (any plan)** | App Settings (portal / ARM / Bicep / CLI) | Encrypted at rest; injected as env vars at runtime |
+| **Production / High-security** | Key Vault Reference in App Settings | App Setting value is `@Microsoft.KeyVault(...)` — Azure resolves it |
+| **CI/CD pipeline** | Pipeline secret variables → `az functionapp config appsettings set` | Never hardcoded in YAML |
+
+---
+
+### 1. local.settings.json — Local Development
+
+```json
+// local.settings.json — NEVER commit to source control
+// WHY: Contains real connection strings for local dev; git-ignored by default
+{
+  "IsEncrypted": false,
+  "Values": {
+    // ── Required by every Function App ─────────────────────────────
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",        // Azurite emulator locally
+    // "AzureWebJobsStorage": "DefaultEndpointsProtocol=https;AccountName=...;AccountKey=...;",
+
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+
+    // ── Service Bus ─────────────────────────────────────────────────
+    // WHY: Key name must EXACTLY match the `Connection` property in the trigger attribute
+    "ServiceBusConnection": "Endpoint=sb://mynamespace.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=<key>",
+
+    // ── Event Hub ───────────────────────────────────────────────────
+    "EventHubConnection": "Endpoint=sb://myeventhub.servicebus.windows.net/;SharedAccessKeyName=...;SharedAccessKey=...;EntityPath=myhub",
+
+    // ── Cosmos DB ───────────────────────────────────────────────────
+    "CosmosDBConnection": "AccountEndpoint=https://myaccount.documents.azure.com:443/;AccountKey=<key>",
+
+    // ── Storage (Blob / Queue / Table triggers) ──────────────────────
+    // WHY: AzureWebJobsStorage is the default; you can define named connections for isolation
+    "MyBlobStorageConnection": "DefaultEndpointsProtocol=https;AccountName=mystorageacct;AccountKey=...;EndpointSuffix=core.windows.net",
+
+    // ── SQL / Custom ─────────────────────────────────────────────────
+    "SqlConnectionString": "Server=localhost;Database=MyDb;User Id=sa;Password=...;",
+
+    // ── Application Insights ─────────────────────────────────────────
+    "APPLICATIONINSIGHTS_CONNECTION_STRING": "InstrumentationKey=...;IngestionEndpoint=..."
+  },
+  "Host": {
+    "CORS": "*"
+  },
+  "ConnectionStrings": {
+    // WHY: EF Core / ADO.NET reads from ConnectionStrings section by convention
+    "DefaultConnection": "Server=localhost;Database=MyDb;..."
+  }
+}
+```
+
+**Key rule:** The name in `"Values"` must exactly match the `Connection = "..."` property in the trigger/binding attribute — it is **case-sensitive**.
+
+---
+
+### 2. Referencing Connection Names in Code
+
+```csharp
+// ── Service Bus Trigger ─────────────────────────────────────────────
+// WHY: Connection = "ServiceBusConnection" tells the runtime which App Setting to read.
+// The actual connection string NEVER appears in code — only the settings key name.
+[Function("OrderProcessor")]
+public async Task RunAsync(
+    [ServiceBusTrigger("orders-queue",
+        Connection = "ServiceBusConnection")] // App Setting key name
+    ServiceBusReceivedMessage message,
+    FunctionContext context) { }
+
+// ── Blob Trigger ────────────────────────────────────────────────────
+[Function("BlobProcessor")]
+public async Task RunAsync(
+    [BlobTrigger("uploads/{name}",
+        Connection = "MyBlobStorageConnection")] // named connection for isolation
+    Stream blobStream,
+    string name,
+    FunctionContext context) { }
+
+// ── Event Hub Trigger ────────────────────────────────────────────────
+[Function("TelemetryProcessor")]
+public async Task RunAsync(
+    [EventHubTrigger("telemetry-hub",
+        Connection = "EventHubConnection",
+        ConsumerGroup = "$Default")]
+    EventData[] events,
+    FunctionContext context) { }
+
+// ── Cosmos DB Trigger ────────────────────────────────────────────────
+[Function("CosmosChangeFeed")]
+public async Task RunAsync(
+    [CosmosDBTrigger(
+        databaseName: "MyDb",
+        containerName: "orders",
+        Connection = "CosmosDBConnection",   // App Setting key
+        LeaseContainerName = "leases",
+        CreateLeaseContainerIfNotExists = true)]
+    IReadOnlyList<MyOrder> changes,
+    FunctionContext context) { }
+
+// ── Timer Trigger — no connection string needed ───────────────────────
+// WHY: Timer triggers use AzureWebJobsStorage internally for distributed lock;
+//      no explicit Connection property is required in the attribute.
+[Function("ScheduledJob")]
+public async Task RunAsync(
+    [TimerTrigger("0 */5 * * * *")] TimerInfo timer,
+    FunctionContext context) { }
+```
+
+---
+
+### 3. Azure App Settings — Production Configuration
+
+#### Via Azure Portal
+```
+Function App → Configuration → Application settings → + New application setting
+  Name:  ServiceBusConnection
+  Value: Endpoint=sb://mynamespace.servicebus.windows.net/;SharedAccessKeyName=...
+```
+
+#### Via Azure CLI
+```bash
+# WHY: Scripted deployment avoids manual portal errors; repeatable across environments
+az functionapp config appsettings set \
+  --name my-function-app \
+  --resource-group my-rg \
+  --settings \
+    "ServiceBusConnection=Endpoint=sb://mynamespace.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=<key>" \
+    "CosmosDBConnection=AccountEndpoint=https://myaccount.documents.azure.com:443/;AccountKey=<key>" \
+    "EventHubConnection=Endpoint=sb://myeh.servicebus.windows.net/;SharedAccessKeyName=...;SharedAccessKey=...;EntityPath=myhub"
+```
+
+#### Via Bicep (Infrastructure as Code)
+```bicep
+// WHY: App Settings defined in Bicep means infrastructure and config are versioned together
+resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
+  name: functionAppName
+  kind: 'functionapp'
+  properties: {
+    siteConfig: {
+      appSettings: [
+        // ── Required by every Function App ────────────────────────
+        { name: 'AzureWebJobsStorage',           value: storageAccount.listKeys().keys[0].value }
+        { name: 'FUNCTIONS_WORKER_RUNTIME',       value: 'dotnet-isolated' }
+        { name: 'FUNCTIONS_EXTENSION_VERSION',    value: '~4' }
+
+        // ── Service Bus ───────────────────────────────────────────
+        // WHY: listKeys() pulls the connection string at deploy time — no hardcoding
+        { name: 'ServiceBusConnection',           value: serviceBusNamespace.listKeys('RootManageSharedAccessKey').primaryConnectionString }
+
+        // ── Cosmos DB ─────────────────────────────────────────────
+        { name: 'CosmosDBConnection',             value: cosmosAccount.listConnectionStrings().connectionStrings[0].connectionString }
+
+        // ── Key Vault reference (preferred for secrets) ───────────
+        // WHY: Value never leaves Key Vault; runtime resolves at invocation
+        { name: 'EventHubConnection',             value: '@Microsoft.KeyVault(VaultName=${keyVaultName};SecretName=EventHubConnectionString)' }
+
+        // ── App Insights ──────────────────────────────────────────
+        { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
+      ]
+    }
+  }
+}
+```
+
+---
+
+### 4. Key Vault References — Zero-Secret-In-Config Pattern
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                    KEY VAULT REFERENCE FLOW                          │
+├──────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  App Setting value:                                                  │
+│    @Microsoft.KeyVault(VaultName=myvault;SecretName=SbConnection)   │
+│                           │                                          │
+│                    ┌──────▼──────┐                                   │
+│                    │  Key Vault  │  ← secret stored here             │
+│                    └──────┬──────┘                                   │
+│                           │  Managed Identity auth (no password!)    │
+│                    ┌──────▼──────┐                                   │
+│                    │  Function   │  ← sees real connection string    │
+│                    │    App      │     as an env var at runtime       │
+│                    └─────────────┘                                   │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+```bash
+# Step 1 — Enable system-assigned managed identity on the Function App
+az functionapp identity assign \
+  --name my-function-app \
+  --resource-group my-rg
+
+# Step 2 — Grant the identity read access to Key Vault secrets
+az keyvault set-policy \
+  --name myvault \
+  --object-id <principal-id-from-step-1> \
+  --secret-permissions get list
+
+# Step 3 — Store the connection string in Key Vault
+az keyvault secret set \
+  --vault-name myvault \
+  --name "ServiceBusConnection" \
+  --value "Endpoint=sb://mynamespace.servicebus.windows.net/;..."
+
+# Step 4 — Set App Setting as a Key Vault reference
+az functionapp config appsettings set \
+  --name my-function-app \
+  --resource-group my-rg \
+  --settings "ServiceBusConnection=@Microsoft.KeyVault(VaultName=myvault;SecretName=ServiceBusConnection)"
+```
+
+---
+
+### 5. Managed Identity Connections (Passwordless) — Modern Best Practice
+
+> **Key Insight:** Instead of a full connection string with a key/secret, you provide only the **namespace/endpoint** and let Managed Identity handle auth. Supported by Service Bus, Event Hub, Blob Storage, Cosmos DB, and Queue triggers.
+
+```csharp
+// ── Connection object pattern (no secret in connection string) ───────
+// In App Settings, define TWO entries:
+//   ServiceBusConnection__fullyQualifiedNamespace = mynamespace.servicebus.windows.net
+// That's it — no SharedAccessKey, no password.
+// WHY: Managed Identity token is fetched by the SDK automatically via DefaultAzureCredential
+
+[Function("OrderProcessor")]
+public async Task RunAsync(
+    [ServiceBusTrigger("orders-queue",
+        Connection = "ServiceBusConnection")] // resolves to __fullyQualifiedNamespace entry
+    ServiceBusReceivedMessage message,
+    FunctionContext context) { }
+```
+
+```bash
+# App Settings for passwordless Managed Identity pattern:
+az functionapp config appsettings set \
+  --name my-function-app \
+  --resource-group my-rg \
+  --settings \
+    "ServiceBusConnection__fullyQualifiedNamespace=mynamespace.servicebus.windows.net" \
+    "EventHubConnection__fullyQualifiedNamespace=myeventhubns.servicebus.windows.net" \
+    "MyBlobStorageConnection__blobServiceUri=https://mystorageacct.blob.core.windows.net" \
+    "CosmosDBConnection__accountEndpoint=https://myaccount.documents.azure.com:443/"
+```
+
+```json
+// local.settings.json equivalent for Managed Identity dev (with Azure CLI login)
+{
+  "Values": {
+    "ServiceBusConnection__fullyQualifiedNamespace": "mynamespace.servicebus.windows.net",
+    "EventHubConnection__fullyQualifiedNamespace": "myeventhubns.servicebus.windows.net",
+    "MyBlobStorageConnection__blobServiceUri": "https://mystorageacct.blob.core.windows.net",
+    "CosmosDBConnection__accountEndpoint": "https://myaccount.documents.azure.com:443/"
+    // WHY: No keys here — DefaultAzureCredential picks up your local az login token
+  }
+}
+```
+
+**Required RBAC roles for Managed Identity:**
+
+| Trigger / Binding | Required Role |
+|---|---|
+| Service Bus trigger / output | `Azure Service Bus Data Receiver` / `Azure Service Bus Data Sender` |
+| Event Hub trigger / output | `Azure Event Hubs Data Receiver` / `Azure Event Hubs Data Sender` |
+| Blob Storage trigger / input / output | `Storage Blob Data Contributor` |
+| Queue Storage trigger / output | `Storage Queue Data Contributor` |
+| Cosmos DB trigger / input / output | `Cosmos DB Built-in Data Contributor` |
+
+---
+
+### 6. Connection String Naming Convention & Suffix Rules
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│              NAMING RULES FOR CONNECTION APP SETTINGS               │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  Full connection string (SAS / key-based):                           │
+│    AppSettingName  →  ServiceBusConnection                           │
+│    Value           →  Endpoint=sb://...;SharedAccessKey=...          │
+│                                                                      │
+│  Managed Identity (passwordless) — double-underscore sub-properties: │
+│    AppSettingName__fullyQualifiedNamespace  → for Service Bus / EH   │
+│    AppSettingName__blobServiceUri           → for Blob Storage        │
+│    AppSettingName__queueServiceUri          → for Queue Storage       │
+│    AppSettingName__tableServiceUri          → for Table Storage       │
+│    AppSettingName__accountEndpoint          → for Cosmos DB           │
+│                                                                      │
+│  WHY double-underscore?                                              │
+│    In .NET env vars, __ maps to configuration section nesting        │
+│    (equivalent to : in appsettings.json)                             │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 7. AzureWebJobsStorage — The Special Required Setting
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│            AzureWebJobsStorage — WHY IT'S MANDATORY                 │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  Used internally by the Functions host for:                          │
+│    ✅ Timer trigger distributed lock (prevents duplicate execution)  │
+│    ✅ Durable Functions state storage (history, instances table)     │
+│    ✅ Blob trigger cursor / lease tracking                           │
+│    ✅ Queue trigger poison message queues                            │
+│    ✅ Scale controller metadata (Consumption plan)                   │
+│                                                                      │
+│  Local dev:   "UseDevelopmentStorage=true"  (Azurite)               │
+│  Production:  Real Storage Account connection string or MI pattern   │
+│                                                                      │
+│  Can be set to a Managed Identity pattern:                           │
+│    AzureWebJobsStorage__blobServiceUri  = https://acct.blob.core...  │
+│    AzureWebJobsStorage__queueServiceUri = https://acct.queue.core... │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 8. Full Trigger → Connection String Reference Table
+
+| Trigger / Binding | Required App Setting Key | Value Format |
+|---|---|---|
+| **HTTP Trigger** | *(none — no connection needed)* | — |
+| **Timer Trigger** | `AzureWebJobsStorage` (internal lock) | Storage conn string or MI |
+| **Blob Trigger** | `AzureWebJobsStorage` or named `Connection` | Storage conn string |
+| **Queue Trigger** | `AzureWebJobsStorage` or named `Connection` | Storage conn string |
+| **Service Bus Trigger** | Named `Connection` e.g. `ServiceBusConnection` | SAS conn string or `__fullyQualifiedNamespace` |
+| **Event Hub Trigger** | Named `Connection` e.g. `EventHubConnection` | SAS conn string or `__fullyQualifiedNamespace` |
+| **Cosmos DB Trigger** | Named `Connection` e.g. `CosmosDBConnection` | AccountEndpoint+Key or `__accountEndpoint` |
+| **Event Grid Trigger** | *(webhook-based — no storage connection)* | — |
+| **SignalR** | Named `Connection` e.g. `AzureSignalRConnectionString` | SignalR Service conn string |
+| **SQL Trigger/Input/Output** | Named `Connection` e.g. `SqlConnectionString` | ADO.NET conn string |
+| **Durable Functions** | `AzureWebJobsStorage` (orchestration state) | Storage conn string or MI |
+
+---
+
+### 9. Security Checklist for Connection String Management
+
+```
+✅ local.settings.json is in .gitignore — NEVER committed
+✅ No connection strings hardcoded in source code — only setting key names
+✅ Production uses Key Vault References or Managed Identity (no plaintext secrets)
+✅ Each service has a dedicated named connection — not everything on AzureWebJobsStorage
+✅ Least-privilege: Service Bus trigger uses Data Receiver role, not owner
+✅ Deployment slots (staging/prod) have separate App Settings — no shared secrets
+✅ Connection strings rotated via Key Vault secret versioning (zero-downtime rotation)
+✅ APPLICATIONINSIGHTS_CONNECTION_STRING set — not the legacy InstrumentationKey
+```
+
+---
+
+### QUICK RECALL — Connection String Patterns
+
+```
+Local dev Storage emulator:        AzureWebJobsStorage = UseDevelopmentStorage=true
+Production SAS connection string:  ServiceBusConnection = Endpoint=sb://...;SharedAccessKey=...
+Production Managed Identity:       ServiceBusConnection__fullyQualifiedNamespace = ns.servicebus.windows.net
+Key Vault reference:               ServiceBusConnection = @Microsoft.KeyVault(VaultName=v;SecretName=s)
+Cosmos DB passwordless:            CosmosDBConnection__accountEndpoint = https://acct.documents.azure.com/
+Blob passwordless:                 MyStorage__blobServiceUri = https://acct.blob.core.windows.net
 ```
 
 ---
