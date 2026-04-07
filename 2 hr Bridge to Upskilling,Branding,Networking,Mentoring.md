@@ -1,4 +1,4 @@
-# Personal Growth Strategy: 13 Hours/Week Across 5 Tracks
+# Personal Growth Strategy: 13 Hours/Week Across 6 Tracks
 
 ---
 
@@ -11,12 +11,13 @@
 | Sunday | 1.5 hrs | Sun | 1.5 hrs |
 | **Grand Total** | | | **13 hrs/week** |
 
-**Five tracks to serve:**
+**Six tracks to serve:**
 1. Upskilling + Certification — career foundation
 2. AI Integration initiatives — personal differentiator project
 3. Portfolio website — tangible proof-of-work artifact
 4. Personal branding — LinkedIn/GitHub visibility
-5. Networking — relationship capital
+5. Networking — external (LinkedIn) + internal (colleagues across teams/projects)
+6. Mentoring — being mentored and eventually mentoring others
 
 ---
 
@@ -56,29 +57,36 @@
 ### Why Mon / Wed / Thu = Branding + Networking output days
 - LinkedIn posts published Monday get algorithm amplification through Tuesday — people are checking feeds at week start
 - Wednesday is the platform's statistically highest engagement day — your best post goes here
-- Thursday networking is warm: people have already seen your Mon + Wed posts — cold outreach becomes warm, your DMs get more replies
+- Thursday external networking is warm: people have already seen your Mon + Wed posts — cold outreach becomes warm, your DMs get more replies
+- Thursday internal networking belongs here too: by Thursday, your week's work is concrete enough to have something real to mention ("I've been exploring X this week") — not empty small talk
+- Internal networking is separate from LinkedIn — it targets colleagues in other teams/projects within your company; these are the people who refer you to internal opportunities, invite you to cross-team work, and become advocates in promotion cycles
 - Tue and Fri have zero output overhead — pure learning/building, no mode switches
 
 ---
 
 ## Weekly Schedule — Full Picture
 
+> **Anchor your sessions to a fixed daily window — the single most important habit decision.**
+> Recommended: **7:00–9:00 AM** before work begins (avoids work-fatigue displacement).
+> If morning is not viable, pick one consistent slot and protect it identically every day.
+> Write it here and treat it as non-negotiable: **My session window: `___:___ AM/PM – ___:___ AM/PM`**
+
 ### Weekdays (2 hrs each)
 
-| Day | Identity | Block 1 | Block 2 | Total |
-|-----|----------|---------|---------|-------|
-| **Mon** | Learn + Publish | 90 min — New concept deep dive + lab + practice Qs | 20 min Brand (write LinkedIn post) + 10 min Network (engage 2–3 people) | 120 min |
-| **Tue** | Build AI | 120 min — AI Integration project work (full, uninterrupted) | None | 120 min |
-| **Wed** | Learn + Publish | 90 min — Advance concept or next module + practice Qs | 20 min Brand (best post of week — Wed peak) + 10 min Network | 120 min |
-| **Thu** | Exam + Connect | 90 min — Timed practice exam session + review weak Qs | 10 min Brand (share insight from exam prep) + 20 min Network (meaningful outreach to 2 people) | 120 min |
-| **Fri** | Review + Polish | 90 min — Week review, mock exam, reinforce gaps | 30 min Portfolio site sprint (one page update, push code) | 120 min |
+| Day | Identity | When | Block 1 | Block 2 | Total |
+|-----|----------|------|---------|---------|-------|
+| **Mon** | Learn + Publish | 7:00–9:00 AM | 90 min — New concept deep dive + lab + practice Qs | 20 min Brand (write LinkedIn post) + 10 min Network external (engage 2–3 LinkedIn people) | 120 min |
+| **Tue** | Build AI | 7:00–9:00 AM | 120 min — AI Integration project work (full, uninterrupted) | None | 120 min |
+| **Wed** | Learn + Publish | 7:00–9:00 AM | 90 min — Advance concept or next module + practice Qs | 20 min Brand (best post of week — Wed peak) + 10 min Network external | 120 min |
+| **Thu** | Exam + Connect | 7:00–9:00 AM | 90 min — Timed practice exam session + review weak Qs | 10 min Brand (share insight from exam prep) + 10 min Network external (LinkedIn) + 10 min Network internal (1 colleague from another team/project) | 120 min |
+| **Fri** | Review + Polish | 7:00–9:00 AM | 90 min — Week review, mock exam, reinforce gaps | 30 min Portfolio site sprint (one page update, push code) | 120 min |
 
 ### Weekend
 
-| Day | Identity | Activity | Time |
-|-----|----------|----------|------|
-| **Sat** | Build AI (cont.) | AI Integration — advance from Tue's work; aim for a milestone or a working feature | 90 min |
-| **Sun** | Portfolio + Plan | Portfolio site — write project descriptions, add AI work from week, refine design. Final 10 min: plan next week's study topics | 90 min |
+| Day | Identity | When | Activity | Time |
+|-----|----------|------|----------|------|
+| **Sat** | Build AI (cont.) | 8:00–9:30 AM | AI Integration — advance from Tue's work; aim for a milestone or a working feature. **Hard stop at 90 min — remaining time is family/recovery, not a flex buffer.** | 90 min |
+| **Sun** | Portfolio + Plan | 8:00–9:30 AM | Portfolio site — write project descriptions, add AI work from week, refine design. Final 10 min: plan next week's study topics. **Hard stop at 90 min — remaining time is family/recovery, not a flex buffer.** | 90 min |
 
 ---
 
@@ -88,9 +96,11 @@
 |----------|-------|-------------|--------|--------|
 | Upskilling + Cert Prep | Mon(90) + Wed(90) + Thu(90) + Fri(90) | **6 hrs** | 6+ hrs | ✓ |
 | AI Integration | Tue(120) + Sat(90) | **3.5 hrs** | 4 hrs | ≈ (see note) |
-| Portfolio Site | Fri(30) + Sun(80) | **~2 hrs** | 2 hrs | ✓ |
+| Portfolio Site | Fri(30) + Sun(90) | **~2 hrs** | 2 hrs | ✓ |
 | Branding | Mon(20) + Wed(20) + Thu(10) | **50 min** | — | ✓ |
-| Networking | Mon(10) + Wed(10) + Thu(20) | **40 min** | — | ✓ |
+| Networking (external) | Mon(10) + Wed(10) + Thu(10) | **30 min** | — | ✓ |
+| Networking (internal) | Thu(10) | **10 min** | — | ✓ |
+| Mentoring | See Mentoring section | **async** | — | ✓ |
 | **Grand Total** | | **13 hrs** | 13 hrs | ✓ |
 
 > **AI Integration note:** The schedule gives 3.5 hrs/week structurally. The 30-min gap is a flex buffer — on weeks where you're close to a project milestone, shift Fri's portfolio sprint to AI work and catch up on portfolio the following Sunday. Over a month, it averages to 4 hrs. Do not try to squeeze 30 extra mins elsewhere; the rest of the schedule is load-bearing.
@@ -199,6 +209,88 @@ Repeat cycle with a new cert domain and a new AI integration project.
 
 ---
 
+## Month 1 Override — New Company Onboarding Phase
+
+> The first 30–60 days at a new company are the highest-leverage internal networking window you will ever have.
+> People expect new joiners to reach out. Curiosity reads as enthusiasm. This window closes fast — use it deliberately.
+
+The standard weekly schedule assumes a steady-state rhythm. That does not exist in weeks 1–4 at a new job.
+Cognitive load is higher (new systems, new people, new codebase). Adjust accordingly.
+
+### Month 1 Schedule Modifications
+
+| Track | Normal | Month 1 Override | Reason |
+|-------|--------|-----------------|--------|
+| Cert/Upskilling | 6 hrs/week | 4 hrs/week | Reduce to avoid burnout on top of onboarding load |
+| AI Integration | 3.5 hrs/week | 2 hrs/week | Keep the habit alive; don't try to ship features |
+| Portfolio | 2 hrs/week | 1 hr/week | Maintenance only — no new pages |
+| Branding (LinkedIn) | 50 min/week | 30 min/week | 1 post/week instead of 2; quality over quantity |
+| Networking external | 30 min/week | 15 min/week | Reduce — you have enough new relationships to manage |
+| **Networking internal** | 10 min/week | **40 min/week** | **Dramatically increase** — this is the entire point of Month 1 |
+
+### Internal Networking Actions for Month 1 (concrete, not vague)
+
+**Week 1:**
+- Introduce yourself in your team's channel — 2–3 sentences, what you're working on, what you're excited to learn
+- Identify 3 people in adjacent teams whose work intersects yours — just names for now
+
+**Week 2:**
+- Send 1 short message to each of the 3 people: "I'm new, saw your work on X, would love a 15-min chat when you have time"
+- Attend one internal meeting/tech talk outside your immediate team
+
+**Week 3:**
+- Have at least 2 of those 15-min chats — listen more than you talk, ask what problems their team is solving
+- Find the internal Slack/Teams channels where technical discussions happen — join 2–3 and observe
+
+**Week 4:**
+- Follow up with at least one person from your chats: share something relevant ("saw this and thought of what you mentioned")
+- Volunteer for one cross-team task, even small — a review, a doc update, a knowledge-share session
+
+**Target by end of Month 1:** 5 genuine connections outside your immediate team who know your name and what you're working on.
+This is not about impressing people. It is about being visible before you need to be.
+
+---
+
+## Mentoring Track
+
+> Mentoring is relationship capital with compounding interest — low weekly time cost, high long-term return in both directions.
+
+### Two Directions: Being Mentored + Mentoring Others
+
+#### Being Mentored (priority in Year 1 at a new company)
+
+The goal is one mentor relationship — not a formal program, just one senior person who will give you 30 min/month.
+
+**How to find one (no cold asks needed):**
+1. During your Month 1 internal networking chats, note who is generous with their time and knowledgeable about areas you want to grow
+2. After 2–3 interactions, make it explicit: "I'd value your perspective on my growth here — would you be open to a monthly check-in?"
+3. Come prepared with 2 specific questions each time. Respect their time completely.
+
+**Time cost:** 30 min/month for the meeting. Prep is absorbed into your Fri review session (5–10 min).
+
+**What you get:** faster navigation of company politics, early visibility into opportunities, a sponsor who mentions your name in rooms you're not in.
+
+#### Mentoring Others (start after Month 3)
+
+Once you've found your footing, identify one junior person (on your team or in your extended network) who is 1–2 years behind your current skill level.
+
+**How to run it:**
+- One 20-min virtual chat every 2 weeks — structured, not open-ended
+- Come with a resource, a tip, or a question to discuss; don't just "check in"
+- This sharpens your own thinking — teaching forces articulation of implicit knowledge
+
+**Time cost:** 20 min every 2 weeks = 40 min/month. Does not need a dedicated schedule slot — treat it as a Thursday networking block replacement twice a month.
+
+**What you get:** reputation as someone who invests in others (visible to leadership), articulation of your own knowledge gaps, and a long-term professional relationship.
+
+### Mentoring Principles
+- One mentor in, one mentee out — don't overextend
+- Mentoring is not advice-giving. It is asking good questions and sharing relevant experience
+- If a mentor relationship is not working after 2–3 sessions, it's fine to let it naturally end
+- Track what you learn from your mentor in your Fri review notes — it belongs in your upskilling record
+
+---
+
 ## Time Allocation at a Glance
 
 | Activity | Weekly Hours | % of 13 hrs | Why This Weight |
@@ -207,7 +299,9 @@ Repeat cycle with a new cert domain and a new AI integration project.
 | AI Integration | ~3.5 hrs | 27% | Differentiator; builds real projects employers and clients notice |
 | Portfolio Site | ~2.0 hrs | 15% | Highest-leverage branding artifact; outlasts any LinkedIn post |
 | Branding (LinkedIn) | ~0.8 hrs | 6% | Amplifier; drives inbound — doesn't need to be large |
-| Networking | ~0.7 hrs | 5% | Warm, targeted; quality over frequency |
+| Networking (external) | ~0.5 hrs | 4% | Warm, targeted; quality over frequency |
+| Networking (internal) | ~0.2 hrs | 1% | Highest-leverage at a new company; internal advocates drive opportunities LinkedIn can't |
+| Mentoring | async | — | Relationship capital that compounds — low time cost, high long-term return |
 
 ---
 
@@ -219,7 +313,10 @@ Repeat cycle with a new cert domain and a new AI integration project.
 | AI Integration hours | ~3.5 hrs | **84 hrs** — likely 4–6 working projects |
 | Portfolio progress | ~2 hrs | **48 hrs** — a polished, deployed site with real projects |
 | LinkedIn posts | 2 quality posts | **48 posts** — consistent presence |
-| Networking touchpoints | ~6 interactions | **144 interactions** — warm, not cold |
+| Networking external | ~5–6 interactions | **120–144 interactions** — warm, not cold |
+| Networking internal | ~1 genuine connection/week | **24 colleagues** across teams who know your name and work |
+| Mentoring (inbound) | 30 min/month | **1 mentor relationship** + institutional knowledge you couldn't learn from docs |
+| Mentoring (outbound) | 20 min/2 weeks (from Month 4) | **1 mentee** + reputation as someone who invests in others |
 
 ---
 
@@ -230,3 +327,6 @@ Repeat cycle with a new cert domain and a new AI integration project.
 - **AI work feeds everything else:** What you build on Tue/Sat becomes your Wed brand post, your Thu networking hook, your Sun portfolio entry, and your Mon learning motivation.
 - **Portfolio beats 100 posts:** A live, well-documented portfolio project compresses months of LinkedIn content into a single URL you can share anywhere.
 - **The 30-min flex rule:** Fri's 30 min and Sun's last 10 min are your only flexible buffers. Everything else is load-bearing — do not borrow from Mon/Wed/Thu learning blocks.
+- **Internal network ≠ LinkedIn:** Thu's internal 10 min targets colleagues in other teams/projects at your company. External visibility and internal visibility are different assets — both matter, neither replaces the other.
+- **Weekend sessions end hard at 90 min:** Sat and Sun sessions are time-boxed with a hard stop. Time after the session belongs to family and recovery — it is not a flex buffer, not a catch-up slot. The plan works precisely because it is bounded. An unbounded plan is the pattern you are leaving behind.
+- **Family time is the recovery that makes the plan sustainable:** Burning both weekend days on growth activities is what killed the last pattern. The plan's output targets are calibrated to 90 min/day, not to an open-ended grind. Trust the structure.
