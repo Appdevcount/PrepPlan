@@ -103,11 +103,12 @@
    │ Multi-rgn  ×1.3 │  │ AKS   │ │ Migr. │ │Svc Bus│ │       │ │MSAL Auth │ │Cluster│
    └─────────────────┘  │       │ │       │ │       │ │       │ │RTK Query │ │       │
                          │Ph 0-4 │ │Strangl│ │Prod'r │ │API    │ │Screen    │ │Netw.  │
-                         │228-   │ │er Fig │ │9P/D   │ │design │ │rates     │ │Sec    │
-                         │440 PD │ │22-32  │ │Consmr │ │APIM   │ │BFF       │ │KEDA   │
-                         │       │ │per svc│ │12P/D  │ │config │ │11P/D     │ │GitOps │
-                         │16-22  │ │       │ │172P/D │ │52P/D  │ │          │ │77P/D  │
-                         │sprints│ │       │ │total  │ │total  │ │          │ │       │
+                         │228-   │ │er Fig │ │72h ea │ │design │ │rates     │ │Sec    │
+                         │440 PD │ │176-   │ │Consmr │ │APIM   │ │BFF       │ │KEDA   │
+                         │1,824- │ │256h   │ │88-112h│ │config │ │88h base  │ │GitOps │
+                         │3,520h │ │per svc│ │172P/D │ │52P/D  │ │          │ │77P/D  │
+                         │16-22  │ │       │ │1,376h │ │416h   │ │          │ │712h   │
+                         │sprints│ │       │ │total  │ │gateway│ │          │ │platfm │
                          └───────┘ └───────┘ └───────┘ └───────┘ └──────────┘ └───────┘
 
 
@@ -865,12 +866,14 @@ Use consistent units across all scenarios. Mix of person-days (P/D) and story po
 //      Architect estimates in person-days; team works in story points.
 //      Establish a conversion before estimation begins, not during it.
 
-1 Story Point      ≈ 0.5 person-days (for experienced team)
-1 Sprint (2 weeks) ≈ 8-9 productive person-days per developer (after overhead)
+1 Person-Day (P/D) = 8 hours of productive work
+1 Story Point      ≈ 0.5 person-days (for experienced team) ≈ 4 hrs
+1 Sprint (2 weeks) ≈ 8-9 productive person-days per developer (after overhead) ≈ 64–72 hrs
 T-shirt size → points:  XS=1, S=2, M=3, L=5, XL=8, XXL=13, Epic=split it
+T-shirt size → hours:   XS=4h, S=8h, M=16h, L=24-32h, XL=40h, XXL=64-80h
 
-Calendar time ≠ effort time. A 10-day task with 3 dependencies may take 20 calendar days.
-Always state BOTH: "10 person-days effort, 18 calendar days elapsed."
+Calendar time ≠ effort time. A 10-day task (80 hrs) with 3 dependencies may take 20 calendar days.
+Always state ALL THREE: "10 person-days | 80 hours effort | 18 calendar days elapsed."
 ```
 
 ---
@@ -910,31 +913,31 @@ A new enterprise system built from scratch. Stack: .NET microservices on AKS, Az
 
 #### Phase 0 — Architecture & Discovery (Weeks 1–3)
 
-| Activity | Owner | P/D | Notes |
-|----------|-------|-----|-------|
-| Requirements workshop facilitation | TA | 3 | Domain discovery, bounded context mapping |
-| Architecture design (HLD) | TA | 5 | ADRs, component diagram, integration map |
-| Technology decision records | TA | 2 | Justify each stack choice with trade-offs |
-| Infrastructure design (Bicep / Terraform) | TA + DevOps | 4 | AKS sizing, networking, SKU choices |
-| Security design (identity, secrets, RBAC) | TA | 2 | Workload Identity, Key Vault, APIM policies |
-| Estimation & delivery roadmap | TA | 2 | Team sizing, sprint plan, milestone map |
-| **Phase 0 Total** | | **18 P/D** | |
+| Activity | Owner | P/D | Hrs | Notes |
+|----------|-------|-----|-----|-------|
+| Requirements workshop facilitation | TA | 3 | 24h | Domain discovery, bounded context mapping |
+| Architecture design (HLD) | TA | 5 | 40h | ADRs, component diagram, integration map |
+| Technology decision records | TA | 2 | 16h | Justify each stack choice with trade-offs |
+| Infrastructure design (Bicep / Terraform) | TA + DevOps | 4 | 32h | AKS sizing, networking, SKU choices |
+| Security design (identity, secrets, RBAC) | TA | 2 | 16h | Workload Identity, Key Vault, APIM policies |
+| Estimation & delivery roadmap | TA | 2 | 16h | Team sizing, sprint plan, milestone map |
+| **Phase 0 Total** | | **18 P/D** | **144h** | |
 
 > **Commonly missed:** ADRs (Architecture Decision Records). Without them, every decision gets re-litigated in sprint review. Budget 1–2 days explicitly.
 
 #### Phase 1 — Foundation & Platform (Weeks 3–7)
 
-| Activity | Owner | P/D | Notes |
-|----------|-------|-----|-------|
-| AKS cluster provisioning (Bicep/Terraform) | DevOps + TA | 5 | Node pools, CNI, ingress, private cluster |
-| Azure networking (VNet, NSG, private endpoints) | DevOps | 4 | Required before any service deployment |
-| Azure APIM setup + base policies | DevOps + TA | 3 | Auth, rate limit, CORS, logging policies |
-| Key Vault + Managed Identity wiring | DevOps | 2 | Must be done before secrets are needed |
-| CI/CD pipeline scaffolding (all services) | DevOps | 5 | Build, test, push, deploy per service |
-| Microservice project templates (.NET) | TA + Lead Dev | 4 | Shared logging, health checks, auth middleware |
-| ReactJS project scaffold + build pipeline | Lead FE | 3 | Vite/CRA, ESLint, test config, Dockerfile |
-| Base observability (App Insights, dashboards) | DevOps + TA | 3 | Structured logging, baseline alerts |
-| **Phase 1 Total** | | **29 P/D** | |
+| Activity | Owner | P/D | Hrs | Notes |
+|----------|-------|-----|-----|-------|
+| AKS cluster provisioning (Bicep/Terraform) | DevOps + TA | 5 | 40h | Node pools, CNI, ingress, private cluster |
+| Azure networking (VNet, NSG, private endpoints) | DevOps | 4 | 32h | Required before any service deployment |
+| Azure APIM setup + base policies | DevOps + TA | 3 | 24h | Auth, rate limit, CORS, logging policies |
+| Key Vault + Managed Identity wiring | DevOps | 2 | 16h | Must be done before secrets are needed |
+| CI/CD pipeline scaffolding (all services) | DevOps | 5 | 40h | Build, test, push, deploy per service |
+| Microservice project templates (.NET) | TA + Lead Dev | 4 | 32h | Shared logging, health checks, auth middleware |
+| ReactJS project scaffold + build pipeline | Lead FE | 3 | 24h | Vite/CRA, ESLint, test config, Dockerfile |
+| Base observability (App Insights, dashboards) | DevOps + TA | 3 | 24h | Structured logging, baseline alerts |
+| **Phase 1 Total** | | **29 P/D** | **232h** | |
 
 > **Commonly missed:** CI/CD takes 5 P/D minimum for a multi-service system. Teams estimate 2 days and spend 2 weeks.
 
@@ -942,63 +945,67 @@ A new enterprise system built from scratch. Stack: .NET microservices on AKS, Az
 
 Use this unit template per microservice:
 
-| Layer | Activity | P/D (Simple) | P/D (Complex) |
-|-------|----------|-------------|--------------|
-| API | Endpoints, DTO, validation, versioning | 2 | 5 |
-| Domain | Business logic, domain events, rules | 3 | 8 |
-| Data | EF Core model, migrations, repository | 2 | 4 |
-| Integration | Service Bus producer/consumer | 2 | 5 |
-| Security | RBAC, token validation, audit | 1 | 3 |
-| Testing | Unit + integration tests | 2 | 4 |
-| Observability | Structured logs, metrics, traces | 1 | 2 |
-| **Service total** | | **13 P/D** | **31 P/D** |
+| Layer | Activity | P/D (Simple) | Hrs (Simple) | P/D (Complex) | Hrs (Complex) |
+|-------|----------|-------------|-------------|--------------|--------------|
+| API | Endpoints, DTO, validation, versioning | 2 | 16h | 5 | 40h |
+| Domain | Business logic, domain events, rules | 3 | 24h | 8 | 64h |
+| Data | EF Core model, migrations, repository | 2 | 16h | 4 | 32h |
+| Integration | Service Bus producer/consumer | 2 | 16h | 5 | 40h |
+| Security | RBAC, token validation, audit | 1 | 8h | 3 | 24h |
+| Testing | Unit + integration tests | 2 | 16h | 4 | 32h |
+| Observability | Structured logs, metrics, traces | 1 | 8h | 2 | 16h |
+| **Service total** | | **13 P/D** | **104h** | **31 P/D** | **248h** |
 
 For a system with 6 microservices, simple: 78 P/D. Complex: 186 P/D. The range is the honest answer.
 
 #### Phase 3 — ReactJS Frontend
 
-| Activity | P/D |
-|----------|-----|
-| Component library / design system setup | 4 |
-| Routing, auth integration (MSAL/OIDC) | 3 |
-| Per screen (average, CRUD with table + form) | 3–5 |
-| API service layer (RTK Query / Axios) | 2 |
-| State management (Redux Toolkit / Zustand) | 2 |
-| Error boundaries + loading states (all screens) | 2 |
-| Responsive layout + accessibility baseline | 3 |
-| E2E test setup (Cypress / Playwright) | 3 |
+| Activity | P/D | Hrs |
+|----------|-----|-----|
+| Component library / design system setup | 4 | 32h |
+| Routing, auth integration (MSAL/OIDC) | 3 | 24h |
+| Per screen (average, CRUD with table + form) | 3–5 | 24–40h |
+| API service layer (RTK Query / Axios) | 2 | 16h |
+| State management (Redux Toolkit / Zustand) | 2 | 16h |
+| Error boundaries + loading states (all screens) | 2 | 16h |
+| Responsive layout + accessibility baseline | 3 | 24h |
+| E2E test setup (Cypress / Playwright) | 3 | 24h |
 
 > **Rule of thumb:** Budget 1 P/D per screen for simple read-only views. 3–5 P/D for screens with forms, validation, and async state.
 
 #### Phase 4 — NFR & Production Readiness
 
-| Activity | P/D | Why often missed |
-|----------|-----|-----------------|
-| HPA + KEDA autoscaling config | 3 | "We'll do it after go-live" — then never do |
-| AKS network policies (pod-to-pod security) | 2 | Skipped until a security review flags it |
-| Disaster recovery runbook + test | 3 | Not on the feature backlog |
-| Performance testing (k6 / Azure Load Testing) | 4 | Added last-minute, no time to fix findings |
-| Security review + pen test remediation | 5 | Always longer than expected |
-| Documentation (architecture + runbook) | 4 | Never estimated — always done in personal time |
-| Hypercare window | 5 | Two weeks post go-live — always underestimated |
-| **Phase 4 Total** | | **26 P/D** | |
+| Activity | P/D | Hrs | Why often missed |
+|----------|-----|-----|-----------------|
+| HPA + KEDA autoscaling config | 3 | 24h | "We'll do it after go-live" — then never do |
+| AKS network policies (pod-to-pod security) | 2 | 16h | Skipped until a security review flags it |
+| Disaster recovery runbook + test | 3 | 24h | Not on the feature backlog |
+| Performance testing (k6 / Azure Load Testing) | 4 | 32h | Added last-minute, no time to fix findings |
+| Security review + pen test remediation | 5 | 40h | Always longer than expected |
+| Documentation (architecture + runbook) | 4 | 32h | Never estimated — always done in personal time |
+| Hypercare window | 5 | 40h | Two weeks post go-live — always underestimated |
+| **Phase 4 Total** | | **26 P/D** | **208h** | |
 
 ### Greenfield Total Estimate Summary
 
 ```
-Phase 0 — Architecture & Discovery:     18 P/D
-Phase 1 — Platform & Foundation:        29 P/D
-Phase 2 — Feature Build (6 services):  100–190 P/D  (scenario-dependent)
-Phase 3 — ReactJS Frontend (12 screens): 55 P/D
-Phase 4 — NFR & Production Readiness:   26 P/D
-───────────────────────────────────────────────
-Base Total:                            228–318 P/D
+Phase 0 — Architecture & Discovery:       18 P/D  |   144 hrs
+Phase 1 — Platform & Foundation:          29 P/D  |   232 hrs
+Phase 2 — Feature Build (6 services):  100–190 P/D  |   800–1,520 hrs  (scenario-dependent)
+Phase 3 — ReactJS Frontend (12 screens):  55 P/D  |   440 hrs
+Phase 4 — NFR & Production Readiness:     26 P/D  |   208 hrs
+──────────────────────────────────────────────────────────────
+Base Total:                             228–318 P/D  |  1,824–2,544 hrs
 
-Complexity multiplier (brownfield integrations ×1.2):  275–382 P/D
-Buffer (15% for requirement volatility):               317–440 P/D
+Complexity multiplier (brownfield integrations ×1.2):  275–382 P/D  |  2,200–3,056 hrs
+Buffer (15% for requirement volatility):               317–440 P/D  |  2,536–3,520 hrs
 
-Team of 5 developers at 8 P/D/sprint:  40 P/D/sprint
+Team of 5 developers at 8 P/D/sprint = 40 P/D/sprint (320 hrs/sprint)
 Duration: 8–11 sprints (16–22 weeks)
+
+// Quick sanity check for stakeholders:
+// 317 P/D ÷ 5 developers = 63 person-days each ≈ 13 weeks of work per person
+// 440 P/D ÷ 5 developers = 88 person-days each ≈ 18 weeks of work per person
 ```
 
 ---
@@ -1024,29 +1031,29 @@ Multiply all feature estimates by 1.4–1.5 for this reason alone.
 
 #### Phase 0 — Domain Analysis & Decomposition Design
 
-| Activity | Owner | P/D |
-|----------|-------|-----|
-| Codebase archaeology (reading + mapping existing system) | TA + Lead Dev | 8 |
-| Event storming / domain model workshop | TA + Business | 4 |
-| Bounded context identification | TA | 3 |
-| Data ownership mapping (which table belongs to which domain) | TA + DBA | 4 |
-| Strangler Fig migration sequence design | TA | 3 |
-| Risk register for shared database coupling | TA | 2 |
-| **Phase 0 Total** | | **24 P/D** |
+| Activity | Owner | P/D | Hrs |
+|----------|-------|-----|-----|
+| Codebase archaeology (reading + mapping existing system) | TA + Lead Dev | 8 | 64h |
+| Event storming / domain model workshop | TA + Business | 4 | 32h |
+| Bounded context identification | TA | 3 | 24h |
+| Data ownership mapping (which table belongs to which domain) | TA + DBA | 4 | 32h |
+| Strangler Fig migration sequence design | TA | 3 | 24h |
+| Risk register for shared database coupling | TA | 2 | 16h |
+| **Phase 0 Total** | | **24 P/D** | **192h** |
 
 > **Critical:** The migration sequence matters enormously. Extract the wrong service first and you create a distributed monolith. Budget the design time — it prevents months of rework.
 
 #### Per Service Extraction (Strangler Fig Pattern)
 
-| Step | Activity | P/D |
-|------|----------|-----|
-| 1 | Define service boundary + API contract | 2 |
-| 2 | Build new service alongside monolith | 8–15 |
-| 3 | Route traffic via facade (APIM / reverse proxy) | 2 |
-| 4 | Migrate data ownership (schema separation) | 5–10 |
-| 5 | Cut over traffic + shadow mode testing | 3 |
-| 6 | Remove dead code from monolith | 2 |
-| **Per service total** | | **22–32 P/D** |
+| Step | Activity | P/D | Hrs |
+|------|----------|-----|-----|
+| 1 | Define service boundary + API contract | 2 | 16h |
+| 2 | Build new service alongside monolith | 8–15 | 64–120h |
+| 3 | Route traffic via facade (APIM / reverse proxy) | 2 | 16h |
+| 4 | Migrate data ownership (schema separation) | 5–10 | 40–80h |
+| 5 | Cut over traffic + shadow mode testing | 3 | 24h |
+| 6 | Remove dead code from monolith | 2 | 16h |
+| **Per service total** | | **22–32 P/D** | **176–256h** |
 
 For 8 services extracted: 176–256 P/D. This is not a 3-month project.
 
@@ -1088,66 +1095,69 @@ EDA has hidden coordination costs that synchronous systems do not:
 
 ### Architecture Design Phase (Always Do This First)
 
-| Activity | Owner | P/D |
-|----------|-------|-----|
-| Event storming workshop (identify all events) | TA + Domain experts | 3 |
-| Event schema design (CloudEvents / custom) | TA | 2 |
-| Topic / queue topology design (Service Bus namespaces, topics, subscriptions) | TA + DevOps | 2 |
-| Dead letter strategy + alerting design | TA | 1 |
-| Idempotency strategy design (outbox pattern / deduplication) | TA | 2 |
-| Event versioning strategy | TA | 1 |
-| Schema registry decision (Azure Schema Registry / custom) | TA | 1 |
-| **Design Total** | | **12 P/D** |
+| Activity | Owner | P/D | Hrs |
+|----------|-------|-----|-----|
+| Event storming workshop (identify all events) | TA + Domain experts | 3 | 24h |
+| Event schema design (CloudEvents / custom) | TA | 2 | 16h |
+| Topic / queue topology design (Service Bus namespaces, topics, subscriptions) | TA + DevOps | 2 | 16h |
+| Dead letter strategy + alerting design | TA | 1 | 8h |
+| Idempotency strategy design (outbox pattern / deduplication) | TA | 2 | 16h |
+| Event versioning strategy | TA | 1 | 8h |
+| Schema registry decision (Azure Schema Registry / custom) | TA | 1 | 8h |
+| **Design Total** | | **12 P/D** | **96h** |
 
 > **Most common EDA mistake:** Skipping event schema design. The first producer-consumer pair works fine. The fourth integration breaks because schemas evolved independently. Budget the design phase — it is cheaper than schema migration later.
 
 ### Per Producer Service
 
-| Activity | P/D |
-|----------|-----|
-| Domain event definition + C# record types | 1 |
-| Outbox pattern implementation (EF Core + background worker) | 3 |
-| Service Bus publisher integration + retry policy (Polly) | 2 |
-| Structured logging of published events | 1 |
-| Unit + integration tests (Testcontainers for Service Bus emulator) | 2 |
-| **Per producer** | **9 P/D** |
+| Activity | P/D | Hrs |
+|----------|-----|-----|
+| Domain event definition + C# record types | 1 | 8h |
+| Outbox pattern implementation (EF Core + background worker) | 3 | 24h |
+| Service Bus publisher integration + retry policy (Polly) | 2 | 16h |
+| Structured logging of published events | 1 | 8h |
+| Unit + integration tests (Testcontainers for Service Bus emulator) | 2 | 16h |
+| **Per producer** | **9 P/D** | **72h** |
 
 ### Per Consumer Service
 
-| Activity | P/D |
-|----------|-----|
-| Service Bus consumer registration (IHostedService / Azure Functions) | 2 |
-| Idempotency check (deduplication ID / processed event log) | 2 |
-| Dead letter handling + alerting | 2 |
-| Compensating transaction / saga step (if transactional) | 3–6 |
-| Error classification (retry vs dead-letter vs discard) | 2 |
-| Unit + integration tests | 2 |
-| **Per consumer** | **11–14 P/D** |
+| Activity | P/D | Hrs |
+|----------|-----|-----|
+| Service Bus consumer registration (IHostedService / Azure Functions) | 2 | 16h |
+| Idempotency check (deduplication ID / processed event log) | 2 | 16h |
+| Dead letter handling + alerting | 2 | 16h |
+| Compensating transaction / saga step (if transactional) | 3–6 | 24–48h |
+| Error classification (retry vs dead-letter vs discard) | 2 | 16h |
+| Unit + integration tests | 2 | 16h |
+| **Per consumer** | **11–14 P/D** | **88–112h** |
 
 ### EDA Platform Infrastructure
 
-| Activity | P/D |
-|----------|-----|
-| Service Bus namespace provisioning (Bicep) | 1 |
-| Topic / subscription setup with filters | 2 |
-| RBAC for producer/consumer managed identities | 1 |
-| Dead letter queue monitoring dashboard | 2 |
-| Message replay tooling (for ops team) | 3 |
-| Schema Registry setup (if used) | 2 |
-| **Platform Total** | | **11 P/D** |
+| Activity | P/D | Hrs |
+|----------|-----|-----|
+| Service Bus namespace provisioning (Bicep) | 1 | 8h |
+| Topic / subscription setup with filters | 2 | 16h |
+| RBAC for producer/consumer managed identities | 1 | 8h |
+| Dead letter queue monitoring dashboard | 2 | 16h |
+| Message replay tooling (for ops team) | 3 | 24h |
+| Schema Registry setup (if used) | 2 | 16h |
+| **Platform Total** | | **11 P/D** | **88h** |
 
 ### EDA Estimate: 5 Producer + 8 Consumer System
 
 ```
-Design & architecture:       12 P/D
-5 producers × 9 P/D:         45 P/D
-8 consumers × 12 P/D:        96 P/D
-Platform infrastructure:     11 P/D
-Testing & chaos scenarios:    8 P/D
-─────────────────────────────────────
-Base Total:                 172 P/D
+Design & architecture:        12 P/D  |    96 hrs
+5 producers × 9 P/D:          45 P/D  |   360 hrs
+8 consumers × 12 P/D:         96 P/D  |   768 hrs
+Platform infrastructure:      11 P/D  |    88 hrs
+Testing & chaos scenarios:     8 P/D  |    64 hrs
+──────────────────────────────────────────────────
+Base Total:                  172 P/D  |  1,376 hrs
 
-Buffer for schema change cycles (+20%): 207 P/D
+Buffer for schema change cycles (+20%): 207 P/D  |  1,656 hrs
+
+// Team of 4 at 8 P/D/sprint = 32 P/D/sprint (256 hrs/sprint)
+// Duration: ~6.5 sprints (13 weeks) at base | ~7.5 sprints (15 weeks) with buffer
 ```
 
 ---
@@ -1167,51 +1177,53 @@ API platform work is uniquely architect-heavy. The design decisions (versioning 
 
 #### API Design Phase
 
-| Activity | Owner | P/D |
-|----------|-------|-----|
-| OpenAPI specification (per service) | TA + Dev | 2–4 per service |
-| Versioning strategy definition (URI / header / media type) | TA | 1 |
-| Error response standard (RFC 7807 Problem Details) | TA | 1 |
-| Auth strategy (OAuth2 scopes, API keys, managed identity) | TA | 2 |
-| Rate limiting tier design (per consumer type) | TA | 1 |
-| API naming + resource model standards | TA | 1 |
+| Activity | Owner | P/D | Hrs |
+|----------|-------|-----|-----|
+| OpenAPI specification (per service) | TA + Dev | 2–4 per service | 16–32h per service |
+| Versioning strategy definition (URI / header / media type) | TA | 1 | 8h |
+| Error response standard (RFC 7807 Problem Details) | TA | 1 | 8h |
+| Auth strategy (OAuth2 scopes, API keys, managed identity) | TA | 2 | 16h |
+| Rate limiting tier design (per consumer type) | TA | 1 | 8h |
+| API naming + resource model standards | TA | 1 | 8h |
 
 #### APIM Configuration
 
-| Activity | P/D | Notes |
-|----------|-----|-------|
-| APIM instance provisioning (Bicep) | 2 | SKU choice has cost implications — document the decision |
-| Base policy set (auth, CORS, rate limit, logging) | 3 | Reusable policy fragments per policy type |
-| Per-API import + configuration | 1.5 per API | Higher for APIs with complex transformation logic |
-| Product + subscription model setup | 2 | Defines how consumers onboard |
-| Developer portal customisation | 3 | Branding, documentation, try-it experience |
-| Backend wiring (private endpoints / VNet integration) | 3 | Routing to AKS services or function backends |
-| JWT validation + claims transformation policies | 3 | Often underestimated — policy language has a learning curve |
-| Monitoring: APIM + Application Insights integration | 2 | Request tracing, latency dashboards |
+| Activity | P/D | Hrs | Notes |
+|----------|-----|-----|-------|
+| APIM instance provisioning (Bicep) | 2 | 16h | SKU choice has cost implications — document the decision |
+| Base policy set (auth, CORS, rate limit, logging) | 3 | 24h | Reusable policy fragments per policy type |
+| Per-API import + configuration | 1.5 per API | 12h per API | Higher for APIs with complex transformation logic |
+| Product + subscription model setup | 2 | 16h | Defines how consumers onboard |
+| Developer portal customisation | 3 | 24h | Branding, documentation, try-it experience |
+| Backend wiring (private endpoints / VNet integration) | 3 | 24h | Routing to AKS services or function backends |
+| JWT validation + claims transformation policies | 3 | 24h | Often underestimated — policy language has a learning curve |
+| Monitoring: APIM + Application Insights integration | 2 | 16h | Request tracing, latency dashboards |
 
 #### Per API Onboarding (recurring cost — add per new API)
 
 ```
-OpenAPI spec review + import:    0.5 P/D
-Policy application:              0.5 P/D
-Subscription / product setup:    0.5 P/D
-Documentation + portal update:   0.5 P/D
-──────────────────────────────────────────
-Per API:                         2 P/D
+OpenAPI spec review + import:    0.5 P/D  |  4h
+Policy application:              0.5 P/D  |  4h
+Subscription / product setup:    0.5 P/D  |  4h
+Documentation + portal update:   0.5 P/D  |  4h
+────────────────────────────────────────────────
+Per API:                         2 P/D    |  16h
 ```
 
 #### API Platform — 10-API Engagement Estimate
 
 ```
-Architecture & standards design:   11 P/D
-APIM provisioning + base:          13 P/D
-10 APIs × 2 P/D onboarding:        20 P/D
-Developer portal:                   3 P/D
-Testing (contract tests, APIM policies): 5 P/D
-──────────────────────────────────────────────
-Base Total:                        52 P/D
+Architecture & standards design:        11 P/D  |    88 hrs
+APIM provisioning + base:               13 P/D  |   104 hrs
+10 APIs × 2 P/D onboarding:            20 P/D  |   160 hrs
+Developer portal:                        3 P/D  |    24 hrs
+Testing (contract tests, APIM policies): 5 P/D  |    40 hrs
+────────────────────────────────────────────────────────────
+Base Total:                             52 P/D  |   416 hrs
 
-Note: Does not include the backend APIs themselves — only the gateway layer.
+// Team of 2 DevOps + TA at 8 P/D/sprint = 24 P/D/sprint (192 hrs/sprint)
+// Duration: ~3 sprints (6 weeks) — gateway layer only
+// Note: Does not include the backend APIs themselves — only the gateway layer.
 ```
 
 ---
@@ -1232,38 +1244,38 @@ Always recommend BFF for enterprise frontends. Budget it explicitly.
 
 ### BFF Service Estimate
 
-| Activity | P/D |
-|----------|-----|
-| BFF project setup (.NET Minimal API) | 1 |
-| Auth integration (Azure AD / MSAL, token forwarding) | 3 |
-| Aggregation endpoints (1–1.5 P/D each) | varies |
-| Response shaping + caching (IMemoryCache / Redis) | 2 |
-| Error normalisation (translate microservice errors to client-friendly) | 1 |
-| Health check + observability | 1 |
-| Unit + integration tests | 3 |
-| **BFF Base** | **11 P/D + aggregation endpoints** |
+| Activity | P/D | Hrs |
+|----------|-----|-----|
+| BFF project setup (.NET Minimal API) | 1 | 8h |
+| Auth integration (Azure AD / MSAL, token forwarding) | 3 | 24h |
+| Aggregation endpoints (1–1.5 P/D each) | varies | 8–12h each |
+| Response shaping + caching (IMemoryCache / Redis) | 2 | 16h |
+| Error normalisation (translate microservice errors to client-friendly) | 1 | 8h |
+| Health check + observability | 1 | 8h |
+| Unit + integration tests | 3 | 24h |
+| **BFF Base** | **11 P/D + aggregation endpoints** | **88h + 8–12h per endpoint** |
 
 ### ReactJS Frontend Effort Table
 
-| Component | P/D | Assumptions |
-|-----------|-----|------------|
-| Project scaffold (Vite, TypeScript, ESLint, Prettier) | 1 | |
-| Design system / component library setup (MUI / custom) | 3 | |
-| Routing setup (React Router v6, protected routes) | 2 | |
-| Azure AD auth integration (MSAL React) | 3 | |
-| API layer (RTK Query or React Query + Axios) | 2 | |
-| Global error boundary + toast notifications | 1 | |
-| Simple read-only screen (list + detail) | 1.5 per screen | |
-| CRUD screen (list + form + validation) | 3–4 per screen | |
-| Dashboard with charts | 4–6 | |
-| Search with filters + pagination | 3 | |
-| File upload screen | 3 | |
-| Multi-step wizard / complex form | 5–8 | |
-| Role-based UI rendering | 2 | Add once; scales across screens |
-| Responsive layout audit | 2 | Per pass across full app |
-| Accessibility baseline (WCAG 2.1 AA) | 3 | Often contractually required |
-| E2E test suite (Playwright) | 5 | Core happy paths per feature |
-| Performance audit + code splitting | 3 | Do once before go-live |
+| Component | P/D | Hrs | Assumptions |
+|-----------|-----|-----|------------|
+| Project scaffold (Vite, TypeScript, ESLint, Prettier) | 1 | 8h | |
+| Design system / component library setup (MUI / custom) | 3 | 24h | |
+| Routing setup (React Router v6, protected routes) | 2 | 16h | |
+| Azure AD auth integration (MSAL React) | 3 | 24h | |
+| API layer (RTK Query or React Query + Axios) | 2 | 16h | |
+| Global error boundary + toast notifications | 1 | 8h | |
+| Simple read-only screen (list + detail) | 1.5 per screen | 12h per screen | |
+| CRUD screen (list + form + validation) | 3–4 per screen | 24–32h per screen | |
+| Dashboard with charts | 4–6 | 32–48h | |
+| Search with filters + pagination | 3 | 24h | |
+| File upload screen | 3 | 24h | |
+| Multi-step wizard / complex form | 5–8 | 40–64h | |
+| Role-based UI rendering | 2 | 16h | Add once; scales across screens |
+| Responsive layout audit | 2 | 16h | Per pass across full app |
+| Accessibility baseline (WCAG 2.1 AA) | 3 | 24h | Often contractually required |
+| E2E test suite (Playwright) | 5 | 40h | Core happy paths per feature |
+| Performance audit + code splitting | 3 | 24h | Do once before go-live |
 
 ### Architect's Input on ReactJS Estimation
 
@@ -1293,75 +1305,77 @@ Teams routinely estimate the time to run `az aks create` and forget everything e
 
 #### Networking & Access
 
-| Activity | P/D |
-|----------|-----|
-| VNet design + subnet allocation (AKS, ingress, app gateway) | 2 |
-| Private cluster setup (no public API server) | 2 |
-| Azure CNI / Overlay networking decision + config | 1 |
-| NGINX / AGIC ingress controller + TLS (cert-manager) | 3 |
-| DNS integration (Azure Private DNS / custom) | 2 |
-| **Networking Total** | **10 P/D** |
+| Activity | P/D | Hrs |
+|----------|-----|-----|
+| VNet design + subnet allocation (AKS, ingress, app gateway) | 2 | 16h |
+| Private cluster setup (no public API server) | 2 | 16h |
+| Azure CNI / Overlay networking decision + config | 1 | 8h |
+| NGINX / AGIC ingress controller + TLS (cert-manager) | 3 | 24h |
+| DNS integration (Azure Private DNS / custom) | 2 | 16h |
+| **Networking Total** | **10 P/D** | **80h** |
 
 #### Security
 
-| Activity | P/D |
-|----------|-----|
-| Azure AD integration + RBAC (cluster + namespace level) | 2 |
-| Workload Identity setup (per service managed identity) | 3 |
-| Key Vault CSI driver (secrets into pods without env vars) | 2 |
-| Network policies (Calico — deny-all default, allow per service) | 3 |
-| Pod Security Standards (restricted profile per namespace) | 2 |
-| Defender for Containers / image scanning integration | 1 |
-| **Security Total** | **13 P/D** |
+| Activity | P/D | Hrs |
+|----------|-----|-----|
+| Azure AD integration + RBAC (cluster + namespace level) | 2 | 16h |
+| Workload Identity setup (per service managed identity) | 3 | 24h |
+| Key Vault CSI driver (secrets into pods without env vars) | 2 | 16h |
+| Network policies (Calico — deny-all default, allow per service) | 3 | 24h |
+| Pod Security Standards (restricted profile per namespace) | 2 | 16h |
+| Defender for Containers / image scanning integration | 1 | 8h |
+| **Security Total** | **13 P/D** | **104h** |
 
 #### Autoscaling
 
-| Activity | P/D |
-|----------|-----|
-| HPA setup per deployment (CPU + memory thresholds) | 2 |
-| KEDA installation + ScaledObject per Service Bus consumer | 3 |
-| Cluster Autoscaler configuration + node pool sizing | 2 |
-| VPA (Vertical Pod Autoscaler) — optional, document decision | 1 |
-| **Autoscaling Total** | **8 P/D** |
+| Activity | P/D | Hrs |
+|----------|-----|-----|
+| HPA setup per deployment (CPU + memory thresholds) | 2 | 16h |
+| KEDA installation + ScaledObject per Service Bus consumer | 3 | 24h |
+| Cluster Autoscaler configuration + node pool sizing | 2 | 16h |
+| VPA (Vertical Pod Autoscaler) — optional, document decision | 1 | 8h |
+| **Autoscaling Total** | **8 P/D** | **64h** |
 
 #### Observability
 
-| Activity | P/D |
-|----------|-----|
-| Azure Monitor Container Insights + log analytics workspace | 2 |
-| Prometheus + Grafana stack (kube-prometheus-stack Helm) | 3 |
-| Custom dashboards (cluster health, pod saturation, latency) | 3 |
-| Alerting rules (pod restarts, node pressure, memory OOM) | 2 |
-| Distributed tracing (OpenTelemetry collector on cluster) | 3 |
-| **Observability Total** | **13 P/D** |
+| Activity | P/D | Hrs |
+|----------|-----|-----|
+| Azure Monitor Container Insights + log analytics workspace | 2 | 16h |
+| Prometheus + Grafana stack (kube-prometheus-stack Helm) | 3 | 24h |
+| Custom dashboards (cluster health, pod saturation, latency) | 3 | 24h |
+| Alerting rules (pod restarts, node pressure, memory OOM) | 2 | 16h |
+| Distributed tracing (OpenTelemetry collector on cluster) | 3 | 24h |
+| **Observability Total** | **13 P/D** | **104h** |
 
 #### GitOps & CI/CD
 
-| Activity | P/D |
-|----------|-----|
-| Helm chart per service (templated, reusable) | 2 per service |
-| ArgoCD or Flux installation + repo sync setup | 3 |
-| Application sets / kustomize overlays per environment | 3 |
-| GitHub Actions / Azure DevOps pipeline per service | 2 per service |
-| Image promotion workflow (dev → staging → prod) | 3 |
-| **GitOps Base (excluding per-service)** | **9 P/D** |
+| Activity | P/D | Hrs |
+|----------|-----|-----|
+| Helm chart per service (templated, reusable) | 2 per service | 16h per service |
+| ArgoCD or Flux installation + repo sync setup | 3 | 24h |
+| Application sets / kustomize overlays per environment | 3 | 24h |
+| GitHub Actions / Azure DevOps pipeline per service | 2 per service | 16h per service |
+| Image promotion workflow (dev → staging → prod) | 3 | 24h |
+| **GitOps Base (excluding per-service)** | **9 P/D** | **72h** |
 
 #### AKS Total Estimate (Cluster Only, 6-Service System)
 
 ```
-Networking:                  10 P/D
-Security:                    13 P/D
-Autoscaling:                  8 P/D
-Observability:               13 P/D
-GitOps base:                  9 P/D
-Helm charts (6 × 2):         12 P/D
-Pipelines (6 × 2):           12 P/D
-──────────────────────────────────
-Base Total:                  77 P/D
+Networking:                   10 P/D  |    80 hrs
+Security:                     13 P/D  |   104 hrs
+Autoscaling:                   8 P/D  |    64 hrs
+Observability:                13 P/D  |   104 hrs
+GitOps base:                   9 P/D  |    72 hrs
+Helm charts (6 × 2):          12 P/D  |    96 hrs
+Pipelines (6 × 2):            12 P/D  |    96 hrs
+───────────────────────────────────────────────────
+Base Total:                   77 P/D  |   616 hrs
 
-Buffer for environment parity issues (+15%): 89 P/D
+Buffer for environment parity issues (+15%): 89 P/D  |  712 hrs
 
-Note: This is platform work only. Application code is separate.
+// Team of 1 DevOps + TA at 8 P/D/sprint = 16 P/D/sprint (128 hrs/sprint)
+// Duration: ~5.5 sprints (11 weeks) — platform only
+// Note: This is platform work only. Application code is separate.
 ```
 
 ---
@@ -1372,19 +1386,19 @@ Note: This is platform work only. Application code is separate.
 // ── The invisible cost list — add these to every estimate, always ────────────
 ```
 
-| Item | Typical P/D | Why it gets missed |
-|------|------------|-------------------|
-| Architecture Decision Records (ADRs) | 2–4 | "We'll document later" — never happens |
-| Local developer environment setup guide | 1 | Assumed to be trivial; costs 0.5 P/D per developer |
-| Secrets management wiring (Key Vault → app) | 2–4 | Often treated as config, not as a deliverable |
-| Environment parity issues (dev ≠ staging ≠ prod) | 3–8 | Always surfaces during staging deploy, never estimated |
-| Data migration / seed scripts | 3–10 | Rarely on the functional backlog |
-| API contract test suite (consumer-driven) | 3–5 | Skipped in favour of integration tests |
-| Operational runbook for each service | 1–2 per service | "Not a feature" — but required for handover |
-| Hypercare / post-go-live support window | 5–10 | "The project ends at go-live" — no it does not |
-| Third-party SDK upgrade issues | 2–5 | A dependency had a breaking change nobody knew about |
-| Cross-browser / cross-device testing | 2–3 | Frontend teams test one browser |
-| Soft-delete / audit trail for regulated data | 3–5 | Added after the data model is built, requires rework |
+| Item | Typical P/D | Typical Hrs | Why it gets missed |
+|------|------------|------------|-------------------|
+| Architecture Decision Records (ADRs) | 2–4 | 16–32h | "We'll document later" — never happens |
+| Local developer environment setup guide | 1 | 8h | Assumed to be trivial; costs 0.5 P/D per developer |
+| Secrets management wiring (Key Vault → app) | 2–4 | 16–32h | Often treated as config, not as a deliverable |
+| Environment parity issues (dev ≠ staging ≠ prod) | 3–8 | 24–64h | Always surfaces during staging deploy, never estimated |
+| Data migration / seed scripts | 3–10 | 24–80h | Rarely on the functional backlog |
+| API contract test suite (consumer-driven) | 3–5 | 24–40h | Skipped in favour of integration tests |
+| Operational runbook for each service | 1–2 per service | 8–16h per service | "Not a feature" — but required for handover |
+| Hypercare / post-go-live support window | 5–10 | 40–80h | "The project ends at go-live" — no it does not |
+| Third-party SDK upgrade issues | 2–5 | 16–40h | A dependency had a breaking change nobody knew about |
+| Cross-browser / cross-device testing | 2–3 | 16–24h | Frontend teams test one browser |
+| Soft-delete / audit trail for regulated data | 3–5 | 24–40h | Added after the data model is built, requires rework |
 
 ---
 
@@ -1429,9 +1443,9 @@ Note: This is platform work only. Application code is separate.
 │  [2-3 sentences: what is being built, what is not]                   │
 ├──────────────────────────────────────────────────────────────────────┤
 │  ESTIMATE                                                             │
-│  Optimistic:    [N] P/D  |  [X] sprints  |  [date]                  │
-│  Realistic:     [N] P/D  |  [X] sprints  |  [date]  ← RECOMMENDED   │
-│  Conservative:  [N] P/D  |  [X] sprints  |  [date]                  │
+│  Optimistic:    [N] P/D  |  [N×8] hrs  |  [X] sprints  |  [date]    │
+│  Realistic:     [N] P/D  |  [N×8] hrs  |  [X] sprints  |  [date] ←  │
+│  Conservative:  [N] P/D  |  [N×8] hrs  |  [X] sprints  |  [date]    │
 ├──────────────────────────────────────────────────────────────────────┤
 │  KEY ASSUMPTIONS (if these break, estimate changes)                  │
 │  1. [assumption]                                                      │
