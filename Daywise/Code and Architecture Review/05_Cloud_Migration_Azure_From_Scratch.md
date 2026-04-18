@@ -42,6 +42,18 @@ Phase 9  →  API Gateway & Edge (APIM, Front Door, WAF)
 Phase 10 →  Observability, Alerting & Go-Live Readiness
 ```
 
+| Phase | What | Why This Order |
+| --- | --- | --- |
+| 1 — Foundation | Tenant, Management Groups, Subscriptions, Naming, Tagging | Everything else lives inside these |
+| 2 — Networking | VNet, Subnets, NSG, DNS Zones, Peering | AKS/SQL cannot be moved to a VNet after creation |
+| 3 — Identity | RBAC, Managed Identities, Workload Identity | Must exist before assigning permissions to any resource |
+| 4 — Security Baseline | Key Vault, Defender, Azure Policy | Secrets needed before compute; policies enforce from day 1 |
+| 5 — Registry & CI/CD | ACR, CI pipeline, IaC pipeline | Need image storage before deploying apps |
+| 6 — Compute | AKS / Functions / Container Apps | With AKS: cluster → add-ons → namespaces → Network Policies |
+| 7 — Data Layer | SQL, Cosmos, Redis, Storage | Each with private endpoint + Managed Identity access |
+| 8 — Messaging | Service Bus, Event Hubs | DLQ config, Topics/Subscriptions, RBAC |
+| 9 — API Gateway | APIM, Front Door, WAF | Built on top of working compute + backends |
+| 10 — Observability | Log Analytics, App Insights, Alerts, Go-Live Checklist | Alerts BEFORE first production traffic |
 ---
 
 ## Phase 1 — Azure Foundation
