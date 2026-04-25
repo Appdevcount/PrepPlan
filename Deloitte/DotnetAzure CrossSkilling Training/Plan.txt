@@ -1,0 +1,72 @@
+
+
+The plan is to train some non dotnet background and non Azure background resources in dotnet. some may not  have any exposure in dotnet. This is the plan i prepared to train them in 8 days . deep traiing is not possible but these are some of the topics i thought of touching.
+prior to starting this i plan to have one intro session where i will go thru dotnet and c# and its usage in different areas. the audience should be familiar with fundamentals of language
+.Go through this plan and suggest me if any changes and give me end to end content to walk through in training. this will be 1 hr session per day
+Day
+	
+
+Topic
+	
+
+Detailed Topics to Cover
+
+1
+	
+
+Modern App Architecture Overview
+	
+
+Microservices, Clean Architecture, SOLID principles, REST APIs, Azure service mapping for apps (App Service, SQL DB, Storage, APIM, Key Vault)
+
+2
+	
+
+Building APIs
+	
+
+ASP.NET Core request pipeline,  Dependency Injection lifetimes, Middleware concepts, Model validation, Exception handling basics, Swagger/OpenAPI,  DTO vs Entity separation, Async/await best practices
+
+3
+	
+
+Configuration & Secrets
+	
+
+appsettings.json structure,  IConfiguration usage, Options pattern, Environment variables,  Azure Key Vault, Azure App Configuration, Feature flags, Secret rotation concepts
+
+4
+	
+
+Authentication & Authorization
+	
+
+Authentication vs Authorization, JWT token structure, Claims and roles, Policy-based authorization, Microsoft Entra ID overview,  RBAC basics, Managed Identity for service-to-service auth
+
+5
+	
+
+Data Access Patterns
+	
+
+EF Core architecture,  Code First migrations, LINQ best practices,   Transactions, Azure SQL overview, Cosmos DB,
+
+6
+	
+
+Observability & Error Handling
+	
+
+ILogger abstraction,  Log levels, Global exception middleware, Correlation IDs, Health checks, Azure Application Insights telemetry
+
+7
+	
+
+Scalable Enterprise Design
+	
+
+Caching, Background jobs,  Event-driven basics, API Management policies, Azure Functions triggers, Horizontal scaling, Stateless design
+
+ 
+
+ 
