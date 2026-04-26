@@ -13,9 +13,9 @@
 | 0–5 min | What is .NET? Where does it run? |
 | 5–15 min | dotnet CLI + Project Structure |
 | 15–28 min | C# Language Basics |
-| 28–40 min | Classes, Interfaces, and Dependency Inversion |
-| 40–50 min | Async/Await — The Mental Model |
-| 50–57 min | Null Safety, Exception Handling & Modern Shortcuts |
+| 28–45 min | Classes, OOP Pillars, Access Specifiers, Interfaces, and Dependency Inversion |
+| 45–53 min | Async/Await — The Mental Model |
+| 53–58 min | Null Safety, Exception Handling & Modern Shortcuts |
 | 57–60 min | Key Takeaways + Q&A |
 
 ---
@@ -200,7 +200,7 @@ string label = age switch
 
 ---
 
-## 4. Classes, Interfaces, and Dependency Inversion (28–40 min)
+## 4. Classes, OOP Pillars, Access Specifiers, Interfaces, and Dependency Inversion (28–45 min)
 
 ### Mental Model
 > A **class** is a blueprint. An **interface** is a contract. When you code to an interface, you can swap the blueprint anytime — like plugging a different USB device into the same port.
@@ -241,6 +241,229 @@ public record CustomerDto(int Id, string Name, string Email);
 var customer = new CustomerDto(1, "Alice", "alice@example.com");
 var updated  = customer with { Email = "newalice@example.com" }; // new copy, original unchanged
 ```
+
+### The 4 Pillars of OOP
+
+```
+┌──────────────────┬───────────────────────────────────────────────────────┐
+│  Pillar          │  What It Means                                        │
+├──────────────────┼───────────────────────────────────────────────────────┤
+│  Encapsulation   │  Hide internal details; expose only what's needed     │
+│  Inheritance     │  A class reuses behavior from a parent class          │
+│  Polymorphism    │  Same call, different behavior depending on the type  │
+│  Abstraction     │  Define what to do without specifying how             │
+└──────────────────┴───────────────────────────────────────────────────────┘
+```
+
+### Access Specifiers — Who Can See What
+
+> **Mental Model:** Access specifiers are **room keys in a building**. `public` is the lobby — anyone can enter. `private` is your personal office — only you. `protected` is a family home — you and your children. `internal` is the company floor — anyone in the same building (assembly).
+
+```
+┌───────────────────────┬────────┬───────────┬──────────┬──────────────┐
+│  Specifier            │ Same   │ Derived   │ Same     │ Other        │
+│                       │ Class  │ Class     │ Assembly │ Assemblies   │
+├───────────────────────┼────────┼───────────┼──────────┼──────────────┤
+│  public               │  ✓     │  ✓        │  ✓       │  ✓           │
+│  private              │  ✓     │  ✗        │  ✗       │  ✗           │
+│  protected            │  ✓     │  ✓        │  ✗       │  ✗           │
+│  internal             │  ✓     │  ✓        │  ✓       │  ✗           │
+│  protected internal   │  ✓     │  ✓        │  ✓       │  ✗           │
+│  private protected    │  ✓     │  ✓ (same  │  ✗       │  ✗           │
+│                       │        │  assembly)│          │              │
+└───────────────────────┴────────┴───────────┴──────────┴──────────────┘
+```
+
+```csharp
+public class Employee
+{
+    public string Name { get; set; } = string.Empty;   // accessible everywhere
+    private decimal _salary;                            // this class only
+    protected string Department { get; set; } = string.Empty; // this + derived classes
+    internal int EmployeeCode { get; set; }             // same project (assembly)
+
+    public Employee(string name, decimal salary)
+    {
+        Name = name;
+        _salary = salary;
+    }
+
+    public decimal GetSalary() => _salary;
+
+    public void ApplyRaise(decimal percent)
+    {
+        if (percent <= 0) throw new ArgumentException("Percent must be positive");
+        _salary += _salary * (percent / 100);
+    }
+}
+
+public class Manager : Employee
+{
+    public Manager(string name, decimal salary) : base(name, salary) { }
+
+    public void SetDepartment(string dept)
+    {
+        Department = dept;   // ✓ allowed — protected, Manager is a derived class
+        // _salary = 9999;   // ✗ compile error — private to Employee only
+    }
+}
+```
+
+**Default access when you omit the specifier:**
+
+```
+┌──────────────────────┬──────────────────────────────────────────┐
+│  Context             │  Default                                 │
+├──────────────────────┼──────────────────────────────────────────┤
+│  Class members       │  private                                 │
+│  Top-level classes   │  internal                                │
+│  Interface members   │  public                                  │
+└──────────────────────┴──────────────────────────────────────────┘
+```
+
+### Encapsulation — Hide the Internals
+
+> **Mental Model:** A bank account exposes `Deposit()` and `Withdraw()` buttons. It does NOT let you directly edit the balance — that would break the rules. Encapsulation protects the object's state.
+
+```csharp
+public class BankAccount
+{
+    private decimal _balance;                  // hidden — no direct external access
+    public decimal Balance => _balance;        // read-only view
+    public string Owner { get; }
+
+    public BankAccount(string owner, decimal initialBalance)
+    {
+        Owner = owner;
+        _balance = initialBalance;
+    }
+
+    public void Deposit(decimal amount)
+    {
+        if (amount <= 0) throw new ArgumentException("Amount must be positive");
+        _balance += amount;
+    }
+
+    public void Withdraw(decimal amount)
+    {
+        if (amount > _balance) throw new InvalidOperationException("Insufficient funds");
+        _balance -= amount;
+    }
+}
+
+// account._balance = 9999;  ← compile error — encapsulation enforced
+```
+
+### Inheritance — Reuse Behavior from a Parent
+
+> **Mental Model:** A `Dog` IS-AN `Animal`. It inherits everything an animal can do (breathe, move) and adds its own behavior (bark). You don't rewrite breathing — you inherit it.
+
+```csharp
+public class Animal
+{
+    public string Name { get; }
+    public Animal(string name) => Name = name;
+
+    public virtual string Speak() => "...";           // virtual = can be overridden
+    public void Breathe() => Console.WriteLine($"{Name} is breathing");
+}
+
+public class Dog : Animal
+{
+    public Dog(string name) : base(name) { }          // calls parent constructor
+
+    public override string Speak() => "Woof!";        // overrides parent behaviour
+    public void Fetch() => Console.WriteLine($"{Name} fetches the ball");
+}
+
+public class Cat : Animal
+{
+    public Cat(string name) : base(name) { }
+    public override string Speak() => "Meow!";
+}
+
+// sealed — prevents any further inheritance of this class
+public sealed class MathHelper
+{
+    public static double CircleArea(double r) => Math.PI * r * r;
+}
+```
+
+### Polymorphism — Same Call, Different Behavior
+
+> **Mental Model:** You tell every shape to `Draw()`. A circle draws a circle, a square draws a square. You write one loop — each type handles it differently.
+
+```csharp
+// ── Runtime polymorphism (virtual/override) ───────────────
+Animal[] animals = { new Dog("Rex"), new Cat("Whiskers"), new Dog("Buddy") };
+
+foreach (var animal in animals)
+{
+    Console.WriteLine($"{animal.Name} says: {animal.Speak()}");
+}
+// Rex says: Woof!
+// Whiskers says: Meow!
+// Buddy says: Woof!
+
+// ── Compile-time polymorphism (method overloading) ────────
+public class Calculator
+{
+    public int Add(int a, int b)       => a + b;
+    public double Add(double a, double b) => a + b;
+    public string Add(string a, string b) => a + b;  // concatenation
+}
+```
+
+### Abstraction — Define What, Not How
+
+> **Mental Model:** A TV remote defines buttons. You know what each button does. You don't know how the TV implements them. Abstraction hides implementation behind a clean surface.
+
+```csharp
+public abstract class Shape
+{
+    public string Color { get; set; } = "White";
+
+    public abstract double Area();   // must be implemented by every derived class
+
+    public void Describe() => Console.WriteLine($"{Color} shape, area: {Area():F2}");
+}
+
+public class Circle : Shape
+{
+    public double Radius { get; }
+    public Circle(double r) => Radius = r;
+    public override double Area() => Math.PI * Radius * Radius;
+}
+
+public class Rectangle : Shape
+{
+    public double Width { get; }
+    public double Height { get; }
+    public Rectangle(double w, double h) { Width = w; Height = h; }
+    public override double Area() => Width * Height;
+}
+
+Shape[] shapes = { new Circle(5), new Rectangle(4, 6) };
+foreach (var s in shapes)
+    s.Describe();
+```
+
+**Abstract class vs Interface:**
+
+```
+┌───────────────────────┬──────────────────────────────────────────────────┐
+│  Abstract Class       │  Interface                                       │
+├───────────────────────┼──────────────────────────────────────────────────┤
+│  Can have fields      │  No fields (only properties/methods/events)      │
+│  Can have constructor │  No constructor                                  │
+│  Single inheritance   │  A class can implement many interfaces           │
+│  IS-A relationship    │  CAN-DO relationship                             │
+│  Use: shared base     │  Use: capability contract                        │
+│  behaviour + enforce  │  e.g., IDisposable, ILogger, IEmailService       │
+└───────────────────────┴──────────────────────────────────────────────────┘
+```
+
+---
 
 ### Interface — The Contract
 
@@ -448,9 +671,11 @@ dotnet add package Azure.Messaging.ServiceBus                    # Service Bus m
 
 1. **.NET is the runtime** — C# is the language. You write C#; .NET runs it anywhere (Windows, Linux, containers, Azure).
 2. **`dotnet` CLI is your main tool** — create, build, run, test, publish without an IDE.
-3. **Interfaces are contracts** — always code to an interface, not a concrete class.
-4. **Records for data** — use `record` for DTOs; they are immutable and self-documenting.
-5. **Async/await = non-blocking I/O** — never use `.Result` or `.Wait()`; always `await`.
+3. **OOP in one line** — Encapsulation hides state, Inheritance reuses behavior, Polymorphism lets one call behave differently per type, Abstraction hides how behind what.
+4. **Access specifiers control visibility** — `private` by default for members; use `public` deliberately, `internal` to limit to the same project, `protected` for derived classes.
+5. **Interfaces are contracts** — always code to an interface, not a concrete class; a class can implement many interfaces but only inherit one base class.
+6. **Records for data** — use `record` for DTOs; they are immutable and self-documenting.
+7. **Async/await = non-blocking I/O** — never use `.Result` or `.Wait()`; always `await`.
 
 ---
 
@@ -462,19 +687,35 @@ dotnet add package Azure.Messaging.ServiceBus                    # Service Bus m
 
 ---
 
-**2. Why would you use an interface instead of just inheriting from a base class?**
+**2. What are the 4 pillars of OOP? Give a one-line example of each in C#.**
+
+**Answer:**
+- **Encapsulation** — `private decimal _balance;` with a public `Deposit()` method that validates input before changing it.
+- **Inheritance** — `public class Dog : Animal` — Dog reuses `Breathe()` from Animal and overrides `Speak()`.
+- **Polymorphism** — `Animal[] animals = { new Dog(), new Cat() }; foreach (var a in animals) a.Speak();` — same call, different output per type.
+- **Abstraction** — `public abstract class Shape { public abstract double Area(); }` — defines what must exist without saying how.
+
+---
+
+**3. What's the difference between `private`, `protected`, and `internal`?**
+
+**Answer:** `private` is visible only inside the class that declares it. `protected` extends that to derived (child) classes — useful for behavior that subclasses need but callers shouldn't. `internal` makes something visible to all code in the same project (assembly) but not to other projects — useful for implementation details you want to share within the library but not expose publicly. `protected internal` combines both: visible to derived classes OR anything in the same assembly.
+
+---
+
+**4. Why would you use an interface instead of just inheriting from a base class?**
 
 **Answer:** C# only allows single inheritance (a class can have one base class), but a class can implement many interfaces. Interfaces also don't force an implementation hierarchy — `SmtpEmailService` and `SendGridEmailService` can both implement `IEmailService` without being related classes. More importantly, interfaces make testing easy: you inject a fake implementation without changing the consumer at all.
 
 ---
 
-**3. What happens if you call an async method without `await`?**
+**5. What happens if you call an async method without `await`?**
 
 **Answer:** The method starts but the calling code doesn't wait for it to finish. You get a "fire and forget" — the returned `Task` is discarded, exceptions are swallowed silently, and you get a compiler warning. Always `await` unless you explicitly intend fire-and-forget (and even then, store the `Task` and handle exceptions).
 
 ---
 
-**4. What does `record` give you that a regular `class` doesn't?**
+**6. What does `record` give you that a regular `class` doesn't?**
 
 **Answer:** Three things automatically: (1) **Value equality** — two records with the same property values are equal (`==`), unlike classes which compare by reference. (2) **Immutability** — properties are `init`-only by default. (3) **`with` expressions** — create a modified copy without mutating the original. Records also generate a readable `ToString()` for free.
 
